@@ -1,0 +1,1020 @@
+# IRAF -> harwood migration map
+#
+# Source: 'IRAF - inventario de funcionalidades e o que o torna referencia'
+#   (iraf-community v2.18.2; Appendix A = tasks per package, section 3 = domains).
+# Contract: 'harwood - decisoes de projeto', sections 2, 3.2 and 10.1.
+#
+# This file is the single source behind `harwood list`, the migration table in
+# the docs, and the answer `harwood help <iraf-task>` gives for a task that
+# harwood does not ship. Every IRAF name a user may type must appear here, so
+# that the answer is never 'command not found'.
+#
+# domain scope   core   in the MVP's critical path
+#                later  after the MVP, kept as a named target
+#                split  part of the domain survives, the rest does not
+#                out    not portable or not wanted (section 2)
+#
+# task status    available  shipped and complete
+#                partial    shipped, with the gaps named in `note`
+#                planned    will exist, `milestone` says when
+#                replaced   the ecosystem already does it; `note` says what with
+#                wontport   deliberately not portable; `note` says why
+#
+# Counts: 610 distinct task names across 52 packages.
+#   available: 1, partial: 3, planned: 351, replaced: 94, wontport: 161
+#   milestone mvp: 57, later: 298
+#
+# Known delta: the inventory counts 609 distinct names, this file holds 610.
+# Two deliberate edits to what the Appendix A tables give: `observatory` was
+# added (Appendix A names it only in prose - it sits directly in the noao
+# package - and a user will type it), and `overview` was dropped (a crutil help
+# topic, which Appendix B excludes from the count). `system` is kept even though
+# it is the package's own name: a user can type it and deserves an answer.
+
+meta:
+  iraf_version: 2.18.2
+  source: iraf-community, menu (.men) files
+  packages: 52
+  distinct_tasks: 610
+
+domains:
+  io-formats:
+    inventory: section 3.1
+    scope: split
+    tasks: 43
+    rationale: "FITS/MEF is the working format (S2). The tape, plate-scanner and raster-conversion half is dropped."
+  headers:
+    inventory: section 3.2
+    scope: core
+    tasks: 28
+    rationale: astropy.io.fits covers it; hselect is how a night of data gets organised.
+  arithmetic:
+    inventory: section 3.3
+    scope: core
+    tasks: 25
+    rationale: "Cheap over numpy, used constantly, and imexpr has no Python equivalent as a task."
+  filtering:
+    inventory: section 3.4
+    scope: later
+    tasks: 21
+    rationale: scipy.ndimage covers the filters; fit1d/imsurfit matter mainly as ccdproc internals.
+  geometry:
+    inventory: section 3.5
+    scope: later
+    tasks: 33
+    rationale: reproject and astroalign cover registration; geomap/geotran distortion fitting does not exist in Python.
+  combine:
+    inventory: section 3.6
+    scope: core
+    tasks: 10
+    rationale: One engine reused by 6+ tasks and the first compiled kernel (S7).
+  ccd-reduction:
+    inventory: section 3.7
+    scope: core
+    tasks: 42
+    rationale: No reduction exists without it; ccdproc supplies the algorithms.
+  masks:
+    inventory: section 3.8
+    scope: core
+    tasks: 9
+    rationale: Prerequisite for the SCI/VAR/DQ decision (S2).
+  astrometry:
+    inventory: section 3.9
+    scope: later
+    tasks: 36
+    rationale: astropy.wcs plus astrometry.net cover the common path; ccmap-style interactive plate solutions do not.
+  display:
+    inventory: section 3.10
+    scope: core
+    tasks: 48
+    rationale: S8 already decided and prototyped it; icfit lives here and half of spectroscopy depends on it.
+  photometry:
+    inventory: section 3.11
+    scope: core
+    tasks: 64
+    rationale: photutils covers nearly all of it and the harwood tasks that exist today are here.
+  spec-2d:
+    inventory: section 3.12
+    scope: later
+    tasks: 30
+    rationale: "Biggest gap in the Python ecosystem and biggest potential value, but it needs icfit and the database/ store first."
+  spec-1d:
+    inventory: section 3.13
+    scope: later
+    tasks: 36
+    rationale: "Same as 3.12; specutils covers the containers, not the interactive calibration."
+  spec-pipelines:
+    inventory: section 3.14
+    scope: later
+    tasks: 20
+    rationale: "In harwood these are YAML recipes and presets, not tasks (S3.2)."
+  radial-velocity:
+    inventory: section 3.15
+    scope: later
+    tasks: 6
+    rationale: High value for stellar work and only 7 tasks; rvcorrect/setjd are trivial over astropy.
+  time-observatory:
+    inventory: section 3.16
+    scope: core
+    tasks: 6
+    rationale: Trivial over astropy.time/coordinates and needed by every header stamp.
+  instrument:
+    inventory: section 3.17
+    scope: later
+    tasks: 7
+    rationale: "psfmeasure and starfocus earn their place at the telescope, not in the MVP."
+  synthetic-data:
+    inventory: section 3.18
+    scope: core
+    tasks: 10
+    rationale: The smoke test and the S7.5 backend tests need it; photutils.datasets supplies it.
+  tables:
+    inventory: section 3.19
+    scope: out
+    tasks: 37
+    rationale: "astropy.table and ECSV replace the whole t* family; nothing here is ported."
+  fitting-lists:
+    inventory: section 3.20
+    scope: later
+    tasks: 20
+    rationale: curfit/icfit is infrastructure and comes with 3.10; the list utilities are shell work.
+  niches:
+    inventory: section 3.21
+    scope: out
+    tasks: 25
+    rationale: "vtel (solar), linpol, slitpic, binpairs, mkms: no user base to migrate."
+  system:
+    inventory: section 3.22
+    scope: split
+    tasks: 32
+    rationale: "help/references are the harwood CLI itself; the file and device utilities are the shell's job."
+  dev-tools:
+    inventory: no section
+    scope: out
+    tasks: 14
+    rationale: "mkpkg, xc, SPP tooling: replaced by Python packaging (S2)."
+  legacy:
+    inventory: no section
+    scope: out
+    tasks: 8
+    rationale: obsolete/ and nobsolete/ packages.
+
+tasks:
+  # --- io-formats (split, 43 tasks) -----------------------------
+  allocate: {pkg: system, domain: io-formats, status: wontport,
+    note: "tape and device allocation: legacy hardware (S2)"}
+  binfil: {pkg: proto, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  bintxt: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  devstatus: {pkg: system, domain: io-formats, status: wontport,
+    note: "tape and device allocation: legacy hardware (S2)"}
+  export: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  ghost2ms: {pkg: proto, domain: io-formats, status: wontport, note: Gemini-specific; DRAGONS owns this path}
+  i2sun: {pkg: proto.vol, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  imcopy: {pkg: images.imutil, domain: io-formats, status: planned, milestone: mvp}
+  imextensions: {pkg: proto, domain: io-formats, status: planned, milestone: mvp}
+  import: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  imtab: {pkg: utilities.nttools, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  irafil: {pkg: proto, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  ldumpf: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  listpixels: {pkg: images.imutil, domain: io-formats, status: planned, milestone: mvp}
+  mtexamine: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  r2df: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  rcamera: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  rcardimage: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  rdumpf: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  reblock: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  rewind: {pkg: system, domain: io-formats, status: wontport, note: "tape and device allocation: legacy hardware (S2)"}
+  rfits: {pkg: dataio, domain: io-formats, status: wontport, note: "unnecessary: FITS is read directly"}
+  rgbsun: {pkg: proto.color, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  ridsfile: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  ridsmtn: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  ridsout: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  rpds: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  rrcopy: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  rspectext: {pkg: onedspec, domain: io-formats, status: planned, milestone: later}
+  rtextimage: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  sinterp: {pkg: onedspec, domain: io-formats, status: planned, milestone: later}
+  suntoiraf: {pkg: proto, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  t2d: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  tabim: {pkg: utilities.nttools, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  tiimage: {pkg: utilities.nttools, domain: io-formats, status: wontport,
+    note: the shell (or astropy) already does this}
+  tximage: {pkg: utilities.nttools, domain: io-formats, status: wontport,
+    note: the shell (or astropy) already does this}
+  txtbin: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  urlget: {pkg: system, domain: io-formats, status: wontport, note: offline by default (S1)}
+  wcardimage: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "tape and raw-binary interchange: legacy hardware (S2)"}
+  wfits: {pkg: dataio, domain: io-formats, status: wontport, note: "unnecessary: FITS is written directly"}
+  widstape: {pkg: mtlocal, domain: io-formats, status: wontport,
+    note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
+  wspectext: {pkg: onedspec, domain: io-formats, status: planned, milestone: later}
+  wtextimage: {pkg: dataio, domain: io-formats, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+
+  # --- headers (core, 28 tasks) ---------------------------------
+  astcalc: {pkg: astutil, domain: headers, status: planned, milestone: later}
+  asthedit: {pkg: astutil, domain: headers, status: planned, milestone: later}
+  ccdhedit: {pkg: imred.ccdred, domain: headers, status: planned, milestone: later}
+  ccdinstrument: {pkg: imred.ccdred, domain: headers, status: planned, milestone: mvp}
+  ccdlist: {pkg: imred.ccdred, domain: headers, status: planned, milestone: mvp}
+  hedit: {pkg: images.imutil, domain: headers, status: planned, milestone: mvp}
+  hfix: {pkg: proto, domain: headers, status: planned, milestone: later}
+  hselect: {pkg: images.imutil, domain: headers, status: planned, milestone: mvp}
+  imgets: {pkg: images.imutil, domain: headers, status: planned, milestone: mvp}
+  imheader: {pkg: images.imutil, domain: headers, status: planned, milestone: mvp}
+  keypar: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  keytab: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  keywpars: {pkg: astutil, domain: headers, status: replaced, note: "absorbed into the task's Pydantic parameter model"}
+  mkglbhdr: {pkg: proto, domain: headers, status: planned, milestone: later}
+  mkheader: {pkg: artdata, domain: headers, status: planned, milestone: later}
+  nhedit: {pkg: images.imutil, domain: headers, status: planned, milestone: later}
+  parkey: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  partab: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  sapertures: {pkg: onedspec, domain: headers, status: planned, milestone: later}
+  setairmass: {pkg: [astutil, onedspec], domain: headers, status: planned, milestone: mvp}
+  setinstrument: {pkg: imred.ccdred, domain: headers, status: planned, milestone: mvp}
+  setjd: {pkg: [astutil, onedspec], domain: headers, status: planned, milestone: mvp}
+  slist: {pkg: onedspec, domain: headers, status: planned, milestone: later}
+  tabkey: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tabpar: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  thedit: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  thselect: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tupar: {pkg: utilities.nttools, domain: headers, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+
+  # --- arithmetic (core, 25 tasks) ------------------------------
+  bitcount: {pkg: obsutil, domain: arithmetic, status: planned, milestone: later}
+  bscale: {pkg: proto, domain: arithmetic, status: planned, milestone: later}
+  chpixtype: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  files: {pkg: system, domain: arithmetic, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  imarith: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imdelete: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imdivide: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  imexpr: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imfunction: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  imhistogram: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imjoin: {pkg: [images.imutil, proto.vol], domain: arithmetic, status: planned, milestone: later}
+  imrename: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imreplace: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  imscale: {pkg: proto, domain: arithmetic, status: planned, milestone: later}
+  imslice: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  imstack: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  imstatistics: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imsum: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  imtile: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  mimstatistics: {pkg: proto, domain: arithmetic, status: planned, milestone: mvp}
+  minmax: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  phistogram: {pkg: plot, domain: arithmetic, status: planned, milestone: later}
+  pradprof: {pkg: plot, domain: arithmetic, status: planned, milestone: later}
+  ringavg: {pkg: proto, domain: arithmetic, status: planned, milestone: later}
+  sections: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+
+  # --- filtering (later, 21 tasks) ------------------------------
+  background: {pkg: imred.generic, domain: filtering, status: planned, milestone: later}
+  boxcar: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  colbias: {pkg: imred.bias, domain: filtering, status: planned, milestone: later}
+  convolve: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  fit1d: {pkg: images.imfit, domain: filtering, status: planned, milestone: later}
+  fmedian: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  fmode: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  frmedian: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  frmode: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  gauss: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  gradient: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  imsurfit: {pkg: images.imfit, domain: filtering, status: planned, milestone: later}
+  laplace: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  linebias: {pkg: imred.bias, domain: filtering, status: planned, milestone: later}
+  lineclean: {pkg: images.imfit, domain: filtering, status: planned, milestone: later}
+  median: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  mode: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  rmedian: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  rmode: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+  rskysub: {pkg: proto, domain: filtering, status: planned, milestone: later}
+  runmed: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
+
+  # --- geometry (later, 33 tasks) -------------------------------
+  blkavg: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
+  blkrep: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
+  geomap: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  geotran: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  geoxytran: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  gregister: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  im3dtran: {pkg: [images.imgeom, proto.vol], domain: geometry, status: planned, milestone: later}
+  imalign: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  imcentroid: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  imcntr: {pkg: proto, domain: geometry, status: planned, milestone: later}
+  imlintran: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
+  imshift: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
+  imtranspose: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
+  iralign: {pkg: nproto, domain: geometry, status: planned, milestone: later}
+  irmatch1d: {pkg: nproto, domain: geometry, status: planned, milestone: later}
+  irmatch2d: {pkg: nproto, domain: geometry, status: planned, milestone: later}
+  irmosaic: {pkg: nproto, domain: geometry, status: planned, milestone: later}
+  linmatch: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  magnify: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
+  mosproc: {pkg: imred.irred, domain: geometry, status: planned, milestone: later}
+  pmmatch: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  psfmatch: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  rotate: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
+  shiftlines: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
+  skymap: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  skyxymatch: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  sregister: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  wcscopy: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  wcsmap: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  wcsxymatch: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  wregister: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  xregister: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+  xyxymatch: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
+
+  # --- combine (core, 10 tasks) ---------------------------------
+  average: {pkg: lists, domain: combine, status: planned, milestone: later}
+  combine: {pkg: imred.ccdred, domain: combine, status: partial, milestone: mvp, harwood: combine,
+    note: "ccdred wrapper exists; scale/zero/weight, offsets and auxiliary outputs missing"}
+  crcombine: {pkg: imred.crutil, domain: combine, status: planned, milestone: later}
+  darkcombine: {pkg: imred.ccdred, domain: combine, status: planned, milestone: mvp}
+  flatcombine: {pkg: imred.ccdred, domain: combine, status: planned, milestone: mvp}
+  imcombine: {pkg: images.immatch, domain: combine, status: planned, milestone: mvp,
+    note: the engine; the four ccdred combines become presets of it}
+  lscombine: {pkg: twodspec.longslit, domain: combine, status: planned, milestone: later}
+  odcombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
+  scombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
+  zerocombine: {pkg: imred.ccdred, domain: combine, status: planned, milestone: mvp}
+
+  # --- ccd-reduction (core, 42 tasks) ---------------------------
+  badpiximage: {pkg: [imred.ccdred, nobsolete], domain: ccd-reduction, status: planned, milestone: mvp}
+  ccdgroups: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: mvp}
+  ccdmask: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: mvp}
+  ccdproc: {pkg: imred.ccdred, domain: ccd-reduction, status: partial, milestone: mvp, harwood: ccdproc,
+    note: "bias/dark/flat/overscan/trim only; no fixpix, illum, fringe, readcor, scancor, and no header marks preventing re-processing"}
+  cosmicrays: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: mvp,
+    note: astroscrappy supplies the algorithm}
+  craverage: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
+  credit: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
+  crfix: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
+  crgrow: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
+  crmedian: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
+  crnebula: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
+  darksub: {pkg: imred.generic, domain: ccd-reduction, status: planned, milestone: later}
+  dematch: {pkg: imred.dtoi, domain: ccd-reduction, status: wontport,
+    note: "photographic plate density-to-intensity: out of scope"}
+  findgain: {pkg: obsutil, domain: ccd-reduction, status: planned, milestone: later}
+  findthresh: {pkg: nproto, domain: ccd-reduction, status: planned, milestone: later}
+  flat1d: {pkg: imred.generic, domain: ccd-reduction, status: planned, milestone: later}
+  flatten: {pkg: imred.generic, domain: ccd-reduction, status: planned, milestone: later}
+  gainmeasure: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  hdfit: {pkg: imred.dtoi, domain: ccd-reduction, status: wontport,
+    note: "photographic plate density-to-intensity: out of scope"}
+  hdshift: {pkg: imred.dtoi, domain: ccd-reduction, status: wontport,
+    note: "photographic plate density-to-intensity: out of scope"}
+  hdtoi: {pkg: imred.dtoi, domain: ccd-reduction, status: wontport,
+    note: "photographic plate density-to-intensity: out of scope"}
+  irlincor: {pkg: imred.irred, domain: ccd-reduction, status: planned, milestone: later}
+  mkfringecor: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: later}
+  mkillumcor: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: later}
+  mkillumflat: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: later}
+  mkskycor: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: later}
+  mkskyflat: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: later}
+  normalize: {pkg: imred.generic, domain: ccd-reduction, status: planned, milestone: later}
+  normflat: {pkg: imred.generic, domain: ccd-reduction, status: planned, milestone: later}
+  qdarkcombine: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  qflatcombine: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  qhistogram: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  qstatistics: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  quadjoin: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  quadproc: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  quadscale: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  quadsections: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  quadsplit: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  qzerocombine: {pkg: imred.quadred, domain: ccd-reduction, status: planned, milestone: later}
+  selftest: {pkg: imred.dtoi, domain: ccd-reduction, status: wontport,
+    note: "photographic plate density-to-intensity: out of scope"}
+  shutcor: {pkg: obsutil, domain: ccd-reduction, status: planned, milestone: later}
+  spotlist: {pkg: imred.dtoi, domain: ccd-reduction, status: wontport,
+    note: "photographic plate density-to-intensity: out of scope"}
+
+  # --- masks (core, 9 tasks) -----------------------------------
+  apmask: {pkg: twodspec.apextract, domain: masks, status: planned, milestone: later}
+  bpmedit: {pkg: images.tv, domain: masks, status: planned, milestone: later}
+  epix: {pkg: proto, domain: masks, status: planned, milestone: later}
+  fixpix: {pkg: proto, domain: masks, status: planned, milestone: mvp}
+  imedit: {pkg: images.tv, domain: masks, status: planned, milestone: later}
+  mskexpr: {pkg: proto, domain: masks, status: planned, milestone: mvp}
+  mskregions: {pkg: proto, domain: masks, status: planned, milestone: later}
+  objmasks: {pkg: nproto, domain: masks, status: planned, milestone: later}
+  text2mask: {pkg: proto, domain: masks, status: planned, milestone: mvp}
+
+  # --- astrometry (later, 36 tasks) -----------------------------
+  acatpars: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  aclist: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  adumpcat: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  adumpim: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  afiltcat: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  afiltpars: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  agetcat: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  agetim: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  ahedit: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  aimfind: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  aimpars: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  aregpars: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  aslist: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  astradius: {pkg: astutil, domain: astrometry, status: planned, milestone: later}
+  awcspars: {pkg: astcat, domain: astrometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  ccfind: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  ccget: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  ccmap: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  ccsetwcs: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  ccstd: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  cctran: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  ccxymatch: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  galactic: {pkg: astutil, domain: astrometry, status: planned, milestone: later}
+  hpctran: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  imcctran: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  mkcwcs: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  mkcwwcs: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  precess: {pkg: astutil, domain: astrometry, status: planned, milestone: mvp}
+  skyctran: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  skygroup: {pkg: nproto, domain: astrometry, status: planned, milestone: later}
+  skysep: {pkg: nproto, domain: astrometry, status: planned, milestone: later}
+  starfind: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  wcsctran: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  wcsedit: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+  wcslab: {pkg: images.tv, domain: astrometry, status: planned, milestone: later}
+  wcsreset: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
+
+  # --- display (core, 48 tasks) ---------------------------------
+  blink: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "folded into the native viewer's frame blink (S8.5)"}
+  bplot: {pkg: onedspec, domain: display, status: planned, milestone: later}
+  calcomp: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  contour: {pkg: plot, domain: display, status: planned, milestone: later}
+  crtpict: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  cv: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  cvl: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  display: {pkg: images.tv, domain: display, status: planned, milestone: mvp}
+  erase: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  frame: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  gdevices: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  gkidecode: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  gkidir: {pkg: plot, domain: display, status: wontport, note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  gkiextract: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  gkimosaic: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  graph: {pkg: plot, domain: display, status: planned, milestone: later}
+  hafton: {pkg: plot, domain: display, status: wontport, note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  imdkern: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  imexamine: {pkg: images.tv, domain: display, status: planned, milestone: mvp}
+  implot: {pkg: plot, domain: display, status: planned, milestone: mvp}
+  lumatch: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  monochrome: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  nsppkern: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  pcol: {pkg: plot, domain: display, status: planned, milestone: later}
+  pcols: {pkg: plot, domain: display, status: planned, milestone: later}
+  prow: {pkg: plot, domain: display, status: planned, milestone: later}
+  prows: {pkg: plot, domain: display, status: planned, milestone: later}
+  pseudocolor: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  pvector: {pkg: plot, domain: display, status: planned, milestone: later}
+  pvol: {pkg: proto.vol, domain: display, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  rgb: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  rgbdisplay: {pkg: proto.color, domain: display, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  rgbdither: {pkg: proto.color, domain: display, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  rgbto8: {pkg: proto.color, domain: display, status: wontport,
+    note: "raster and text-image conversion: any image library does this"}
+  rgcursor: {pkg: lists, domain: display, status: planned, milestone: later}
+  rimcursor: {pkg: lists, domain: display, status: planned, milestone: mvp}
+  sgidecode: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  sgikern: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  showcap: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  specplot: {pkg: onedspec, domain: display, status: planned, milestone: later}
+  splot: {pkg: onedspec, domain: display, status: planned, milestone: later}
+  stdgraph: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  stdplot: {pkg: plot, domain: display, status: wontport,
+    note: "GKI metacode and plotter devices: legacy graphics (S2)"}
+  surface: {pkg: plot, domain: display, status: planned, milestone: later}
+  tvmark: {pkg: images.tv, domain: display, status: planned, milestone: mvp}
+  velvect: {pkg: plot, domain: display, status: planned, milestone: later}
+  window: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+  zoom: {pkg: images.tv.iis, domain: display, status: wontport,
+    note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
+
+  # --- photometry (core, 64 tasks) ------------------------------
+  addstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  allstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  apfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  center: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: mvp}
+  centerpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  chkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  daoedit: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  daofind: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: daofind}
+  daopars: {pkg: digiphot.daophot, domain: photometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  datapars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  evalfit: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  findpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  fitparams: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  fitpsf: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
+  fitsky: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: mvp}
+  fitskypars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  group: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  grpselect: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  invertfit: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  istable: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  mkapfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkcatalog: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkimsets: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mknobsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkobsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkphotcors: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  nstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  obsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  pcalc: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  pconcat: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  pconvert: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  pdump: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  peak: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  pexamine: {pkg: digiphot.ptools, domain: photometry, status: planned, milestone: later}
+  pfmerge: {pkg: digiphot.daophot, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  phot: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp, harwood: apphot,
+    note: "shipped today under the wrong name (apphot); single aperture, no centering algorithms, no fitsky variants"}
+  photpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  polymark: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
+  polypars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  polyphot: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
+  prenumber: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  pselect: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  psf: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  psort: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  pstselect: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  qphot: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: mvp}
+  radprof: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: mvp}
+  seepsf: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  setimpars: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  substar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
+  tbcalc: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  tbconcat: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  tbdump: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  tbrenumber: {pkg: digiphot.ptools, domain: photometry, status: replaced,
+    note: astropy.table over the ECSV catalogue}
+  tbselect: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  tbsort: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  txcalc: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  txconcat: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  txdump: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  txrenumber: {pkg: digiphot.ptools, domain: photometry, status: replaced,
+    note: astropy.table over the ECSV catalogue}
+  txselect: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  txsort: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
+  wphot: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
+
+  # --- spec-2d (later, 30 tasks) --------------------------------
+  apall: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apdefault: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apedit: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apfind: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apfit: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apflatten: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apnoise: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apnormalize: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  aprecenter: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apresize: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apscatter: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apsum: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  aptrace: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  extinction: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  fceval: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  findpeaks: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  fitcoords: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  fitfunction: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  fitgauss5: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  fluxcalib: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  illumination: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  modellist: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  msextract: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  mslist: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  msplot: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  msset: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  newextraction: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  newimage: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
+    note: "pre-apextract legacy, superseded inside IRAF itself"}
+  response: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  transform: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+
+  # --- spec-1d (later, 36 tasks) --------------------------------
+  aidpars: {pkg: onedspec, domain: spec-1d, status: replaced, note: "absorbed into the task's Pydantic parameter model"}
+  autoidentify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  calibrate: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  deredden: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  dispcor: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  disptrans: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  dopcor: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  ecidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
+  ecreidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
+  fitprofs: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  identify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  interp: {pkg: proto, domain: spec-1d, status: planned, milestone: later}
+  lcalib: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  match: {pkg: system, domain: spec-1d, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  mk1dspec: {pkg: artdata, domain: spec-1d, status: planned, milestone: later}
+  mk2dspec: {pkg: artdata, domain: spec-1d, status: planned, milestone: later}
+  mkechelle: {pkg: artdata, domain: spec-1d, status: planned, milestone: later}
+  mkspec: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  msresp1d: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
+  names: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  ndprep: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  refspectra: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  reidentify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  sarith: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  sbands: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  scoords: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  scopy: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  sensfunc: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  sfit: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  sflip: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  skysub: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
+  skytweak: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  specshift: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  standard: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  telluric: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+
+  # --- spec-pipelines (later, 20 tasks) -------------------------
+  addsets: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  batchred: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  bswitch: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  coefs: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  coincor: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  do3fiber: {pkg: imred.kpnocoude, domain: spec-pipelines, status: planned, milestone: later}
+  doargus: {pkg: imred.argus, domain: spec-pipelines, status: planned, milestone: later}
+  doecslit: {pkg: imred.echelle, domain: spec-pipelines, status: planned, milestone: later}
+  dofibers: {pkg: imred.specred, domain: spec-pipelines, status: planned, milestone: later}
+  dofoe: {pkg: imred.echelle, domain: spec-pipelines, status: planned, milestone: later}
+  dohydra: {pkg: imred.hydra, domain: spec-pipelines, status: planned, milestone: later}
+  doslit: {pkg: imred.specred, domain: spec-pipelines, status: planned, milestone: later}
+  extinct: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  flatdiv: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  flatfit: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  powercor: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  process: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  slist1d: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  subsets: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+  sums: {pkg: imred.iids, domain: spec-pipelines, status: planned, milestone: later}
+
+  # --- radial-velocity (later, 6 tasks) ------------------------
+  continpars: {pkg: rv, domain: radial-velocity, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  filtpars: {pkg: rv, domain: radial-velocity, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  fxcor: {pkg: rv, domain: radial-velocity, status: planned, milestone: later}
+  rvcorrect: {pkg: astutil, domain: radial-velocity, status: planned, milestone: later}
+  rvidlines: {pkg: rv, domain: radial-velocity, status: planned, milestone: later}
+  rvreidlines: {pkg: rv, domain: radial-velocity, status: planned, milestone: later}
+
+  # --- time-observatory (core, 6 tasks) ------------------------
+  airmass: {pkg: astutil, domain: time-observatory, status: planned, milestone: mvp}
+  asttimes: {pkg: astutil, domain: time-observatory, status: planned, milestone: mvp}
+  gratings: {pkg: astutil, domain: time-observatory, status: planned, milestone: later}
+  observatory: {pkg: noao, domain: time-observatory, status: planned, milestone: mvp}
+  pairmass: {pkg: obsutil, domain: time-observatory, status: planned, milestone: later}
+  pdm: {pkg: astutil, domain: time-observatory, status: planned, milestone: later}
+
+  # --- instrument (later, 7 tasks) -----------------------------
+  ccdtime: {pkg: astutil, domain: instrument, status: planned, milestone: later}
+  cgiparse: {pkg: obsutil, domain: instrument, status: planned, milestone: later}
+  psfmeasure: {pkg: obsutil, domain: instrument, status: planned, milestone: later}
+  specfocus: {pkg: obsutil, domain: instrument, status: planned, milestone: later}
+  specpars: {pkg: obsutil, domain: instrument, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  sptime: {pkg: obsutil, domain: instrument, status: planned, milestone: later}
+  starfocus: {pkg: obsutil, domain: instrument, status: planned, milestone: later}
+
+  # --- synthetic-data (core, 10 tasks) --------------------------
+  aptest: {pkg: digiphot.apphot, domain: synthetic-data, status: planned, milestone: later}
+  asttest: {pkg: astcat, domain: synthetic-data, status: replaced,
+    note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
+  daotest: {pkg: digiphot.daophot, domain: synthetic-data, status: planned, milestone: later}
+  gallist: {pkg: artdata, domain: synthetic-data, status: planned, milestone: later}
+  mkexamples: {pkg: artdata, domain: synthetic-data, status: planned, milestone: later}
+  mknoise: {pkg: artdata, domain: synthetic-data, status: planned, milestone: mvp}
+  mkobjects: {pkg: artdata, domain: synthetic-data, status: planned, milestone: mvp}
+  mkpattern: {pkg: artdata, domain: synthetic-data, status: planned, milestone: mvp}
+  pttest: {pkg: digiphot.ptools, domain: synthetic-data, status: planned, milestone: later}
+  starlist: {pkg: artdata, domain: synthetic-data, status: planned, milestone: mvp}
+
+  # --- tables (out, 37 tasks) -----------------------------------
+  gtedit: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  gtpar: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "absorbed into the task's Pydantic parameter model"}
+  taextract: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tainsert: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tcalc: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tchcol: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tcheck: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tchsize: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tcopy: {pkg: [utilities.nttools, imred.vtel], domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tcreate: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tdelete: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tdiffer: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tdump: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tedit: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  texpand: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  thistogram: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tinfo: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tintegrate: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  titable: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tjoin: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tlcol: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tlinear: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tmatch: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tmerge: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tprint: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tproduct: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tproject: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tquery: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tread: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  trebin: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tscopy: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tselect: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tsort: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tstat: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  ttranspose: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  tunits: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+  txtable: {pkg: utilities.nttools, domain: tables, status: replaced,
+    note: "astropy.table plus ECSV replace the t* family"}
+
+  # --- fitting-lists (later, 20 tasks) --------------------------
+  bases: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  columns: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
+  curfit: {pkg: utilities, domain: fitting-lists, status: planned, milestone: mvp,
+    note: "icfit lives here: the interactive fit reused by dozens of tasks"}
+  detab: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  entab: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  fields: {pkg: proto, domain: fitting-lists, status: planned, milestone: later}
+  joinlines: {pkg: proto, domain: fitting-lists, status: planned, milestone: later}
+  lcase: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  lintran: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
+  polyfit: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  raverage: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
+  split: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  surfit: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  table: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
+  tokens: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
+  translit: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  ucase: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  unique: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
+  urand: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
+  words: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
+
+  # --- niches (out, 25 tasks) -----------------------------------
+  binpairs: {pkg: nproto, domain: niches, status: wontport,
+    note: "log-spaced point pairs for spatial correlation: a two-line numpy script"}
+  destreak: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  destreak5: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  dicoplot: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  fitslogr: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  getsqib: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  linpol: {pkg: nproto, domain: niches, status: wontport,
+    note: "polarimetry: a domain of its own, and no user base asking for it"}
+  makehelium: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  makeimages: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  merge: {pkg: imred.vtel, domain: niches, status: wontport, note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  mkms: {pkg: nproto, domain: niches, status: wontport,
+    note: "builds multispec from 1D spectra: an artefact of the IRAF image model"}
+  mrotlogr: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  mscan: {pkg: imred.vtel, domain: niches, status: wontport, note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  pimtext: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  putsqib: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  quickfit: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  readvt: {pkg: imred.vtel, domain: niches, status: wontport, note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  slitpic: {pkg: nproto, domain: niches, status: wontport,
+    note: "slit-mask imaging: instrument-specific, superseded by observatory pipelines"}
+  syndico: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  trim: {pkg: imred.vtel, domain: niches, status: wontport, note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  unwrap: {pkg: imred.vtel, domain: niches, status: wontport, note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  vtblink: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  vtexamine: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  writetape: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+  writevt: {pkg: imred.vtel, domain: niches, status: wontport,
+    note: "NSO Vacuum Telescope solar pipeline: no user base"}
+
+  # --- system (split, 32 tasks) ---------------------------------
+  chkupdate: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  concatenate: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  copy: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  count: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  deallocate: {pkg: system, domain: system, status: wontport, note: "tape and device allocation: legacy hardware (S2)"}
+  delete: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  devices: {pkg: system, domain: system, status: wontport, note: "tape and device allocation: legacy hardware (S2)"}
+  directory: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  diskspace: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  fcache: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  gripes: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  head: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  help: {pkg: system, domain: system, status: planned, milestone: mvp, note: the manual half of S3.2}
+  lprint: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  mkdir: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  mkscript: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  movefiles: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  netstatus: {pkg: system, domain: system, status: wontport, note: "tape and device allocation: legacy hardware (S2)"}
+  page: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  pathnames: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  phelp: {pkg: system, domain: system, status: planned, milestone: mvp}
+  protect: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+  references: {pkg: system, domain: system, status: planned, milestone: mvp,
+    note: "search by description: the discoverability fix of S2"}
+  rename: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  sort: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  spy: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  system: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  tail: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  tee: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  touch: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  type: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
+  unprotect: {pkg: system, domain: system, status: wontport,
+    note: the shell does this; harwood tasks run from bash (S4)}
+
+  # --- dev-tools (out, 14 tasks) --------------------------------
+  generic: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  hdbexamine: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  lroff: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  mkapropos: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  mkhelpdb: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  mkpkg: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  mktags: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  mkttydata: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  rmbin: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  rmfiles: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  rtar: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  wtar: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  xc: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+  xyacc: {pkg: softools, domain: dev-tools, status: wontport,
+    note: "IRAF build and help tooling: replaced by Python packaging"}
+
+  # --- legacy (out, 8 tasks) -----------------------------------
+  imtitle: {pkg: obsolete, domain: legacy, status: wontport, note: already obsolete inside IRAF}
+  mkhistogram: {pkg: obsolete, domain: legacy, status: wontport, note: already obsolete inside IRAF}
+  ofixpix: {pkg: obsolete, domain: legacy, status: wontport, note: already obsolete inside IRAF}
+  oimcombine: {pkg: obsolete, domain: legacy, status: wontport, note: already obsolete inside IRAF}
+  oimstatistics: {pkg: obsolete, domain: legacy, status: wontport, note: already obsolete inside IRAF}
+  orfits: {pkg: obsolete, domain: legacy, status: wontport, note: already obsolete inside IRAF}
+  owfits: {pkg: obsolete, domain: legacy, status: wontport, note: already obsolete inside IRAF}
+  radplt: {pkg: obsolete, domain: legacy, status: wontport, note: already obsolete inside IRAF}
+

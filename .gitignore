@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+.env
+
+# Working data at the repo root, never the package data:
+# src/harwood/data/ is versioned and ships in the wheel.
+/data/
+/scratch/
+*.fits
+harwood.log.jsonl
