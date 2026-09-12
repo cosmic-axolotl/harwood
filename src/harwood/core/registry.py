@@ -28,6 +28,7 @@ _LOADED = False
 _MODULES = (
     "harwood.tasks.imutil",
     "harwood.tasks.imcombine",
+    "harwood.tasks.immatch",
     "harwood.tasks.ccdred",
     "harwood.tasks.photometry",
 )

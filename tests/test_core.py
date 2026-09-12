@@ -163,11 +163,32 @@ def test_every_registered_task_has_described_parameters():
             assert field.description, f"{name}.{field_name} has no description"
 
 
-def test_every_registered_task_is_in_the_migration_map():
-    mapped = {e.get("harwood", n): n for n, e in migration.tasks().items()}
+def test_the_migration_map_tells_the_truth_about_what_runs():
+    """The map is what `harwood list --iraf` and `harwood help` answer from.
+
+    A task that runs here but is listed as `planned` makes harwood lie about
+    its own state, and someone reading the map to decide whether to migrate
+    gets the wrong answer. This test is why the map cannot drift.
+    """
+    mapped = {e.get("harwood", n): (n, e) for n, e in migration.tasks().items()}
     for name, cls in list_tasks().items():
-        assert name in mapped or name in migration.tasks(), \
-            f"'{name}' is in neither IRAF nor the migration map"
+        assert name in mapped, f"'{name}' is in neither IRAF nor the migration map"
+        iraf_name, entry = mapped[name]
+        assert entry["status"] in ("available", "partial"), (
+            f"'{name}' runs, but the map says '{entry['status']}'"
+        )
+        if entry["status"] == "partial":
+            assert entry.get("note"), f"'{name}' is partial without saying what is missing"
+
+
+def test_a_task_listed_as_available_is_actually_registered():
+    """The other direction: the map must not promise what does not exist."""
+    from harwood.core.registry import exists
+
+    for name, entry in migration.tasks().items():
+        if entry["status"] in ("available", "partial"):
+            assert exists(entry.get("harwood", name)), \
+                f"the map claims '{name}' runs, but no task is registered for it"
 
 
 def test_a_near_miss_suggests_the_real_name():

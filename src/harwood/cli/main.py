@@ -131,10 +131,13 @@ def _list_iraf(domain: str | None, milestone: str | None) -> None:
         raise SystemExit(1)
 
     table = Table(title=f"IRAF 2.18.2 -> harwood ({len(rows)} tasks)", title_style="bold")
-    table.add_column("task", style="bold")
-    table.add_column("package", style="dim")
-    table.add_column("domain", style="cyan")
-    table.add_column("status")
+    # The identifying columns keep their width; the note takes what is left and
+    # is cut with an ellipsis. Without no_wrap on the first four, one long note
+    # squeezes them all to nothing and the table becomes unreadable.
+    table.add_column("task", style="bold", no_wrap=True, min_width=12)
+    table.add_column("package", style="dim", no_wrap=True, min_width=16)
+    table.add_column("domain", style="cyan", no_wrap=True, min_width=14)
+    table.add_column("status", no_wrap=True, min_width=15)
     table.add_column("note", overflow="ellipsis", no_wrap=True)
     for name, entry in rows:
         status = entry["status"]
@@ -453,6 +456,8 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
 
     console.print(f"[green]ok[/green] {name} in {result.duration_s:.2f}s"
                   + (f" [dim]({result.backend})[/dim]" if result.backend else ""))
+    for warning in result.warnings:
+        console.print(f"  [yellow]note:[/yellow] {warning}")
     for key, value in result.data.items():
         if key == "rows":
             _print_rows(value)
@@ -482,16 +487,37 @@ def _explain_unknown(name: str) -> None:
 
     Section 3.2: someone coming from IRAF types the name they know, and
     "command not found" does not say whether the task changed name, is coming
-    later, or is never coming. The migration map answers all three.
+    later, or is never coming. The migration map answers all three -- and when
+    the name is in neither place it is usually a typo, so say the nearest
+    thing rather than nothing at all. Silence is the worst of the three.
     """
     if not name:
         return
+    import difflib
+
     from ..core import migration
+    from ..core.registry import list_tasks
 
     explanation = migration.explain(name)
     if explanation:
         error_console.print(f"[yellow]{explanation}[/yellow]")
         error_console.print("[dim]The whole inventory: harwood list --iraf[/dim]")
+        return
+
+    running = difflib.get_close_matches(name, list_tasks(), n=3)
+    if running:
+        error_console.print(f"[red]No task called '{name}'.[/red] "
+                            f"Did you mean: {', '.join(running)}?")
+        return
+
+    known = difflib.get_close_matches(name, migration.tasks(), n=3)
+    if known:
+        error_console.print(f"[red]No task called '{name}'.[/red] "
+                            f"IRAF has {', '.join(known)} -- "
+                            f"try `harwood help {known[0]}`.")
+        return
+    error_console.print(f"[red]No task called '{name}',[/red] here or in IRAF. "
+                        "Browse with `harwood list` or `harwood list --iraf`.")
 
 
 def _report_validation(name: str, error: Any) -> None:

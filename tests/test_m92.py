@@ -171,3 +171,94 @@ def test_the_overscan_of_a_real_frame_fits_and_the_gradient_is_removed(reduced):
     sloped = icfit.fit(position, profile, icfit.FitSpec(order=4, niterate=3))
     assert sloped.rms < flat.rms, "a real overscan is not flat"
     assert np.ptp(sloped.values) > 0.5, "the gradient is about an ADU"
+
+
+def test_the_frames_are_matched_and_the_shift_is_recovered(reduced):
+    """The shift that forced this whole domain into the MVP.
+
+    Two V frames minutes apart moved by about two pixels, and the B sequence
+    by nearly five. A fixed matching radius finds the stars near the pivot and
+    misses the rest, which looks like a successful match.
+    """
+    from harwood.core import match
+
+    first, second = measure(reduced, "m92010"), measure(reduced, "m92011")
+    rx, ry = np.asarray(first["x"]), np.asarray(first["y"])
+    ix, iy = np.asarray(second["x"]), np.asarray(second["y"])
+
+    found = match.by_triangles(rx, ry, ix, iy, nmatch=30, tolerance=2.0,
+                               rflux=-np.asarray(first["mag"]),
+                               iflux=-np.asarray(second["mag"]))
+    assert found, found.message
+    assert len(found) > 60
+
+    model = match.fit_transform(rx[found.reference], ry[found.reference],
+                                ix[found.input], iy[found.input],
+                                niterate=3, reject=2.5)
+    assert 0.5 < np.hypot(model["xshift"], model["yshift"]) < 5.0
+    assert abs(model["rotation"]) < 0.1, "the field did not rotate between exposures"
+    assert model["xscale"] == pytest.approx(1.0, abs=0.001)
+    assert 0.05 < model["rms"] < 0.5, "real centroids scatter by a fraction of a pixel"
+    assert model["nrejected"] < 0.25 * len(found), "rejection must not cascade"
+
+
+def test_imcentroid_and_xyxymatch_agree_on_the_same_frames(reduced):
+    """Two independent routes to the same number: marginal centroids of chosen
+    stars, and a transform fitted to every detection. They must agree."""
+    from harwood.core import catalog, match
+    from harwood.core.registry import get_task
+
+    first = measure(reduced, "m92010")
+    reference = first["id", "x", "y"][:25]
+    catalog.write(reference, reduced / "ref.coo")
+
+    centroid = get_task("imcentroid").run(
+        input=[str(reduced / "m92011p.fits")], reference=str(reduced / "m92010p.fits"),
+        coords=reduced / "ref.coo", boxsize=7)
+    row = centroid.data["rows"][0]
+    assert row["nstars"] >= 20
+    assert row["xrms"] < 0.3 and row["yrms"] < 0.3
+
+    second = measure(reduced, "m92011")
+    found = match.by_triangles(np.asarray(first["x"]), np.asarray(first["y"]),
+                               np.asarray(second["x"]), np.asarray(second["y"]),
+                               nmatch=30, tolerance=2.0,
+                               rflux=-np.asarray(first["mag"]),
+                               iflux=-np.asarray(second["mag"]))
+    model = match.fit_transform(np.asarray(first["x"])[found.reference],
+                                np.asarray(first["y"])[found.reference],
+                                np.asarray(second["x"])[found.input],
+                                np.asarray(second["y"])[found.input],
+                                niterate=3, reject=2.5)
+    assert row["xshift"] == pytest.approx(model["xshift"], abs=0.3)
+    assert row["yshift"] == pytest.approx(model["yshift"], abs=0.3)
+
+
+def test_imalign_closes_the_loop(reduced):
+    """Align, detect again, match again: the residual shift must be near zero."""
+    from harwood.core import catalog, match
+    from harwood.core.registry import get_task
+
+    first = measure(reduced, "m92010")
+    catalog.write(first["id", "x", "y"][:25], reduced / "ref.coo")
+
+    result = get_task("imalign").run(
+        input=[str(reduced / "m92010p.fits"), str(reduced / "m92011p.fits")],
+        reference=str(reduced / "m92010p.fits"), output=reduced / "aligned",
+        coords=reduced / "ref.coo", interp="linear")
+    assert len(result.outputs) == 2
+    assert any("correlates the noise" in w for w in result.warnings), \
+        "interpolating a fractional shift must be said out loud, not documented"
+
+    finder, phot = get_task("daofind"), get_task("phot")
+    catalogues = []
+    for name in ("m92010p", "m92011p"):
+        finder.run(image=str(reduced / "aligned" / f"{name}.fits"),
+                   output=reduced / f"a_{name}.coo", fwhm=FWHM, threshold=4.0)
+        catalogues.append(catalog.read(reduced / f"a_{name}.coo"))
+
+    found = match.by_tolerance(np.asarray(catalogues[0]["x"]),
+                               np.asarray(catalogues[0]["y"]),
+                               np.asarray(catalogues[1]["x"]),
+                               np.asarray(catalogues[1]["y"]), tolerance=2.0)
+    assert abs(found.shift[0]) < 0.5 and abs(found.shift[1]) < 0.5

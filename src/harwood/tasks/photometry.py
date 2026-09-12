@@ -76,6 +76,7 @@ class DaoFind(Task[DaoFindParams]):
         ]
 
     def execute(self, params: DaoFindParams) -> TaskResult:
+        import numpy as np
         from astropy.stats import sigma_clipped_stats
         from astropy.table import Table
         from photutils.detection import DAOStarFinder
@@ -112,6 +113,12 @@ class DaoFind(Task[DaoFindParams]):
             )
         found, position = found[inside], pixels.Position(position.x[inside],
                                                          position.y[inside])
+        # Brightest first. It is the one ordering two frames of the same field
+        # agree on, which is what xyxymatch's triangle search needs when it
+        # takes only the brightest nmatch stars from each list.
+        order = np.argsort(np.asarray(_column(found, "flux")))[::-1]
+        found, position = found[order], pixels.Position(position.x[order],
+                                                        position.y[order])
         catalogue = Table({
             "id": range(1, len(found) + 1),
             "x": position.x,

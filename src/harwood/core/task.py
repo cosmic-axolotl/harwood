@@ -84,6 +84,11 @@ class TaskResult:
     data: dict[str, Any] = field(default_factory=dict)
     history: list[str] = field(default_factory=list)
     steps: list[Step] = field(default_factory=list)
+
+    #: Things the user needs told, not merely documented: a side effect of a
+    #: choice they made, a caveat that applies to this run. Section 2.1 --
+    #: nothing important happens where it cannot be seen.
+    warnings: list[str] = field(default_factory=list)
     duration_s: float = 0.0
     backend: str | None = None
 
