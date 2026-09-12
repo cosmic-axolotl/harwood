@@ -154,10 +154,23 @@ def stamp_header(header: Any, extra: list[str] | None = None) -> Any:
 
 
 def _history(header: Any, text: str) -> None:
+    """Write one logical line as one or more HISTORY cards.
+
+    Wrapping at 72 characters regardless of what sits there splits numbers in
+    half, and "mean level 505" reads as a complete -- and wrong -- statement
+    when the rest of "505.53" went to the next card. So the break happens
+    between words, and every continuation is indented, which makes it obvious
+    to a reader and detectable to anything parsing the header back.
+    """
+    import textwrap
+
     text = _ascii(text)
-    while text:
-        header.add_history(text[:_CARD_TEXT])
-        text = text[_CARD_TEXT:]
+    if not text:
+        return
+    lines = textwrap.wrap(text, width=_CARD_TEXT, subsequent_indent="    ",
+                          break_long_words=True, break_on_hyphens=False) or [text]
+    for line in lines:
+        header.add_history(line)
 
 
 def record_inputs(header: Any, inputs: list[Path | str], keyword: str = "IMCMB") -> Any:

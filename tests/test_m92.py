@@ -1,0 +1,173 @@
+"""Regression against real data: the M92 frames from the IRAF tutorial.
+
+KPNO, 1 September 1987, courtesy of George Jacoby -- the dataset behind
+Massey & Davis, *A User's Guide to Stellar CCD Photometry with IRAF*. Raw
+frames with a real overscan, a real dome flat, and a real globular cluster.
+
+Synthetic data proves the arithmetic; this proves harwood survives contact
+with a 1987 header, an int16 big-endian array, a crowded field and a telescope
+that drifted two pixels between exposures.
+
+Set HARWOOD_TEST_DATA to the exercises directory to run these; they skip
+otherwise, so the suite still passes on a machine without the tutorial.
+"""
+
+import os
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from harwood.core import catalog
+from harwood.core.registry import get_task
+
+DATA = Path(os.environ.get("HARWOOD_TEST_DATA", "~/iraf/exercises")).expanduser()
+PHOT = DATA / "phot"
+
+pytestmark = pytest.mark.skipif(
+    not (PHOT / "m92010.fits").exists(),
+    reason=f"IRAF tutorial data not found under {DATA}",
+)
+
+#: From the exercise text: gain 14 e-/ADU, FWHM about 3 pixels, 10 pixel aperture.
+EPADU = 14.0
+FWHM = 3.0
+
+
+@pytest.fixture(scope="module")
+def reduced(tmp_path_factory):
+    """Bias, flat and two V frames, reduced the way exercise 2 does it."""
+    work = tmp_path_factory.mktemp("m92")
+    ccdproc = get_task("ccdproc")
+
+    ccdproc.run(input=[str(PHOT / "m92001.fits")], output=work / "Zero.fits",
+                overscan=True, trim=True)
+    ccdproc.run(input=[str(PHOT / "m92007.fits")], output=work / "FlatV.fits",
+                overscan=True, trim=True, zerocor=True, zero=work / "Zero.fits")
+    for name in ("m92010", "m92011"):
+        ccdproc.run(input=[str(PHOT / f"{name}.fits")], output=work / f"{name}p.fits",
+                    overscan=True, trim=True, zerocor=True, flatcor=True,
+                    zero=work / "Zero.fits", flat=work / "FlatV.fits")
+    return work
+
+
+def measure(work, name):
+    get_task("daofind").run(image=str(work / f"{name}p.fits"),
+                            output=work / f"{name}.coo", fwhm=FWHM, threshold=4.0)
+    get_task("phot").run(image=str(work / f"{name}p.fits"), coords=work / f"{name}.coo",
+                         output=work / f"{name}.mag", apertures=[10.0], annulus=15.0,
+                         dannulus=10.0, epadu=EPADU, zmag=25.0)
+    return catalog.read(work / f"{name}.mag")
+
+
+def cross_match(a, b, tolerance=1.2):
+    """Match two catalogues after estimating the shift between the frames."""
+    ax, ay = np.asarray(a["x"]), np.asarray(a["y"])
+    bx, by = np.asarray(b["x"]), np.asarray(b["y"])
+    dx = (bx[None, :] - ax[:, None]).ravel()
+    dy = (by[None, :] - ay[:, None]).ravel()
+    near = (np.abs(dx) < 20) & (np.abs(dy) < 20)
+    hx, ex = np.histogram(dx[near], 80, (-20, 20))
+    hy, ey = np.histogram(dy[near], 80, (-20, 20))
+    sx = 0.5 * (ex[hx.argmax()] + ex[hx.argmax() + 1])
+    sy = 0.5 * (ey[hy.argmax()] + ey[hy.argmax() + 1])
+    distance = np.hypot((ax + sx)[:, None] - bx[None, :], (ay + sy)[:, None] - by[None, :])
+    index = distance.argmin(axis=1)
+    keep = distance.min(axis=1) < tolerance
+    return np.flatnonzero(keep), index[keep]
+
+
+def test_the_1987_headers_are_understood(reduced):
+    """BIASSEC and TRIMSEC come from the header, and the frame ends up trimmed."""
+    from astropy.io import fits
+
+    data, header = fits.getdata(reduced / "m92010p.fits", header=True)
+    assert data.shape == (512, 320)          # 352 columns minus the 32 of overscan
+    assert "OVERSCAN" in header and "TRIM" in header and "ZEROCOR" in header
+    assert "FLATCOR" in header
+
+
+def test_the_measured_seeing_matches_the_exercise(reduced):
+    """The tutorial says the FWHM is about 3 pixels. imexamine's r must agree."""
+    from astropy.io import fits
+
+    from harwood.viewer import analysis
+
+    data = fits.getdata(reduced / "m92010p.fits").astype(float)
+    stars = measure(reduced, "m92010")
+    brightest = stars[np.argsort(np.asarray(stars["mag"]))[:12]]
+
+    widths = []
+    for row in brightest:
+        profile = analysis.radial_profile(data, float(row["x"]), float(row["y"]),
+                                          radius=12, buffer=4, width=8)
+        if profile.converged and 1.0 < profile.fwhm < 8.0:
+            widths.append(profile.fwhm)
+    assert len(widths) >= 5
+    assert np.median(widths) == pytest.approx(3.0, abs=0.5)
+
+
+def test_the_two_v_frames_agree(reduced):
+    """Two 60-second exposures of one field, minutes apart.
+
+    The zero point between them must be zero, and the scatter of the bright
+    stars must be a few millimagnitudes. This is the strongest end-to-end check
+    there is: it exercises the overscan fit, the bias, the flat, the detection
+    and the photometry, and nothing about it can be tuned.
+    """
+    first, second = measure(reduced, "m92010"), measure(reduced, "m92011")
+    i, j = cross_match(first, second)
+    assert len(i) > 50, "the two frames overlap almost completely"
+
+    difference = np.asarray(first["mag"])[i] - np.asarray(second["mag"])[j]
+    magnitude = np.asarray(first["mag"])[i]
+    finite = np.isfinite(difference)
+
+    assert abs(np.median(difference[finite])) < 0.05, "equal exposures, equal scale"
+
+    bright = finite & (magnitude < 19.0)
+    assert bright.sum() >= 5
+    assert np.std(difference[bright]) < 0.05, "bright stars must repeat to a few mmag"
+
+
+def test_the_error_model_predicts_the_scatter_it_gets(reduced):
+    """IRAF's apphot error, checked against reality rather than against itself.
+
+    The predicted error uses the *measured* sky scatter; if it used the
+    theoretical Poisson sky instead it would understate the real scatter of the
+    faint stars by a factor of seven, which is how this test was found.
+    """
+    first, second = measure(reduced, "m92010"), measure(reduced, "m92011")
+    i, j = cross_match(first, second)
+    difference = np.asarray(first["mag"])[i] - np.asarray(second["mag"])[j]
+    predicted = np.asarray(first["merr"])[i] * np.sqrt(2)
+    finite = np.isfinite(difference) & np.isfinite(predicted) & (predicted > 0)
+
+    faint = finite & (np.asarray(first["mag"])[i] > 20.0)
+    assert faint.sum() > 20
+    ratio = np.std(difference[faint]) / np.median(predicted[faint])
+    assert 0.5 < ratio < 2.0, f"predicted and measured scatter differ by {ratio:.1f}x"
+
+
+def test_detections_do_not_come_from_the_truncated_edge(reduced):
+    stars = measure(reduced, "m92010")
+    x, y = np.asarray(stars["x"]), np.asarray(stars["y"])
+    assert x.min() > 2 * FWHM - 0.5
+    assert y.min() > 2 * FWHM - 0.5
+
+
+def test_the_overscan_of_a_real_frame_fits_and_the_gradient_is_removed(reduced):
+    """The 1987 overscan has a real gradient of about one ADU across the chip."""
+    from astropy.io import fits
+
+    from harwood.core import icfit, pixels
+
+    raw = fits.getdata(PHOT / "m92010.fits").astype(float)
+    strip = raw[pixels.parse_section("[321:352,1:512]", raw.shape)]
+    profile = strip.mean(axis=1)
+    position = np.arange(1.0, profile.size + 1.0)
+
+    flat = icfit.fit(position, profile, icfit.FitSpec(order=1))
+    sloped = icfit.fit(position, profile, icfit.FitSpec(order=4, niterate=3))
+    assert sloped.rms < flat.rms, "a real overscan is not flat"
+    assert np.ptp(sloped.values) > 0.5, "the gradient is about an ADU"

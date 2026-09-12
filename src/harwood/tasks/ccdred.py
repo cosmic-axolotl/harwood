@@ -63,12 +63,36 @@ class CcdProcParams(TaskParams):
     flat: Path | None = Field(None, description="Master flat image.")
     bpm: Path | None = Field(None, description="Bad pixel mask, non-zero where a pixel is bad.")
 
-    function: Literal["legendre", "chebyshev", "spline3", "mean"] = Field(
+    # The overscan fit is an icfit, with icfit's parameter names -- the same
+    # ones identify, aptrace, continuum and sensfunc use. Learn them once.
+    function: Literal["legendre", "chebyshev", "spline1", "spline3"] = Field(
         "legendre", description="Function fitted to the overscan along the readout axis."
     )
-    order: int = Field(1, ge=1, description="Order of the overscan fit.")
+    order: int = Field(
+        1, ge=1,
+        description="Number of terms in the fit, as in IRAF: 1 is a constant, "
+                    "2 a straight line. For a spline, the number of pieces.",
+    )
+    sample: str = Field(
+        "*", description="Which part of the overscan to fit, in pixels along the "
+                         "readout axis, e.g. '20:500'. * uses all of it.",
+    )
+    naverage: int = Field(
+        1, description="Average this many points before fitting; negative takes the "
+                       "median instead, which ignores spikes.",
+    )
+    niterate: int = Field(0, ge=0, description="Rejection passes over the overscan fit.")
+    low_reject: float = Field(3.0, ge=0, description="Rejection threshold below the fit, in sigma.")
+    high_reject: float = Field(3.0, ge=0, description="Rejection threshold above the fit, in sigma.")
+    grow: float = Field(0.0, ge=0, description="Also reject points within this distance of a rejected one.")
     readaxis: Literal["line", "column"] = Field(
         "column", description="Axis the overscan is averaged along."
+    )
+    interactive: bool = Field(
+        False,
+        description="Fit the overscan by hand, in the icfit panel: same keys as "
+                    "identify, aptrace and continuum. The parameters you settle on "
+                    "are written to the log, so the run can be repeated in batch.",
     )
 
     exposure_key: str = Field("EXPTIME", description="Header keyword holding the exposure time.")
@@ -111,8 +135,11 @@ class CcdProc(Task[CcdProcParams]):
                 else "no mask given -- nothing to fix")
         if params.overscan:
             add("overscan", "overscan",
-                f"{params.function} order {params.order} over "
-                f"{params.biassec or header.get('BIASSEC') or 'BIASSEC from the header'}")
+                f"{params.function} order {params.order}"
+                + (f", sample {params.sample}" if params.sample != "*" else "")
+                + (f", {params.niterate} rejection passes" if params.niterate else "")
+                + " over "
+                + f"{params.biassec or header.get('BIASSEC') or 'BIASSEC from the header'}")
         if params.trim:
             add("trim", "trim",
                 params.trimsec or header.get("TRIMSEC") or "TRIMSEC from the header")
@@ -221,7 +248,7 @@ def _fixpix(data, bpm_path, header):
 def _overscan(data, header, params):
     import numpy as np
 
-    from ..core import pixels
+    from ..core import icfit, pixels
 
     if _already(header, "overscan"):
         return data, Step("overscan", skipped=True, reason="OVERSCAN already in the header")
@@ -235,21 +262,40 @@ def _overscan(data, header, params):
     axis = 1 if params.readaxis == "column" else 0
     profile = strip.mean(axis=axis)
 
-    if params.function == "mean":
-        fit = np.full(profile.shape, profile.mean())
-    else:
-        x = np.arange(profile.size, dtype=float)
-        series = {"legendre": np.polynomial.Legendre,
-                  "chebyshev": np.polynomial.Chebyshev,
-                  "spline3": np.polynomial.Polynomial}[params.function]
-        fit = series.fit(x, profile, deg=params.order)(x)
+    # 1-based, because this is a coordinate a user can read off the image and
+    # type back into --sample.
+    position = np.arange(1.0, profile.size + 1.0)
+    spec = icfit.FitSpec(
+        function=params.function, order=params.order, sample=params.sample,
+        naverage=params.naverage, niterate=params.niterate,
+        low_reject=params.low_reject, high_reject=params.high_reject,
+        grow=params.grow,
+    )
+    if params.interactive:
+        from ..viewer.icfit_panel import run as run_icfit
 
-    corrected = data - (fit[:, None] if axis == 1 else fit[None, :])
+        result = run_icfit(position, profile, spec,
+                           title=f"ccdproc · overscan {section}",
+                           xlabel="line (pixels)", ylabel="overscan level (ADU)")
+        spec = result.spec
+    else:
+        result = icfit.fit(position, profile, spec)
+    if result.model is None:
+        raise ValueError(f"the overscan fit failed: {result.message}")
+
+    level = result.values
+    corrected = data - (level[:, None] if axis == 1 else level[None, :])
     _mark(header, "overscan")
     header["BIASSEC"] = section
-    return corrected, Step("overscan",
-                           f"{params.function} order {params.order} over {section}, "
-                           f"mean level {float(fit.mean()):.2f}")
+    detail = (f"{spec.function} order {spec.order} over {section}, "
+              f"mean level {float(level.mean()):.2f}, rms {result.rms:.2f}")
+    if spec.sample != "*":
+        detail += f", sample {spec.sample}"
+    if int(result.deleted.sum()):
+        detail += f", {int(result.deleted.sum())} points deleted by hand"
+    if result.nrejected:
+        detail += f", {result.nrejected} points rejected"
+    return corrected, Step("overscan", detail)
 
 
 def _trim(data, header, params):

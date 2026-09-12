@@ -44,6 +44,14 @@ class DaoFindParams(TaskParams):
     sharphi: float = Field(1.0, description="Upper sharpness bound; rejects galaxies.")
     roundlo: float = Field(-1.0, description="Lower roundness bound.")
     roundhi: float = Field(1.0, description="Upper roundness bound.")
+    border: float | None = Field(
+        None, ge=0,
+        description="Ignore detections within this many pixels of the edge. "
+                    "Defaults to twice the FWHM. The detection filter needs whole "
+                    "pixels around a source to judge it, so anything closer to the "
+                    "edge than its own width is an artefact of the truncated "
+                    "convolution, not a star. Set 0 to keep them.",
+    )
 
 
 @register
@@ -62,6 +70,8 @@ class DaoFind(Task[DaoFindParams]):
                            f"threshold={params.threshold} sigma"),
             Step("filter", f"sharpness {params.sharplo}..{params.sharphi}, "
                            f"roundness {params.roundlo}..{params.roundhi}"),
+            Step("border", f"drop anything within "
+                           f"{_border(params):g} px of the edge"),
             Step("write", f"{params.output}, coordinates 1-based (x,y)"),
         ]
 
@@ -70,7 +80,7 @@ class DaoFind(Task[DaoFindParams]):
         from astropy.table import Table
         from photutils.detection import DAOStarFinder
 
-        from ..core import images, pixels, provenance
+        from ..core import catalog, images, pixels, provenance
 
         data, header = images.read(params.image)
         mean, median, sigma = sigma_clipped_stats(data, sigma=3.0)
@@ -90,6 +100,18 @@ class DaoFind(Task[DaoFindParams]):
         # writes counts from 1.
         position = pixels.from_numpy(_column(found, "y_centroid", "ycentroid"),
                                      _column(found, "x_centroid", "xcentroid"))
+        border = _border(params)
+        ny, nx = data.shape
+        inside = ((position.x > border) & (position.x <= nx - border)
+                  & (position.y > border) & (position.y <= ny - border))
+        dropped = int((~inside).sum())
+        if not inside.any():
+            raise RuntimeError(
+                f"every one of the {len(found)} detections was within {border:g} px "
+                "of the edge. Lower --border if the field really does run to the edge."
+            )
+        found, position = found[inside], pixels.Position(position.x[inside],
+                                                         position.y[inside])
         catalogue = Table({
             "id": range(1, len(found) + 1),
             "x": position.x,
@@ -99,23 +121,20 @@ class DaoFind(Task[DaoFindParams]):
             "peak": _column(found, "peak", "max_value"),
             "flux": _column(found, "flux"),
         })
-        catalogue.meta.update({
-            "harwood_convention": "1-based (x,y), as IRAF and DS9",
-            "harwood_image": str(params.image),
-            "harwood_background": float(median),
-            "harwood_sigma": float(sigma),
-            "harwood_call": provenance.current_stamp() or "",
-        })
-        params.output.parent.mkdir(parents=True, exist_ok=True)
-        catalogue.write(str(params.output), format="ascii.ecsv", overwrite=True)
+        catalog.write(catalogue, params.output,
+                      harwood_image=str(params.image),
+                      harwood_background=float(median),
+                      harwood_sigma=float(sigma),
+                      harwood_call=provenance.current_stamp() or "")
 
         return TaskResult(
             outputs=[params.output],
-            data={"sources": len(catalogue), "background": float(median),
-                  "sigma": float(sigma)},
+            data={"sources": len(catalogue), "dropped_at_border": dropped,
+                  "background": float(median), "sigma": float(sigma)},
             history=[f"daofind: {len(catalogue)} sources, fwhm={params.fwhm}, "
                      f"threshold={params.threshold} sigma (sky={median:.2f}, "
-                     f"sigma={sigma:.2f})"],
+                     f"sigma={sigma:.2f}), {dropped} dropped within "
+                     f"{border:g} px of the edge"],
             steps=self.plan(params),
         )
 
@@ -166,7 +185,8 @@ class Phot(Task[PhotParams]):
         return [
             Step("read", f"{params.image} and {params.coords}"),
             Step("sky", f"{params.salgorithm} over the annulus "
-                        f"{params.annulus}..{params.annulus + params.dannulus} px"),
+                        f"{params.annulus}..{params.annulus + params.dannulus} px, "
+                        f"with its measured scatter for the error"),
             Step("measure", f"apertures {radii} px"),
             Step("calibrate", f"zmag={params.zmag}, epadu={params.epadu}, "
                               f"exposure from {params.exposure}"),
@@ -183,12 +203,12 @@ class Phot(Task[PhotParams]):
             aperture_photometry,
         )
 
-        from ..core import images, pixels, provenance
+        from ..core import catalog, images, pixels, provenance
 
         data, header = images.read(params.image)
         exptime = float(header.get(params.exposure, 1.0))
-        catalogue = Table.read(str(params.coords))
-        x, y = _coordinate_columns(catalogue, params.coords)
+        catalogue = catalog.read(params.coords)
+        x, y = catalog.coordinates(catalogue, params.coords)
 
         # 1-based (x, y) in the file -> 0-based (x, y) for photutils.
         row, col = pixels.to_numpy(x, y)
@@ -196,21 +216,41 @@ class Phot(Task[PhotParams]):
 
         annulus = CircularAnnulus(positions, r_in=params.annulus,
                                   r_out=params.annulus + params.dannulus)
-        sky = getattr(ApertureStats(data, annulus), params.salgorithm)
-        sky = np.asarray(sky, dtype=float)
+        stats = ApertureStats(data, annulus)
+        sky = np.asarray(getattr(stats, params.salgorithm), dtype=float)
+        # The *measured* scatter of the sky annulus, not the Poisson value of
+        # its level: in a crowded field, flat-field residuals and the wings of
+        # neighbours dominate, and a theoretical sky sigma understates the real
+        # error by an order of magnitude. This is IRAF's `stdev`.
+        sky_sigma = np.asarray(stats.std, dtype=float)
+        nsky = np.asarray(stats.sum_aper_area.value if hasattr(stats.sum_aper_area,
+                                                               "value")
+                          else stats.sum_aper_area, dtype=float)
 
         out = Table({"id": catalogue["id"] if "id" in catalogue.colnames
-                     else range(1, len(x) + 1), "x": x, "y": y, "msky": sky})
+                     else range(1, len(x) + 1), "x": x, "y": y,
+                     "msky": sky, "stdev": sky_sigma, "nsky": nsky})
         for radius in params.apertures:
             aperture = CircularAperture(positions, r=radius)
             raw = aperture_photometry(data, aperture)["aperture_sum"]
             area = aperture.area_overlap(data)
             flux = np.asarray(raw, dtype=float) - sky * area
 
-            electrons = np.clip(flux, 0, None) * params.epadu
-            variance = electrons + area * (sky * params.epadu
-                                           + params.readnoise ** 2)
-            flux_error = np.sqrt(variance) / params.epadu
+            # IRAF's apphot error, in ADU^2:
+            #   flux/epadu          photon noise from the star
+            #   area * stdev^2      sky noise over the aperture
+            #   area^2 * stdev^2/nsky   uncertainty in the mean sky itself
+            # The third term is why a small sky annulus costs you accuracy on
+            # faint stars, and it is the term a naive implementation drops.
+            with np.errstate(divide="ignore", invalid="ignore"):
+                variance = (np.clip(flux, 0, None) / params.epadu
+                            + area * sky_sigma ** 2
+                            + np.divide(area ** 2 * sky_sigma ** 2, nsky,
+                                        out=np.zeros_like(area, dtype=float),
+                                        where=nsky > 0))
+            if params.readnoise > 0:
+                variance = variance + area * (params.readnoise / params.epadu) ** 2
+            flux_error = np.sqrt(variance)
 
             with np.errstate(divide="ignore", invalid="ignore"):
                 mag = params.zmag - 2.5 * np.log10(np.where(flux > 0, flux, np.nan)
@@ -221,15 +261,11 @@ class Phot(Task[PhotParams]):
             out[f"mag{suffix}"] = mag
             out[f"merr{suffix}"] = merr
 
-        out.meta.update({
-            "harwood_convention": "1-based (x,y), as IRAF and DS9",
-            "harwood_image": str(params.image),
-            "harwood_exposure": exptime,
-            "harwood_zmag": params.zmag,
-            "harwood_call": provenance.current_stamp() or "",
-        })
-        params.output.parent.mkdir(parents=True, exist_ok=True)
-        out.write(str(params.output), format="ascii.ecsv", overwrite=True)
+        catalog.write(out, params.output,
+                      harwood_image=str(params.image),
+                      harwood_exposure=exptime,
+                      harwood_zmag=params.zmag,
+                      harwood_call=provenance.current_stamp() or "")
 
         measured = int(np.isfinite(out[f"mag{'' if len(params.apertures) == 1 else f'_{params.apertures[0]:g}'}"]).sum())
         return TaskResult(
@@ -242,33 +278,15 @@ class Phot(Task[PhotParams]):
         )
 
 
-def _coordinate_columns(catalogue, path):
-    """Find the coordinate columns, and refuse to guess their convention.
+def _border(params) -> float:
+    """How close to the edge a detection may sit.
 
-    A catalogue harwood wrote says so in its metadata. One from somewhere else
-    does not, and assuming 1-based would put a systematic offset into every
-    magnitude -- so it is named as an assumption in the error rather than made
-    in silence.
+    IRAF's daofind skips the border because its convolution kernel does not
+    fit there; photutils will happily report the artefact. On the M92 frames
+    a fifth of all detections came from the truncated edge, so the default
+    matters more than it looks.
     """
-    import numpy as np
-
-    names = {name.lower(): name for name in catalogue.colnames}
-    for xcol, ycol in (("x", "y"), ("xcenter", "ycenter"), ("xcentroid", "ycentroid")):
-        if xcol in names and ycol in names:
-            x = np.asarray(catalogue[names[xcol]], dtype=float)
-            y = np.asarray(catalogue[names[ycol]], dtype=float)
-            if xcol != "x" and "harwood_convention" not in catalogue.meta:
-                raise ValueError(
-                    f"{path} has columns '{names[xcol]}'/'{names[ycol]}' and no harwood "
-                    "convention in its metadata, so its pixel origin is unknown. "
-                    "Rename the columns to x/y once you have confirmed they are "
-                    "1-based, as IRAF and DS9 write them."
-                )
-            return x, y
-    raise ValueError(
-        f"{path} has no coordinate columns. Looked for x/y, xcenter/ycenter, "
-        f"xcentroid/ycentroid; found {', '.join(catalogue.colnames)}."
-    )
+    return float(params.border) if params.border is not None else 2.0 * params.fwhm
 
 
 def _shape_bounds(finder_class, params) -> dict:

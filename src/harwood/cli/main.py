@@ -432,8 +432,20 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     try:
         with console.status(f"{name}..."):
             result = task.run(validated)
-    except (ValueError, RuntimeError, FileNotFoundError) as error:
+    except KeyboardInterrupt:
+        error_console.print(f"[yellow]{name} interrupted.[/yellow]")
+        raise SystemExit(130) from None
+    except Exception as error:
+        # A task failing is a normal event and deserves a sentence, not a
+        # traceback. HARWOOD_TRACEBACK=1 brings the traceback back for
+        # debugging -- hidden by default, never unavailable.
+        import os
+
         error_console.print(f"[red]{name} stopped:[/red] {error}")
+        if os.environ.get("HARWOOD_TRACEBACK"):
+            console.print_exception()
+        else:
+            error_console.print("[dim]HARWOOD_TRACEBACK=1 shows where.[/dim]")
         raise SystemExit(1) from None
 
     provenance.record(name, validated.model_dump(), result, workdir,
