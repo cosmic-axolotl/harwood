@@ -154,7 +154,9 @@ class PhotParams(TaskParams):
     apertures: list[float] = Field(
         [5.0], description="Aperture radii in pixels. Several may be given."
     )
-    annulus: float = Field(10.0, gt=0, description="Inner radius of the sky annulus, in pixels.")
+    annulus: float = Field(
+        10.0, gt=0, description="Inner radius of the sky annulus, in pixels."
+    )
     dannulus: float = Field(5.0, gt=0, description="Width of the sky annulus, in pixels.")
     salgorithm: Literal["median", "mean", "mode"] = Field(
         "median", description="How the sky level is estimated inside the annulus."
@@ -170,7 +172,7 @@ class PhotParams(TaskParams):
     )
 
     @model_validator(mode="after")
-    def _check_radii(self) -> "PhotParams":
+    def _check_radii(self) -> PhotParams:
         if max(self.apertures) >= self.annulus:
             raise ValueError(
                 f"the sky annulus starts at {self.annulus} px but the largest aperture "
@@ -274,7 +276,8 @@ class Phot(Task[PhotParams]):
                       harwood_zmag=params.zmag,
                       harwood_call=provenance.current_stamp() or "")
 
-        measured = int(np.isfinite(out[f"mag{'' if len(params.apertures) == 1 else f'_{params.apertures[0]:g}'}"]).sum())
+        first = "" if len(params.apertures) == 1 else f"_{params.apertures[0]:g}"
+        measured = int(np.isfinite(out[f"mag{first}"]).sum())
         return TaskResult(
             outputs=[params.output],
             data={"stars": len(out), "measured": measured,

@@ -1,6 +1,5 @@
 """Core: parameter resolution, image specs, the registry, provenance."""
 
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -9,7 +8,7 @@ from pydantic import Field
 
 from harwood.core import images, migration, params, provenance
 from harwood.core.registry import get_task, list_tasks
-from harwood.core.task import Task, TaskParams, TaskResult
+from harwood.core.task import TaskParams, TaskResult
 
 
 class DemoParams(TaskParams):
@@ -171,7 +170,7 @@ def test_the_migration_map_tells_the_truth_about_what_runs():
     gets the wrong answer. This test is why the map cannot drift.
     """
     mapped = {e.get("harwood", n): (n, e) for n, e in migration.tasks().items()}
-    for name, cls in list_tasks().items():
+    for name in list_tasks():
         assert name in mapped, f"'{name}' is in neither IRAF nor the migration map"
         iraf_name, entry = mapped[name]
         assert entry["status"] in ("available", "partial"), (

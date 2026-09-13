@@ -74,36 +74,94 @@ def parse(spec: str | Path) -> ImageSpec:
     return ImageSpec(Path(match.group("path")), extension, section)
 
 
+def split_brackets(text: str) -> tuple[str, str]:
+    """Separate a name from its trailing extension and section brackets.
+
+    Square brackets mean two different things and IRAF lets both through::
+
+        sp0[1-9].fits            a glob character class
+        obj.fits[SCI,1]          an extension
+        obj.fits[100:400,*]      a section
+
+    The rule, which is IRAF's in practice: **the brackets that belong to the
+    image are the trailing ones**, and anything earlier is part of the file
+    name pattern. So the name is globbed and the trailing brackets are kept
+    and applied to every file the glob matched.
+    """
+    depth = 0
+    cut = len(text)
+    for index in range(len(text) - 1, -1, -1):
+        char = text[index]
+        if char == "]":
+            if depth == 0:
+                cut = min(cut, index + 1)
+            depth += 1
+        elif char == "[":
+            depth -= 1
+            if depth == 0:
+                cut = index
+        elif depth == 0 and char not in " \t":
+            break
+    return text[:cut], text[cut:]
+
+
+def split_list(text: str) -> list[str]:
+    """Split an IRAF image list on commas, ignoring commas inside brackets.
+
+    ``sp18.fits,sp25.fits`` is two images; ``obj.fits[SCI,1]`` is one.
+    """
+    pieces, current, depth = [], [], 0
+    for char in text:
+        if char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+        if char == "," and depth == 0:
+            pieces.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    pieces.append("".join(current))
+    return [piece.strip() for piece in pieces if piece.strip()]
+
+
 def expand(items: list[str] | str) -> list[ImageSpec]:
-    """Expand inputs: ``@file`` lists, shell globs, and plain names.
+    """Expand inputs the way IRAF's image templates work.
+
+    Handles ``@file`` lists, comma-separated lists, and shell globs including
+    character classes -- and keeps any trailing extension or section, applying
+    it to every file a pattern matched.
 
     harwood expands globs itself rather than relying on the shell, because
-    section 3.1 tells users to quote anything containing brackets or ``*`` --
-    and a quoted pattern never reaches the shell to be expanded.
+    section 3.1 tells users to quote anything containing brackets or ``*``, and
+    a quoted pattern never reaches the shell to be expanded.
     """
     import glob as globbing
 
     if isinstance(items, str):
         items = [items]
+
     out: list[ImageSpec] = []
     for item in items:
-        text = str(item).strip()
-        if not text.startswith("@") and any(c in text for c in "*?") and "[" not in text:
-            matches = sorted(globbing.glob(text))
-            if not matches:
-                raise FileNotFoundError(f"no file matches '{text}'")
-            out.extend(parse(m) for m in matches)
-            continue
-        if text.startswith("@"):
-            listing = Path(text[1:])
-            if not listing.is_file():
-                raise FileNotFoundError(f"list file '{listing}' does not exist")
-            for line in listing.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    out.append(parse(line))
-        else:
-            out.append(parse(text))
+        for piece in split_list(str(item)):
+            if piece.startswith("@"):
+                listing = Path(piece[1:])
+                if not listing.is_file():
+                    raise FileNotFoundError(f"list file '{listing}' does not exist")
+                for line in listing.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        out.extend(expand(line))
+                continue
+
+            name, brackets = split_brackets(piece)
+            if any(char in name for char in "*?[") and not Path(name).exists():
+                matches = sorted(globbing.glob(name))
+                if not matches:
+                    raise FileNotFoundError(f"no file matches '{name}'")
+                out.extend(parse(found + brackets) for found in matches)
+            else:
+                out.append(parse(piece))
     return out
 
 

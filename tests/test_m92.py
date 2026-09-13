@@ -250,7 +250,7 @@ def test_imalign_closes_the_loop(reduced):
     assert any("correlates the noise" in w for w in result.warnings), \
         "interpolating a fractional shift must be said out loud, not documented"
 
-    finder, phot = get_task("daofind"), get_task("phot")
+    finder = get_task("daofind")
     catalogues = []
     for name in ("m92010p", "m92011p"):
         finder.run(image=str(reduced / "aligned" / f"{name}.fits"),

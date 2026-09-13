@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .task import Task
 
-_REGISTRY: dict[str, type["Task"]] = {}
+_REGISTRY: dict[str, type[Task]] = {}
 _LOADED = False
 
 #: Task modules, in the order `list` should present their packages.
@@ -31,10 +31,11 @@ _MODULES = (
     "harwood.tasks.immatch",
     "harwood.tasks.ccdred",
     "harwood.tasks.photometry",
+    "harwood.tasks.onedspec",
 )
 
 
-def register(cls: type["Task"]) -> type["Task"]:
+def register(cls: type[Task]) -> type[Task]:
     """Register a task by its `name` attribute."""
     name = getattr(cls, "name", None)
     if not name:
@@ -56,7 +57,7 @@ def _load() -> None:
         importlib.import_module(module)
 
 
-def get_task(name: str) -> "Task":
+def get_task(name: str) -> Task:
     """Instantiate a task by name.
 
     On a miss, raise `KeyError` with near matches. The command line turns that
@@ -72,14 +73,14 @@ def get_task(name: str) -> "Task":
     return _REGISTRY[name]()
 
 
-def get_class(name: str) -> type["Task"]:
+def get_class(name: str) -> type[Task]:
     _load()
     if name not in _REGISTRY:
         raise KeyError(f"task '{name}' does not exist.")
     return _REGISTRY[name]
 
 
-def list_tasks() -> dict[str, type["Task"]]:
+def list_tasks() -> dict[str, type[Task]]:
     """Every available task, ordered by package then name."""
     _load()
     return dict(sorted(_REGISTRY.items(), key=lambda item: (item[1].package, item[0])))

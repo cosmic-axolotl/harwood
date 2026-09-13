@@ -50,17 +50,26 @@ class ImCombineParams(TaskParams):
         ),
     )
 
-    lsigma: float = Field(3.0, ge=0, description="Rejection threshold below the centre, in sigma.")
-    hsigma: float = Field(3.0, ge=0, description="Rejection threshold above the centre, in sigma.")
+    lsigma: float = Field(
+        3.0, ge=0, description="Rejection threshold below the centre, in sigma."
+    )
+    hsigma: float = Field(
+        3.0, ge=0, description="Rejection threshold above the centre, in sigma."
+    )
     mclip: bool = Field(
         True,
-        description="Judge deviations against the median rather than the mean. Rarely turn off.",
+        description="Judge deviations against the median rather than the mean. "
+                    "Rarely turn off.",
     )
     nlow: int = Field(1, ge=0, description="For minmax: how many low pixels to drop.")
     nhigh: int = Field(1, ge=0, description="For minmax: how many high pixels to drop.")
-    nkeep: int = Field(1, ge=1, description="Minimum number of pixels to keep at each position.")
+    nkeep: int = Field(
+        1, ge=1, description="Minimum number of pixels to keep at each position."
+    )
 
-    gain: float = Field(1.0, gt=0, description="Detector gain in electrons per ADU. Used by ccdclip.")
+    gain: float = Field(
+        1.0, gt=0, description="Detector gain in electrons per ADU. Used by ccdclip."
+    )
     rdnoise: float = Field(0.0, ge=0, description="Read noise in electrons. Used by ccdclip.")
     snoise: float = Field(
         0.0, ge=0,
@@ -91,17 +100,19 @@ class ImCombineParams(TaskParams):
     )
 
     exposure_key: str = Field(
-        "EXPTIME", description="Header keyword holding the exposure time, for scale='exposure'."
+        "EXPTIME",
+        description="Header keyword holding the exposure time, for scale='exposure'.",
     )
     sigmas: Path | None = Field(
-        None, description="Optional output image holding the pixel-by-pixel standard deviation."
+        None,
+        description="Optional output image holding the pixel-by-pixel standard deviation.",
     )
     nrejmasks: Path | None = Field(
         None, description="Optional output image counting rejections at each pixel."
     )
 
     @model_validator(mode="after")
-    def _check(self) -> "ImCombineParams":
+    def _check(self) -> ImCombineParams:
         if self.reject in ("ccdclip", "crreject") and self.rdnoise == 0.0 and self.gain == 1.0:
             raise ValueError(
                 f"reject='{self.reject}' needs the detector's gain and rdnoise; "
@@ -153,7 +164,8 @@ class ImCombine(Task[ImCombineParams]):
                                         f"{'median' if params.mclip else 'mean'}"))
         steps.append(Step("combine", params.combine))
         steps.append(Step("write", str(params.output)))
-        for extra, what in ((params.sigmas, "sigma image"), (params.nrejmasks, "rejection counts")):
+        for extra, what in ((params.sigmas, "sigma image"),
+                            (params.nrejmasks, "rejection counts")):
             if extra:
                 steps.append(Step("write", f"{what} -> {extra}"))
         return steps
@@ -163,7 +175,7 @@ class ImCombine(Task[ImCombineParams]):
         from astropy.io import fits
 
         from .. import kernels
-        from ..core import images, pixels, provenance
+        from ..core import images, provenance
 
         specs = images.expand(params.input)
         stack, headers = images.read_stack(specs)

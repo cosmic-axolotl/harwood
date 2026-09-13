@@ -13,7 +13,6 @@ because anything a script needs is Python.
 from __future__ import annotations
 
 import shlex
-import sys
 
 from rich.console import Console
 

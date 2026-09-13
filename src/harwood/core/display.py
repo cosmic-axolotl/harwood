@@ -15,7 +15,6 @@ and what keeps a task testable without a screen.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 BACKENDS = ("native", "headless", "ds9")

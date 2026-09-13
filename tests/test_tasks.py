@@ -37,7 +37,7 @@ def night(tmp_path):
     sigma = FWHM / 2.3548
     yy, xx = np.mgrid[0:ny, 0:nx]
     stars = np.zeros((ny, nx))
-    for sx, sy, sf in zip(x, y, flux):
+    for sx, sy, sf in zip(x, y, flux, strict=False):
         stars += sf / (2 * np.pi * sigma**2) * np.exp(
             -(((xx - (sx - 1))**2 + (yy - (sy - 1))**2) / (2 * sigma**2)))
     stars[:, useful:] = 0.0
@@ -64,7 +64,7 @@ def test_the_whole_chain_recovers_the_truth(night):
 
     get_task("daofind").run(image=str(tmp / "obj_p.fits"), output=tmp / "stars.ecsv",
                             fwhm=FWHM, threshold=5.0)
-    result = get_task("phot").run(image=str(tmp / "obj_p.fits"),
+    get_task("phot").run(image=str(tmp / "obj_p.fits"),
                                   coords=tmp / "stars.ecsv", output=tmp / "mags.ecsv",
                                   apertures=[6.0], annulus=12.0, dannulus=5.0,
                                   epadu=GAIN, readnoise=RDNOISE, zmag=25.0)

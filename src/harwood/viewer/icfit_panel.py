@@ -27,9 +27,10 @@ from dataclasses import replace
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from ..core import icfit
+from ._qt import application
 
 ACCENT = "#e0a33e"
 SKY = "#4fb59b"
@@ -92,8 +93,14 @@ class IcfitPanel(QtWidgets.QWidget):
         self.plot = pg.PlotWidget()
         self.plot.setBackground(GROUND)
         for name in ("left", "bottom"):
-            self.plot.getAxis(name).setPen(pg.mkPen(LINE))
-            self.plot.getAxis(name).setTextPen(pg.mkPen(MUTED))
+            axis = self.plot.getAxis(name)
+            axis.setPen(pg.mkPen(LINE))
+            axis.setTextPen(pg.mkPen(MUTED))
+            # Without this pyqtgraph factors a power of ten out of the tick
+            # labels and appends it to the axis title, which then no longer
+            # fits and is cut -- leaving a residual axis labelled "(x0.0".
+            axis.enableAutoSIPrefix(False)
+        self.ylabel = ylabel
         self.plot.setLabel("bottom", xlabel, color=MUTED)
         self.plot.setLabel("left", ylabel, color=MUTED)
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
@@ -134,7 +141,7 @@ class IcfitPanel(QtWidgets.QWidget):
         if self.axis == "residuals":
             values = self.fit.residuals
             curve_y = np.zeros_like(self.x)
-            label = "residual"
+            label = f"residual ({self.ylabel})" if self.ylabel else "residual"
         elif self.axis == "ratio":
             with np.errstate(divide="ignore", invalid="ignore"):
                 values = np.where(self.fit.values != 0, self.y / self.fit.values, np.nan)
@@ -143,7 +150,7 @@ class IcfitPanel(QtWidgets.QWidget):
         else:
             values = self.y
             curve_y = None
-            label = "data"
+            label = self.ylabel or "data"
         self.plot.setLabel("left", label, color=MUTED)
 
         self._scatter(self.x[used], values[used], SKY, 5.0)
@@ -181,9 +188,8 @@ class IcfitPanel(QtWidgets.QWidget):
     # ------------------------------------------------------------- input
 
     def eventFilter(self, obj, event) -> bool:
-        if event.type() == QtCore.QEvent.KeyPress:
-            if self.key(event.text()):
-                return True
+        if event.type() == QtCore.QEvent.KeyPress and self.key(event.text()):
+            return True
         return super().eventFilter(obj, event)
 
     def _mouse_moved(self, position) -> None:
@@ -233,10 +239,8 @@ class IcfitPanel(QtWidgets.QWidget):
         values = self.y if self.axis == "data" else self.fit.residuals
         distance = np.hypot((self.x - self._cursor[0]) / span_x,
                             (values - self._cursor[1]) / span_y)
-        if delete:
-            candidates = np.flatnonzero(~self.deleted)
-        else:
-            candidates = np.flatnonzero(self.deleted)
+        candidates = (np.flatnonzero(~self.deleted) if delete
+                      else np.flatnonzero(self.deleted))
         if candidates.size == 0:
             return
         index = candidates[np.argmin(distance[candidates])]
@@ -300,7 +304,7 @@ def apply_command(spec: icfit.FitSpec, text: str) -> icfit.FitSpec:
 def run(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit",
         xlabel: str = "x", ylabel: str = "y") -> icfit.Fit:
     """Open the panel, wait for `q`, and hand back the fit that was accepted."""
-    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    application()
     dialog = QtWidgets.QDialog()
     dialog.setWindowTitle(title)
     dialog.resize(980, 620)

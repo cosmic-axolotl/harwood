@@ -83,7 +83,8 @@ def app(ctx: click.Context, backend: str | None) -> None:
 
 @app.command("list")
 @click.argument("package", required=False)
-@click.option("--iraf", is_flag=True, help="Show the IRAF inventory and the status of each task.")
+@click.option("--iraf", is_flag=True,
+              help="Show the IRAF inventory and the status of each task.")
 @click.option("--milestone", "-m", help="With --iraf: filter by milestone, mvp or later.")
 def list_cmd(package: str | None, iraf: bool, milestone: str | None) -> None:
     """Browse packages and tasks."""
@@ -203,7 +204,7 @@ def lpar_cmd(task: str) -> None:
     table.add_column("parameter", style="bold")
     table.add_column("value")
     table.add_column("origin", style="dim")
-    for name, field in cls.Params.model_fields.items():
+    for name in cls.Params.model_fields:
         if name not in resolved:
             table.add_row(name, "[red]required, not set[/red]", "")
             continue
@@ -262,7 +263,8 @@ def doctor_cmd() -> None:
                       "pip install harwood[fast]" if missing == "numba" else "optional")
     forced = kernels.requested()
     if forced:
-        table.add_row("HARWOOD_BACKEND", f"[yellow]{forced}[/yellow]", "forced by the environment")
+        table.add_row("HARWOOD_BACKEND", f"[yellow]{forced}[/yellow]",
+                      "forced by the environment")
 
     for package, extra in (("astropy", ""), ("photutils", "harwood[phot]"),
                            ("ccdproc", "harwood[ccd]"), ("astroscrappy", "harwood[ccd]"),

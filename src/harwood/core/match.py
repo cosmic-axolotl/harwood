@@ -242,7 +242,7 @@ def by_triangles(rx, ry, ix, iy, nmatch: int = 30, tolerance: float = 2.0,
         close = (np.abs(in_shape[:, 0] - ratio) < ratio_tolerance * ratio) & \
                 (np.abs(in_shape[:, 1] - cosine) < ratio_tolerance)
         for other in np.flatnonzero(close):
-            for a, b in zip(ref_tri[row], in_tri[other]):
+            for a, b in zip(ref_tri[row], in_tri[other], strict=False):
                 key = (int(ref_pick[a]), int(in_pick[b]))
                 ballot[key] = ballot.get(key, 0) + 1
 

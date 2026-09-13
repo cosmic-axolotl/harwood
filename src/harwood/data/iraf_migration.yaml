@@ -21,7 +21,7 @@
 #                wontport   deliberately not portable; `note` says why
 #
 # Counts: 610 distinct task names across 52 packages.
-#   available: 9, partial: 5, planned: 341, replaced: 94, wontport: 161
+#   available: 9, partial: 6, planned: 340, replaced: 94, wontport: 161
 #   milestone mvp: 46, later: 295
 #
 # Known delta: the inventory counts 609 distinct names, this file holds 610.
@@ -703,7 +703,10 @@ tasks:
   ecidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
   ecreidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
   fitprofs: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  identify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  identify: {pkg: onedspec, domain: spec-1d, status: partial, harwood: identify,
+    note: "finds arc lines, matches them to a line list and fits the dispersion with
+    icfit, by hand or automatically from an approximate crval and cdelt; writes
+    database/id<image>. No reidentify yet, one aperture only, and no 2-D solution"}
   interp: {pkg: proto, domain: spec-1d, status: planned, milestone: later}
   lcalib: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   match: {pkg: system, domain: spec-1d, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}

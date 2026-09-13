@@ -66,7 +66,8 @@ class ImHeader(Task[ImHeaderParams]):
 class HSelectParams(TaskParams):
     input: list[str] = Field(..., description="Images to consider. Accepts globs and @lists.")
     fields: list[str] = Field(
-        ..., description="Keywords to print for each image that matches, e.g. 'OBJECT,EXPTIME'."
+        ...,
+        description="Keywords to print for each image that matches, e.g. 'OBJECT,EXPTIME'.",
     )
     expr: str = Field(
         "yes",
@@ -134,8 +135,12 @@ class ImStatParams(TaskParams):
         None, description="Section to measure, 1-based and (x,y), e.g. '[100:400,*]'."
     )
     nclip: int = Field(0, ge=0, description="Sigma-clipping iterations before measuring.")
-    lsigma: float = Field(3.0, ge=0, description="Clipping threshold below the mean, in sigma.")
-    hsigma: float = Field(3.0, ge=0, description="Clipping threshold above the mean, in sigma.")
+    lsigma: float = Field(
+        3.0, ge=0, description="Clipping threshold below the mean, in sigma."
+    )
+    hsigma: float = Field(
+        3.0, ge=0, description="Clipping threshold above the mean, in sigma."
+    )
 
 
 @register
@@ -209,7 +214,7 @@ class ImArith(Task[ImArithParams]):
         import numpy as np
         from astropy.io import fits
 
-        from ..core import images, provenance
+        from ..core import provenance
 
         left, header = _operand(params.operand1)
         right, header2 = _operand(params.operand2)

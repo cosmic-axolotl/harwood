@@ -74,7 +74,6 @@ class XyxyMatch(Task[XyxyMatchParams]):
         ]
 
     def execute(self, params: XyxyMatchParams) -> TaskResult:
-        import numpy as np
         from astropy.table import Table
 
         from ..core import catalog, match, provenance
@@ -251,7 +250,7 @@ def _centroids(data, x0, y0, params, analysis):
     import numpy as np
 
     xs, ys = [], []
-    for x, y in zip(x0, y0):
+    for x, y in zip(x0, y0, strict=False):
         cx, cy = float(x), float(y)
         for size in (params.bigbox, params.boxsize):
             for _ in range(params.niterate):
@@ -342,7 +341,7 @@ class ImAlign(Task[ImAlignParams]):
         order = {"nearest": 0, "linear": 1, "spline3": 3}[params.interp]
         params.output.mkdir(parents=True, exist_ok=True)
         outputs, history = [], []
-        for spec, (dx, dy) in zip(specs, pairs):
+        for spec, (dx, dy) in zip(specs, pairs, strict=False):
             data, header = images.read(spec)
             # A shift of +dx means the frame sits dx to the right of the
             # reference, so the pixels move back by dx to line up.

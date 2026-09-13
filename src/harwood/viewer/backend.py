@@ -17,11 +17,10 @@ class NativeDisplay:
     """
 
     def __init__(self, **_: Any) -> None:
-        from PySide6 import QtWidgets
-
+        from ._qt import application
         from .window import HarwoodWindow
 
-        self.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        self.app = application()
         self.window = HarwoodWindow()
         self.window.show()
 

@@ -21,9 +21,10 @@ is not reproducible.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 #: Compilation cache, kept out of the package and out of the reduction (7.2).
 CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "harwood"
@@ -61,9 +62,9 @@ def requested() -> str | None:
 def _load(backend: str):
     """Import one backend module, or return None if it is not installed."""
     if backend == "reference":
-        from . import reference
-
         import numpy
+
+        from . import reference
 
         return reference, numpy.__version__
     if backend == "numba":

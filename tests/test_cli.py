@@ -1,6 +1,5 @@
 """The command line: the four commands, and the shape section 3.1 fixes."""
 
-import os
 
 import pytest
 from click.testing import CliRunner

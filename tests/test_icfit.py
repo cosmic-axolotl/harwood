@@ -65,7 +65,7 @@ def test_sample_limits_the_fit_to_the_named_ranges():
     y = np.where(x < 100, 5.0, 500.0)
     result = icfit.fit(x, y, icfit.FitSpec(order=1, sample="1:99"))
     assert result(np.array([50.0]))[0] == pytest.approx(5.0)
-    assert result.mask[150] == False          # outside the sample, never used
+    assert not result.mask[150]              # outside the sample, never used
 
 
 def test_sample_accepts_several_ranges():
@@ -159,3 +159,63 @@ def test_applying_a_command_never_mutates_the_original():
     spec = icfit.FitSpec(order=2)
     apply_command(spec, "order 9")
     assert spec.order == 2
+
+
+def test_the_dispersion_solution_survives_a_round_trip(tmp_path):
+    """A solution written to database/ must read back the same, including which
+    features the fit threw out -- knowing what was rejected is part of the
+    solution, not a detail of the session that made it."""
+    import numpy as np
+
+    from harwood.core import database
+
+    solution = database.Solution(
+        image="arc.fits", pixel=np.array([100.0, 300.0, 700.0]),
+        wavelength=np.array([6650.1, 6700.2, 6780.3]),
+        fitted=np.array([6650.09, 6700.21, 6780.28]),
+        used=np.array([True, True, False]),
+        function="chebyshev", order=3, rms=0.0123,
+        coordlist="linelists$thorium.dat")
+    database.write(solution, tmp_path)
+
+    back = database.read("arc.fits", tmp_path)
+    assert back.image == "arc.fits"
+    assert back.function == "chebyshev" and back.order == 3
+    assert back.rms == pytest.approx(0.0123)
+    np.testing.assert_allclose(back.wavelength, solution.wavelength)
+    np.testing.assert_array_equal(back.used, [True, True, False])
+
+
+def test_an_iraf_database_file_can_be_read(tmp_path):
+    """Section 3: a database full of solutions that took real effort should be
+    usable, not remade."""
+    from harwood.core import database
+
+    directory = tmp_path / "database"
+    directory.mkdir()
+    (directory / "idsp0027").write_text(
+        "# Mon 12:00:00 25-Jan-1992\n"
+        "begin\tidentify sp0027\n"
+        "\tid\tsp0027\n"
+        "\ttask\tidentify\n"
+        "\timage\tsp0027\n"
+        "\tunits\tAngstroms\n"
+        "\tfeatures\t3\n"
+        "\t  102.05   6650.10   6650.12   4.0 1 1\n"
+        "\t  305.11   6700.20   6700.19   4.0 1 1\n"
+        "\t  701.98   6780.30   6780.33   4.0 1 0\n"
+        "\tfunction chebyshev\n"
+        "\torder 3\n", encoding="utf-8")
+
+    solution = database.read("sp0027", tmp_path)
+    assert len(solution) == 3
+    assert solution.function == "chebyshev" and solution.order == 3
+    assert solution.wavelength[1] == pytest.approx(6700.19)
+    assert list(solution.used) == [True, True, False]
+
+
+def test_a_missing_solution_says_what_to_run(tmp_path):
+    from harwood.core import database
+
+    with pytest.raises(FileNotFoundError, match="identify"):
+        database.read("nothing.fits", tmp_path)

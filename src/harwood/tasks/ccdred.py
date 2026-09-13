@@ -16,6 +16,7 @@ the ordering, the header bookkeeping and the provenance.
 
 from __future__ import annotations
 
+from datetime import UTC
 from pathlib import Path
 from typing import Literal
 
@@ -46,7 +47,9 @@ class CcdProcParams(TaskParams):
     overscan: bool = Field(False, description="Fit and subtract the overscan level.")
     trim: bool = Field(False, description="Trim the image to its useful section.")
     zerocor: bool = Field(False, description="Subtract the master bias.")
-    darkcor: bool = Field(False, description="Subtract the master dark, scaled by exposure time.")
+    darkcor: bool = Field(
+        False, description="Subtract the master dark, scaled by exposure time."
+    )
     flatcor: bool = Field(False, description="Divide by the master flat.")
 
     biassec: str | None = Field(
@@ -61,7 +64,9 @@ class CcdProcParams(TaskParams):
     zero: Path | None = Field(None, description="Master bias image.")
     dark: Path | None = Field(None, description="Master dark image.")
     flat: Path | None = Field(None, description="Master flat image.")
-    bpm: Path | None = Field(None, description="Bad pixel mask, non-zero where a pixel is bad.")
+    bpm: Path | None = Field(
+        None, description="Bad pixel mask, non-zero where a pixel is bad."
+    )
 
     # The overscan fit is an icfit, with icfit's parameter names -- the same
     # ones identify, aptrace, continuum and sensfunc use. Learn them once.
@@ -82,9 +87,15 @@ class CcdProcParams(TaskParams):
                        "median instead, which ignores spikes.",
     )
     niterate: int = Field(0, ge=0, description="Rejection passes over the overscan fit.")
-    low_reject: float = Field(3.0, ge=0, description="Rejection threshold below the fit, in sigma.")
-    high_reject: float = Field(3.0, ge=0, description="Rejection threshold above the fit, in sigma.")
-    grow: float = Field(0.0, ge=0, description="Also reject points within this distance of a rejected one.")
+    low_reject: float = Field(
+        3.0, ge=0, description="Rejection threshold below the fit, in sigma."
+    )
+    high_reject: float = Field(
+        3.0, ge=0, description="Rejection threshold above the fit, in sigma."
+    )
+    grow: float = Field(
+        0.0, ge=0, description="Also reject points within this distance of a rejected one."
+    )
     readaxis: Literal["line", "column"] = Field(
         "column", description="Axis the overscan is averaged along."
     )
@@ -95,7 +106,9 @@ class CcdProcParams(TaskParams):
                     "are written to the log, so the run can be repeated in batch.",
     )
 
-    exposure_key: str = Field("EXPTIME", description="Header keyword holding the exposure time.")
+    exposure_key: str = Field(
+        "EXPTIME", description="Header keyword holding the exposure time."
+    )
     minreplace: float = Field(
         1.0, description="Flat values below this are replaced, to avoid dividing by noise."
     )
@@ -156,7 +169,7 @@ class CcdProc(Task[CcdProcParams]):
         import numpy as np
         from astropy.io import fits
 
-        from ..core import images, pixels, provenance
+        from ..core import images, provenance
 
         specs = images.expand(params.input)
         many = len(specs) > 1
@@ -218,9 +231,9 @@ def _already(header, flag: str) -> bool:
 
 def _mark(header, flag: str) -> None:
     keyword, comment = MARKS[flag]
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    header[keyword] = (datetime.now(timezone.utc).isoformat(timespec="seconds"), comment)
+    header[keyword] = (datetime.now(UTC).isoformat(timespec="seconds"), comment)
 
 
 def _fixpix(data, bpm_path, header):
