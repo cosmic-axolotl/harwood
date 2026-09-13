@@ -241,3 +241,31 @@ def test_a_reconstructed_command_omits_defaults_and_quotes_what_needs_it():
     assert "--overscan" in command and "--trim" in command
     assert "--order" not in command, "order 1 is the default"
     assert "--low-reject" not in command, "so is the rejection threshold"
+
+
+def test_observatories_lists_the_sites_setairmass_knows(run):
+    result = run("observatories")
+    assert result.exit_code == 0
+    assert "kpno" in result.output and "lna" in result.output
+    # The sign convention is the one thing here that can quietly ruin an
+    # airmass, so it has to be on screen and not only in the source.
+    assert "positive west" in result.output
+
+
+def test_observatories_looks_one_up_by_alias(run):
+    result = run("observatories", "kitt peak")
+    assert result.exit_code == 0 and "kpno" in result.output
+
+
+def test_an_unknown_observatory_says_what_to_do_instead(run):
+    result = run("observatories", "narnia")
+    assert result.exit_code == 3
+    assert "--latitude" in result.output
+
+
+def test_the_new_spectroscopic_tasks_are_documented_like_the_rest(run):
+    for task in ("refspectra", "setairmass"):
+        manual = run("help", task)
+        assert manual.exit_code == 0, task
+        values = run("lpar", task)
+        assert values.exit_code == 0, task

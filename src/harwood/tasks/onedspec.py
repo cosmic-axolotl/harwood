@@ -404,7 +404,9 @@ class DispCor(Task[DispCorParams]):
     def plan(self, params: DispCorParams) -> list[Step]:
         steps = [
             Step("read", params.input, why=DISPWHY["read"]),
-            Step("solution", f"database/id{Path(params.reference).stem}",
+            Step("solution",
+                 f"database/id{Path(params.reference).stem}"
+                 if params.reference else "the arcs refspectra assigned",
                  why=DISPWHY["solution"]),
             Step("apply", "wavelength for every pixel", why=DISPWHY["apply"]),
         ]
@@ -420,40 +422,56 @@ class DispCor(Task[DispCorParams]):
 
         from ..core import database, icfit, output, spectrum
 
-        if not params.reference:
-            from ..core.database import listing
-
-            known = [path.name[2:] for path in listing(params.database)
-                     if path.name.startswith("id")]
-            raise ValueError(
-                "--reference names the arc whose solution to use; there is no "
-                "way to guess which arc belongs to which exposure. "
-                + (f"This reduction has solutions for {', '.join(known)}."
-                   if known else "This reduction has none yet: run identify on "
-                                 "an arc first.")
-            )
+        names, weights = _references(params)
         apertures = spectrum.read(params.input)
-        solution = database.read(params.reference, params.database)
 
-        used = solution.used if solution.used is not None else None
-        pixel = solution.pixel if used is None else solution.pixel[used]
-        wavelength = (solution.wavelength if used is None
-                      else solution.wavelength[used])
-        fit = icfit.fit(pixel, wavelength,
-                        icfit.FitSpec(function=solution.function,
-                                      order=solution.order))
-        if fit.model is None:
-            raise RuntimeError(
-                f"the solution in database/id{Path(params.reference).stem} could "
-                f"not be refitted: {fit.message}"
-            )
+        solutions = [database.read(name, params.database) for name in names]
+        fits_ = []
+        for name, solution in zip(names, solutions, strict=True):
+            used = solution.used if solution.used is not None else None
+            pixel = solution.pixel if used is None else solution.pixel[used]
+            wavelength = (solution.wavelength if used is None
+                          else solution.wavelength[used])
+            fitted = icfit.fit(pixel, wavelength,
+                               icfit.FitSpec(function=solution.function,
+                                             order=solution.order))
+            if fitted.model is None:
+                raise RuntimeError(
+                    f"the solution in database/id{Path(name).stem} could not be "
+                    f"refitted: {fitted.message}"
+                )
+            fits_.append((fitted, pixel))
+
+        solution = solutions[0]
+        pixel = fits_[0][1]
+
+        def fit(values):
+            """One solution, or two combined in the proportion refspectra set.
+
+            Interpolating between two arcs is interpolating the flexure between
+            them, so the two wavelength scales are averaged -- not the two
+            sets of line positions, which belong to different exposures and
+            cannot be fitted together.
+            """
+            import numpy as np
+
+            total = np.zeros_like(values, dtype=float)
+            for (model, _), weight in zip(fits_, weights, strict=True):
+                total += weight * model(values)
+            return total
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
         by_action["solution"].measured = {
-            "features": f"{len(pixel)} of {len(solution)}",
+            "arcs": " + ".join(
+                f"{name} ({weight:.3f})" if len(names) > 1 else str(name)
+                for name, weight in zip(names, weights, strict=True)),
+            "features": " and ".join(f"{len(used)} of {len(whole)}"
+                                     for (_, used), whole
+                                     in zip(fits_, solutions, strict=True)),
             "function": f"{solution.function} order {solution.order}",
-            "rms": f"{solution.rms:.4f} {solution.units}",
+            "rms": " and ".join(f"{item.rms:.4f} {item.units}"
+                                for item in solutions),
         }
 
         warnings = []
@@ -503,11 +521,49 @@ class DispCor(Task[DispCorParams]):
             warnings=warnings,
             data={"apertures": len(apertures),
                   "range": f"{low:.2f} to {high:.2f} {solution.units}",
+                  "arcs": " + ".join(str(name) for name in names),
                   "extrapolated": outside},
             history=[f"dispcor: {solution.function} order {solution.order} from "
-                     f"{params.reference}, rms {solution.rms:.4f} "
-                     f"{solution.units}"],
+                     + " + ".join(
+                         f"{name} ({weight:.3f})" if len(names) > 1 else str(name)
+                         for name, weight in zip(names, weights, strict=True))
+                     + f", rms {solution.rms:.4f} {solution.units}"],
         )
+
+
+def _references(params: DispCorParams) -> tuple[list[str], list[float]]:
+    """Which arcs to use: the one given, or the ones refspectra recorded.
+
+    A spectrum that has been through refspectra carries its own answer, which
+    is the point of the keywords: the file says which arc calibrates it without
+    anyone having to remember.
+    """
+    from astropy.io import fits
+
+    from ..core import refspec
+    from ..core.database import listing
+
+    if params.reference:
+        return [params.reference], [1.0]
+
+    try:
+        names, weights = refspec.read_keywords(fits.getheader(params.input))
+    except OSError:
+        names, weights = [], []
+    if names:
+        total = sum(weights)
+        return names, [weight / total for weight in weights]
+
+    known = [path.name[2:] for path in listing(params.database)
+             if path.name.startswith("id")]
+    raise ValueError(
+        f"'{params.input}' does not say which arc calibrates it, and there is "
+        "no way to guess. Either name one with --reference, or run refspectra "
+        "over the night to assign them by time. "
+        + (f"This reduction has solutions for {', '.join(known)}."
+           if known else "This reduction has none yet: run identify on an arc "
+                         "first.")
+    )
 
 
 def _linearize(aperture, npoints: int | None) -> None:
@@ -545,3 +601,249 @@ def _linearize(aperture, npoints: int | None) -> None:
     aperture.wavelength = grid
     aperture.pixel = np.interp(grid, wavelength,
                                np.asarray(aperture.pixel, dtype=float)[order])
+
+
+REFWHY = {
+    "times": "Every frame is placed on one clock -- the middle of its exposure, "
+             "not its start -- and the clock wraps at an hour nobody observes, "
+             "so a night that crosses midnight still sorts in the order it "
+             "happened. This is why setairmass runs first: it is what puts "
+             "UTMIDDLE in the header.",
+    "sort": "The arcs are put in time order. A dispersion solution is not a "
+            "property of the spectrograph but of the spectrograph at a moment: "
+            "the instrument flexes as the telescope tracks, and the wavelength "
+            "landing on a given pixel moves with it. That is why a night has an "
+            "arc at each end rather than one in the middle.",
+    "assign": "Each exposure is given the arc or arcs that bracket it. With "
+              "'interp' it gets both, weighted by how close each one is, which "
+              "assumes the flexure between them is smooth -- the assumption the "
+              "two arcs were taken to let you make. 'nearest' makes no such "
+              "assumption and throws away half the information.",
+    "write": "The assignment goes into the spectrum's own header as REFSPEC1 "
+             "and REFSPEC2, the keywords IRAF uses, so dispcor needs no "
+             "argument: the file says which arc calibrates it, and still says "
+             "so next year.",
+}
+
+
+class RefSpectraParams(TaskParams):
+    input: list[str] = Field(
+        ..., description="Extracted object spectra. Globs and @lists expand.",
+        json_schema_extra={"positional": True},
+    )
+    references: list[str] = Field(
+        default_factory=list,
+        description="Arc spectra. Left out, every solution in database/ is "
+                    "offered.",
+    )
+    select: str = Field(
+        "interp",
+        description="How to choose: interp, nearest, preceding, following, "
+                    "average, match.",
+    )
+    sort: str = Field(
+        "utmiddle",
+        description="Header keyword to sort on. The default is the "
+                    "mid-exposure time setairmass writes.",
+    )
+    time: bool = Field(
+        True, description="Is the sort key a time? Then it wraps at --timewrap."
+    )
+    timewrap: float = Field(
+        17.0, ge=0, le=24,
+        description="Hour before which a time belongs to the following day.",
+    )
+    database: Path = Field(
+        Path("."), description="Reduction directory holding database/."
+    )
+    override: bool = Field(
+        False, description="Replace an assignment already in the header."
+    )
+    assign: bool = Field(
+        True, description="Write the assignment. Off, it only reports it."
+    )
+
+
+@register
+class RefSpectra(Task[RefSpectraParams]):
+    name = "refspectra"
+    package = "onedspec"
+    description = "Assign arc spectra to the exposures they calibrate."
+    Params = RefSpectraParams
+
+    def plan(self, params: RefSpectraParams) -> list[Step]:
+        return [
+            Step("times", f"{params.sort}, from each header", why=REFWHY["times"]),
+            Step("sort", "arcs in time order", why=REFWHY["sort"]),
+            Step("assign", f"select = {params.select}", why=REFWHY["assign"]),
+            Step("write", "REFSPEC1 and REFSPEC2" if params.assign
+                 else "nothing -- --no-assign was given", why=REFWHY["write"],
+                 skipped=not params.assign,
+                 reason="" if params.assign else "reporting only"),
+        ]
+
+    def execute(self, params: RefSpectraParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import images, refspec
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+
+        targets = [spec.path for spec in images.expand(params.input)]
+        if not targets:
+            raise ValueError(f"nothing matched {', '.join(params.input)}.")
+
+        names = params.references or _solutions(params.database)
+        if not names:
+            raise ValueError(
+                "there are no arcs to assign: --references names them, and "
+                f"database/ under {params.database} holds no solutions yet. Run "
+                "identify on an arc first."
+            )
+
+        references, unreadable = [], []
+        for name in names:
+            when = _sort_key(name, params, targets)
+            if when is None:
+                unreadable.append(_bare(name))
+            # The name that goes in the header is the bare one -- the name the
+            # database indexes solutions by. A full path would not survive the
+            # eighty columns of a FITS card, and would stop being true the
+            # moment the reduction moved.
+            references.append((_bare(name), when))
+
+        entries = [(str(path), _sort_key(path, params, targets)) for path in targets]
+        assignments = refspec.assign(entries, references, params.select)
+
+        by_action["times"].measured = {
+            "objects": len(targets),
+            "arcs": len(references),
+            "span": _span(entries + references),
+        }
+        ordered = sorted((item for item in references if item[1] is not None),
+                         key=lambda item: item[1])
+        by_action["sort"].measured = {
+            "order": " -> ".join(f"{name} at {when % 24:.3f}h"
+                                 for name, when in ordered)
+        }
+
+        warnings = []
+        if unreadable:
+            warnings.append(
+                f"no time could be read for {', '.join(unreadable)}: the header "
+                f"has neither {params.sort} nor UT and EXPTIME, so those arcs "
+                "took no part in the assignment.")
+
+        rows, written = [], []
+        for assignment in assignments:
+            rows.append({
+                "spectrum": Path(assignment.image).name,
+                "arc": " + ".join(assignment.references) or "none",
+                "weights": " ".join(f"{weight:.3f}"
+                                    for weight in assignment.weights) or "-",
+                "why": assignment.reason,
+            })
+            if not assignment.references:
+                warnings.append(f"{Path(assignment.image).name}: no arc assigned "
+                                f"-- {assignment.reason}.")
+                continue
+            if not params.assign:
+                continue
+            with fits.open(assignment.image, mode="update") as hdus:
+                header = hdus[0].header
+                existing, _ = refspec.read_keywords(header)
+                if existing and not params.override:
+                    warnings.append(
+                        f"{Path(assignment.image).name} already names "
+                        f"{', '.join(existing)}; --override replaces it.")
+                    continue
+                refspec.write_keywords(header, assignment)
+                brief = refspec.Assignment(
+                    _bare(assignment.image), assignment.time,
+                    assignment.references, assignment.weights)
+                header.add_history(
+                    f"refspectra: {params.select}, " + brief.describe())
+            written.append(Path(assignment.image))
+
+        interpolated = sum(1 for item in assignments if len(item.references) > 1)
+        by_action["assign"].measured = {
+            "assigned": sum(1 for item in assignments if item.references),
+            "from two arcs": interpolated,
+            "from one": sum(1 for item in assignments
+                            if len(item.references) == 1),
+        }
+
+        return TaskResult(
+            outputs=written,
+            steps=steps,
+            warnings=warnings,
+            data={"rows": rows},
+            history=[],
+        )
+
+
+def _bare(name) -> str:
+    """A frame's name without its directory or its extension."""
+    text = Path(str(name)).name
+    for suffix in (".ms.fits", ".fits", ".imh"):
+        if text.endswith(suffix):
+            return text[: -len(suffix)]
+    return text
+
+
+def _solutions(root: Path) -> list[str]:
+    """Every arc the database has a solution for."""
+    from ..core.database import listing
+
+    return sorted(path.name[2:] for path in listing(root)
+                  if path.name.startswith("id"))
+
+
+def _sort_key(name, params: RefSpectraParams, near) -> float | None:
+    """The time to sort a frame by, hunting for the file if given a bare name."""
+    from astropy.io import fits
+
+    from ..core import obstime
+
+    path = _locate(name, near)
+    if path is None:
+        return None
+    try:
+        header = fits.getheader(path)
+    except OSError:
+        return None
+
+    if not params.time:
+        value = header.get(params.sort.upper())
+        return None if value is None else float(value)
+
+    value = obstime.middle(header, key=params.sort.upper())
+    return obstime.sortable(value, params.timewrap)
+
+
+def _locate(name, near):
+    """Find the frame a reference names, which may be bare: 'sp0018'."""
+    candidate = Path(str(name))
+    if candidate.exists():
+        return candidate
+
+    stems = [candidate.name]
+    for suffix in (".ms.fits", ".fits", ".ms", ""):
+        if candidate.name.endswith(suffix) and suffix:
+            stems.append(candidate.name[:-len(suffix)])
+    folders = [candidate.parent] + [Path(other).parent for other in near]
+    for folder in dict.fromkeys(folders):
+        for stem in dict.fromkeys(stems):
+            for suffix in (".ms.fits", ".fits", ""):
+                guess = folder / f"{stem}{suffix}"
+                if guess.is_file():
+                    return guess
+    return None
+
+
+def _span(entries) -> str:
+    times = [when for _, when in entries if when is not None]
+    if not times:
+        return "no times"
+    return f"{min(times) % 24:.3f}h to {max(times) % 24:.3f}h UT"

@@ -15,4 +15,12 @@ venv/
 /data/
 /scratch/
 *.fits
+
+# What harwood writes when it is run: a reduction's database, its logs, its
+# output directory. These are the *output* of the software and belong to
+# whatever directory someone reduces in -- never to its source.
+/database/
+/output/
+harwood.log
 harwood.log.jsonl
+harwood.yaml

@@ -184,3 +184,103 @@ def test_wspectext_turns_it_into_something_anyone_can_read(night):
     first = [float(value) for value in rows[1].split(",")]
     assert first[0] == pytest.approx(star.pixel[0])
     assert first[1] == pytest.approx(star.flux[0], rel=1e-5)
+
+
+# ------------------------------------------- the night in time, not in files
+
+#: The exposures the tutorial reduces, with the airmass the 1992 acquisition
+#: system wrote into each header at the moment the shutter opened.
+LOGGED = {"sp0018": 1.12, "sp0019": 1.52, "sp0020": 1.61, "sp0021": 1.72,
+          "sp0022": 1.80, "sp0023": 1.91, "sp0024": 2.04}
+
+
+@pytest.fixture(scope="module")
+def stamped(tmp_path_factory):
+    """The object frames and both comparison lamps, with airmasses computed."""
+    from harwood.core.registry import get_task
+
+    work = tmp_path_factory.mktemp("night")
+    for name in LOGGED:
+        (work / f"{name}.fits").write_bytes((SPEC / f"f{name}").read_bytes())
+    (work / "sp0025.fits").write_bytes((SPEC / "fsp0025").read_bytes())
+
+    get_task("setairmass").run(images=[str(work / "sp00*.fits")],
+                               observatory="kpno")
+    return work
+
+
+def test_the_airmass_at_the_start_reproduces_the_1992_header(stamped):
+    """The check that says the whole time chain is right.
+
+    Nothing here is fitted to anything: the site comes from a table, the date
+    from `25/01/92`, the coordinates from RA and DEC, and the answer has to
+    match a number somebody else's software wrote thirty years ago. It does, to
+    better than 0.01 airmass across a factor of two in airmass -- which is the
+    precision the header itself is quoted to.
+    """
+    from astropy.io import fits
+
+    for name, logged in LOGGED.items():
+        header = fits.getheader(stamped / f"{name}.fits")
+        assert header["AMSTART"] == pytest.approx(logged, abs=0.01), name
+
+
+def test_the_effective_airmass_is_higher_than_the_one_the_observer_logged(stamped):
+    """Twenty minutes is long enough for the star to sink, and this is the
+    reason setairmass exists rather than the header being enough."""
+    from astropy.io import fits
+
+    header = fits.getheader(stamped / "sp0019.fits")
+    assert header["AMSTART"] == pytest.approx(1.52, abs=0.01)
+    assert header["AIRMASS"] > header["AMSTART"] + 0.03
+    assert header["AIRMASS"] < header["AMEND"]
+    assert header["UTMIDDLE"].startswith("02:18"), "02:08:22 plus half of 1200 s"
+
+
+def test_the_comparison_lamps_bracket_the_night(stamped):
+    """The two arcs are not near each other in time -- that is the point of
+    there being two -- and every exposure falls between them."""
+    from astropy.io import fits
+
+    from harwood.core import obstime
+
+    def when(name):
+        return obstime.sortable(obstime.middle(fits.getheader(stamped / f"{name}.fits")))
+
+    first, last = when("sp0018"), when("sp0025")
+    assert last - first > 2.5, "nearly three hours apart"
+    for name in ("sp0019", "sp0022", "sp0024"):
+        assert first < when(name) < last
+
+
+def test_refspectra_weights_the_two_arcs_across_the_real_night(stamped):
+    """Six exposures between two arcs: the weight on the evening arc has to
+    fall, exposure by exposure, from nearly all of it to nearly none."""
+    import numpy as np
+
+    from harwood.core import spectrum
+    from harwood.core.registry import get_task
+
+    names = ["sp0019", "sp0020", "sp0021", "sp0022", "sp0023", "sp0024"]
+    for name in names:
+        from astropy.io import fits
+
+        header = fits.getheader(stamped / f"{name}.fits")
+        ap = spectrum.Aperture(number=1, centre=55.0, low=-8.0, high=8.0,
+                               pixel=np.arange(1.0, 1025.0),
+                               flux=np.ones(1024), error=np.ones(1024))
+        spectrum.write(stamped / f"{name}.ms.fits", [ap], header=header)
+
+    result = get_task("refspectra").run(
+        input=[str(stamped / "sp00*.ms.fits")],
+        references=[str(stamped / "sp0018.fits"), str(stamped / "sp0025.fits")])
+
+    rows = {row["spectrum"]: row for row in result.data["rows"]}
+    assert len(rows) == len(names)
+
+    weights = [float(rows[f"{name}.ms.fits"]["weights"].split()[0])
+               for name in names]
+    assert all(row["arc"] == "sp0018 + sp0025" for row in rows.values())
+    assert weights == sorted(weights, reverse=True), \
+        "the evening arc matters less as the night goes on"
+    assert weights[0] > 0.6 and weights[-1] < 0.15

@@ -261,7 +261,8 @@ tasks:
   partab: {pkg: utilities.nttools, domain: headers, status: replaced,
     note: "astropy.table plus ECSV replace the t* family"}
   sapertures: {pkg: onedspec, domain: headers, status: planned, milestone: later}
-  setairmass: {pkg: [astutil, onedspec], domain: headers, status: planned, milestone: mvp}
+  setairmass: {pkg: [astutil, onedspec], domain: headers, status: partial, harwood: setairmass,
+    note: "effective airmass by Simpson's rule over the exposure, plus UTMIDDLE and JD; a built-in observatory table rather than IRAF's obsdb.dat, and no separate intype/outtype coordinate conversions"}
   setinstrument: {pkg: imred.ccdred, domain: headers, status: partial, harwood: setinstrument,
     note: "chooses a header translation and records it in the project; reads IRAF's own ccddb files, but harwood ships none of its own yet"}
   setjd: {pkg: [astutil, onedspec], domain: headers, status: planned, milestone: mvp}
@@ -704,7 +705,7 @@ tasks:
   continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   deredden: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dispcor: {pkg: onedspec, domain: spec-1d, status: partial, harwood: dispcor,
-    note: "applies a solution from identify to an extracted spectrum, with optional flux-conserving linearization; no log scale, no per-aperture references, no refspectra to choose the arc"}
+    note: "applies a solution from identify to an extracted spectrum, combining two arcs when refspectra assigned two, with optional flux-conserving linearization; no log scale and no per-aperture references"}
   disptrans: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dopcor: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   ecidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
@@ -724,7 +725,8 @@ tasks:
   msresp1d: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
   names: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   ndprep: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  refspectra: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  refspectra: {pkg: onedspec, domain: spec-1d, status: partial, harwood: refspectra,
+    note: "assigns arcs by time with select = interp/nearest/preceding/following/average, writing REFSPEC1 and REFSPEC2 as IRAF does; no grouping by aperture and no interactive confirmation"}
   reidentify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sarith: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sbands: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
