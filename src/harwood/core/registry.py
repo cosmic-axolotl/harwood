@@ -35,6 +35,7 @@ _MODULES = (
     "harwood.tasks.apextract",
     "harwood.tasks.astutil",
     "harwood.tasks.fluxcal",
+    "harwood.tasks.crutil",
 )
 
 

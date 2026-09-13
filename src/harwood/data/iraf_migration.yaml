@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 18, partial: 21, planned: 316, replaced: 94, wontport: 161
-#   milestone mvp: 57 (24 of them running), later: 298
+#   available: 18, partial: 22, planned: 315, replaced: 94, wontport: 161
+#   milestone mvp: 57 (25 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -405,8 +405,12 @@ tasks:
   ccdmask: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: mvp}
   ccdproc: {pkg: imred.ccdred, domain: ccd-reduction, status: partial, milestone: mvp, harwood: ccdproc,
     note: "fixpix, overscan, trim, zero, dark and flat, with header marks, ccdtype selection and calibrations discovered from the input list by type and subset; no illum, fringe, readcor or scancor"}
-  cosmicrays: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: mvp,
-    note: astroscrappy supplies the algorithm}
+  cosmicrays: {pkg: imred.crutil, domain: ccd-reduction, status: partial,
+    milestone: mvp, harwood: cosmicrays,
+    note: "L.A.Cosmic (van Dokkum 2001) by default, with IRAF's 1989 flux-ratio
+           algorithm kept for reproducing old reductions, and --verify to score the
+           detector against a set of exposures. No interactive training, and no
+           per-object thresholds."}
   craverage: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
   credit: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
   crfix: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
