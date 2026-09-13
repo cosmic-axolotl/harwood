@@ -133,3 +133,36 @@ def test_phot_refuses_a_catalogue_whose_pixel_origin_is_unknown(night, tmp_path)
     with pytest.raises(ValueError, match="origin is unknown"):
         get_task("phot").run(image=str(night["object"]), coords=foreign,
                              output=tmp_path / "out.ecsv")
+
+
+def test_an_overscan_section_shorter_than_the_frame_still_corrects_all_of_it(tmp_path):
+    """Found by the KPNO exercise, which picks biassec [335:350,2:510] on a
+    512-row frame: the first and last rows are usually bad, so the section
+    stops short of them -- and the correction still has to reach them.
+
+    Before this, the fit was evaluated only at the sampled rows and the
+    subtraction failed to broadcast; worse, the fit's x axis counted from 1
+    inside the strip rather than using the image's own row numbers, so
+    --sample meant something different here than everywhere else.
+    """
+    import numpy as np
+    from astropy.io import fits
+
+    from harwood.core.registry import get_task
+
+    ny, nx = 40, 30
+    ramp = np.broadcast_to(100 + np.arange(ny)[:, None] * 0.5, (ny, nx)).copy()
+    path = tmp_path / "frame.fits"
+    fits.PrimaryHDU(ramp.astype(np.float32)).writeto(path)
+
+    result = get_task("ccdproc").run(
+        input=[str(path)], output=tmp_path / "out.fits", overscan=True,
+        biassec="[25:30,3:38]", function="legendre", order=2)
+
+    corrected = fits.getdata(tmp_path / "out.fits").astype(float)
+    assert corrected.shape == (ny, nx), "the whole frame is corrected, not the sample"
+    # The ramp is exactly linear, so an order-2 fit removes it everywhere,
+    # including the two rows at each edge the section did not cover.
+    assert abs(float(np.median(corrected[0]))) < 0.01
+    assert abs(float(np.median(corrected[-1]))) < 0.01
+    assert result.data["steps_skipped"] == 0

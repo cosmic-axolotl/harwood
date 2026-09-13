@@ -271,13 +271,20 @@ def _overscan(data, header, params):
             "overscan was asked for but no section was given and the header has no BIASSEC. "
             "Pass --biassec '[2049:2080,*]'."
         )
-    strip = data[pixels.parse_section(section, data.shape)]
+    slices = pixels.parse_section(section, data.shape)
+    strip = data[slices]
     axis = 1 if params.readaxis == "column" else 0
     profile = strip.mean(axis=axis)
 
-    # 1-based, because this is a coordinate a user can read off the image and
-    # type back into --sample.
-    position = np.arange(1.0, profile.size + 1.0)
+    # The positions are the *image's* row (or column) numbers, 1-based -- not
+    # positions within the strip. A bias section like [335:350,2:510] covers
+    # rows 2 to 510, so the profile describes those rows and nothing else, and
+    # --sample given in image coordinates has to mean the same thing here as it
+    # does everywhere else on the image.
+    along = slices[0] if axis == 1 else slices[1]
+    indices = np.arange(data.shape[0 if axis == 1 else 1])[along]
+    position = indices.astype(float) + 1.0
+
     spec = icfit.FitSpec(
         function=params.function, order=params.order, sample=params.sample,
         naverage=params.naverage, niterate=params.niterate,
@@ -296,7 +303,13 @@ def _overscan(data, header, params):
     if result.model is None:
         raise ValueError(f"the overscan fit failed: {result.message}")
 
-    level = result.values
+    # Evaluate the fit over *every* row of the image, not only the rows the
+    # bias section sampled. A section that stops short of the edges -- which is
+    # the normal case, because the first and last rows are usually bad -- still
+    # has to correct the whole frame, and extrapolating a low-order fit a few
+    # rows past its sample is exactly what it is for.
+    full = np.arange(1.0, data.shape[0 if axis == 1 else 1] + 1.0)
+    level = np.asarray(result(full), dtype=float)
     corrected = data - (level[:, None] if axis == 1 else level[None, :])
     _mark(header, "overscan")
     header["BIASSEC"] = section
