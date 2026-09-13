@@ -1,0 +1,560 @@
+# Spectral lines worth naming, with what produces them.
+#
+# Wavelengths are AIR wavelengths in Angstroms, which is the convention of
+# every optical catalogue and of every IRAF line list. Below 2000 A the
+# convention flips to vacuum, because air does not transmit there; entries in
+# that regime are marked `vacuum: true`.
+#
+# `prominence` is not a physical quantity. It is how likely this line is to be
+# the one somebody is looking at -- 3 for the features that name themselves in
+# any textbook spectrum, 1 for lines that matter only when you already know
+# what you are looking for. It is used to rank candidates and nothing else,
+# and it is why a search near 6563 answers "H-alpha" rather than one of the
+# four faint iron lines that are also within an Angstrom.
+#
+# `origin` says what produces the line, which is the part that is usually more
+# useful than the wavelength: a 6867 A absorption is not in your star at all,
+# it is oxygen in the air above the telescope.
+
+groups:
+
+  # ------------------------------------------------------------- hydrogen
+  - species: "H I"
+    common: hydrogen
+    kind: atomic
+    origin: [stellar, nebular]
+    note: >-
+      The Balmer series in absorption is the spine of any A-type spectrum and
+      the thing that defines the spectral sequence around A0. In emission it
+      means gas: a nebula, a disc, or a wind. The lines crowd together towards
+      the Balmer limit at 3646 A, where they merge into the Balmer jump.
+    lines:
+      - {wavelength: 6562.80, label: "H-alpha", prominence: 3,
+         note: "The strongest optical hydrogen line. In emission it is the
+                first thing anyone looks for in a nebula or an active star."}
+      - {wavelength: 4861.35, label: "H-beta", prominence: 3}
+      - {wavelength: 4340.47, label: "H-gamma", prominence: 3}
+      - {wavelength: 4101.73, label: "H-delta", prominence: 3}
+      - {wavelength: 3970.07, label: "H-epsilon", prominence: 2,
+         note: "Blended with Ca II H at 3968.5; in a late-type star the pair
+                is one broad feature and separating them needs resolution."}
+      - {wavelength: 3889.05, label: "H8", prominence: 2,
+         note: "Blended with He I 3888.6 in hot stars."}
+      - {wavelength: 3835.38, label: "H9", prominence: 1}
+      - {wavelength: 3797.90, label: "H10", prominence: 1}
+      - {wavelength: 3770.63, label: "H11", prominence: 1}
+      - {wavelength: 3750.15, label: "H12", prominence: 1}
+      - {wavelength: 3646.00, label: "Balmer limit", prominence: 2,
+         note: "Not a line: the series limit, where the Balmer jump is. The
+                size of the jump is a luminosity indicator in A and F stars."}
+      - {wavelength: 10938.1, label: "Paschen-gamma", prominence: 1}
+      - {wavelength: 10049.4, label: "Paschen-delta", prominence: 1}
+      - {wavelength: 9545.97, label: "Paschen-epsilon", prominence: 1}
+      - {wavelength: 9229.01, label: "Paschen-9", prominence: 1}
+      - {wavelength: 8862.78, label: "Paschen-11", prominence: 1}
+      - {wavelength: 8750.46, label: "Paschen-12", prominence: 1}
+      - {wavelength: 8665.02, label: "Paschen-13", prominence: 2,
+         note: "One of the Paschen lines that fall among the Ca II triplet.
+                In a hot star the triplet region is Paschen; in a cool one it
+                is calcium. Mistaking one for the other is easy and changes
+                the spectral type by ten subclasses."}
+      - {wavelength: 8598.39, label: "Paschen-14", prominence: 2}
+      - {wavelength: 8545.38, label: "Paschen-15", prominence: 2}
+      - {wavelength: 8502.48, label: "Paschen-16", prominence: 2}
+
+  # --------------------------------------------------------------- helium
+  - species: "He I"
+    common: "neutral helium"
+    kind: atomic
+    origin: [stellar, nebular]
+    note: >-
+      Neutral helium needs a hot star to be excited at all: it appears around
+      B9, peaks near B2, and is gone by A0. Its presence in absorption is the
+      quickest way to say a star is early-type.
+    lines:
+      - {wavelength: 5875.62, label: "He I D3", prominence: 3,
+         note: "Close enough to the sodium D lines to be confused with them in
+                low resolution -- hence the name D3 -- but 14 A to the blue."}
+      - {wavelength: 4471.48, label: "He I 4471", prominence: 3,
+         note: "The classification line: its ratio to Mg II 4481 is the main
+                temperature criterion for late B stars."}
+      - {wavelength: 6678.15, prominence: 2}
+      - {wavelength: 4921.93, prominence: 2}
+      - {wavelength: 5015.68, prominence: 2}
+      - {wavelength: 4026.19, prominence: 2}
+      - {wavelength: 4387.93, prominence: 1}
+      - {wavelength: 4143.76, prominence: 1}
+      - {wavelength: 4713.14, prominence: 1}
+      - {wavelength: 7065.19, prominence: 1}
+      - {wavelength: 7281.35, prominence: 1}
+      - {wavelength: 3888.65, prominence: 2,
+         note: "Blended with H8 at 3889.1."}
+
+  - species: "He II"
+    common: "ionised helium"
+    kind: ionic
+    origin: [stellar, nebular]
+    note: >-
+      Singly ionised helium takes about 54 eV to produce, so it means O stars,
+      Wolf-Rayets, central stars of planetary nebulae, or an accretion disc --
+      something genuinely hot. Its lines fall near hydrogen's because both are
+      one-electron systems, which is a trap: He II 4859 sits inside H-beta and
+      He II 6560 inside H-alpha.
+    lines:
+      - {wavelength: 4685.68, label: "He II 4686", prominence: 3,
+         note: "The Wolf-Rayet line, and the cleanest sign of a very hot
+                source. Strong emission here is hard to produce any other way."}
+      - {wavelength: 5411.52, prominence: 2}
+      - {wavelength: 4541.59, prominence: 2}
+      - {wavelength: 4199.83, prominence: 1}
+      - {wavelength: 4859.32, prominence: 1,
+         note: "Inside H-beta. Only separable in a star where hydrogen is weak."}
+      - {wavelength: 6560.10, prominence: 1,
+         note: "Inside H-alpha, and the reason an O-star H-alpha profile is
+                not a pure hydrogen profile."}
+
+  # -------------------------------------------------------------- calcium
+  - species: "Ca II"
+    common: "ionised calcium"
+    kind: ionic
+    origin: [stellar, interstellar]
+    note: >-
+      The H and K lines are the strongest features in the blue for any star
+      cooler than about A5, and they are also the classic interstellar lines:
+      a sharp narrow component on top of a broad stellar one means calcium in
+      a cloud between here and there. The infrared triplet is the other end of
+      the same ion and is a luminosity indicator in late-type stars.
+    lines:
+      - {wavelength: 3933.66, label: "Ca II K", prominence: 3,
+         note: "The strongest line in the blue spectrum of the Sun."}
+      - {wavelength: 3968.47, label: "Ca II H", prominence: 3,
+         note: "Blended with H-epsilon at 3970.1."}
+      - {wavelength: 8498.02, label: "Ca II triplet", prominence: 3}
+      - {wavelength: 8542.09, label: "Ca II triplet", prominence: 3}
+      - {wavelength: 8662.14, label: "Ca II triplet", prominence: 3}
+
+  - species: "Ca I"
+    common: "neutral calcium"
+    kind: atomic
+    origin: [stellar]
+    lines:
+      - {wavelength: 4226.73, label: "Ca I 4227", prominence: 3,
+         note: "Strong in G and later; a good temperature indicator against
+                the nearby iron lines."}
+      - {wavelength: 6162.17, prominence: 2}
+      - {wavelength: 6122.22, prominence: 2}
+      - {wavelength: 6439.07, prominence: 1}
+      - {wavelength: 6717.68, prominence: 2,
+         note: "Sits two thirds of an Angstrom from [S II] 6716.4 and eleven
+                from Li I 6707.8. In a cool star this is calcium; in a nebula
+                the neighbour is sulphur. The spectrum alone cannot tell you
+                which, but what you pointed at can."}
+
+  # --------------------------------------------------------------- sodium
+  - species: "Na I"
+    common: "neutral sodium"
+    kind: atomic
+    origin: [stellar, interstellar, telluric]
+    note: >-
+      The D lines are strong in every star cooler than about F5 and are also
+      among the strongest interstellar absorptions. A narrow D component that
+      does not share the star's radial velocity is not in the star.
+    lines:
+      - {wavelength: 5889.95, label: "Na I D2", prominence: 3}
+      - {wavelength: 5895.92, label: "Na I D1", prominence: 3}
+      - {wavelength: 8183.26, prominence: 1}
+      - {wavelength: 8194.82, prominence: 1,
+         note: "Strong in M dwarfs; a dwarf/giant discriminant."}
+
+  # ------------------------------------------------------------ magnesium
+  - species: "Mg I"
+    common: "neutral magnesium"
+    kind: atomic
+    origin: [stellar]
+    lines:
+      - {wavelength: 5167.32, label: "Mg b1", prominence: 3}
+      - {wavelength: 5172.68, label: "Mg b2", prominence: 3}
+      - {wavelength: 5183.60, label: "Mg b3", prominence: 3,
+         note: "The b triplet, with the MgH band on its red side, is the
+                classic surface-gravity diagnostic: sharp in a giant, broad
+                and joined by MgH in a dwarf."}
+      - {wavelength: 4571.10, prominence: 1}
+      - {wavelength: 8806.76, prominence: 1}
+
+  - species: "Mg II"
+    common: "ionised magnesium"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 4481.13, label: "Mg II 4481", prominence: 3,
+         note: "Paired with He I 4471 as the B-star temperature criterion."}
+
+  # ----------------------------------------------------------------- iron
+  - species: "Fe I"
+    common: "neutral iron"
+    kind: atomic
+    origin: [stellar]
+    note: >-
+      Iron has thousands of optical lines and in a cool star they are most of
+      what you see -- the "line blanketing" that depresses the blue continuum.
+      Only the ones strong enough to be identified on their own are listed
+      here; a G-type spectrum will have many more that this catalogue does not
+      and should not try to name individually.
+    lines:
+      - {wavelength: 4383.55, prominence: 2}
+      - {wavelength: 4045.81, prominence: 2}
+      - {wavelength: 4271.76, prominence: 2}
+      - {wavelength: 4325.76, prominence: 1}
+      - {wavelength: 4404.75, prominence: 2}
+      - {wavelength: 5269.54, prominence: 2}
+      - {wavelength: 5328.04, prominence: 1}
+      - {wavelength: 5371.49, prominence: 1}
+      - {wavelength: 5405.77, prominence: 1}
+      - {wavelength: 5434.52, prominence: 1}
+      - {wavelength: 6191.56, prominence: 1}
+      - {wavelength: 6230.72, prominence: 1}
+      - {wavelength: 6252.55, prominence: 1}
+      - {wavelength: 6393.60, prominence: 1}
+      - {wavelength: 6494.98, prominence: 1}
+      - {wavelength: 6707.44, prominence: 2,
+         note: "The contaminant of the lithium line. It is three tenths of an
+                Angstrom to the blue of Li I 6707.8 and never resolved from it
+                at ordinary resolution, so every lithium abundance ever
+                published has had to subtract it."}
+
+  - species: "Fe II"
+    common: "ionised iron"
+    kind: ionic
+    origin: [stellar, nebular]
+    lines:
+      - {wavelength: 5169.03, prominence: 2,
+         note: "Sits on Mg b1 at 5167.3."}
+      - {wavelength: 5018.44, prominence: 2}
+      - {wavelength: 4923.93, prominence: 2}
+      - {wavelength: 4233.17, prominence: 1}
+      - {wavelength: 5316.62, prominence: 1}
+
+  # -------------------------------------------------------------- lithium
+  - species: "Li I"
+    common: "neutral lithium"
+    kind: atomic
+    origin: [stellar]
+    note: >-
+      One line, and an entire subfield. Lithium burns at 2.5 million K, so a
+      star that still has it has not mixed its surface down to that depth:
+      the 6707.8 doublet is the standard age and mixing diagnostic for cool
+      stars, and its absence in an otherwise young-looking star is evidence.
+      It is also a hard measurement, because Fe I 6707.44 is always blended
+      with it.
+    lines:
+      - {wavelength: 6707.76, label: "Li I 6708", prominence: 3,
+         note: "The stronger component of the resonance doublet; the weaker is
+                at 6707.91 and the two are never resolved in a stellar
+                spectrum."}
+      - {wavelength: 6103.64, prominence: 1,
+         note: "The subordinate line, useful only in very lithium-rich stars."}
+
+  # ------------------------------------------------- other light elements
+  - species: "Si II"
+    common: "ionised silicon"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 6347.10, prominence: 2}
+      - {wavelength: 6371.36, prominence: 2}
+      - {wavelength: 4128.07, prominence: 1}
+      - {wavelength: 4130.89, prominence: 1}
+
+  - species: "Si III"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 4552.62, prominence: 2,
+         note: "The 4552-4568-4575 triplet is a luminosity criterion in B stars."}
+      - {wavelength: 4567.84, prominence: 1}
+      - {wavelength: 4574.76, prominence: 1}
+
+  - species: "Si IV"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 4088.86, prominence: 1}
+      - {wavelength: 4116.10, prominence: 1}
+
+  - species: "C II"
+    common: "ionised carbon"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 4267.15, prominence: 2}
+      - {wavelength: 6578.05, prominence: 2,
+         note: "Fifteen Angstroms from H-alpha, and in an early B star it is
+                a real feature on the red wing rather than part of it."}
+      - {wavelength: 6582.88, prominence: 2}
+
+  - species: "C III"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 4647.42, prominence: 2,
+         note: "With N III 4634-4641 this is the emission blend that defines
+                the Of stars."}
+      - {wavelength: 4650.25, prominence: 1}
+      - {wavelength: 5695.92, prominence: 1}
+
+  - species: "C IV"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 5801.33, prominence: 2}
+      - {wavelength: 5811.98, prominence: 2}
+
+  - species: "N II"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 3995.00, prominence: 1}
+      - {wavelength: 4630.54, prominence: 1}
+
+  - species: "N III"
+    kind: ionic
+    origin: [stellar]
+    lines:
+      - {wavelength: 4634.14, prominence: 2}
+      - {wavelength: 4640.64, prominence: 2,
+         note: "In emission with He II 4686 this is the Of signature."}
+      - {wavelength: 4641.85, prominence: 1}
+
+  - species: "O I"
+    common: "neutral oxygen"
+    kind: atomic
+    origin: [stellar, telluric]
+    lines:
+      - {wavelength: 7771.94, label: "O I triplet", prominence: 2,
+         note: "The near-infrared triplet is a luminosity indicator in A and F
+                supergiants -- and it sits inside the telluric A band, so it
+                needs a standard star to be measured at all."}
+      - {wavelength: 7774.17, label: "O I triplet", prominence: 2}
+      - {wavelength: 7775.39, label: "O I triplet", prominence: 1}
+      - {wavelength: 8446.36, prominence: 1}
+
+  # ------------------------------------------------- forbidden, in nebulae
+  - species: "[O III]"
+    common: "doubly ionised oxygen, forbidden"
+    kind: forbidden
+    origin: [nebular]
+    note: >-
+      Forbidden lines come from transitions so improbable that an atom in a
+      laboratory is collisionally de-excited long before one happens. They
+      appear only where the density is below about ten thousand particles per
+      cubic centimetre -- which is to say, in space. Seeing them at all tells
+      you the gas is thin; their ratios tell you its temperature.
+    lines:
+      - {wavelength: 5006.84, label: "[O III] 5007", prominence: 3,
+         note: "Usually the brightest line in the visible spectrum of a
+                planetary nebula or an H II region. Historically 'nebulium',
+                until Bowen identified it in 1927."}
+      - {wavelength: 4958.91, label: "[O III] 4959", prominence: 3,
+         note: "Always one third the strength of 5007: they share an upper
+                level, so the ratio is fixed by atomic physics. A measured
+                ratio that is not 3:1 means the calibration is wrong, which
+                makes this pair a free check on any flux calibration."}
+      - {wavelength: 4363.21, label: "[O III] 4363", prominence: 2,
+         note: "The auroral line. Its ratio to 5007 is the standard nebular
+                temperature diagnostic."}
+
+  - species: "[N II]"
+    kind: forbidden
+    origin: [nebular]
+    lines:
+      - {wavelength: 6583.41, label: "[N II] 6583", prominence: 3,
+         note: "Twenty Angstroms from H-alpha and three times its partner at
+                6548. At low resolution the three blend into one 'H-alpha'
+                that is nothing of the sort."}
+      - {wavelength: 6548.03, label: "[N II] 6548", prominence: 2}
+
+  - species: "[S II]"
+    kind: forbidden
+    origin: [nebular]
+    lines:
+      - {wavelength: 6716.44, label: "[S II] 6716", prominence: 3,
+         note: "The 6716/6731 ratio measures electron density directly, which
+                very few observable quantities do."}
+      - {wavelength: 6730.81, label: "[S II] 6731", prominence: 3}
+
+  - species: "[O I]"
+    kind: forbidden
+    origin: [nebular, telluric]
+    lines:
+      - {wavelength: 6300.30, label: "[O I] 6300", prominence: 2,
+         note: "Also the brightest night-sky airglow line, so an apparent
+                6300 emission may be sky that the subtraction missed."}
+      - {wavelength: 6363.78, prominence: 1}
+
+  - species: "[Ne III]"
+    kind: forbidden
+    origin: [nebular]
+    lines:
+      - {wavelength: 3868.75, prominence: 2}
+      - {wavelength: 3967.47, prominence: 1,
+         note: "On top of Ca II H and H-epsilon."}
+
+  - species: "[O II]"
+    kind: forbidden
+    origin: [nebular]
+    lines:
+      - {wavelength: 3726.03, label: "[O II] 3727", prominence: 3,
+         note: "The 3726/3729 pair is a density diagnostic, and unresolved it
+                is the '3727' line used as a star-formation tracer."}
+      - {wavelength: 3728.82, label: "[O II] 3729", prominence: 3}
+
+  - species: "[S III]"
+    kind: forbidden
+    origin: [nebular]
+    lines:
+      - {wavelength: 9068.6, prominence: 1}
+      - {wavelength: 9530.6, prominence: 1}
+
+  - species: "[Ar III]"
+    kind: forbidden
+    origin: [nebular]
+    lines:
+      - {wavelength: 7135.80, prominence: 1}
+
+  # ------------------------------------------------------------ molecular
+  - species: "CH"
+    common: "the G band"
+    kind: molecular
+    origin: [stellar]
+    lines:
+      - {wavelength: 4300.0, label: "G band", prominence: 3,
+         note: "A band head, not a line: the CH band from about 4297 to 4313.
+                Strong in G stars -- hence the name -- and the feature that
+                makes the spectral type obvious at low resolution."}
+
+  - species: "CN"
+    kind: molecular
+    origin: [stellar]
+    lines:
+      - {wavelength: 3883.0, label: "CN band", prominence: 2}
+      - {wavelength: 4215.0, label: "CN band", prominence: 2}
+
+  - species: "MgH"
+    kind: molecular
+    origin: [stellar]
+    lines:
+      - {wavelength: 5211.0, label: "MgH band", prominence: 1,
+         note: "On the red side of Mg b, and a dwarf/giant discriminant:
+                present in dwarfs, absent in giants."}
+
+  - species: "TiO"
+    common: "titanium oxide"
+    kind: molecular
+    origin: [stellar]
+    note: >-
+      Below about 3800 K titanium oxide survives in the atmosphere and its
+      bands take over the spectrum entirely. They are what an M star looks
+      like: broad, sharp-edged absorptions with the head on the blue side and
+      the band trailing red. Their depth is the M subtype.
+    lines:
+      - {wavelength: 4761.0, label: "TiO band", prominence: 1}
+      - {wavelength: 4954.0, label: "TiO band", prominence: 1}
+      - {wavelength: 5448.0, label: "TiO band", prominence: 2}
+      - {wavelength: 5862.0, label: "TiO band", prominence: 2}
+      - {wavelength: 6159.0, label: "TiO band", prominence: 2}
+      - {wavelength: 6651.0, label: "TiO band", prominence: 2}
+      - {wavelength: 7054.0, label: "TiO band", prominence: 2}
+      - {wavelength: 7589.0, label: "TiO band", prominence: 1}
+      - {wavelength: 8432.0, label: "TiO band", prominence: 1}
+
+  - species: "VO"
+    common: "vanadium oxide"
+    kind: molecular
+    origin: [stellar]
+    lines:
+      - {wavelength: 7334.0, label: "VO band", prominence: 1,
+         note: "Appears around M7 and marks the way towards the L dwarfs."}
+      - {wavelength: 7851.0, label: "VO band", prominence: 1}
+
+  # ------------------------------------------- not in the star: the sky
+  - species: "O2"
+    common: "atmospheric oxygen"
+    kind: telluric
+    origin: [telluric]
+    note: >-
+      These are in the air above the telescope, not in the object. Two
+      consequences: their strength scales with airmass rather than with
+      anything astrophysical, and their wavelengths do not move with the
+      object's radial velocity -- which makes them a free wavelength check and
+      a free reminder that the feature is not yours.
+    lines:
+      - {wavelength: 7593.7, label: "O2 A band", prominence: 3,
+         note: "The strongest telluric feature in the optical, 7594 to 7621.
+                It swallows anything underneath it, including the O I 7774
+                triplet's blue side."}
+      - {wavelength: 6867.2, label: "O2 B band", prominence: 3,
+         note: "6867 to 6884. Close enough to H-alpha's red side that a
+                redshifted H-alpha can land inside it."}
+      - {wavelength: 6276.6, label: "O2 gamma band", prominence: 2}
+
+  - species: "H2O"
+    common: "atmospheric water"
+    kind: telluric
+    origin: [telluric]
+    note: >-
+      Water bands vary with the humidity that night, so unlike the oxygen
+      bands they do not divide out from a standard star taken hours earlier.
+    lines:
+      - {wavelength: 7200.0, label: "H2O band", prominence: 2,
+         note: "Roughly 7165 to 7340."}
+      - {wavelength: 8200.0, label: "H2O band", prominence: 2,
+         note: "Roughly 8100 to 8400."}
+      - {wavelength: 5900.0, label: "H2O band", prominence: 1,
+         note: "Weak, but it sits on the sodium D lines."}
+      - {wavelength: 6300.0, label: "H2O band", prominence: 1}
+
+  - species: "OH"
+    common: "airglow"
+    kind: telluric
+    origin: [telluric]
+    note: >-
+      Hydroxyl emission from about 85 km up. In the far red and infrared it is
+      the sky background, and residuals from imperfect sky subtraction appear
+      as narrow emission or absorption spikes at fixed wavelengths.
+    lines:
+      - {wavelength: 5577.34, label: "[O I] 5577 airglow", prominence: 2,
+         note: "The green airglow line, and the brightest thing in a dark sky
+                spectrum. An unexpected 5577 emission is sky, not source."}
+      - {wavelength: 5889.95, label: "Na airglow", prominence: 1,
+         note: "The sodium layer, on top of the stellar D lines."}
+
+  # ------------------------------------------------ not in the star: dust
+  - species: "DIB"
+    common: "diffuse interstellar bands"
+    kind: interstellar
+    origin: [interstellar]
+    note: >-
+      Broad, shallow absorptions, first seen in 1919 and still not fully
+      identified -- the largest set of unidentified features in astronomical
+      spectroscopy. Their strength tracks reddening, so they belong to the
+      dust between here and the star. Two of them were assigned to C60+ in
+      2015; the other several hundred remain open.
+    lines:
+      - {wavelength: 5780.5, label: "DIB 5780", prominence: 2}
+      - {wavelength: 5797.1, label: "DIB 5797", prominence: 2}
+      - {wavelength: 6283.8, label: "DIB 6284", prominence: 2}
+      - {wavelength: 6613.6, label: "DIB 6614", prominence: 2,
+         note: "The narrowest of the strong bands, and the nearest one to the
+                lithium region -- in a reddened early-type star it is the
+                feature most easily mistaken for something stellar."}
+      - {wavelength: 4428.0, label: "DIB 4428", prominence: 2,
+         note: "The broadest, and so shallow it is often normalised away by
+                accident."}
+      - {wavelength: 6196.0, label: "DIB 6196", prominence: 1}
+      - {wavelength: 6269.8, label: "DIB 6270", prominence: 1}
+
+  - species: "CH+"
+    kind: interstellar
+    origin: [interstellar]
+    lines:
+      - {wavelength: 4232.55, prominence: 1}

@@ -37,6 +37,16 @@ def tasks() -> dict[str, dict[str, Any]]:
     return _load()["tasks"]
 
 
+def added() -> dict[str, dict[str, Any]]:
+    """Tasks harwood has that IRAF does not.
+
+    Kept apart from `tasks()` so the IRAF inventory stays an inventory of
+    IRAF: someone migrating reads that to learn what they lose, and this to
+    learn what they gain.
+    """
+    return _load().get("added", {})
+
+
 def domains() -> dict[str, dict[str, Any]]:
     """The 22 domains of the inventory, with the scope decided for each."""
     return _load()["domains"]

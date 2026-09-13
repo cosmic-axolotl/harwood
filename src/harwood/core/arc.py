@@ -152,13 +152,18 @@ def collapse(data: np.ndarray, dispaxis: int = 2, line: int | None = None,
 
 
 def find_peaks(flux, fwidth: float = 4.0, threshold: float = 10.0,
-               minsep: float = 2.0) -> list[Peak]:
-    """Find emission lines and centre each one.
+               minsep: float = 2.0, absorption: bool = False) -> list[Peak]:
+    """Find lines and centre each one.
 
     `fwidth` is the expected full width of a line in pixels -- IRAF's own
     parameter name -- and sets the window used to centroid. `threshold` is in
     units of the local noise, not counts, so it means the same thing on a
     bright arc and a faint one.
+
+    With `absorption`, lines going the other way are found instead: the same
+    detection against the same continuum, on the flipped residual. An arc has
+    emission and a star has absorption, and the arithmetic of finding them
+    does not care which.
     """
     flux = np.asarray(flux, dtype=float)
     if flux.size < 5:
@@ -167,7 +172,7 @@ def find_peaks(flux, fwidth: float = 4.0, threshold: float = 10.0,
     # A rough continuum, so a sloping background does not tilt the threshold.
     window = max(21, int(20 * fwidth) | 1)
     continuum = _running_median(flux, window)
-    residual = flux - continuum
+    residual = continuum - flux if absorption else flux - continuum
     noise = 1.4826 * np.median(np.abs(residual - np.median(residual)))
     if noise <= 0:
         noise = np.std(residual) or 1.0

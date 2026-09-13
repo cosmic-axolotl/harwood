@@ -170,6 +170,7 @@ def test_the_migration_map_tells_the_truth_about_what_runs():
     gets the wrong answer. This test is why the map cannot drift.
     """
     mapped = {e.get("harwood", n): (n, e) for n, e in migration.tasks().items()}
+    mapped.update({n: (n, e) for n, e in migration.added().items()})
     for name in list_tasks():
         assert name in mapped, f"'{name}' is in neither IRAF nor the migration map"
         iraf_name, entry = mapped[name]
@@ -289,3 +290,22 @@ def test_an_iraf_name_that_harwood_runs_under_another_name_says_which():
     assert "apall" in answer
     assert migration.explain("daofind") is None, \
         "a name harwood runs under its own name needs no answer"
+
+
+def test_what_harwood_adds_is_listed_apart_from_what_iraf_had():
+    """The IRAF side of the map must stay an inventory of IRAF.
+
+    Someone deciding whether to migrate reads `tasks:` to learn what they
+    lose. A harwood invention smuggled in there would make that count wrong,
+    so additions live in their own section and are checked the same way.
+    """
+    from harwood.core.registry import exists
+
+    extra = migration.added()
+    assert extra, "there is at least one, and the section has to be readable"
+    for name, entry in extra.items():
+        assert name not in migration.tasks(), (
+            f"'{name}' is an IRAF task after all; it belongs in tasks:")
+        assert entry["status"] in ("available", "partial"), name
+        assert entry.get("note"), f"'{name}' does not say what it is for"
+        assert exists(name), f"the map promises '{name}' and it does not exist"

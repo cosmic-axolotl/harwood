@@ -362,6 +362,12 @@ DISPWHY = {
     "write": "The same file shape as before, with the wavelength column filled "
              "in. Nothing is thrown away: the pixel column stays, so the "
              "calibration can be checked or redone.",
+    "check": "The strongest features of the calibrated spectrum are looked up "
+             "in the line catalogue. This checks the solution against physics "
+             "rather than against itself: the arc's rms says how well the fit "
+             "reproduces the lines it was fitted to, which a wrong solution "
+             "can do beautifully. Real features landing on real wavelengths "
+             "is a different claim, and an independent one.",
 }
 
 
@@ -392,6 +398,11 @@ class DispCorParams(TaskParams):
     database: Path = Field(
         Path("."), description="Reduction directory holding database/."
     )
+    check: bool = Field(
+        True,
+        description="Look the strongest features up in the line catalogue, as "
+                    "a check that the wavelengths landed on something real.",
+    )
 
 
 @register
@@ -415,6 +426,9 @@ class DispCor(Task[DispCorParams]):
                               why=DISPWHY["resample"]))
         steps.append(Step("write", str(params.output or "this run's directory"),
                           why=DISPWHY["write"]))
+        if params.check:
+            steps.append(Step("check", "the strongest features, by name",
+                              why=DISPWHY["check"]))
         return steps
 
     def execute(self, params: DispCorParams) -> TaskResult:
@@ -512,6 +526,28 @@ class DispCor(Task[DispCorParams]):
                 "extrapolates badly."
             )
 
+        if params.check:
+            named, unnamed = _recognise(first)
+            by_action["check"].measured = {
+                "strongest features": len(named) + len(unnamed),
+                "on a catalogued line": len(named),
+                "landing on": ", ".join(named[:5]) or "nothing recognisable",
+            }
+            if named and len(named) < max(2, (len(named) + len(unnamed)) // 4):
+                warnings.append(
+                    f"only {len(named)} of the {len(named) + len(unnamed)} "
+                    "strongest features land on a catalogued line. That is "
+                    "weak confirmation: either the spectrum is of something "
+                    "whose lines are not in the catalogue, or the solution is "
+                    "in the wrong place.")
+            elif not named:
+                warnings.append(
+                    "none of the strongest features lands within an Angstrom "
+                    "of a catalogued line. The arc's rms says the fit "
+                    "reproduces the lines it was given -- a wrong solution can "
+                    "do that too -- so this is worth looking at before the "
+                    "spectrum is used.")
+
         destination = params.output or output.named_for(params.input, ".w.fits")
         spectrum.write(destination, apertures, source=str(params.input))
 
@@ -529,6 +565,34 @@ class DispCor(Task[DispCorParams]):
                          for name, weight in zip(names, weights, strict=True))
                      + f", rms {solution.rms:.4f} {solution.units}"],
         )
+
+
+def _recognise(aperture, limit: int = 12) -> tuple[list[str], list[float]]:
+    """Name the strongest features, as a check on where the solution landed.
+
+    Deliberately small: the few strongest features, at a tolerance of an
+    Angstrom, against the curated catalogue. It is a sanity check and not an
+    analysis -- `lineid` is the task for the analysis.
+    """
+    import numpy as np
+
+    from ..core import arc, species
+
+    flux = np.asarray(aperture.flux, dtype=float)
+    wave = np.asarray(aperture.wavelength, dtype=float)
+    peaks = (arc.find_peaks(flux, threshold=8.0, absorption=True)
+             + arc.find_peaks(flux, threshold=8.0))
+    peaks.sort(key=lambda peak: -peak.flux)
+
+    named, unnamed = [], []
+    for peak in peaks[:limit]:
+        measured = float(np.interp(peak.pixel, aperture.pixel, wave))
+        match = species.at(measured, tolerance=1.0)
+        if match.best is not None:
+            named.append(match.best.line.name)
+        else:
+            unnamed.append(round(measured, 2))
+    return list(dict.fromkeys(named)), unnamed
 
 
 def _references(params: DispCorParams) -> tuple[list[str], list[float]]:
@@ -847,3 +911,271 @@ def _span(entries) -> str:
     if not times:
         return "no times"
     return f"{min(times) % 24:.3f}h to {max(times) % 24:.3f}h UT"
+
+
+LINEWHY = {
+    "detect": "Features are found against a running-median continuum, so a "
+              "sloping spectrum does not tilt the threshold. The threshold is "
+              "in units of the local noise rather than counts, which means the "
+              "same thing on a bright spectrum and a faint one. Absorption and "
+              "emission are the same arithmetic on a flipped residual.",
+    "catalogue": "The catalogue is curated, not complete, and that is "
+                 "deliberate: against a complete atomic line list every "
+                 "wavelength is within a hundredth of an Angstrom of something, "
+                 "so a complete list answers everything confidently and is "
+                 "useless. What is here are the lines that name themselves. A "
+                 "feature it cannot name is reported as unidentified rather "
+                 "than assigned to the nearest of a thousand possibilities.",
+    "match": "Candidates are ranked by how close they are and by how likely "
+             "that line is to be the one somebody is looking at. Where two "
+             "species fall within the tolerance both are kept and the "
+             "identification is called ambiguous -- deciding between them "
+             "needs something the spectrum does not contain.",
+    "velocity": "A radial velocity moves every line in the object by the same "
+                "fraction, so identifications that are right agree on one "
+                "shift and identifications that are wrong do not. The scatter "
+                "is the useful half. Telluric bands are excluded because they "
+                "do not move: they are in the air above the telescope, which "
+                "makes them the check on whether the shift is real.",
+}
+
+
+class LineIdParams(TaskParams):
+    input: str = Field(..., description="A wavelength-calibrated spectrum.")
+    aperture: int = Field(1, ge=1, description="Which aperture to look at.")
+    output: Path | None = Field(
+        None,
+        description="Write the identifications as a table. Left out, they go "
+                    "to this run's own directory.",
+        json_schema_extra={"positional": True},
+    )
+    features: Literal["absorption", "emission", "both"] = Field(
+        "both", description="Which way the lines go."
+    )
+    threshold: float = Field(
+        5.0, gt=0, description="Detection threshold, in units of the local noise."
+    )
+    fwidth: float = Field(
+        4.0, gt=0, description="Expected full width of a feature, in pixels."
+    )
+    tolerance: float = Field(
+        1.0, gt=0,
+        description="How far from a catalogue wavelength a feature may be, in "
+                    "Angstroms.",
+    )
+    velocity: float = Field(
+        0.0,
+        description="Radial velocity of the object in km/s. Features are moved "
+                    "back to rest before the catalogue is consulted.",
+    )
+    origin: str = Field(
+        "",
+        description="Only consider lines of one origin: stellar, nebular, "
+                    "interstellar, telluric.",
+    )
+    prominence: int = Field(
+        1, ge=1, le=3,
+        description="Ignore catalogue lines fainter than this, 1 to 3.",
+    )
+    plot: bool = Field(
+        False,
+        description="Open the spectrum with every line drawn where it falls, "
+                    "coloured by what produces it.",
+    )
+
+
+@register
+class LineId(Task[LineIdParams]):
+    name = "lineid"
+    package = "onedspec"
+    description = "Name the atoms, ions and molecules behind the features."
+    Params = LineIdParams
+
+    def plan(self, params: LineIdParams) -> list[Step]:
+        return [
+            Step("detect", f"{params.features} at {params.threshold} sigma",
+                 why=LINEWHY["detect"]),
+            Step("catalogue", params.origin or "every origin",
+                 why=LINEWHY["catalogue"]),
+            Step("match", f"within {params.tolerance} A at "
+                          f"{params.velocity:+.0f} km/s", why=LINEWHY["match"]),
+            Step("velocity", "from the lines that were identified",
+                 why=LINEWHY["velocity"]),
+        ]
+
+    def execute(self, params: LineIdParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import arc, output, species, spectrum
+
+        found = spectrum.read(params.input, number=params.aperture)
+        if not found:
+            raise ValueError(
+                f"'{params.input}' has no aperture {params.aperture}; it holds "
+                f"{spectrum.count(params.input)}."
+            )
+        aperture = found[0]
+        if aperture.wavelength is None or not np.any(aperture.wavelength):
+            raise ValueError(
+                f"'{params.input}' has no wavelengths yet -- it is still in "
+                "pixels. Run dispcor on it first; naming a line needs to know "
+                "what wavelength it is at."
+            )
+
+        if params.origin and params.origin not in species.ORIGINS:
+            raise ValueError(
+                f"no origin called '{params.origin}'. They are "
+                f"{', '.join(species.ORIGINS)}."
+            )
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        wave = np.asarray(aperture.wavelength, dtype=float)
+        flux = np.asarray(aperture.flux, dtype=float)
+
+        peaks = []
+        if params.features in ("absorption", "both"):
+            peaks += [(peak, "absorption") for peak in arc.find_peaks(
+                flux, params.fwidth, params.threshold, absorption=True)]
+        if params.features in ("emission", "both"):
+            peaks += [(peak, "emission") for peak in arc.find_peaks(
+                flux, params.fwidth, params.threshold)]
+        peaks.sort(key=lambda item: item[0].pixel)
+
+        low, high = float(np.min(wave)), float(np.max(wave))
+        available = species.within(low, high, params.prominence,
+                                   params.origin or None)
+        by_action["detect"].measured = {
+            "features": len(peaks),
+            "range": f"{low:.2f} to {high:.2f} A",
+        }
+        by_action["catalogue"].measured = {
+            "lines in range": len(available),
+            "species in range": len({line.species for line in available}),
+        }
+
+        rows, matches, warnings = [], [], []
+        for peak, direction in peaks:
+            # The peak is a 1-based pixel; the wavelength scale is per pixel,
+            # so the position between samples is interpolated rather than
+            # rounded -- a tenth of a pixel is a tenth of an Angstrom here.
+            measured = float(np.interp(peak.pixel, aperture.pixel, wave))
+            match = species.at(measured, params.tolerance, params.velocity,
+                               params.origin or None)
+            match.candidates = [item for item in match.candidates
+                                if item.line.prominence >= params.prominence]
+            matches.append(match)
+
+            best = match.best
+            rows.append({
+                "wavelength": round(measured, 3),
+                "kind": direction,
+                "species": best.line.species if best else "-",
+                "line": best.line.name if best else "unidentified",
+                "offset": round(best.offset, 3) if best else None,
+                "sure": ("yes" if match.confident else "ambiguous") if best else "-",
+                "also": ", ".join(item.line.name for item in match.candidates[1:3]),
+            })
+
+        named = [match for match in matches if match.best is not None]
+        by_action["match"].measured = {
+            "identified": f"{len(named)} of {len(matches)}",
+            "confident": sum(1 for match in named if match.confident),
+            "species found": len({match.best.line.species for match in named}),
+        }
+
+        implied = species.velocity_from(named)
+        if implied is None:
+            by_action["velocity"].skipped = True
+            by_action["velocity"].reason = (
+                "fewer than three lines were identified confidently, which is "
+                "not enough for a shift to mean anything")
+        else:
+            median, scatter = implied
+            by_action["velocity"].measured = {
+                "implied shift": f"{median:+.1f} km/s",
+                "scatter": f"{scatter:.1f} km/s",
+                "assumed": f"{params.velocity:+.1f} km/s",
+            }
+            # Lines that agree on a shift are a measurement; lines scattered
+            # over hundreds of km/s are a set of misidentifications wearing a
+            # median. Which of the two this is has to be said.
+            if scatter > 3.0 * max(abs(median), 1.0):
+                warnings.append(
+                    f"the identified lines do not agree on a shift: "
+                    f"{median:+.1f} km/s with a scatter of {scatter:.1f}. That "
+                    "is a sign the identifications are wrong rather than that "
+                    "the object is moving -- try a smaller --tolerance or a "
+                    "higher --prominence.")
+            elif abs(median) > 2.0 * scatter and abs(median) > 20.0:
+                warnings.append(
+                    f"the lines agree that everything is shifted by "
+                    f"{median:+.1f} km/s (scatter {scatter:.1f}). Re-running "
+                    f"with --velocity {median:.0f} would centre the "
+                    "identifications; the shift itself is the object's radial "
+                    "velocity, give or take the wavelength calibration.")
+
+        unidentified = len(matches) - len(named)
+        if unidentified:
+            warnings.append(
+                f"{unidentified} of {len(matches)} features are not in the "
+                "catalogue, which holds only the lines that name themselves. "
+                "Unidentified here means unnamed, not unreal.")
+
+        ambiguous = [match for match in named if not match.confident]
+        if ambiguous:
+            example = ambiguous[0]
+            warnings.append(
+                f"{len(ambiguous)} identifications are ambiguous -- at "
+                f"{example.wavelength:.2f} A the catalogue offers "
+                + " and ".join(item.line.name for item in example.candidates[:2])
+                + ". Wavelength alone cannot choose between them.")
+
+        destination = params.output or output.named_for(params.input, ".lines.csv")
+        _write_lines(destination, rows, params, aperture)
+
+        if params.plot:
+            from ..viewer.species_panel import run as show_lines
+
+            show_lines(aperture, params.velocity, params.tolerance,
+                       name=str(params.input))
+
+        return TaskResult(
+            outputs=[Path(destination)],
+            steps=steps,
+            warnings=warnings,
+            data={"rows": rows},
+            history=[f"lineid: {len(named)} of {len(matches)} features named"],
+        )
+
+
+def _write_lines(destination, rows, params: LineIdParams, aperture) -> None:
+    """The identifications as a table anybody can open."""
+    from ..core import species
+
+    columns = ["wavelength", "kind", "species", "line", "offset", "sure", "also"]
+    lines = [
+        f"# line identifications for {params.input}, aperture {params.aperture}",
+        f"# assumed radial velocity {params.velocity:+.1f} km/s, "
+        f"tolerance {params.tolerance} A",
+        "# wavelengths are air wavelengths in Angstroms",
+        "# offset: measured minus the catalogue wavelength at that velocity",
+        "# sure: 'ambiguous' means more than one species fits; see the 'also' column",
+    ]
+    if aperture.title:
+        lines.insert(1, f"# {aperture.title}")
+    lines.append(",".join(columns))
+    for row in rows:
+        lines.append(",".join(
+            "" if row[name] is None else f'"{row[name]}"'
+            if isinstance(row[name], str) and "," in row[name] else str(row[name])
+            for name in columns))
+
+    seen = {row["species"] for row in rows if row["species"] != "-"}
+    if seen:
+        lines.append("")
+        for name in sorted(seen):
+            entries = species.named(name)
+            if entries and entries[0].about:
+                lines.append(f"# {name}: {entries[0].about}")
+    Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")

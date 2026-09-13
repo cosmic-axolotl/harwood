@@ -399,6 +399,42 @@ class WSpecTextParams(TaskParams):
     columns: str | None = Field(
         None, description="Which columns, comma separated. All of them by default."
     )
+    lines: bool = Field(
+        True,
+        description="When the spectrum has wavelengths, list the catalogued "
+                    "lines that fall in its range as comments at the top.",
+    )
+
+
+def _lines_in_range(aperture, params: WSpecTextParams) -> list[str]:
+    """The catalogued lines the spectrum covers, as comments.
+
+    A column of wavelengths is a column of numbers. Saying that 6562.8 of them
+    is hydrogen costs four lines of text and turns the file into something
+    somebody can read without a second program open beside it.
+    """
+    import numpy as np
+
+    from ..core import species
+
+    if not params.lines or aperture.wavelength is None:
+        return []
+    wave = np.asarray(aperture.wavelength, dtype=float)
+    if not np.any(wave):
+        return []
+
+    found = species.within(float(wave.min()), float(wave.max()), minimum=2)
+    if not found:
+        return ["#", "# No catalogued line falls in this wavelength range."]
+
+    out = ["#", f"# Lines catalogued between {wave.min():.2f} and "
+                f"{wave.max():.2f} A -- what is *in range*, not what was",
+           "# measured. Run lineid to find out which are actually present."]
+    for line in found:
+        where = "/".join(line.origin)
+        out.append(f"#   {line.wavelength:9.2f}  {line.species:<10s} "
+                   f"{line.label or '':<16s} {where}")
+    return out
 
 
 @register
@@ -455,6 +491,7 @@ class WSpecText(Task[WSpecTextParams]):
             lines.append(f"# from {params.input}")
             for name in table:
                 lines.append(f"# {name}: {spectrum.MEANING.get(name, '')}")
+            lines += _lines_in_range(aperture, params)
         if params.format == "fixed":
             lines.append("  ".join(f"{name:>14}" for name in table))
         else:

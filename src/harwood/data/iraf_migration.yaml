@@ -37,6 +37,17 @@ meta:
   packages: 52
   distinct_tasks: 610
 
+# Tasks harwood adds that IRAF has no counterpart for. They are kept apart
+# from `tasks:` on purpose: that section is an inventory of IRAF and must stay
+# an honest one, so nothing harwood invents may appear in it. A user migrating
+# reads `tasks:` to find out what they lose; they read this to find out what
+# they gain.
+added:
+  lineid: {pkg: onedspec, domain: spec-1d, status: available,
+    note: "names the atom, ion or molecule behind each feature of a calibrated
+           spectrum, from a curated catalogue. IRAF has no task for this -- the
+           nearest thing is reading a line list by eye in splot."}
+
 domains:
   io-formats:
     inventory: section 3.1
@@ -705,7 +716,7 @@ tasks:
   continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   deredden: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dispcor: {pkg: onedspec, domain: spec-1d, status: partial, harwood: dispcor,
-    note: "applies a solution from identify to an extracted spectrum, combining two arcs when refspectra assigned two, with optional flux-conserving linearization; no log scale and no per-aperture references"}
+    note: "applies a solution from identify to an extracted spectrum, combining two arcs when refspectra assigned two, with optional flux-conserving linearization, and checks the result by naming the strongest features; no log scale and no per-aperture references"}
   disptrans: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dopcor: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   ecidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}

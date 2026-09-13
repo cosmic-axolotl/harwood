@@ -25,6 +25,7 @@ from typing import Any
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from . import build
@@ -258,6 +259,106 @@ def observatories_cmd(name: str | None) -> None:
                   "--longitude.[/dim]")
 
 
+@app.command("lines")
+@click.argument("query", required=False)
+@click.option("--range", "span", nargs=2, type=float,
+              help="Two wavelengths: everything catalogued between them.")
+@click.option("--tolerance", default=1.0, show_default=True,
+              help="How far from a wavelength to look, in Angstroms.")
+@click.option("--velocity", default=0.0, show_default=True,
+              help="Radial velocity in km/s, applied before the lookup.")
+@click.option("--origin", default="", help="stellar, nebular, interstellar, telluric.")
+def lines_cmd(query: str | None, span, tolerance: float, velocity: float,
+              origin: str) -> None:
+    """Look up a spectral line: by wavelength, by species, or over a range.
+
+    `harwood lines 6707.8` says what might be there. `harwood lines "Li I"`
+    lists a species. `harwood lines --range 6700 6720` shows the neighbourhood,
+    which is usually the question behind the first one.
+    """
+    from ..core import species as sp
+
+    if origin and origin not in sp.ORIGINS:
+        error_console.print(f"[red]No origin called '{origin}'.[/red] They are "
+                            f"{', '.join(sp.ORIGINS)}.")
+        raise SystemExit(3)
+
+    if span:
+        found = sp.within(min(span), max(span), origin=origin or None)
+        _print_lines(found, f"catalogued between {min(span):.1f} and "
+                            f"{max(span):.1f} A")
+        return
+
+    if not query:
+        table = Table(title="species harwood can name", title_style="bold")
+        table.add_column("species", style="bold")
+        table.add_column("kind")
+        table.add_column("lines", justify="right")
+        table.add_column("in words")
+        for name in sp.species():
+            entries = sp.named(name)
+            table.add_row(name, entries[0].kind, str(len(entries)),
+                          entries[0].common or "")
+        console.print(table)
+        console.print("[dim]harwood lines 6563 names what is at a wavelength; "
+                      "harwood lines --range 6500 6600 shows a region.[/dim]")
+        return
+
+    try:
+        wavelength = float(query)
+    except ValueError:
+        found = sp.named(query)
+        if not found:
+            error_console.print(
+                f"[red]Nothing called '{query}' in the catalogue.[/red] Run "
+                "[bold]harwood lines[/bold] for the species it knows.")
+            raise SystemExit(3) from None
+        _print_lines(found, f"{query}")
+        return
+
+    match = sp.at(wavelength, tolerance, velocity, origin or None)
+    if not match.candidates:
+        console.print(f"Nothing catalogued within {tolerance} A of "
+                      f"{wavelength:.2f} A.")
+        console.print("[dim]The catalogue holds the lines that name "
+                      "themselves, not every line that exists.[/dim]")
+        return
+
+    console.print(f"[bold]{wavelength:.2f} A[/bold]"
+                  + (f" at {velocity:+.0f} km/s" if velocity else ""))
+    for index, candidate in enumerate(match.candidates):
+        line = candidate.line
+        mark = "[green]>[/green]" if index == 0 else " "
+        console.print(f" {mark} [bold]{line.name}[/bold] -- {line.describe()}")
+        console.print(f"     {candidate.offset:+.3f} A away"
+                      f" ({candidate.velocity:+.0f} km/s if this is it)")
+        for text in (line.note, line.about):
+            if text:
+                console.print(f"     [dim]{escape(text)}[/dim]")
+    if not match.confident:
+        console.print("[yellow]Ambiguous:[/yellow] more than one species fits. "
+                      "The wavelength alone cannot choose -- what you pointed "
+                      "at can.")
+
+
+def _print_lines(found, title: str) -> None:
+    """A set of catalogue entries as a table."""
+    if not found:
+        console.print(f"Nothing {title}.")
+        return
+    table = Table(title=title, title_style="bold")
+    table.add_column("wavelength", justify="right")
+    table.add_column("species", style="bold")
+    table.add_column("line")
+    table.add_column("origin")
+    table.add_column("note")
+    for line in found:
+        table.add_row(f"{line.wavelength:.2f}", line.species,
+                      line.label or "", "/".join(line.origin),
+                      line.note or line.about)
+    console.print(table)
+
+
 # ------------------------------------------------------------ the project
 
 
@@ -297,7 +398,6 @@ def doctor_cmd() -> None:
         table.add_row(f"kernel: {backend}", f"[green]{version}[/green]",
                       "fastest available" if backend == next(iter(kernels.available()))
                       else "")
-    from rich.markup import escape
 
     for missing in set(kernels.ORDER) - set(kernels.available()):
         table.add_row(f"kernel: {missing}", "[dim]not installed[/dim]",
@@ -334,7 +434,6 @@ def _probe(package: str, extra: str) -> tuple[str, str]:
     """
     from importlib.metadata import PackageNotFoundError, version
 
-    from rich.markup import escape
 
     try:
         return f"[green]{version(package)}[/green]", ""
