@@ -310,3 +310,47 @@ def test_what_harwood_adds_is_listed_apart_from_what_iraf_had():
         assert entry["status"] in ("available", "partial"), name
         assert entry.get("note"), f"'{name}' does not say what it is for"
         assert exists(name), f"the map promises '{name}' and it does not exist"
+
+
+def test_the_counts_in_the_map_are_the_counts_in_the_map():
+    """The header comment is documentation of the file it sits in, and
+    documentation that is not checked drifts. It had: partial 10, when there
+    were 21.
+    """
+    import re
+    from collections import Counter
+    from pathlib import Path
+
+    from harwood.core.registry import list_tasks
+
+    tasks = migration.tasks()
+    header = Path(migration._DATA).read_text(encoding="utf-8")
+    header = header[:header.index("meta:")]
+
+    status = Counter(entry["status"] for entry in tasks.values())
+    for name, count in status.items():
+        assert re.search(rf"{name}: {count}\b", header), \
+            f"the header does not say {name}: {count}"
+
+    assert re.search(rf"\b{len(tasks)} distinct task names", header)
+
+    milestone = Counter(entry["milestone"] for entry in tasks.values()
+                        if entry.get("milestone"))
+    running = list_tasks()
+    done = sum(1 for name, entry in tasks.items()
+               if entry.get("milestone") == "mvp"
+               and entry.get("harwood", name) in running)
+    assert re.search(rf"mvp: {milestone['mvp']} \({done} of them running\)", header)
+
+
+def test_a_finished_task_keeps_the_milestone_it_was_planned_for():
+    """Otherwise progress through the MVP cannot be counted: every completed
+    task drops out of the denominator as well as the numerator, and the map
+    can only say what is left."""
+    from harwood.core.registry import list_tasks
+
+    running = list_tasks()
+    forgotten = [name for name, entry in migration.tasks().items()
+                 if entry.get("harwood", name) in running
+                 and not entry.get("milestone")]
+    assert not forgotten, f"built but no longer counted: {', '.join(forgotten)}"
