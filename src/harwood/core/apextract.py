@@ -205,6 +205,12 @@ def extract(data: np.ndarray, centre_at, low: float, high: float,
     positions = np.arange(1.0, length + 1.0)
     centres = np.asarray(centre_at(positions), dtype=float)
 
+    # The profile has to be built before the loop: it is a model fitted along
+    # the dispersion, and a model taken from one column is that column's noise.
+    model = (spatial_profile(data, centres, low, high, dispaxis,
+                             background=background, bwidth=bwidth)
+             if weights == "variance" else None)
+
     flux = np.zeros(length)
     raw = np.zeros(length)
     sky = np.zeros(length)
@@ -225,8 +231,9 @@ def extract(data: np.ndarray, centre_at, low: float, high: float,
         raw[index] = float(row[inside].sum())
 
         if weights == "variance":
-            flux[index], error[index] = _optimal(clean[inside], level, gain,
-                                                 rdnoise)
+            shape = model(positions[index], axis[inside] - centre)
+            flux[index], error[index] = _optimal(clean[inside], shape, level,
+                                                 gain, rdnoise)
         else:
             total = float(clean[inside].sum())
             counts = max(total, 0.0) * gain
@@ -257,26 +264,118 @@ def _background(row, axis, centre, low, high, background, bwidth):
     return level, scatter
 
 
-def _optimal(values, sky_level, gain, rdnoise):
-    """Horne 1986, with the profile taken from the data at this point.
+def _optimal(values, profile, sky_level, gain, rdnoise):
+    """Horne 1986, given a profile estimated elsewhere.
 
-    The profile is normalised so the weights sum to one; each pixel then
-    contributes in proportion to how much signal it holds and in inverse
-    proportion to its variance. On a bright spectrum it agrees with a plain
-    sum; on a faint one it is worth a magnitude.
+    `profile` must be a *model* of the spatial profile at this wavelength,
+    normalised to sum to one -- not the data. That distinction is the whole
+    algorithm, and getting it wrong is silent:
+
+        with P = D / sum(D),
+        flux = sum(P D / V) / sum(P^2 / V)
+             = [ (1/S) sum(D^2/V) ] / [ (1/S^2) sum(D^2/V) ]
+             = S
+
+    which is the plain sum exactly, for every input, while the error shrinks
+    because the "profile" has absorbed the noise it was supposed to weight
+    against. The result looks like a free improvement in signal-to-noise and
+    is a mis-stated uncertainty.
     """
     values = np.asarray(values, dtype=float)
-    total = values.sum()
-    if total <= 0:
-        return float(total), float(np.sqrt(abs(total) / max(gain, 1e-9)))
+    profile = np.asarray(profile, dtype=float)
+    total = float(values.sum())
 
-    shape = np.clip(values, 0, None)
-    shape = shape / shape.sum()
-    variance = (np.clip(values, 0, None) + sky_level) / max(gain, 1e-9) \
+    weight_sum = profile.sum()
+    if weight_sum <= 0:
+        return total, float(np.sqrt(abs(total) / max(gain, 1e-9)))
+    profile = profile / weight_sum
+
+    # The variance model uses the *expected* counts -- profile times the
+    # first-pass flux -- rather than the observed ones. Using the observation
+    # in its own weight biases bright pixels down, which is Horne's reason for
+    # the two passes.
+    expected = np.clip(profile * max(total, 0.0), 0, None)
+    variance = (expected + sky_level) / max(gain, 1e-9) \
         + (rdnoise / max(gain, 1e-9)) ** 2
     variance = np.where(variance > 0, variance, 1e-9)
 
-    weight = shape ** 2 / variance
-    flux = float((shape * values / variance).sum() / weight.sum())
-    error = float(np.sqrt(1.0 / weight.sum()))
+    denominator = float((profile ** 2 / variance).sum())
+    if denominator <= 0:
+        return total, float(np.sqrt(abs(total) / max(gain, 1e-9)))
+    flux = float((profile * values / variance).sum() / denominator)
+    error = float(np.sqrt(1.0 / denominator))
     return flux, error
+
+
+def spatial_profile(data, centres, low: float, high: float, dispaxis: int = 2,
+                    blocks: int = 16, background=None, bwidth: float = 10.0):
+    """A smooth model of the profile across the slit, per point along it.
+
+    Horne's method needs the profile as a function of wavelength, and it has
+    to be smoother than the data or the weighting is circular. The star's
+    image varies with seeing and focus, so a single profile for the whole
+    frame is not enough either; this fits the middle ground, taking the median
+    profile over each of `blocks` chunks of the dispersion and interpolating
+    between chunk centres.
+
+    Returns a callable: given a 1-based position along the dispersion and a
+    set of offsets from the trace, it gives the normalised profile there.
+    """
+    data = np.asarray(data, dtype=float)
+    length = data.shape[0] if dispaxis == 2 else data.shape[1]
+    across = data.shape[1] if dispaxis == 2 else data.shape[0]
+    axis = np.arange(across) + 1.0
+
+    grid = np.arange(np.floor(low), np.ceil(high) + 1.0)
+    rows = np.zeros((length, grid.size))
+    good = np.zeros(length, dtype=bool)
+
+    for index in range(length):
+        row = data[index, :] if dispaxis == 2 else data[:, index]
+        centre = centres[index]
+        level, _ = _background(row, axis, centre, low, high, background, bwidth)
+        clean = row - level
+        sampled = np.interp(centre + grid, axis, clean, left=0.0, right=0.0)
+        total = sampled.sum()
+        if total > 0:
+            rows[index] = sampled / total
+            good[index] = True
+
+    if not good.any():
+        # Nothing usable: fall back to a flat profile, which makes the optimal
+        # extraction equal to a plain sum rather than to nonsense.
+        shape = np.full(grid.size, 1.0 / grid.size)
+        return lambda position, offsets: np.interp(offsets, grid, shape,
+                                                   left=0.0, right=0.0)
+
+    edges = np.linspace(0, length, max(1, blocks) + 1).astype(int)
+    centres_of_blocks, profiles = [], []
+    for start, stop in zip(edges, edges[1:], strict=False):
+        chunk = rows[start:stop][good[start:stop]]
+        if chunk.size == 0:
+            continue
+        shape = np.median(chunk, axis=0)
+        shape = np.clip(shape, 0, None)
+        if shape.sum() <= 0:
+            continue
+        centres_of_blocks.append((start + stop) / 2.0 + 0.5)
+        profiles.append(shape / shape.sum())
+
+    if not profiles:
+        shape = np.clip(np.median(rows[good], axis=0), 0, None)
+        centres_of_blocks, profiles = [length / 2.0], [shape / max(shape.sum(), 1e-12)]
+
+    anchors = np.array(centres_of_blocks)
+    table = np.array(profiles)
+
+    def profile(position: float, offsets):
+        """The normalised profile at one point along the dispersion."""
+        column = np.array([np.interp(position, anchors, table[:, k])
+                           for k in range(table.shape[1])])
+        column = np.clip(column, 0, None)
+        sampled = np.interp(np.asarray(offsets, dtype=float), grid, column,
+                            left=0.0, right=0.0)
+        total = sampled.sum()
+        return sampled / total if total > 0 else sampled
+
+    return profile

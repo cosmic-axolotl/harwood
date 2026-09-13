@@ -97,12 +97,9 @@ def write(solution: Solution, workdir: Path | str = ".",
         **solution.extra,
     }
     lines = [
-        "# harwood dispersion solution.",
+        f"# harwood {KINDS.get(prefix, 'solution')}.",
         "#",
-        "# One line per identified feature: the pixel it was measured at, the",
-        "# wavelength it was matched to, what the fit gives there, and whether",
-        "# the fit used it. Deleted or rejected features are kept on purpose --",
-        "# knowing which lines were thrown out is part of knowing the solution.",
+        *HEADINGS.get(prefix, HEADINGS["id"]),
         "",
         yaml.safe_dump(document, sort_keys=False, allow_unicode=False).strip(),
         "",
@@ -130,9 +127,32 @@ MISSING = {
     "ap": "run apall with tracing on; the trace goes in database/ap<image>.",
 }
 
-#: What each kind of solution is called, for the sentence that says it is gone.
+#: What each kind of solution is called -- in the file's own first line, and
+#: in the sentence that says it is missing.
 KINDS = {"id": "dispersion solution", "sens": "sensitivity function",
          "ap": "trace"}
+
+#: What the rows of each kind mean. A file that does not say what its columns
+#: are is a file that has to be decoded rather than read.
+HEADINGS = {
+    "id": [
+        "# One line per identified feature: the pixel it was measured at, the",
+        "# wavelength it was matched to, what the fit gives there, and whether",
+        "# the fit used it. Deleted or rejected features are kept on purpose --",
+        "# knowing which lines were thrown out is part of knowing the solution.",
+    ],
+    "ap": [
+        "# One line per aperture: where its centre sits across the slit, how",
+        "# wide it is, where the trace puts the centre, and whether it was",
+        "# kept. `apertures` below carries the limits each one was given.",
+    ],
+    "sens": [
+        "# One line per bandpass of the calibration stars: the wavelength, the",
+        "# instrument's response there in magnitudes, what the fit gives, and",
+        "# whether the fit used it. Rejected bands are kept so that a response",
+        "# fitted over a gap can be seen to have been.",
+    ],
+}
 
 
 def read(image: str, workdir: Path | str = ".", prefix: str = "id") -> Solution:

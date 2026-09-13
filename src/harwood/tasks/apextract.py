@@ -326,8 +326,12 @@ class ApAll(Task[ApAllParams]):
         destination = params.output or output.named_for(params.input, ".ms.fits")
         spectrum.write(destination, apertures, header=header,
                        source=str(params.input))
+        # `ap`, not `id`: a trace and a dispersion solution are different
+        # things about the same frame, and IRAF keeps them apart by prefix for
+        # the reason that matters -- run identify and apall on one image and
+        # a shared name means the second quietly overwrites the first.
         stored = database.write(
-            _solution(params, apertures, traces), params.database)
+            _solution(params, apertures, traces), params.database, prefix="ap")
 
         return TaskResult(
             outputs=[destination, stored],

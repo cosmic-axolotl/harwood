@@ -131,18 +131,34 @@ def test_the_error_estimate_matches_the_repeatability(night):
     )
 
 
-def test_optimal_extraction_beats_the_plain_sum_without_moving_the_flux(night):
+def test_optimal_extraction_has_almost_nothing_to_recover_here(night):
+    """On a bright spectrum the two methods agree, and that is the right
+    answer rather than a disappointing one.
+
+    Horne's weighting recovers what a plain sum throws away at the edges of
+    the profile, where the signal is weak and the read noise is not. These are
+    1200-second exposures of a naked-eye-adjacent star at signal-to-noise near
+    90 per pixel: the noise is photons, and there is nothing to recover. A
+    large gain here would mean the error model was wrong, not that the
+    extraction was clever -- which is exactly what an earlier version of this
+    test was quietly certifying.
+    """
     plain = extract(night, "sp0019", weights="none")
     optimal = extract(night, "sp0019", weights="variance")
 
     good = np.isfinite(plain.flux) & (plain.flux > 200)
     assert np.median(optimal.flux[good]) == pytest.approx(
-        float(np.median(plain.flux[good])), rel=0.05), \
+        float(np.median(plain.flux[good])), rel=0.01), \
         "weighting must change the noise and not the answer"
+    assert not np.allclose(optimal.flux, plain.flux), \
+        "identical to the last bit would mean the profile came from the data"
 
     plain_snr = float(np.median(plain.flux[good] / plain.error[good]))
     optimal_snr = float(np.median(optimal.flux[good] / optimal.error[good]))
-    assert optimal_snr > plain_snr
+    assert 0.98 < optimal_snr / plain_snr < 1.10, (
+        f"{plain_snr:.1f} against {optimal_snr:.1f}: a big gain on a spectrum "
+        "this bright would mean something is wrong with the errors"
+    )
 
 
 def test_the_extracted_file_says_everything_about_itself(night):

@@ -880,7 +880,15 @@ def _print_rows(rows: Any) -> None:
         console.print("  [yellow]no rows[/yellow]")
         return
     table = Table(show_header=True, header_style="dim")
-    for column in rows[0]:
+    names = list(rows[0])
+    # The first column is what says *which* row this is -- the image, the
+    # spectrum, the site -- and rich will happily squeeze it to "raw/sp00…"
+    # to make room for a long note. A table whose identifying column has been
+    # shortened to nothing is not a narrower table, it is an unreadable one.
+    # This is the fourth time; hence doing it here rather than per task.
+    widest = max((len(_show(row[names[0]])) for row in rows), default=8)
+    _identity_column(table, names[0], min(max(widest, 8), 34))
+    for column in names[1:]:
         table.add_column(column)
     for row in rows:
         table.add_row(*[_show(value) for value in row.values()])

@@ -92,26 +92,101 @@ def test_extraction_recovers_the_flux_that_was_put_in():
     assert np.median(out["sky"]) == pytest.approx(SKY, abs=2.0)
 
 
-def test_optimal_extraction_changes_the_noise_and_not_the_flux():
-    """The check that matters: weighting must not move the answer.
+def _uniform_spectrum(peak, seed=0, length=600, across=60, centre=30.0,
+                      fwhm=3.5, sky=20.0, gain=2.0, rdnoise=6.0):
+    """A spectrum of constant flux, so the truth is one number.
 
-    A weighting scheme that improves the signal-to-noise *and* shifts the flux
-    has not improved anything -- it has measured something else.
+    Constant on purpose: the measured scatter of the extraction is then the
+    extraction's own noise and nothing else, which is what these tests need to
+    compare against.
     """
-    frame, _ = synthetic(flux_per_pixel=300.0, seed=11)
-    fit = apextract.trace(frame, CENTRE, dispaxis=2, step=10, nsum=10)
+    rng = np.random.default_rng(seed)
+    axis = np.arange(across) + 1.0
+    sigma = fwhm / 2.3548
+    shape = np.exp(-0.5 * ((axis - centre) / sigma) ** 2)
+    shape /= shape.sum()
+    clean = np.full(length, peak)[:, None] * shape[None, :] + sky
+    counts = rng.poisson(np.clip(clean * gain, 0, None)) / gain
+    return counts + rng.normal(0, rdnoise / gain, counts.shape)
 
-    plain = apextract.extract(frame, fit, -8.0, 8.0, dispaxis=2,
-                              background=(4.0, 14.0), gain=2.0, rdnoise=5.0)
-    optimal = apextract.extract(frame, fit, -8.0, 8.0, dispaxis=2,
-                                background=(4.0, 14.0), gain=2.0, rdnoise=5.0,
-                                weights="variance")
 
-    assert np.median(optimal["flux"]) == pytest.approx(np.median(plain["flux"]),
-                                                       rel=0.05)
-    plain_snr = np.median(plain["flux"] / plain["error"])
-    optimal_snr = np.median(optimal["flux"] / optimal["error"])
-    assert optimal_snr > plain_snr, "that is what optimal extraction is for"
+def _both_ways(frame, gain=2.0, rdnoise=6.0):
+    def trace(position):
+        """A perfectly straight spectrum: the trace is not what is being tested."""
+        return np.full_like(np.asarray(position, dtype=float), 30.0)
+
+    return {
+        weights: apextract.extract(frame, trace, -8.0, 8.0, dispaxis=2,
+                                   background=(10.0, 25.0), gain=gain,
+                                   rdnoise=rdnoise, weights=weights)
+        for weights in ("none", "variance")
+    }
+
+
+def test_a_profile_taken_from_the_data_is_not_a_profile():
+    """The regression test for a bug that hid for weeks.
+
+    Horne's weighting needs a *model* of the spatial profile. Take the profile
+    from the data at that wavelength -- P = D / sum(D) -- and the algebra
+    collapses:
+
+        sum(P D / V) / sum(P^2 / V)  ==  sum(D)
+
+    exactly, for every input. The flux is the plain sum, bit for bit, while
+    the error shrinks because the "profile" has absorbed the noise it was
+    meant to weight against. It looks like free signal-to-noise and is a
+    mis-stated uncertainty, and no test comparing flux/error can see it --
+    which is why this one compares the fluxes themselves.
+    """
+    frame = _uniform_spectrum(1500.0, seed=5)
+    both = _both_ways(frame)
+
+    assert not np.allclose(both["none"]["flux"], both["variance"]["flux"]), \
+        "identical fluxes mean the profile came from the data"
+
+
+def test_optimal_extraction_recovers_the_flux_that_was_put_in():
+    """Weighting must not move the answer. A scheme that improves the
+    signal-to-noise *and* shifts the flux has measured something else."""
+    truth = 3000.0
+    both = _both_ways(_uniform_spectrum(truth, seed=7))
+
+    for weights, result in both.items():
+        assert np.median(result["flux"]) == pytest.approx(truth, rel=0.02), weights
+
+
+def test_optimal_extraction_earns_its_keep_on_a_faint_spectrum():
+    """And barely at all on a bright one, which is the honest shape of it.
+
+    Horne's method recovers what a plain sum throws away at the edges of the
+    profile, where the signal is weak and the read noise is not. On a bright
+    spectrum the noise is photons and there is nothing to recover; on a faint
+    one it is worth most of a magnitude. A claimed gain that is the same at
+    both ends is not this algorithm.
+
+    Measured scatter, not the reported error: a wrong error estimate cannot
+    flatter itself here.
+    """
+    def gain_at(peak, seed):
+        both = _both_ways(_uniform_spectrum(peak, seed=seed))
+        scatter = {name: float(np.std(result["flux"]) / np.median(result["flux"]))
+                   for name, result in both.items()}
+        return scatter["none"] / scatter["variance"]
+
+    assert gain_at(20000.0, 3) < 1.10, "nothing to recover from a bright spectrum"
+    assert gain_at(400.0, 3) > 1.30, "and a real gain on a faint one"
+
+
+def test_the_reported_error_matches_the_scatter_it_claims_to_describe():
+    """The check the old test was missing. An uncertainty nobody has compared
+    with a repeat measurement is decoration."""
+    for weights in ("none", "variance"):
+        frame = _uniform_spectrum(2000.0, seed=13)
+        result = _both_ways(frame)[weights]
+        measured = float(np.std(result["flux"]))
+        claimed = float(np.median(result["error"]))
+        assert 0.7 < measured / claimed < 1.4, \
+            f"{weights}: scatter {measured:.1f} against claimed {claimed:.1f}"
 
 
 def test_the_background_is_taken_from_beside_the_aperture_not_under_it():
@@ -392,3 +467,31 @@ def test_adding_where_there_is_nothing_puts_it_where_you_pointed(panel):
     panel._cursor = 50.0
     panel.key("a")
     assert panel.apertures[panel.selected]["centre"] == pytest.approx(50.0, abs=1.0)
+
+
+def test_the_trace_and_a_dispersion_solution_do_not_collide(frame):
+    """A trace and a wavelength solution are different things about the same
+    frame. IRAF keeps them apart by prefix -- ap and id -- and the reason is
+    not tidiness: run apall and identify on one image with a shared name and
+    the second quietly overwrites the first.
+
+    Found by running the whole chain on a real night, not by a unit test:
+    apall was writing its trace to database/id<image>, under a header that
+    called itself a dispersion solution.
+    """
+    from harwood.core import database
+    from harwood.core.registry import get_task
+
+    get_task("apall").run(input="obj.fits", output="obj.ms.fits")
+
+    assert (frame / "database" / "apobj").exists(), "the trace goes under ap"
+    assert not (frame / "database" / "idobj").exists(), \
+        "id is the dispersion solution's prefix and must stay free"
+
+    # And the file says what it is, rather than claiming to be something else.
+    text = (frame / "database" / "apobj").read_text()
+    assert text.startswith("# harwood trace")
+    assert "One line per aperture" in text
+
+    stored = database.read("obj", frame, prefix="ap")
+    assert len(stored) >= 1
