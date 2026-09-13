@@ -87,6 +87,18 @@ def parameters_for(model: type) -> list[click.Parameter]:
             # second list-valued positional takes a comma-separated value --
             # which is how IRAF writes them too ("OBJECT,EXPTIME,FILTER").
             variadic = multiple and not variadic_taken
+            if variadic_taken and not field.is_required():
+                # A variadic positional swallows everything up to the fixed
+                # ones behind it, so an *optional* positional after one can
+                # never be omitted: give one argument and it goes to the
+                # optional slot, leaving the list empty. There is no way to
+                # write it that is not a trap, so it is refused here rather
+                # than discovered by a user.
+                raise ValueError(
+                    f"{model.__name__}.{name} is an optional positional following "
+                    "a variadic one, which cannot be omitted. Make it required, "
+                    "or drop the 'positional' marker so it becomes an option."
+                )
             variadic_taken = variadic_taken or variadic
             # Never required at the click level, even though the model requires
             # it. Two reasons: `--editpar` and `--help` have to work without

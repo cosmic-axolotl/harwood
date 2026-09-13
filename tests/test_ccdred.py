@@ -121,7 +121,7 @@ def test_ccdlist_filters_by_type_and_shows_what_is_done(night):
     assert len(result.data["rows"]) == 2
     assert all(row["done"] == "-" for row in result.data["rows"])
 
-    get_task("ccdproc").run(input=["f005.fits"], output="", overscan=True,
+    get_task("ccdproc").run(input=["f005.fits"], inplace=True, overscan=True,
                             trim=True, instrument=KPNO)
     after = get_task("ccdlist").run(input=["f005.fits"], instrument=KPNO, long=True)
     assert "overscan" in after.data["rows"][0]["done"]
@@ -195,13 +195,18 @@ def test_calibrations_are_put_through_the_same_geometry(night):
 
 @needs_iraf
 def test_running_in_place_is_idempotent(night):
-    """IRAF overwrites the inputs, and the header marks are what make that safe."""
-    first = get_task("ccdproc").run(input=["o010.fits"], output="", overscan=True,
+    """IRAF overwrites the inputs, and the header marks are what make that safe.
+
+    It is opt-in here rather than what happens when you say nothing: leaving
+    --output out writes to the run's own directory instead, which cannot
+    destroy anything.
+    """
+    first = get_task("ccdproc").run(input=["o010.fits"], inplace=True, overscan=True,
                                     trim=True, instrument=KPNO)
     assert any("in place" in warning for warning in first.warnings)
     after_once = fits.getdata(night / "o010.fits").copy()
 
-    second = get_task("ccdproc").run(input=["o010.fits"], output="", overscan=True,
+    second = get_task("ccdproc").run(input=["o010.fits"], inplace=True, overscan=True,
                                      trim=True, instrument=KPNO)
     assert second.data["steps_skipped"] == 2
     np.testing.assert_array_equal(fits.getdata(night / "o010.fits"), after_once)
@@ -235,3 +240,28 @@ def test_a_step_without_an_explanation_says_so_rather_than_nothing():
 
     assert not Step("mystery", "does a thing").explained()
     assert Step("overscan", "", why="because").explained()
+
+
+@needs_iraf
+def test_inplace_and_output_together_are_refused(night):
+    with pytest.raises(ValueError, match="nothing to mean"):
+        get_task("ccdproc").run(input=["o010.fits"], output="somewhere",
+                                inplace=True, overscan=True, instrument=KPNO)
+
+
+@needs_iraf
+def test_saying_nothing_writes_to_the_runs_own_directory(night):
+    """The originals survive, which is the point of it being the default."""
+    from harwood.core import output
+
+    before = (night / "o010.fits").read_bytes()
+    token = output.begin("ccdproc", night)
+    try:
+        result = get_task("ccdproc").run(input=["o010.fits"], overscan=True,
+                                         trim=True, instrument=KPNO)
+    finally:
+        output.end(token)
+
+    assert (night / "o010.fits").read_bytes() == before, "the input is untouched"
+    assert result.outputs[0].parent.name.startswith("hrwd_ccdproc_")
+    assert not result.warnings, "nothing to warn about when nothing was lost"

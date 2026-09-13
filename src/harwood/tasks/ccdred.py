@@ -42,11 +42,15 @@ class CcdProcParams(TaskParams):
     output: Template = Field(
         "",
         description="Where to write. One image: a file name. Several: a directory, "
-                    "or a substitution template such as '%m%tr%'. Leave it empty to "
-                    "correct the images in place, which is what IRAF does -- the "
-                    "header marks are what makes that safe, since a step already "
-                    "applied is never applied twice.",
-        json_schema_extra={"positional": True},
+                    "or a substitution template such as '%m%tr%'. Left out, the run "
+                    "writes to its own directory under output/ and the frames keep "
+                    "their names.",
+    )
+    inplace: bool = Field(
+        False,
+        description="Correct the input images themselves, as IRAF does. The header "
+                    "marks make it safe to repeat -- a step already applied is never "
+                    "applied twice -- but the originals are gone.",
     )
     ccdtype: str = Field(
         "",
@@ -217,11 +221,17 @@ class CcdProc(Task[CcdProcParams]):
                 add(flag, key,
                     str(given or found or f"no --{key} image and none found"),
                     WHY[key])
-        steps.append(Step("write", params.output or "in place, over the inputs",
-                          why="Writing in place is safe here only because every "
-                              "step it applied is marked in the header, so running "
-                              "again corrects nothing twice."
-                          if not params.output else ""))
+        steps.append(Step(
+            "write",
+            "in place, over the inputs" if params.inplace
+            else (params.output or "this run's own directory under output/"),
+            why=("Writing in place is safe here only because every step applied "
+                 "is marked in the header, so running again corrects nothing "
+                 "twice. The originals are gone either way."
+                 if params.inplace else
+                 "Nowhere was named, so the run gets its own dated directory and "
+                 "the frames keep their names. What made them is written beside "
+                 "them, in run.yaml.")))
         return steps
 
     def execute(self, params: CcdProcParams) -> TaskResult:
@@ -242,9 +252,15 @@ class CcdProc(Task[CcdProcParams]):
                 "harwood ccdlist shows what it makes of each frame."
             )
 
-        destinations = (images.outputs_for(targets, params.output)
-                        if params.output
-                        else [spec.path for spec in targets])
+        if params.inplace:
+            if params.output:
+                raise ValueError(
+                    "--inplace overwrites the inputs, so --output has nothing to "
+                    "mean. Give one or the other."
+                )
+            destinations = [spec.path for spec in targets]
+        else:
+            destinations = images.outputs_for(targets, params.output)
 
         # The calibrations have to go through the same geometry first, or a
         # 352x512 bias meets a 318x509 object and the subtraction fails -- or
@@ -290,12 +306,11 @@ class CcdProc(Task[CcdProcParams]):
         skipped = sum(1 for step in all_steps if step.skipped)
         all_steps = prepared.pop("_steps", []) + all_steps
         warnings = []
-        if not params.output:
+        if params.inplace:
             warnings.append(
                 f"{len(outputs)} image(s) were corrected in place. The header "
                 "marks mean running again corrects nothing twice, but the "
-                "originals are gone -- give an --output next time if you want "
-                "them kept.")
+                "originals are gone.")
         return TaskResult(outputs=outputs, history=history, steps=all_steps,
                           warnings=warnings,
                           data={"images": len(targets), "steps_skipped": skipped,

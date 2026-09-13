@@ -521,33 +521,42 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         console.print()
         return
 
+    from ..core import output, replay
+
+    # try/finally, not a bare call at the end: a task that raises must not
+    # leave this run's directory set for whatever runs next in the same
+    # process -- the session, a recipe, a test.
+    token = output.begin(name, workdir)
     try:
-        with console.status(f"{name}..."):
-            result = task.run(validated)
-    except KeyboardInterrupt:
-        error_console.print(f"[yellow]{name} interrupted.[/yellow]")
-        raise SystemExit(130) from None
-    except Exception as error:
-        # A task failing is a normal event and deserves a sentence, not a
-        # traceback. HARWOOD_TRACEBACK=1 brings the traceback back for
-        # debugging -- hidden by default, never unavailable.
-        import os
+        try:
+            with console.status(f"{name}..."):
+                result = task.run(validated)
+        except KeyboardInterrupt:
+            error_console.print(f"[yellow]{name} interrupted.[/yellow]")
+            raise SystemExit(130) from None
+        except Exception as error:
+            # A task failing is a normal event and deserves a sentence, not a
+            # traceback. HARWOOD_TRACEBACK=1 brings the traceback back for
+            # debugging -- hidden by default, never unavailable.
+            import os
 
-        error_console.print(f"[red]{name} stopped:[/red] {error}")
-        if os.environ.get("HARWOOD_TRACEBACK"):
-            console.print_exception()
-        else:
-            error_console.print("[dim]HARWOOD_TRACEBACK=1 shows where.[/dim]")
-        raise SystemExit(1) from None
+            error_console.print(f"[red]{name} stopped:[/red] {error}")
+            if os.environ.get("HARWOOD_TRACEBACK"):
+                console.print_exception()
+            else:
+                error_console.print("[dim]HARWOOD_TRACEBACK=1 shows where.[/dim]")
+            raise SystemExit(1) from None
 
-    from ..core import replay
-
-    provenance.record(
-        name, validated.model_dump(), result, workdir,
-        origins=store.origins(resolved),
-        command=replay.command(name, cls.Params, validated.model_dump()),
-        argv=sys.argv[1:],
-    )
+        command = replay.command(name, cls.Params, validated.model_dump())
+        provenance.record(
+            name, validated.model_dump(), result, workdir,
+            origins=store.origins(resolved), command=command, argv=sys.argv[1:],
+        )
+        written = output.record(name, validated.model_dump(), result, command,
+                                store.origins(resolved))
+        folder = output.current()
+    finally:
+        output.end(token)
 
     console.print(f"[green]ok[/green] {name} in {result.duration_s:.2f}s"
                   + (f" [dim]({result.backend})[/dim]" if result.backend else ""))
@@ -562,8 +571,11 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
             _print_rows(value)
         else:
             console.print(f"  {key}: {value}")
-    for output in result.outputs:
-        console.print(f"  [cyan]->[/cyan] {output}")
+    for path in result.outputs:
+        console.print(f"  [cyan]->[/cyan] {path}")
+    if folder is not None:
+        console.print(f"  [dim]in {folder}"
+                      + (", with run.yaml" if written else "") + "[/dim]")
 
 
 def _identity_column(table: Table, name: str, width: int, **options: Any) -> None:

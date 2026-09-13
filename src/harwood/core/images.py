@@ -213,6 +213,14 @@ def outputs_for(specs: list, template: str) -> list[Path]:
     guess.
     """
     template = str(template).strip()
+    if not template:
+        # Nowhere named: this run's own directory, with the frames keeping
+        # their names. See core/output.py for why that is the default.
+        from . import output
+
+        folder = output.directory()
+        return [folder / Path(str(s.path if hasattr(s, "path") else s)).name
+                for s in specs]
     if "%" in template:
         return [substitute(spec.path if hasattr(spec, "path") else spec, template)
                 for spec in specs]

@@ -25,7 +25,13 @@ from ..core.task import Step, Task, TaskParams, TaskResult
 
 class DaoFindParams(TaskParams):
     image: str = Field(..., description="Image to search. Accepts 'obj.fits[SCI,1]'.")
-    output: Path = Field(..., description="Coordinate catalogue to write (.ecsv).")
+    output: Path | None = Field(
+        None,
+        description="Coordinate catalogue to write. Left out, it goes to this "
+                    "run's own directory under output/, named after the frame -- "
+                    "obj.fits becomes obj.coo, as in IRAF.",
+        json_schema_extra={"positional": True},
+    )
 
     fwhm: float = Field(
         2.5, gt=0,
@@ -72,7 +78,8 @@ class DaoFind(Task[DaoFindParams]):
                            f"roundness {params.roundlo}..{params.roundhi}"),
             Step("border", f"drop anything within "
                            f"{_border(params):g} px of the edge"),
-            Step("write", f"{params.output}, coordinates 1-based (x,y)"),
+            Step("write", f"{params.output or 'obj.coo in this run''s directory'}, "
+                          "coordinates 1-based (x,y)"),
         ]
 
     def execute(self, params: DaoFindParams) -> TaskResult:
@@ -81,7 +88,7 @@ class DaoFind(Task[DaoFindParams]):
         from astropy.table import Table
         from photutils.detection import DAOStarFinder
 
-        from ..core import catalog, images, pixels, provenance
+        from ..core import catalog, images, output, pixels, provenance
 
         data, header = images.read(params.image)
         mean, median, sigma = sigma_clipped_stats(data, sigma=3.0)
@@ -128,14 +135,15 @@ class DaoFind(Task[DaoFindParams]):
             "peak": _column(found, "peak", "max_value"),
             "flux": _column(found, "flux"),
         })
-        catalog.write(catalogue, params.output,
+        destination = params.output or output.named_for(params.image, ".coo")
+        catalog.write(catalogue, destination,
                       harwood_image=str(params.image),
                       harwood_background=float(median),
                       harwood_sigma=float(sigma),
                       harwood_call=provenance.current_stamp() or "")
 
         return TaskResult(
-            outputs=[params.output],
+            outputs=[destination],
             data={"sources": len(catalogue), "dropped_at_border": dropped,
                   "background": float(median), "sigma": float(sigma)},
             history=[f"daofind: {len(catalogue)} sources, fwhm={params.fwhm}, "
@@ -149,7 +157,13 @@ class DaoFind(Task[DaoFindParams]):
 class PhotParams(TaskParams):
     image: str = Field(..., description="Image to measure.")
     coords: Path = Field(..., description="Coordinate catalogue, 1-based (x,y), from daofind.")
-    output: Path = Field(..., description="Photometry table to write (.ecsv).")
+    output: Path | None = Field(
+        None,
+        description="Photometry table to write. Left out, it goes to this run's "
+                    "own directory under output/, named after the frame -- "
+                    "obj.fits becomes obj.mag, as in IRAF.",
+        json_schema_extra={"positional": True},
+    )
 
     apertures: list[float] = Field(
         [5.0], description="Aperture radii in pixels. Several may be given."
@@ -199,7 +213,7 @@ class Phot(Task[PhotParams]):
             Step("measure", f"apertures {radii} px"),
             Step("calibrate", f"zmag={params.zmag}, epadu={params.epadu}, "
                               f"exposure from {params.exposure}"),
-            Step("write", str(params.output)),
+            Step("write", str(params.output or "obj.mag in this run's directory")),
         ]
 
     def execute(self, params: PhotParams) -> TaskResult:
@@ -212,7 +226,7 @@ class Phot(Task[PhotParams]):
             aperture_photometry,
         )
 
-        from ..core import catalog, images, pixels, provenance
+        from ..core import catalog, images, output, pixels, provenance
 
         data, header = images.read(params.image)
         exptime = float(header.get(params.exposure, 1.0))
@@ -270,7 +284,8 @@ class Phot(Task[PhotParams]):
             out[f"mag{suffix}"] = mag
             out[f"merr{suffix}"] = merr
 
-        catalog.write(out, params.output,
+        destination = params.output or output.named_for(params.image, ".mag")
+        catalog.write(out, destination,
                       harwood_image=str(params.image),
                       harwood_exposure=exptime,
                       harwood_zmag=params.zmag,
@@ -279,7 +294,7 @@ class Phot(Task[PhotParams]):
         first = "" if len(params.apertures) == 1 else f"_{params.apertures[0]:g}"
         measured = int(np.isfinite(out[f"mag{first}"]).sum())
         return TaskResult(
-            outputs=[params.output],
+            outputs=[destination],
             data={"stars": len(out), "measured": measured,
                   "sky_median": float(np.median(sky))},
             history=[f"phot: apertures={params.apertures} annulus={params.annulus} "
