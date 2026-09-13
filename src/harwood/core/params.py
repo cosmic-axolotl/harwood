@@ -46,9 +46,20 @@ class Resolved:
     source: str | None = None  # path of the project file, when origin == project
 
     def describe(self) -> str:
-        if self.source:
-            return f"{self.origin}: {self.source}"
-        return self.origin
+        """Where this value came from, short enough to sit in a table column.
+
+        The project file is named relative to where you are standing, because
+        an absolute path is both longer and less informative -- you already
+        know which reduction you are in.
+        """
+        if not self.source:
+            return self.origin
+        source = self.source
+        try:
+            source = str(Path(self.source).resolve().relative_to(Path.cwd()))
+        except (ValueError, OSError):
+            source = Path(self.source).name
+        return f"{self.origin}: {source}"
 
 
 def find_project(start: Path | None = None) -> Path | None:

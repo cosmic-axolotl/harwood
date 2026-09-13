@@ -135,11 +135,11 @@ def _list_iraf(domain: str | None, milestone: str | None) -> None:
     # The identifying columns keep their width; the note takes what is left and
     # is cut with an ellipsis. Without no_wrap on the first four, one long note
     # squeezes them all to nothing and the table becomes unreadable.
-    table.add_column("task", style="bold", no_wrap=True, min_width=12)
-    table.add_column("package", style="dim", no_wrap=True, min_width=16)
-    table.add_column("domain", style="cyan", no_wrap=True, min_width=14)
-    table.add_column("status", no_wrap=True, min_width=15)
-    table.add_column("note", overflow="ellipsis", no_wrap=True)
+    _identity_column(table, "task", 12, style="bold")
+    _identity_column(table, "package", 16, style="dim")
+    _identity_column(table, "domain", 14, style="cyan")
+    _identity_column(table, "status", 15)
+    table.add_column("note", overflow="ellipsis", no_wrap=True, max_width=48)
     for name, entry in rows:
         status = entry["status"]
         shown = f"{status} ({entry['milestone']})" if entry.get("milestone") else status
@@ -290,28 +290,88 @@ def _probe(package: str, extra: str) -> tuple[str, str]:
 
 
 @app.command("log")
+@click.argument("task", required=False)
 @click.option("--workdir", "-w", type=click.Path(path_type=Path), default=Path("."))
 @click.option("-n", "count", type=int, default=20, help="Show the last N entries.")
-def log_cmd(workdir: Path, count: int) -> None:
-    """What has been done in this reduction directory."""
+@click.option("--full", is_flag=True,
+              help="Show every parameter of each run, and where each value came from.")
+@click.option("--replay", type=int, metavar="N",
+              help="Print the command that reproduces run N. Nothing else, so it "
+                   "can be piped straight into a shell.")
+def log_cmd(task: str | None, workdir: Path, count: int, full: bool,
+            replay: int | None) -> None:
+    """What has been done here. Name a task to see only its runs."""
     from ..core import provenance
 
-    entries = provenance.read_log(workdir)[-count:]
+    entries = (provenance.history_of(task, workdir) if task
+               else provenance.read_log(workdir))
     if not entries:
-        console.print("[yellow]Nothing has been run here yet.[/yellow]")
+        where = f" of '{task}'" if task else ""
+        console.print(f"[yellow]No runs{where} recorded here yet.[/yellow]")
         return
-    table = Table(title="provenance", title_style="bold")
-    table.add_column("when", style="dim")
-    table.add_column("task", style="bold")
-    table.add_column("outputs")
-    table.add_column("backend", style="cyan")
-    table.add_column("s", justify="right")
-    for entry in entries:
-        table.add_row(entry["timestamp"], entry["task"],
-                      ", ".join(entry["outputs"]) or "-",
-                      entry.get("backend") or "-",
-                      f"{entry['duration_s']:.2f}")
+
+    if replay is not None:
+        if not 1 <= replay <= len(entries):
+            error_console.print(
+                f"[red]There are {len(entries)} runs{f' of {task}' if task else ''}; "
+                f"asked for {replay}.[/red]")
+            raise SystemExit(2)
+        entry = entries[replay - 1]
+        if not entry.get("command"):
+            error_console.print("[yellow]That run predates command recording.[/yellow]")
+            raise SystemExit(1)
+        print(entry["command"])
+        return
+
+    shown = entries[-count:]
+    if full:
+        _print_full_log(shown, len(entries) - len(shown))
+        return
+
+    table = Table(title=f"provenance{f' · {task}' if task else ''}",
+                  title_style="bold")
+    _identity_column(table, "#", 3, justify="right", style="dim")
+    _identity_column(table, "when", 20, style="dim")
+    if not task:
+        _identity_column(table, "task", 12, style="bold")
+    table.add_column("outputs", overflow="ellipsis", no_wrap=True, max_width=42)
+    _identity_column(table, "backend", 8, style="cyan")
+    _identity_column(table, "s", 5, justify="right")
+    for offset, entry in enumerate(shown, start=len(entries) - len(shown) + 1):
+        row = [str(offset), entry["timestamp"]]
+        if not task:
+            row.append(entry["task"])
+        outputs = entry["outputs"]
+        summary = (", ".join(outputs) if len(outputs) <= 2
+                   else f"{outputs[0]} and {len(outputs) - 1} more")
+        row += [summary or "-", entry.get("backend") or "-",
+                f"{entry['duration_s']:.2f}"]
+        table.add_row(*row)
     console.print(table)
+    hint = f" {task}" if task else " <task>"
+    console.print(f"[dim]harwood log{hint} --full shows every parameter; "
+                  f"--replay N prints the command that repeats run N.[/dim]")
+
+
+def _print_full_log(entries: list[dict[str, Any]], offset: int) -> None:
+    """Each run written out: what it did, with what, and how to do it again."""
+    for index, entry in enumerate(entries, start=offset + 1):
+        console.print(f"\n[bold]{index}.[/bold] [cyan]{entry['task']}[/cyan]  "
+                      f"[dim]{entry['timestamp']}  {entry['duration_s']:.2f}s"
+                      + (f"  ({entry['backend']})" if entry.get("backend") else "")
+                      + "[/dim]")
+        origins = entry.get("origins", {})
+        table = Table(show_header=False, box=None, padding=(0, 2, 0, 2))
+        table.add_column("parameter", style="bold")
+        table.add_column("value")
+        table.add_column("origin", style="dim")
+        for key, value in entry["params"].items():
+            table.add_row(key, _show(value), origins.get(key, ""))
+        console.print(table)
+        for output in entry["outputs"]:
+            console.print(f"    [cyan]->[/cyan] {output}")
+        if entry.get("command"):
+            console.print(f"    [dim]repeat:[/dim] {entry['command']}")
 
 
 # ------------------------------------------------------------- the display
@@ -388,6 +448,10 @@ def _task_command(name: str) -> click.Command:
             click.Option(["--plan"], is_flag=True,
                          help="Print the steps this would take, with real values, "
                               "and stop. IRAF's noproc."),
+            click.Option(["--editpar"], is_flag=True,
+                         help="Open this task's parameters in a text editor, with "
+                              "every one explained, and save what you change into "
+                              "the project. Open it as often as you like."),
             click.Option(["--workdir", "-w"], type=click.Path(path_type=Path),
                          default=Path("."), help="Reduction directory for the log."),
         ],
@@ -407,8 +471,13 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     from ..core.registry import get_class, get_task
 
     plan_only = kwargs.pop("plan", False)
+    edit_params = kwargs.pop("editpar", False)
     workdir: Path = kwargs.pop("workdir", Path("."))
     cls = get_class(name)
+
+    if edit_params:
+        _edit_parameters(name, cls)
+        return
 
     try:
         given = build.collect(cls.Params, kwargs)
@@ -453,8 +522,14 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
             error_console.print("[dim]HARWOOD_TRACEBACK=1 shows where.[/dim]")
         raise SystemExit(1) from None
 
-    provenance.record(name, validated.model_dump(), result, workdir,
-                      origins=store.origins(resolved))
+    from ..core import replay
+
+    provenance.record(
+        name, validated.model_dump(), result, workdir,
+        origins=store.origins(resolved),
+        command=replay.command(name, cls.Params, validated.model_dump()),
+        argv=sys.argv[1:],
+    )
 
     console.print(f"[green]ok[/green] {name} in {result.duration_s:.2f}s"
                   + (f" [dim]({result.backend})[/dim]" if result.backend else ""))
@@ -469,6 +544,17 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         console.print(f"  [cyan]->[/cyan] {output}")
 
 
+def _identity_column(table: Table, name: str, width: int, **options: Any) -> None:
+    """A column that keeps its width when a neighbour holds something long.
+
+    Rich shrinks every column to fit, so one long value in one row starves the
+    columns that say *which* row it is -- and a table whose identifying columns
+    have been squeezed to nothing is not a narrower table, it is an unreadable
+    one. This has now been the same bug three times; hence a function.
+    """
+    table.add_column(name, no_wrap=True, min_width=width, **options)
+
+
 def _print_rows(rows: list[dict[str, Any]]) -> None:
     if not rows:
         console.print("  [yellow]no rows[/yellow]")
@@ -479,6 +565,89 @@ def _print_rows(rows: list[dict[str, Any]]) -> None:
     for row in rows:
         table.add_row(*[_show(value) for value in row.values()])
     console.print(table)
+
+
+def _edit_parameters(name: str, cls: Any) -> None:
+    """Open the task's parameters in an editor and save what changed.
+
+    The file is generated from the project each time, so it always shows the
+    current state rather than a snapshot, and closing it without saving leaves
+    everything exactly as it was.
+    """
+    import os
+    import shlex
+    import subprocess
+    import tempfile
+
+    from ..core import params as store
+    from ..core import parfile
+
+    project = store.find_project()
+    if project is None:
+        project = Path.cwd() / store.PROJECT_FILE
+        console.print(f"[dim]No project file here yet; saving will create "
+                      f"{project}.[/dim]")
+
+    resolved = store.resolve(name, cls.Params, preset=cls.defaults,
+                             preset_name=name if cls.defaults else None)
+    text = parfile.render(name, cls.Params, resolved, cls.description, project)
+
+    directory = Path(tempfile.mkdtemp(prefix="harwood-"))
+    scratch = directory / f"{name}.par"
+    scratch.write_text(text, encoding="utf-8")
+
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+    try:
+        if editor:
+            subprocess.run([*shlex.split(editor), str(scratch)], check=False)
+            saved = scratch.read_text(encoding="utf-8") != text
+        else:
+            saved = _native_editor(scratch, name)
+
+        if not saved:
+            console.print("[dim]Nothing changed.[/dim]")
+            return
+
+        try:
+            edited = parfile.parse(scratch.read_text(encoding="utf-8"), cls.Params)
+        except ValueError as error:
+            error_console.print(f"[red]{name}: {error}[/red]")
+            error_console.print(f"[dim]Your edits are still in {scratch}.[/dim]")
+            raise SystemExit(2) from None
+
+        changed = parfile.apply(name, edited, cls.Params, project)
+    finally:
+        pass
+
+    if not changed:
+        console.print("[dim]Nothing changed.[/dim]")
+        return
+    console.print(f"[green]Saved to[/green] {project}")
+    for field, (before, after) in sorted(changed.items()):
+        console.print(f"  [bold]{field}[/bold]  {_show(before)} "
+                      f"[dim]->[/dim] {_show(after)}")
+    console.print(f"[dim]harwood lpar {name} shows the effective values.[/dim]")
+
+
+def _native_editor(path: Path, task: str) -> bool:
+    """harwood's own editor, when no EDITOR is set. A terminal fallback after that."""
+    try:
+        from ..viewer.editor import edit
+
+        return edit(path, f"harwood · {task} parameters")
+    except Exception:
+        import shutil
+        import subprocess
+
+        for candidate in ("nano", "vim", "vi"):
+            if shutil.which(candidate):
+                before = path.read_text(encoding="utf-8")
+                subprocess.run([candidate, str(path)], check=False)
+                return path.read_text(encoding="utf-8") != before
+        error_console.print(
+            "[red]No editor available.[/red] Set EDITOR, or install PySide6 "
+            "for harwood's own: pip install harwood[gui]")
+        raise SystemExit(1) from None
 
 
 # ----------------------------------------------------------------- helpers

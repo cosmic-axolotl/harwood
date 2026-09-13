@@ -165,6 +165,78 @@ def expand(items: list[str] | str) -> list[ImageSpec]:
     return out
 
 
+def substitute(name: str | Path, template: str) -> Path:
+    """Build an output name from an input name, IRAF's `%old%new%` template.
+
+    ``%m%tr%`` turns ``m92001.fits`` into ``tr92001.fits`` -- the first
+    occurrence of `old` in the name is replaced by `new`. It is how IRAF names
+    a whole night's worth of outputs in one parameter, and it beats a
+    directory when the point is to keep the files side by side and see at a
+    glance which have been through which step.
+
+    A template without `%` is treated as a directory to write into, which is
+    the other thing people reach for.
+    """
+    source = Path(str(name))
+    if "%" not in template:
+        return Path(template) / source.name
+
+    parts = template.split("%")
+    if len(parts) < 4:
+        raise ValueError(
+            f"'{template}' is not a substitution template. Write %old%new%, "
+            "as in %m%tr% to turn m92001.fits into tr92001.fits."
+        )
+    before, old, new = parts[0], parts[1], parts[2]
+    rest = "%".join(parts[3:])
+    if old not in source.name:
+        raise ValueError(
+            f"'{source.name}' does not contain '{old}', so the template "
+            f"'{template}' has nothing to replace."
+        )
+    replaced = source.name.replace(old, new, 1)
+    return source.parent / (before + replaced if not rest else before + replaced)
+
+
+def outputs_for(specs: list, template: str) -> list[Path]:
+    """Work out one output name per input, from whatever the user wrote.
+
+    Four forms, all of which people reach for and IRAF accepts:
+
+        one name              a single input, a single output
+        %old%new%             substitution, keeping the files side by side
+        a,b,c  or  @list      a list, matched one to one with the inputs
+        a directory           the inputs' own names, written there
+
+    Getting this wrong quietly -- writing every input to the same output, say
+    -- destroys a night's work, so a count mismatch is an error rather than a
+    guess.
+    """
+    template = str(template).strip()
+    if "%" in template:
+        return [substitute(spec.path if hasattr(spec, "path") else spec, template)
+                for spec in specs]
+
+    if template.startswith("@") or "," in template:
+        names = [str(s.path) if hasattr(s, "path") else str(s)
+                 for s in expand(template)] if template.startswith("@") \
+            else [piece.strip() for piece in template.split(",") if piece.strip()]
+        if len(names) != len(specs):
+            raise ValueError(
+                f"{len(specs)} inputs but {len(names)} outputs. Give one output "
+                "per input, a directory, or a template like '%m%tr%'."
+            )
+        return [Path(name) for name in names]
+
+    if len(specs) == 1:
+        return [Path(template)]
+
+    directory = Path(template)
+    directory.mkdir(parents=True, exist_ok=True)
+    return [directory / Path(str(s.path if hasattr(s, "path") else s)).name
+            for s in specs]
+
+
 def open_hdu(spec: ImageSpec | str, mode: str = "readonly"):
     """Open the HDU a spec names. The caller closes the file."""
     from astropy.io import fits

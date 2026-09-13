@@ -55,7 +55,11 @@ class ImHeader(Task[ImHeaderParams]):
                         if getattr(hdu, "data", None) is not None else "no pixels"
                     row = {"shape": shape, "type": header.get("IMAGETYP", ""),
                            "exptime": header.get("EXPTIME", ""),
-                           "filter": header.get("FILTER", ""),
+                           # FILTERS is what KPNO wrote; FILTER is what most
+                           # else writes. Looking for only one of them leaves
+                           # the column blank on half the data in the world.
+                           "filter": _first(header, "FILTER", "FILTERS",
+                                            "FILTER1", "INSFILTE"),
                            "object": header.get("OBJECT", "")}
             finally:
                 hdul.close()
@@ -112,6 +116,20 @@ class HSelect(Task[HSelectParams]):
         return TaskResult(data={"rows": matched, "matched": len(matched)})
 
 
+def _first(header, *keywords: str) -> str:
+    """The first of these keywords the header actually has.
+
+    Observatories disagree about names -- KPNO wrote FILTERS, most write
+    FILTER -- and looking for only one of them leaves the column blank on half
+    the data there is.
+    """
+    for keyword in keywords:
+        value = header.get(keyword)
+        if value not in (None, ""):
+            return str(value).strip()
+    return ""
+
+
 def _matches(expr: str, header: dict) -> bool:
     """Evaluate a header expression.
 
@@ -130,9 +148,23 @@ def _matches(expr: str, header: dict) -> bool:
 
 
 class ImStatParams(TaskParams):
-    input: list[str] = Field(..., description="Images to measure. Accepts globs and @lists.")
+    input: list[str] = Field(
+        ..., description="Images to measure. Accepts globs and @lists."
+    )
+    fields: str = Field(
+        "image,npix,mean,stddev,min,max",
+        description="Which statistics to report, comma separated. Choose from "
+                    "image, npix, mean, midpt, mode, stddev, skew, kurtosis, "
+                    "min, max.",
+    )
     section: str | None = Field(
         None, description="Section to measure, 1-based and (x,y), e.g. '[100:400,*]'."
+    )
+    lower: float | None = Field(
+        None, description="Ignore pixels below this value."
+    )
+    upper: float | None = Field(
+        None, description="Ignore pixels above this value."
     )
     nclip: int = Field(0, ge=0, description="Sigma-clipping iterations before measuring.")
     lsigma: float = Field(
@@ -141,22 +173,33 @@ class ImStatParams(TaskParams):
     hsigma: float = Field(
         3.0, ge=0, description="Clipping threshold above the mean, in sigma."
     )
+    binwidth: float = Field(
+        0.1, gt=0,
+        description="Histogram bin width for the mode, in sigma. IRAF's own.",
+    )
+
+
+#: Every statistic imstatistics knows how to report.
+STATISTICS = ("image", "npix", "mean", "midpt", "mode", "stddev", "skew",
+              "kurtosis", "min", "max")
 
 
 @register
 class ImStatistics(Task[ImStatParams]):
     name = "imstatistics"
     package = "imutil"
-    description = "Pixel statistics, with optional iterative clipping."
+    description = "Pixel statistics, with optional clipping and a choice of fields."
     Params = ImStatParams
 
     def plan(self, params: ImStatParams) -> list[Step]:
         steps = [Step("read", f"{len(params.input)} patterns"
                               + (f", section {params.section}" if params.section else ""))]
+        if params.lower is not None or params.upper is not None:
+            steps.append(Step("threshold", f"keep {params.lower} .. {params.upper}"))
         if params.nclip:
             steps.append(Step("clip", f"{params.nclip} iterations at "
                                       f"-{params.lsigma}/+{params.hsigma} sigma"))
-        steps.append(Step("measure", "npix, mean, midpt, stddev, min, max"))
+        steps.append(Step("measure", params.fields))
         return steps
 
     def execute(self, params: ImStatParams) -> TaskResult:
@@ -164,36 +207,124 @@ class ImStatistics(Task[ImStatParams]):
 
         from ..core import images
 
+        wanted = [f.strip() for f in params.fields.split(",") if f.strip()]
+        unknown = [f for f in wanted if f not in STATISTICS]
+        if unknown:
+            raise ValueError(
+                f"no statistic called {', '.join(unknown)}. "
+                f"Choose from {', '.join(STATISTICS)}."
+            )
+
         rows = []
         for spec in images.expand(params.input):
             if params.section:
                 spec = images.ImageSpec(spec.path, spec.extension, params.section)
             data, _ = images.read(spec)
             values = data[np.isfinite(data)]
+            if params.lower is not None:
+                values = values[values >= params.lower]
+            if params.upper is not None:
+                values = values[values <= params.upper]
+            if values.size == 0:
+                raise ValueError(f"'{spec}' has no pixels left after the limits")
+
             for _ in range(params.nclip):
                 mean, sigma = values.mean(), values.std(ddof=1)
+                if sigma <= 0:
+                    break
                 keep = (values > mean - params.lsigma * sigma) & \
                        (values < mean + params.hsigma * sigma)
                 if keep.all():
                     break
                 values = values[keep]
-            rows.append({
-                "image": str(spec),
-                "npix": int(values.size),
-                "mean": float(values.mean()),
-                "midpt": float(np.median(values)),
-                "stddev": float(values.std(ddof=1)),
-                "min": float(values.min()),
-                "max": float(values.max()),
-            })
-        return TaskResult(data={"rows": rows})
+
+            rows.append(_measure(str(spec), values, wanted, params.binwidth))
+        return TaskResult(data={"rows": rows}, steps=self.plan(params))
+
+
+def _measure(name, values, wanted, binwidth):
+    import numpy as np
+
+    mean = float(values.mean())
+    sigma = float(values.std(ddof=1)) if values.size > 1 else 0.0
+    row = {}
+    for field in wanted:
+        if field == "image":
+            row["image"] = name
+        elif field == "npix":
+            row["npix"] = int(values.size)
+        elif field == "mean":
+            row["mean"] = mean
+        elif field == "midpt":
+            row["midpt"] = float(np.median(values))
+        elif field == "mode":
+            row["mode"] = mode(values, binwidth * sigma if sigma > 0 else None)
+        elif field == "stddev":
+            row["stddev"] = sigma
+        elif field == "skew":
+            row["skew"] = (float(np.mean(((values - mean) / sigma) ** 3))
+                           if sigma > 0 else 0.0)
+        elif field == "kurtosis":
+            row["kurtosis"] = (float(np.mean(((values - mean) / sigma) ** 4)) - 3.0
+                               if sigma > 0 else 0.0)
+        elif field == "min":
+            row["min"] = float(values.min())
+        elif field == "max":
+            row["max"] = float(values.max())
+    return row
+
+
+def mode(values, width: float | None = None) -> float:
+    """The most common value, as IRAF's imstatistics computes it.
+
+    A histogram, the fullest bin, then a parabolic refinement using the two
+    neighbours.
+
+    The bin width is the whole game, and it is why this takes a width rather
+    than a bin count. Bins a tenth of a sigma wide -- IRAF's default, and this
+    one -- smooth the histogram enough that the fullest bin is the real peak.
+    Make them much finer and the fullest bin is whichever one noise happened to
+    favour: on the KPNO flat field, 512 bins across the range gives 1330 where
+    a tenth of a sigma gives 1313, and 1313 is the answer.
+
+    Even so, on a broad distribution the mode is a noisy statistic. It is a
+    good normalisation constant and a poor thing to compare between programs.
+    """
+    import numpy as np
+
+    data = np.asarray(values, dtype=float).ravel()
+    low, high = float(data.min()), float(data.max())
+    if high <= low:
+        return low
+    if width is None:
+        sigma = float(data.std(ddof=1)) if data.size > 1 else 0.0
+        width = 0.1 * sigma if sigma > 0 else (high - low) / 512
+    bins = max(8, min(8192, int((high - low) / width)))
+    counts, edges = np.histogram(data, bins=bins, range=(low, high))
+    peak = int(counts.argmax())
+    step = (high - low) / bins
+    centre = low + (peak + 0.5) * step
+    if 0 < peak < bins - 1:
+        left = float(counts[peak] - counts[peak - 1])
+        right = float(counts[peak] - counts[peak + 1])
+        if left + right != 0:
+            centre += step / 2 * (left - right) / (left + right)
+    return float(centre)
 
 
 class ImArithParams(TaskParams):
-    operand1: str = Field(..., description="First operand: an image, or a number.")
+    operand1: str = Field(
+        ..., description="First operand: images, an @list, or a number."
+    )
     op: Literal["+", "-", "*", "/"] = Field(..., description="Operation to apply.")
-    operand2: str = Field(..., description="Second operand: an image, or a number.")
-    result: Path = Field(..., description="Image to write.")
+    operand2: str = Field(
+        ..., description="Second operand: images, an @list, or a number. A single "
+                         "image or number is applied to every input."
+    )
+    result: str = Field(
+        ..., description="Where to write: one name per input, an @list, a "
+                         "directory, or a template like '%tr%n%'."
+    )
     divzero: float = Field(
         0.0, description="Value written where a division by zero would happen."
     )
@@ -203,49 +334,276 @@ class ImArithParams(TaskParams):
 class ImArith(Task[ImArithParams]):
     name = "imarith"
     package = "imutil"
-    description = "Arithmetic between images and constants."
+    description = "Arithmetic between images, lists of images, and constants."
     Params = ImArithParams
 
     def plan(self, params: ImArithParams) -> list[Step]:
-        return [Step("compute", f"{params.operand1} {params.op} {params.operand2}"),
-                Step("write", str(params.result))]
+        left = _operand_list(params.operand1)
+        right = _operand_list(params.operand2)
+        detail = f"{len(left)} image(s) {params.op} " + (
+            params.operand2 if len(right) <= 1 else f"{len(right)} image(s)")
+        return [Step("compute", detail), Step("write", params.result)]
 
     def execute(self, params: ImArithParams) -> TaskResult:
         import numpy as np
         from astropy.io import fits
 
-        from ..core import provenance
+        from ..core import images, provenance
 
-        left, header = _operand(params.operand1)
-        right, header2 = _operand(params.operand2)
-        header = header if header is not None else header2
+        left = _operand_list(params.operand1)
+        right = _operand_list(params.operand2)
+        if len(right) not in (1, len(left)):
+            raise ValueError(
+                f"operand1 has {len(left)} images and operand2 has {len(right)}. "
+                "The second operand must be a single image or number, or match "
+                "the first one for one."
+            )
+        destinations = (images.outputs_for([_as_spec(name) for name in left],
+                                           params.result)
+                        if not _is_number(params.operand1)
+                        else [Path(params.result)])
 
-        with np.errstate(divide="ignore", invalid="ignore"):
-            if params.op == "+":
-                out = left + right
-            elif params.op == "-":
-                out = left - right
-            elif params.op == "*":
-                out = left * right
-            else:
-                out = np.divide(left, right, out=np.full_like(np.broadcast_arrays(
-                    np.asarray(left, dtype=float), np.asarray(right, dtype=float))[0],
-                    params.divzero), where=np.asarray(right) != 0)
+        outputs, history = [], []
+        for index, first in enumerate(left):
+            second = right[0] if len(right) == 1 else right[index]
+            a, header_a = _read(first)
+            b, header_b = _read(second)
+            header = (header_a if header_a is not None else header_b)
 
-        header = header.copy() if header is not None else fits.Header()
-        history = [f"imarith: {params.operand1} {params.op} {params.operand2}"]
-        provenance.stamp_header(header, history)
-        params.result.parent.mkdir(parents=True, exist_ok=True)
-        fits.PrimaryHDU(data=np.asarray(out, dtype=np.float32),
-                        header=header).writeto(params.result, overwrite=True)
-        return TaskResult(outputs=[params.result], history=history,
-                          data={"mean": float(np.nanmean(out))}, steps=self.plan(params))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                if params.op == "+":
+                    out = a + b
+                elif params.op == "-":
+                    out = a - b
+                elif params.op == "*":
+                    out = a * b
+                else:
+                    out = np.where(np.asarray(b) != 0,
+                                   np.divide(a, b, out=np.zeros_like(
+                                       np.broadcast_arrays(np.asarray(a, float),
+                                                           np.asarray(b, float))[0]),
+                                       where=np.asarray(b) != 0),
+                                   params.divzero)
+
+            header = header.copy() if header is not None else fits.Header()
+            line = f"imarith: {first} {params.op} {second}"
+            provenance.stamp_header(header, [line])
+            destination = Path(destinations[index])
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            fits.PrimaryHDU(data=np.asarray(out, dtype=np.float32),
+                            header=header).writeto(destination, overwrite=True)
+            outputs.append(destination)
+            history.append(line)
+
+        return TaskResult(outputs=outputs, history=history, steps=self.plan(params),
+                          data={"images": len(outputs)})
 
 
-def _operand(text: str):
+def _is_number(text: str) -> bool:
+    try:
+        float(text)
+    except ValueError:
+        return False
+    return True
+
+
+def _operand_list(text: str) -> list[str]:
+    """One operand, expanded. A number stays a single item."""
     from ..core import images
 
-    try:
+    if _is_number(text):
+        return [text]
+    return [str(spec) for spec in images.expand(text)]
+
+
+def _as_spec(name: str):
+    from ..core import images
+
+    return images.parse(name)
+
+
+def _read(text: str):
+    from ..core import images
+
+    if _is_number(text):
         return float(text), None
-    except ValueError:
-        return images.read(text)
+    return images.read(text)
+
+
+class ImCopyParams(TaskParams):
+    input: list[str] = Field(
+        ..., description="Images to copy. Sections are honoured: 'obj.fits[1:100,*]' "
+                         "copies just that part."
+    )
+    output: str = Field(
+        ..., description="Where to write: one name per input, a directory, or a "
+                         "template like '%m%tr%'."
+    )
+    verbose: bool = Field(True, description="Say what was copied.")
+
+
+@register
+class ImCopy(Task[ImCopyParams]):
+    name = "imcopy"
+    package = "imutil"
+    description = "Copy images, or sections of them."
+    Params = ImCopyParams
+
+    def plan(self, params: ImCopyParams) -> list[Step]:
+        from ..core import images
+
+        specs = images.expand(params.input)
+        return [Step("copy", f"{len(specs)} image(s), first {specs[0]}"),
+                Step("write", params.output)]
+
+    def execute(self, params: ImCopyParams) -> TaskResult:
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import images, provenance
+
+        specs = images.expand(params.input)
+        destinations = images.outputs_for(specs, params.output)
+        rows, outputs = [], []
+        for spec, destination in zip(specs, destinations, strict=True):
+            data, header = images.read(spec)
+            provenance.stamp_header(header, [f"imcopy: from {spec}"])
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            fits.PrimaryHDU(np.asarray(data, dtype=np.float32),
+                            header).writeto(destination, overwrite=True)
+            outputs.append(destination)
+            rows.append({"from": str(spec), "to": str(destination),
+                         "shape": "x".join(str(n) for n in reversed(data.shape))})
+        return TaskResult(outputs=outputs, steps=self.plan(params),
+                          data={"rows": rows} if params.verbose
+                          else {"images": len(outputs)})
+
+
+class ImDeleteParams(TaskParams):
+    input: list[str] = Field(..., description="Images to delete. Accepts globs and @lists.")
+    verify: bool = Field(
+        True,
+        description="Ask before deleting. Leave it on: a glob that matches more than "
+                    "you meant is how a night's work disappears.",
+    )
+
+
+@register
+class ImDelete(Task[ImDeleteParams]):
+    name = "imdelete"
+    package = "imutil"
+    description = "Delete images."
+    Params = ImDeleteParams
+
+    def plan(self, params: ImDeleteParams) -> list[Step]:
+        from ..core import images
+
+        specs = images.expand(params.input)
+        return [Step("delete", ", ".join(str(s.path) for s in specs[:6])
+                     + (f" and {len(specs) - 6} more" if len(specs) > 6 else ""))]
+
+    def execute(self, params: ImDeleteParams) -> TaskResult:
+        from ..core import images
+
+        specs = images.expand(params.input)
+        paths = sorted({spec.path for spec in specs})
+        # The plan has to be built before the files go: it describes them by
+        # expanding the pattern, and afterwards the pattern matches nothing.
+        steps = self.plan(params)
+        if params.verify:
+            raise RuntimeError(
+                f"{len(paths)} image(s) would be deleted: "
+                + ", ".join(p.name for p in paths[:8])
+                + (f" and {len(paths) - 8} more" if len(paths) > 8 else "")
+                + ". Run again with --no-verify to actually delete them."
+            )
+        for path in paths:
+            path.unlink()
+        return TaskResult(data={"deleted": len(paths),
+                                "names": [p.name for p in paths]},
+                          steps=steps)
+
+
+class SectionsParams(TaskParams):
+    template: str = Field(
+        ..., description="Image template to expand. Globs, @lists, comma lists and "
+                         "substitutions like '%m%tr%92*.fits' all work."
+    )
+    option: Literal["fullname", "root", "section"] = Field(
+        "fullname", description="What to print for each match."
+    )
+
+
+@register
+class Sections(Task[SectionsParams]):
+    name = "sections"
+    package = "imutil"
+    description = "Expand an image template and show what it matches."
+    Params = SectionsParams
+
+    def plan(self, params: SectionsParams) -> list[Step]:
+        return [Step("expand", params.template)]
+
+    def execute(self, params: SectionsParams) -> TaskResult:
+        from ..core import images
+
+        text = params.template
+        if text.startswith("%"):
+            parts = text.split("%")
+            source = parts[1] + "%".join(parts[3:])
+            specs = images.expand(source)
+            names = [str(images.substitute(s.path, "%".join(parts[:3]) + "%"))
+                     for s in specs]
+        else:
+            specs = images.expand(text)
+            if params.option == "root":
+                names = [s.path.stem for s in specs]
+            elif params.option == "section":
+                names = [s.section or "" for s in specs]
+            else:
+                names = [str(s) for s in specs]
+
+        return TaskResult(data={"rows": [{"name": n} for n in names],
+                                "matched": len(names)},
+                          steps=self.plan(params))
+
+
+class ImplotParams(TaskParams):
+    image: str = Field(..., description="Image to plot. Sections are honoured.")
+    line: int | None = Field(
+        None, description="Image line to plot first. The middle one by default."
+    )
+    column: int | None = Field(
+        None, description="Image column to plot first, instead of a line."
+    )
+    nsum: int = Field(
+        1, ge=1, description="How many lines or columns to average for the first plot."
+    )
+
+
+@register
+class Implot(Task[ImplotParams]):
+    name = "implot"
+    package = "plot"
+    description = "Plot lines and columns of an image, interactively."
+    Params = ImplotParams
+
+    def plan(self, params: ImplotParams) -> list[Step]:
+        what = (f"column {params.column}" if params.column
+                else f"line {params.line}" if params.line else "the middle line")
+        return [Step("read", params.image),
+                Step("plot", what + (f", {params.nsum} averaged"
+                                     if params.nsum > 1 else "")),
+                Step("wait", "keys: l c :l :c e r C o q")]
+
+    def execute(self, params: ImplotParams) -> TaskResult:
+        from ..core import images
+        from ..viewer.implot_panel import run
+
+        data, _ = images.read(params.image)
+        if data.ndim != 2:
+            raise ValueError(f"'{params.image}' is {data.ndim}-dimensional; "
+                             "implot plots cuts through a 2-D image")
+        run(data, name=str(params.image))
+        return TaskResult(data={"shape": "x".join(str(n) for n in reversed(data.shape))},
+                          steps=self.plan(params))

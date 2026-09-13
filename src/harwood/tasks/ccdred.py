@@ -40,7 +40,9 @@ class CcdProcParams(TaskParams):
     input: list[str] = Field(..., description="Images to process. Accepts globs and @lists.")
     output: Path = Field(
         ...,
-        description="Output image, or output directory when several images are processed.",
+        description="Where to write. One image: a file name. Several: a directory, "
+                    "or an IRAF substitution template such as '%m%tr%', which turns "
+                    "m92001.fits into tr92001.fits and keeps them side by side.",
     )
 
     fixpix: bool = Field(False, description="Replace bad pixels listed in the mask.")
@@ -172,8 +174,10 @@ class CcdProc(Task[CcdProcParams]):
         from ..core import images, provenance
 
         specs = images.expand(params.input)
+        template = str(params.output)
         many = len(specs) > 1
-        if many:
+        substituting = "%" in template
+        if many and not substituting:
             params.output.mkdir(parents=True, exist_ok=True)
 
         outputs, all_steps, history = [], [], []
@@ -197,7 +201,12 @@ class CcdProc(Task[CcdProcParams]):
                     data, step = _calibrate(data, header, key, image, params)
                     steps.append(step)
 
-            destination = params.output / Path(str(spec.path)).name if many else params.output
+            if substituting:
+                destination = images.substitute(spec.path, template)
+            elif many:
+                destination = params.output / Path(str(spec.path)).name
+            else:
+                destination = params.output
             lines = [f"ccdproc: {step.render()}" for step in steps if not step.skipped]
             provenance.stamp_header(header, lines)
             destination.parent.mkdir(parents=True, exist_ok=True)

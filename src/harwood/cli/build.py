@@ -84,11 +84,17 @@ def parameters_for(model: type) -> list[click.Parameter]:
             # which is how IRAF writes them too ("OBJECT,EXPTIME,FILTER").
             variadic = multiple and not variadic_taken
             variadic_taken = variadic_taken or variadic
+            # Never required at the click level, even though the model requires
+            # it. Two reasons: `--editpar` and `--help` have to work without
+            # supplying the inputs, and when something really is missing the
+            # model says which field and why, where click only says "Missing
+            # argument 'OUTPUT'".
             params.append(click.Argument(
                 [name],
                 type=click_type if variadic or not multiple else click.STRING,
                 nargs=-1 if variadic else 1,
-                required=not variadic,
+                required=False,
+                default=None if not variadic else (),
                 metavar=name.upper() + (",..." if multiple and not variadic else ""),
             ))
             continue

@@ -128,3 +128,116 @@ def test_doctor_reports_the_kernels(run):
     result = run("doctor")
     assert result.exit_code == 0
     assert "reference" in result.output and "python" in result.output
+
+
+# --------------------------------------------------- parameters and replay
+
+
+def test_editpar_writes_only_what_changed(run, tmp_path, monkeypatch):
+    """The editor is a view of the project file, never a second copy of it."""
+    monkeypatch.chdir(tmp_path)
+    run("init", str(tmp_path))
+
+    editor = tmp_path / "fake-editor.sh"
+    editor.write_text("#!/bin/sh\n"
+                      "sed -i 's/^order = 1$/order = 4/' \"$1\"\n")
+    editor.chmod(0o755)
+    monkeypatch.setenv("EDITOR", str(editor))
+
+    result = run("ccdproc", "--editpar")
+    assert result.exit_code == 0
+    assert "order" in result.output
+
+    project = (tmp_path / "harwood.yaml").read_text()
+    assert "order: 4" in project
+    assert "niterate" not in project, "untouched defaults stay out of the file"
+    assert project.startswith("#"), "the explanatory header survives"
+
+
+def test_editpar_clearing_a_value_restores_the_default(run, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    run("init", str(tmp_path))
+    editor = tmp_path / "set.sh"
+    editor.write_text("#!/bin/sh\nsed -i 's/^order = 1$/order = 4/' \"$1\"\n")
+    editor.chmod(0o755)
+    monkeypatch.setenv("EDITOR", str(editor))
+    run("ccdproc", "--editpar")
+
+    clear = tmp_path / "clear.sh"
+    clear.write_text("#!/bin/sh\nsed -i 's/^order = 4$/order =/' \"$1\"\n")
+    clear.chmod(0o755)
+    monkeypatch.setenv("EDITOR", str(clear))
+    run("ccdproc", "--editpar")
+
+    assert "order" not in (tmp_path / "harwood.yaml").read_text()
+
+
+def test_editpar_rejects_an_unknown_parameter_without_saving(run, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    run("init", str(tmp_path))
+    editor = tmp_path / "bad.sh"
+    editor.write_text("#!/bin/sh\necho 'sparkle = 3' >> \"$1\"\n")
+    editor.chmod(0o755)
+    monkeypatch.setenv("EDITOR", str(editor))
+
+    result = run("ccdproc", "--editpar")
+    assert result.exit_code == 2
+    assert "sparkle" in result.output
+    assert "sparkle" not in (tmp_path / "harwood.yaml").read_text()
+
+
+def test_editpar_does_not_need_the_required_arguments(run, tmp_path, monkeypatch):
+    """You edit parameters before you have decided what to run it on."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("EDITOR", "true")
+    assert run("ccdproc", "--editpar").exit_code == 0
+
+
+def test_the_log_replays_a_run_exactly(run, tmp_path, monkeypatch):
+    import numpy as np
+    from astropy.io import fits
+
+    monkeypatch.chdir(tmp_path)
+    fits.PrimaryHDU(np.ones((8, 8), dtype=np.float32)).writeto(tmp_path / "a.fits")
+
+    run("imarith", "a.fits", "*", "3", "b.fits")
+    replay = run("log", "imarith", "--replay", "1")
+    assert replay.exit_code == 0
+    command = replay.output.strip()
+    assert command.startswith("harwood imarith")
+    assert "a.fits" in command and "b.fits" in command
+
+    full = run("log", "imarith", "--full")
+    assert "command line" in full.output, "each value says where it came from"
+    assert "repeat:" in full.output
+
+
+def test_replaying_a_run_that_does_not_exist_says_how_many_there_are(run, tmp_path,
+                                                                    monkeypatch):
+    import numpy as np
+    from astropy.io import fits
+
+    monkeypatch.chdir(tmp_path)
+    fits.PrimaryHDU(np.ones((4, 4), dtype=np.float32)).writeto(tmp_path / "a.fits")
+    run("imarith", "a.fits", "+", "1", "b.fits")
+
+    result = run("log", "--replay", "9")
+    assert result.exit_code == 2
+    assert "1 runs" in result.output
+
+
+def test_a_reconstructed_command_omits_defaults_and_quotes_what_needs_it():
+    from harwood.core import replay
+    from harwood.core.registry import get_class
+
+    cls = get_class("ccdproc")
+    command = replay.command("ccdproc", cls.Params, {
+        "input": ["m92*.fits"], "output": "%m%tr%", "overscan": True,
+        "trim": True, "biassec": "[335:350,2:510]", "order": 1,
+        "low_reject": 3.0, "function": "chebyshev",
+    })
+    assert "'m92*.fits'" in command, "a glob must survive the shell"
+    assert "'[335:350,2:510]'" in command, "so must a section"
+    assert "--overscan" in command and "--trim" in command
+    assert "--order" not in command, "order 1 is the default"
+    assert "--low-reject" not in command, "so is the rejection threshold"

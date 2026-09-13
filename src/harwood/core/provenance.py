@@ -84,13 +84,24 @@ def record(
     result: Any,
     workdir: Path | str = ".",
     origins: dict[str, str] | None = None,
+    command: str | None = None,
+    argv: list[str] | None = None,
 ) -> Path:
-    """Append one execution to the reduction's log."""
+    """Append one execution to the reduction's log.
+
+    `command` is the canonical invocation that reproduces this run, with every
+    non-default value written out; `argv` is what was actually typed, which is
+    usually shorter because it leaned on the project file. Keeping both means
+    the log answers "what did I run" and "how do I run it again" separately,
+    and those are different questions.
+    """
     entry = {
         "timestamp": _now(),
         "task": task,
         "params": json.loads(json.dumps(params, default=str)),
         "origins": origins or {},
+        "command": command or "",
+        "argv": argv or [],
         "outputs": [str(p) for p in getattr(result, "outputs", [])],
         "data": json.loads(json.dumps(getattr(result, "data", {}), default=str)),
         "duration_s": round(getattr(result, "duration_s", 0.0), 4),
@@ -127,6 +138,11 @@ def to_recipe(workdir: Path | str = ".") -> dict[str, Any]:
         for entry in read_log(workdir)
     ]
     return {"name": f"from-log-{Path(workdir).resolve().name}", "steps": steps}
+
+
+def history_of(task: str, workdir: Path | str = ".") -> list[dict[str, Any]]:
+    """Every run of one task in this reduction, oldest first."""
+    return [entry for entry in read_log(workdir) if entry["task"] == task]
 
 
 def _version() -> str:

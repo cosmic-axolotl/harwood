@@ -21,7 +21,7 @@
 #                wontport   deliberately not portable; `note` says why
 #
 # Counts: 610 distinct task names across 52 packages.
-#   available: 9, partial: 6, planned: 340, replaced: 94, wontport: 161
+#   available: 13, partial: 6, planned: 336, replaced: 94, wontport: 161
 #   milestone mvp: 46, later: 295
 #
 # Known delta: the inventory counts 609 distinct names, this file holds 610.
@@ -174,7 +174,7 @@ tasks:
   ghost2ms: {pkg: proto, domain: io-formats, status: wontport, note: Gemini-specific; DRAGONS owns this path}
   i2sun: {pkg: proto.vol, domain: io-formats, status: wontport,
     note: "raster and text-image conversion: any image library does this"}
-  imcopy: {pkg: images.imutil, domain: io-formats, status: planned, milestone: mvp}
+  imcopy: {pkg: images.imutil, domain: io-formats, status: available, harwood: imcopy}
   imextensions: {pkg: proto, domain: io-formats, status: planned, milestone: mvp}
   import: {pkg: dataio, domain: io-formats, status: wontport,
     note: "raster and text-image conversion: any image library does this"}
@@ -283,7 +283,7 @@ tasks:
   files: {pkg: system, domain: arithmetic, status: wontport,
     note: the shell does this; harwood tasks run from bash (S4)}
   imarith: {pkg: images.imutil, domain: arithmetic, status: available, harwood: imarith}
-  imdelete: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imdelete: {pkg: images.imutil, domain: arithmetic, status: available, harwood: imdelete}
   imdivide: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imexpr: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
   imfunction: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
@@ -294,8 +294,7 @@ tasks:
   imscale: {pkg: proto, domain: arithmetic, status: planned, milestone: later}
   imslice: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imstack: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
-  imstatistics: {pkg: images.imutil, domain: arithmetic, status: partial, harwood: imstatistics,
-    note: "no per-column or per-line statistics yet"}
+  imstatistics: {pkg: images.imutil, domain: arithmetic, status: available, harwood: imstatistics}
   imsum: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imtile: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   mimstatistics: {pkg: proto, domain: arithmetic, status: planned, milestone: mvp}
@@ -303,7 +302,7 @@ tasks:
   phistogram: {pkg: plot, domain: arithmetic, status: planned, milestone: later}
   pradprof: {pkg: plot, domain: arithmetic, status: planned, milestone: later}
   ringavg: {pkg: proto, domain: arithmetic, status: planned, milestone: later}
-  sections: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  sections: {pkg: images.imutil, domain: arithmetic, status: available, harwood: sections}
 
   # --- filtering (later, 21 tasks) ------------------------------
   background: {pkg: imred.generic, domain: filtering, status: planned, milestone: later}
@@ -527,7 +526,8 @@ tasks:
   imdkern: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   imexamine: {pkg: images.tv, domain: display, status: planned, milestone: mvp}
-  implot: {pkg: plot, domain: display, status: planned, milestone: mvp}
+  implot: {pkg: plot, domain: display, status: partial, harwood: implot,
+    note: "plots lines and columns with the :l, :c, e, r, C and o keys; no contour, surface or overplot from a second image"}
   lumatch: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
   monochrome: {pkg: images.tv.iis, domain: display, status: wontport,

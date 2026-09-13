@@ -262,3 +262,50 @@ def test_imalign_closes_the_loop(reduced):
                                np.asarray(catalogues[1]["x"]),
                                np.asarray(catalogues[1]["y"]), tolerance=2.0)
     assert abs(found.shift[0]) < 0.5 and abs(found.shift[1]) < 0.5
+
+
+def test_exercise_two_reproduces_its_own_numbers(tmp_path):
+    """Path 1 of the course's exercise 2, run end to end.
+
+    The exercise states two numbers a reader can check: the trimmed frames are
+    318x509, and the modes of the two flats are 1313 and 1468. Both come out of
+    choices the text leaves to the reader -- which overscan columns, which trim
+    -- so reproducing them is a real check that harwood does the same
+    arithmetic in the same order, not just similar arithmetic.
+    """
+    from astropy.io import fits
+
+    from harwood.core.registry import get_task
+    from harwood.tasks.imutil import mode
+
+    for name in ("m92001", "m92006", "m92007", "m92010"):
+        (tmp_path / f"{name}.fits").write_bytes((PHOT / f"{name}.fits").read_bytes())
+
+    # colbias: overscan over the columns the text picks, then trim.
+    get_task("ccdproc").run(
+        input=[str(tmp_path / "m92*.fits")], output="%m%tr%",
+        overscan=True, trim=True, biassec="[335:350,2:510]",
+        trimsec="[1:318,2:510]", function="chebyshev", order=1, niterate=1)
+
+    trimmed = fits.getdata(tmp_path / "tr92006.fits")
+    assert trimmed.shape == (509, 318), "the text says 318 columns by 509 lines"
+
+    # imarith @zlist - tr92001 @zlist: subtract the bias from everything else.
+    get_task("imarith").run(
+        operand1=str(tmp_path / "tr9200[67].fits"), op="-",
+        operand2=str(tmp_path / "tr92001.fits"), result="%tr%tr%")
+
+    modes = {}
+    for name, claimed in (("tr92006", 1313), ("tr92007", 1468)):
+        data = fits.getdata(tmp_path / f"{name}.fits").astype(float)
+        modes[name] = mode(data)
+        assert modes[name] == pytest.approx(claimed, abs=1.0), (
+            f"{name}: the exercise quotes {claimed}, harwood gets {modes[name]:.2f}"
+        )
+
+    # And the normalisation those numbers are for: a flat centred on one.
+    get_task("imarith").run(operand1=str(tmp_path / "tr92007.fits"), op="/",
+                            operand2=str(round(modes["tr92007"])),
+                            result=str(tmp_path / "Vflat.fits"))
+    flat = fits.getdata(tmp_path / "Vflat.fits").astype(float)
+    assert mode(flat) == pytest.approx(1.0, abs=0.01)
