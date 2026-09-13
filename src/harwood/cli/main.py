@@ -440,21 +440,33 @@ def _task_command(name: str) -> click.Command:
     def run(**kwargs: Any) -> None:
         _run_task(name, kwargs)
 
-    command = click.Command(
-        name=name,
-        callback=run,
-        params=[
-            *build.parameters_for(cls.Params),
+    # The task's own parameters win: a task that declares `workdir` gets its
+    # own, and the harness does not add a second one. Click only warns about a
+    # duplicate rather than failing, which is how this went unnoticed.
+    declared = set(cls.Params.model_fields)
+    harness = [
+        option for option in (
             click.Option(["--plan"], is_flag=True,
                          help="Print the steps this would take, with real values, "
                               "and stop. IRAF's noproc."),
+            click.Option(["--explain"], is_flag=True,
+                         help="Open each step out: what it does to the data, why "
+                              "that is the right thing, and what it came to. Works "
+                              "with --plan to read it before running."),
             click.Option(["--editpar"], is_flag=True,
                          help="Open this task's parameters in a text editor, with "
                               "every one explained, and save what you change into "
                               "the project. Open it as often as you like."),
             click.Option(["--workdir", "-w"], type=click.Path(path_type=Path),
                          default=Path("."), help="Reduction directory for the log."),
-        ],
+        )
+        if option.name not in declared
+    ]
+
+    command = click.Command(
+        name=name,
+        callback=run,
+        params=[*build.parameters_for(cls.Params), *harness],
         help=(cls.description or "") + "\n\nSee `harwood help "
              + name + "` for the manual and `harwood lpar " + name
              + "` for effective values.",
@@ -470,10 +482,17 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     from ..core import provenance
     from ..core.registry import get_class, get_task
 
-    plan_only = kwargs.pop("plan", False)
-    edit_params = kwargs.pop("editpar", False)
-    workdir: Path = kwargs.pop("workdir", Path("."))
     cls = get_class(name)
+    plan_only = kwargs.pop("plan", False)
+    explain = kwargs.pop("explain", False)
+    edit_params = kwargs.pop("editpar", False)
+
+    # A task that declares its own `workdir` keeps it -- the value belongs to
+    # the model and must not be intercepted here, or it arrives as None and the
+    # log blows up after the work has already been done.
+    owns_workdir = "workdir" in cls.Params.model_fields
+    workdir: Path = Path(".") if owns_workdir else (
+        kwargs.pop("workdir", None) or Path("."))
 
     if edit_params:
         _edit_parameters(name, cls)
@@ -485,6 +504,8 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
                                  preset=cls.defaults,
                                  preset_name=name if cls.defaults else None)
         validated = cls.Params(**store.values(resolved))
+        if owns_workdir:
+            workdir = Path(getattr(validated, "workdir", ".") or ".")
     except ValidationError as error:
         _report_validation(name, error)
         raise SystemExit(2) from None
@@ -496,10 +517,7 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
 
     if plan_only:
         console.print(f"\n[bold]{name}[/bold] would do this and nothing else:\n")
-        for index, step in enumerate(task.plan(validated), start=1):
-            marker = "[dim]-[/dim]" if step.skipped else "[cyan]·[/cyan]"
-            body = f"[dim]{step.render()}[/dim]" if step.skipped else step.render()
-            console.print(f"  {index}. {marker} {body}")
+        _print_steps(task.plan(validated), explain)
         console.print()
         return
 
@@ -533,6 +551,10 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
 
     console.print(f"[green]ok[/green] {name} in {result.duration_s:.2f}s"
                   + (f" [dim]({result.backend})[/dim]" if result.backend else ""))
+    if explain and result.steps:
+        console.print()
+        _print_steps(result.steps, True)
+        console.print()
     for warning in result.warnings:
         console.print(f"  [yellow]note:[/yellow] {warning}")
     for key, value in result.data.items():
@@ -553,6 +575,42 @@ def _identity_column(table: Table, name: str, width: int, **options: Any) -> Non
     one. This has now been the same bug three times; hence a function.
     """
     table.add_column(name, no_wrap=True, min_width=width, **options)
+
+
+def _print_steps(steps: list[Any], explain: bool) -> None:
+    """One line per step; with --explain, each one opened out.
+
+    The shape matters: the summary has to stay readable at a glance or people
+    stop reading it, and the detail has to be there or the summary is just a
+    prettier black box. Same content, two depths, the user picks.
+    """
+    import textwrap
+
+    for index, step in enumerate(steps, start=1):
+        marker = "[dim]-[/dim]" if step.skipped else "[cyan]·[/cyan]"
+        body = f"[dim]{step.render()}[/dim]" if step.skipped else step.render()
+        console.print(f"  {index}. {marker} {body}")
+        if not explain or step.skipped:
+            continue
+
+        pad = "       "
+        if step.why:
+            for line in textwrap.wrap(step.why, width=76):
+                console.print(f"[dim]{pad}{line}[/dim]")
+        else:
+            console.print(f"[dim]{pad}(no explanation written for this step yet)[/dim]")
+
+        if step.measured:
+            pairs = "   ".join(f"{key} [bold]{_show(value)}[/bold]"
+                               for key, value in step.measured.items())
+            console.print(f"{pad}{pairs}")
+        if step.before and step.after:
+            console.print(
+                f"{pad}before  median [bold]{step.before.get('median', 0):.4g}[/bold]"
+                f"  sigma [bold]{step.before.get('sigma', 0):.4g}[/bold]"
+                f"{chr(10)}{pad}after   median [bold]{step.after.get('median', 0):.4g}[/bold]"
+                f"  sigma [bold]{step.after.get('sigma', 0):.4g}[/bold]")
+        console.print()
 
 
 def _print_rows(rows: list[dict[str, Any]]) -> None:

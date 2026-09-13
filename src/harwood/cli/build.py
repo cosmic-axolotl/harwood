@@ -77,8 +77,12 @@ def parameters_for(model: type) -> list[click.Parameter]:
         inner, _ = _unwrap(annotation)
         help_text = field.description or ""
 
-        if field.is_required():
-            # Automatic parameters: positional, in the order they are declared.
+        # A field may ask to be positional even when it is optional: some
+        # tasks read naturally as `setinstrument kpno/direct` and awkwardly
+        # as `setinstrument --instrument kpno/direct`.
+        extra = field.json_schema_extra or {}
+        if field.is_required() or extra.get("positional"):
+            # Automatic parameters: positional, in the order declared.
             # Only one of them can swallow a variable number of words, so a
             # second list-valued positional takes a comma-separated value --
             # which is how IRAF writes them too ("OBJECT,EXPTIME,FILTER").

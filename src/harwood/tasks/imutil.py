@@ -14,7 +14,7 @@ from typing import Literal
 from pydantic import Field
 
 from ..core.registry import register
-from ..core.task import Step, Task, TaskParams, TaskResult
+from ..core.task import Step, Task, TaskParams, TaskResult, Template
 
 
 class ImHeaderParams(TaskParams):
@@ -321,7 +321,7 @@ class ImArithParams(TaskParams):
         ..., description="Second operand: images, an @list, or a number. A single "
                          "image or number is applied to every input."
     )
-    result: str = Field(
+    result: Template = Field(
         ..., description="Where to write: one name per input, an @list, a "
                          "directory, or a template like '%tr%n%'."
     )
@@ -435,7 +435,7 @@ class ImCopyParams(TaskParams):
         ..., description="Images to copy. Sections are honoured: 'obj.fits[1:100,*]' "
                          "copies just that part."
     )
-    output: str = Field(
+    output: Template = Field(
         ..., description="Where to write: one name per input, a directory, or a "
                          "template like '%m%tr%'."
     )

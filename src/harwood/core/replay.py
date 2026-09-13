@@ -57,8 +57,12 @@ def command(task: str, model: type, values: dict[str, Any],
             continue
         value = values[name]
 
-        if field.is_required():
-            positional.extend(_render_value(value))
+        # The same `positional` marker the command line honours, so the
+        # command written into the log is the one a person would type.
+        extra = field.json_schema_extra or {}
+        if field.is_required() or extra.get("positional"):
+            if value is not None:
+                positional.extend(_render_value(value))
             continue
 
         default = field.get_default(call_default_factory=True)

@@ -207,3 +207,75 @@ def test_migration_map_answers_for_a_task_harwood_does_not_run():
     assert "not be ported" in migration.explain("rfits")
     assert "after the MVP" in migration.explain("apall")
     assert migration.explain("daofind") is None
+
+
+#: Tasks whose steps do not yet say what they do to the data. This list is the
+#: backlog, kept in a test so it cannot be quietly forgotten: writing an
+#: explanation *and* forgetting to write one both fail until the list matches
+#: reality. It should only ever get shorter.
+UNEXPLAINED = {
+    "daofind", "darkcombine", "flatcombine", "hselect", "identify", "imalign",
+    "imcentroid", "imcombine", "imcopy", "imdelete", "imheader", "implot",
+    "imstatistics", "phot", "sections", "xyxymatch", "zerocombine",
+}
+
+
+def _example_params(cls):
+    """Fill a task's required parameters with something plausible, or give up."""
+    import typing
+
+    values = {}
+    for name, field in cls.Params.model_fields.items():
+        if not field.is_required():
+            continue
+        annotation = field.annotation
+        origin = typing.get_origin(annotation)
+        if origin is list:
+            values[name] = ["example.fits"]
+        elif annotation is int:
+            values[name] = 1
+        elif annotation is float:
+            values[name] = 1.0
+        else:
+            values[name] = "example.fits"
+    try:
+        return cls.Params(**values)
+    except Exception:
+        return None
+
+
+def test_the_unexplained_backlog_is_exactly_what_we_think_it_is():
+    """Section 2.1 is the founding complaint: things happen behind the panels.
+
+    A step that changes data and cannot say what it did is that complaint,
+    unanswered. This does not demand every task explain itself today -- it
+    demands that we know which ones do not.
+
+    A task whose plan reads the actual files cannot be checked from here, so
+    it is not counted either way; those have their own tests against real data
+    (ccdproc's is in test_ccdred.py).
+    """
+    explained, unexplained, needs_data = set(), set(), set()
+    for name, cls in list_tasks().items():
+        params = _example_params(cls)
+        if params is None:
+            continue
+        try:
+            steps = cls().plan(params)
+        except Exception:
+            needs_data.add(name)
+            continue
+        (explained if any(step.explained() for step in steps)
+         else unexplained).add(name)
+
+    checked = unexplained | explained
+    assert unexplained == UNEXPLAINED & checked, (
+        f"the backlog moved.\n"
+        f"  newly explained: {sorted(UNEXPLAINED & checked - unexplained)}\n"
+        f"  newly unexplained: {sorted(unexplained - UNEXPLAINED)}\n"
+        f"Update UNEXPLAINED in this file."
+    )
+    assert "ccdproc" in needs_data, (
+        "ccdproc's plan reads real headers; if that changed, check it here "
+        "rather than leaving it uncounted"
+    )

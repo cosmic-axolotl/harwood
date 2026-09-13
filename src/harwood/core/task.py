@@ -21,12 +21,24 @@ from __future__ import annotations
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, ClassVar, Generic, TypeVar
+from pathlib import Path, PurePath
+from typing import Annotated, Any, ClassVar, Generic, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
 
 from . import provenance
+
+
+def _as_text(value: Any) -> Any:
+    """Accept a Path where a template string is expected."""
+    return str(value) if isinstance(value, PurePath) else value
+
+
+#: A place to write, which may be a file name, a directory, a comma list, an
+#: @list or a substitution template like `%m%tr%`. It is a string rather than a
+#: Path because a template is not a path -- but a caller who has a Path in hand
+#: should not have to convert it, so one is accepted.
+Template = Annotated[str, BeforeValidator(_as_text)]
 
 
 class TaskParams(BaseModel):
@@ -53,15 +65,32 @@ P = TypeVar("P", bound=TaskParams)
 
 @dataclass
 class Step:
-    """One line of an execution plan (section 2.1).
+    """One step of a task, and everything worth knowing about it.
 
-    The point is that a user can read, before anything is written, exactly what
-    is about to happen with real files and real values -- not a generic
-    description of the task. `noproc` in ccdproc is the embryo of this idea.
+    Section 2.1 is about the complaint that reduction software does things
+    behind the panels and hands back a result. A step answers that at three
+    depths, and the user chooses which:
+
+        action + detail   what is about to happen, with real files and values
+        why               what it does to the data, and why that is the right
+                          thing -- the physics, not the software
+        measured          what it actually came to, once it ran
+
+    The first is `--plan`, the IRAF `noproc` idea. The other two are
+    `--explain`, and they are the part IRAF never had: reading a task's help
+    page tells you what the parameters mean, not what the step did to your
+    photons.
     """
 
     action: str
     detail: str = ""
+    why: str = ""
+    #: What the step measured, filled in by `execute`. Free-form because each
+    #: step measures different things; rendered as "name value" pairs.
+    measured: dict[str, Any] = field(default_factory=dict)
+    #: Statistics of the data before and after, when the step changes pixels.
+    before: dict[str, float] | None = None
+    after: dict[str, float] | None = None
     skipped: bool = False
     reason: str = ""
 
@@ -70,6 +99,10 @@ class Step:
             return f"{self.action} -- skipped: {self.reason}" if self.reason else \
                    f"{self.action} -- skipped"
         return f"{self.action}: {self.detail}" if self.detail else self.action
+
+    def explained(self) -> bool:
+        """Has anyone written what this step does, as opposed to what it is?"""
+        return bool(self.why)
 
 
 @dataclass
@@ -121,8 +154,8 @@ class Task(ABC, Generic[P]):
         """The steps `execute` will take, with real files and values.
 
         The default is honest but uninformative; any task that does more than
-        one thing should override it. `harwood run --plan` prints this and
-        stops.
+        one thing should override it. `--plan` prints this and stops, and
+        `--explain` expands each step's `why`.
         """
         return [Step(self.name, "no plan written for this task yet")]
 
@@ -160,6 +193,25 @@ class Task(ABC, Generic[P]):
     def schema(cls) -> dict[str, Any]:
         """JSON Schema of the parameters. Feeds the CLI, the editor and the docs."""
         return cls.Params.model_json_schema()
+
+    @staticmethod
+    def statistics(data: Any) -> dict[str, float]:
+        """A step's before-and-after, in three numbers.
+
+        Median rather than mean, because a frame full of stars has a mean that
+        moves with the brightest one; and the spread, because a step that
+        changes the level without changing the noise is doing something very
+        different from one that changes both.
+        """
+        import numpy as np
+
+        values = np.asarray(data, dtype=float)
+        finite = values[np.isfinite(values)]
+        if finite.size == 0:
+            return {}
+        return {"median": float(np.median(finite)),
+                "sigma": float(np.std(finite)),
+                "npix": int(finite.size)}
 
     @classmethod
     def field_help(cls) -> dict[str, str]:

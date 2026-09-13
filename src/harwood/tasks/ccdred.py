@@ -16,6 +16,7 @@ the ordering, the header bookkeeping and the provenance.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC
 from pathlib import Path
 from typing import Literal
@@ -23,7 +24,7 @@ from typing import Literal
 from pydantic import Field
 
 from ..core.registry import register
-from ..core.task import Step, Task, TaskParams, TaskResult
+from ..core.task import Step, Task, TaskParams, TaskResult, Template
 
 #: Keyword written once a step has been applied, so it is never applied twice.
 MARKS = {
@@ -38,11 +39,25 @@ MARKS = {
 
 class CcdProcParams(TaskParams):
     input: list[str] = Field(..., description="Images to process. Accepts globs and @lists.")
-    output: Path = Field(
-        ...,
+    output: Template = Field(
+        "",
         description="Where to write. One image: a file name. Several: a directory, "
-                    "or an IRAF substitution template such as '%m%tr%', which turns "
-                    "m92001.fits into tr92001.fits and keeps them side by side.",
+                    "or a substitution template such as '%m%tr%'. Leave it empty to "
+                    "correct the images in place, which is what IRAF does -- the "
+                    "header marks are what makes that safe, since a step already "
+                    "applied is never applied twice.",
+        json_schema_extra={"positional": True},
+    )
+    ccdtype: str = Field(
+        "",
+        description="Only correct images of this type: object, zero, dark, flat, "
+                    "comp. Calibration frames still get processed when a correction "
+                    "needs them. Empty means every image given.",
+    )
+    instrument: str | None = Field(
+        None,
+        description="Header translation to use, such as 'ccddb$kpno/direct.dat'. "
+                    "Taken from the project file when not given.",
     )
 
     fixpix: bool = Field(False, description="Replace bad pixels listed in the mask.")
@@ -124,47 +139,89 @@ class CcdProc(Task[CcdProcParams]):
     Params = CcdProcParams
 
     def plan(self, params: CcdProcParams) -> list[Step]:
-        """The steps, against the *actual* headers of the actual inputs.
+        """The steps, against the actual headers of the actual inputs.
 
         A plan that shows a step the run will skip is worse than no plan: it
-        is the header bookkeeping made invisible again. So this reads the first
-        input's header and reports what it finds.
+        is the header bookkeeping made invisible again. So this reads the
+        headers, classifies every frame through the instrument translation,
+        and says which calibration it would reach for.
         """
         from ..core import images
 
         specs = images.expand(params.input)
-        header = _peek(specs[0])
-        steps = [Step("read", f"{len(specs)} image(s), first is {specs[0]}")]
+        survey = _survey(specs, params)
+        targets = survey["targets"]
+        header = _peek(targets[0] if targets else specs[0])
 
-        def add(flag: str, action: str, detail: str) -> None:
+        steps = [Step(
+            "read", f"{len(specs)} image(s): " + ", ".join(
+                f"{count} {kind}" for kind, count in survey["counts"].items()),
+            why="Every frame is classified by its IMAGETYP, translated through "
+                f"the '{survey['instrument'].name}' instrument file. That is what "
+                "lets the calibrations be found rather than named.",
+            measured={"instrument": survey["instrument"].name,
+                      "to correct": f"{len(targets)}"
+                      + (f" of type {params.ccdtype}" if params.ccdtype else "")},
+        )]
+
+        for flag, key, chosen in (("zerocor", "zero", survey["zero"]),
+                                  ("darkcor", "dark", survey["dark"])):
+            if getattr(params, flag) and chosen and not getattr(params, key):
+                steps.append(Step(
+                    f"find {key}", str(chosen),
+                    why=f"No --{key} was given, so the {key} frame was taken from "
+                        "the input list by its image type. It is corrected first, "
+                        "then used.",
+                ))
+        if params.flatcor and not params.flat and survey["flats"]:
+            steps.append(Step(
+                "find flat",
+                ", ".join(f"{subset or 'no subset'} -> {path.name}"
+                          for subset, path in survey["flats"].items()),
+                why="Flats are matched to frames by subset -- the filter, or "
+                    "whatever else separates one set of flats from another. A "
+                    "V frame gets the V flat without anyone saying so.",
+            ))
+
+        def add(flag: str, action: str, detail: str, why: str) -> None:
             if _already(header, flag):
                 keyword = MARKS[flag][0]
                 steps.append(Step(action, skipped=True,
                                   reason=f"{keyword} is already in the header "
                                          f"({header[keyword]})"))
             else:
-                steps.append(Step(action, detail))
+                steps.append(Step(action, detail, why=why))
 
         if params.fixpix:
             add("fixpix", "fixpix", str(params.bpm) if params.bpm
-                else "no mask given -- nothing to fix")
+                else "no mask given -- nothing to fix", WHY["fixpix"])
         if params.overscan:
             add("overscan", "overscan",
                 f"{params.function} order {params.order}"
                 + (f", sample {params.sample}" if params.sample != "*" else "")
                 + (f", {params.niterate} rejection passes" if params.niterate else "")
                 + " over "
-                + f"{params.biassec or header.get('BIASSEC') or 'BIASSEC from the header'}")
+                + f"{params.biassec or header.get('BIASSEC') or 'BIASSEC from the header'}",
+                WHY["overscan"])
         if params.trim:
             add("trim", "trim",
-                params.trimsec or header.get("TRIMSEC") or "TRIMSEC from the header")
-        for flag, key, image in (("zerocor", "zero", params.zero),
-                                 ("darkcor", "dark", params.dark),
-                                 ("flatcor", "flat", params.flat)):
+                params.trimsec or header.get("TRIMSEC") or "TRIMSEC from the header",
+                WHY["trim"])
+        for flag, key in (("zerocor", "zero"), ("darkcor", "dark"),
+                          ("flatcor", "flat")):
             if getattr(params, flag):
-                add(flag, key, str(image) if image
-                    else f"no --{key} image given -- this would fail")
-        steps.append(Step("write", str(params.output)))
+                given = getattr(params, key)
+                found = survey["zero"] if key == "zero" else (
+                    survey["dark"] if key == "dark"
+                    else (next(iter(survey["flats"].values()), None)))
+                add(flag, key,
+                    str(given or found or f"no --{key} image and none found"),
+                    WHY[key])
+        steps.append(Step("write", params.output or "in place, over the inputs",
+                          why="Writing in place is safe here only because every "
+                              "step it applied is marked in the header, so running "
+                              "again corrects nothing twice."
+                          if not params.output else ""))
         return steps
 
     def execute(self, params: CcdProcParams) -> TaskResult:
@@ -174,16 +231,35 @@ class CcdProc(Task[CcdProcParams]):
         from ..core import images, provenance
 
         specs = images.expand(params.input)
-        template = str(params.output)
-        many = len(specs) > 1
-        substituting = "%" in template
-        if many and not substituting:
-            params.output.mkdir(parents=True, exist_ok=True)
+        survey = _survey(specs, params)
+        targets = survey["targets"]
+        if not targets:
+            raise RuntimeError(
+                f"none of the {len(specs)} images is of type '{params.ccdtype}'. "
+                + ", ".join(f"{count} {kind}" for kind, count
+                            in survey["counts"].items())
+                + f". The '{survey['instrument'].name}' translation decides this; "
+                "harwood ccdlist shows what it makes of each frame."
+            )
+
+        destinations = (images.outputs_for(targets, params.output)
+                        if params.output
+                        else [spec.path for spec in targets])
+
+        # The calibrations have to go through the same geometry first, or a
+        # 352x512 bias meets a 318x509 object and the subtraction fails -- or
+        # worse, would succeed on a frame that happened to match. IRAF does
+        # this automatically and so does harwood; the header marks make it
+        # safe to run over a calibration that is already corrected.
+        prepared = _prepare_calibrations(survey, params)
 
         outputs, all_steps, history = [], [], []
-        for spec in specs:
+        for spec, destination in zip(targets, destinations, strict=True):
             data, header = images.read(spec)
             steps: list[Step] = []
+            calibration = _calibration_for(header, survey, params)
+            calibration = {key: prepared.get(str(value), value)
+                           for key, value in calibration.items()}
 
             if params.fixpix and params.bpm is not None:
                 data, step = _fixpix(data, params.bpm, header)
@@ -194,19 +270,13 @@ class CcdProc(Task[CcdProcParams]):
             if params.trim:
                 data, step = _trim(data, header, params)
                 steps.append(step)
-            for flag, key, image in (("zerocor", "zero", params.zero),
-                                     ("darkcor", "dark", params.dark),
-                                     ("flatcor", "flat", params.flat)):
+            for flag, key in (("zerocor", "zero"), ("darkcor", "dark"),
+                              ("flatcor", "flat")):
                 if getattr(params, flag):
-                    data, step = _calibrate(data, header, key, image, params)
+                    data, step = _calibrate(data, header, key,
+                                            calibration[key], params)
                     steps.append(step)
 
-            if substituting:
-                destination = images.substitute(spec.path, template)
-            elif many:
-                destination = params.output / Path(str(spec.path)).name
-            else:
-                destination = params.output
             lines = [f"ccdproc: {step.render()}" for step in steps if not step.skipped]
             provenance.stamp_header(header, lines)
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -218,8 +288,164 @@ class CcdProc(Task[CcdProcParams]):
             history.extend(lines)
 
         skipped = sum(1 for step in all_steps if step.skipped)
+        all_steps = prepared.pop("_steps", []) + all_steps
+        warnings = []
+        if not params.output:
+            warnings.append(
+                f"{len(outputs)} image(s) were corrected in place. The header "
+                "marks mean running again corrects nothing twice, but the "
+                "originals are gone -- give an --output next time if you want "
+                "them kept.")
         return TaskResult(outputs=outputs, history=history, steps=all_steps,
-                          data={"images": len(specs), "steps_skipped": skipped})
+                          warnings=warnings,
+                          data={"images": len(targets), "steps_skipped": skipped,
+                                "instrument": survey["instrument"].name})
+
+
+#: What each step does to the data, and why that is the right thing. Shown by
+#: --explain. Written here rather than in the docstring because the person who
+#: needs it is running the task, not reading the source.
+WHY = {
+    "fixpix": "Bad columns and hot pixels carry no information, and a bad column "
+              "running through a star ruins its photometry silently. Each is "
+              "replaced by interpolating its neighbours along the row -- which "
+              "makes the image look right without making the data real, so the "
+              "mask travels with the frame.",
+    "overscan": "The overscan is a strip of pixels the detector reads out without "
+                "exposing them, so it carries the electronic offset the amplifier "
+                "adds to every pixel and nothing else. That offset drifts during a "
+                "readout, so it is fitted as a function of row rather than "
+                "averaged to one number, and the fit is subtracted from the whole "
+                "frame.",
+    "trim": "The edges of a CCD are not illuminated: the overscan strip, and "
+            "usually a row or two at each border that the shutter or the mask "
+            "clips. Keeping them means every later statistic is computed over "
+            "pixels that never saw sky.",
+    "zero": "Even with the overscan removed, the bias has structure that varies "
+            "from pixel to pixel and not from row to row -- fixed pattern in the "
+            "amplifier and the clocking. A bias frame is a zero-second exposure, "
+            "so it holds that pattern and nothing else; subtracting it removes "
+            "what the overscan fit could not see.",
+    "dark": "Thermal electrons accumulate in each pixel whether or not light "
+            "falls on it, at a rate that depends on the temperature and varies "
+            "across the chip. The dark frame measures that rate, and is scaled to "
+            "this exposure's time before subtraction -- twice the exposure, twice "
+            "the dark.",
+    "flat": "Pixels do not respond equally: quantum efficiency varies across the "
+            "chip, dust on the window shadows it, and the optics vignette the "
+            "corners. A flat field is a uniformly lit exposure, so it measures "
+            "the response of every pixel relative to the rest. Dividing by it, "
+            "normalised to one, turns counts into a quantity proportional to the "
+            "light that arrived.",
+}
+
+
+def _survey(specs, params) -> dict:
+    """Classify every input, and work out which calibration goes with which."""
+    from collections import Counter
+
+    from ..core import instrument as instruments
+
+    inst = (instruments.load(params.instrument) if params.instrument
+            else instruments.from_project())
+
+    kinds, subsets = {}, {}
+    for spec in specs:
+        header = _peek(spec)
+        kinds[spec] = inst.image_type(header)
+        subsets[spec] = inst.subset(header)
+
+    wanted = params.ccdtype.strip().lower()
+    targets = [spec for spec in specs
+               if not wanted or kinds[spec] == wanted]
+
+    zero = params.zero or next(
+        (s.path for s in specs if kinds[s] == "zero"), None)
+    dark = params.dark or next(
+        (s.path for s in specs if kinds[s] == "dark"), None)
+    flats: dict[str, object] = {}
+    if not params.flat:
+        for spec in specs:
+            if kinds[spec] == "flat":
+                flats.setdefault(subsets[spec], spec.path)
+
+    return {"instrument": inst, "kinds": kinds, "subsets": subsets,
+            "targets": targets, "zero": zero, "dark": dark, "flats": flats,
+            "counts": dict(Counter(kinds.values()))}
+
+
+def _prepare_calibrations(survey, params) -> dict:
+    """Put the calibration frames through the same geometry as the science.
+
+    Only the steps that change the shape or the level of a calibration: a bias
+    needs the overscan and the trim, a flat needs those and the bias. A flat
+    does not get flat-fielded by itself, which is the mistake this exists to
+    avoid making by accident.
+    """
+    from ..core import images
+
+    done: dict = {"_steps": []}
+    candidates = []
+    if params.zerocor and not params.zero and survey["zero"]:
+        candidates.append(("zero", survey["zero"]))
+    if params.darkcor and not params.dark and survey["dark"]:
+        candidates.append(("dark", survey["dark"]))
+    if params.flatcor and not params.flat:
+        candidates.extend(("flat", path) for path in survey["flats"].values())
+
+    for kind, path in candidates:
+        data, header = images.read(path)
+        steps: list[Step] = []
+        if params.overscan:
+            data, step = _overscan(data, header, params)
+            steps.append(step)
+        if params.trim:
+            data, step = _trim(data, header, params)
+            steps.append(step)
+        if kind in ("dark", "flat") and params.zerocor:
+            zero = done.get(str(survey["zero"]), survey["zero"])
+            if zero is not None:
+                data, step = _calibrate(data, header, "zero", zero, params)
+                steps.append(step)
+
+        for step in steps:
+            if not step.skipped:
+                step.action = f"{kind} {Path(path).name}: {step.action}"
+        done["_steps"].extend(steps)
+        done[str(path)] = _Prepared(data, header, Path(path))
+
+    return done
+
+
+@dataclass
+class _Prepared:
+    """A calibration frame already put through the geometry, held in memory."""
+
+    data: object
+    header: object
+    path: Path
+
+    def __str__(self) -> str:
+        return str(self.path)
+
+
+def _calibration_for(header, survey, params) -> dict:
+    """The zero, dark and flat that apply to one frame."""
+    subset = survey["instrument"].subset(header)
+    flat = params.flat
+    if flat is None and survey["flats"]:
+        flat = survey["flats"].get(subset)
+        if flat is None and len(survey["flats"]) == 1:
+            flat = next(iter(survey["flats"].values()))
+        elif flat is None:
+            raise ValueError(
+                f"no flat field for subset '{subset}'. Flats were found for "
+                + ", ".join(repr(s) for s in survey["flats"])
+                + ". Give --flat, or check the instrument translation."
+            )
+    return {"zero": params.zero or survey["zero"],
+            "dark": params.dark or survey["dark"],
+            "flat": flat}
 
 
 def _peek(spec):
@@ -264,7 +490,11 @@ def _fixpix(data, bpm_path, header):
         holes = np.isnan(line)
         line[holes] = np.interp(np.flatnonzero(holes), np.flatnonzero(~holes), line[~holes])
     _mark(header, "fixpix")
-    return fixed, Step("fixpix", f"{int(bad.sum())} pixels replaced")
+    return fixed, Step(
+        "fixpix", f"{int(bad.sum())} pixels replaced", why=WHY["fixpix"],
+        measured={"replaced": f"{int(bad.sum())} pixels, "
+                              f"{100 * bad.mean():.3f}%"},
+        before=Task.statistics(data), after=Task.statistics(fixed))
 
 
 def _overscan(data, header, params):
@@ -330,7 +560,13 @@ def _overscan(data, header, params):
         detail += f", {int(result.deleted.sum())} points deleted by hand"
     if result.nrejected:
         detail += f", {result.nrejected} points rejected"
-    return corrected, Step("overscan", detail)
+    return corrected, Step(
+        "overscan", detail, why=WHY["overscan"],
+        measured={"level": round(float(level.mean()), 2),
+                  "drift": f"{float(level.min()):.2f} to {float(level.max()):.2f}",
+                  "fit rms": round(float(result.rms), 3),
+                  "rejected": f"{result.nrejected} of {int(result.mask.size)}"},
+        before=Task.statistics(data), after=Task.statistics(corrected))
 
 
 def _trim(data, header, params):
@@ -347,8 +583,13 @@ def _trim(data, header, params):
     trimmed = data[pixels.parse_section(section, data.shape)]
     _mark(header, "trim")
     header["TRIMSEC"] = section
-    return trimmed, Step("trim", f"{section} -> "
-                                 f"{trimmed.shape[1]}x{trimmed.shape[0]}")
+    lost = data.size - trimmed.size
+    return trimmed, Step(
+        "trim", f"{section} -> {trimmed.shape[1]}x{trimmed.shape[0]}",
+        why=WHY["trim"],
+        measured={"kept": f"{trimmed.shape[1]}x{trimmed.shape[0]}",
+                  "dropped": f"{lost} pixels, {100 * lost / data.size:.1f}%"},
+        before=Task.statistics(data), after=Task.statistics(trimmed))
 
 
 def _calibrate(data, header, key, image, params):
@@ -363,26 +604,209 @@ def _calibrate(data, header, key, image, params):
     if image is None:
         raise ValueError(f"{flag} was asked for but no --{key} image was given")
 
-    calibration, cal_header = images.read(image)
+    if isinstance(image, _Prepared):
+        calibration, cal_header = image.data, image.header
+    else:
+        calibration, cal_header = images.read(image)
     if calibration.shape != data.shape:
         raise ValueError(
-            f"{key} image {image} is {calibration.shape} but the frame is {data.shape}. "
-            "Was one of them trimmed and the other not?"
+            f"{key} image {image} is {calibration.shape} but the frame is "
+            f"{data.shape}. Was one of them trimmed and the other not?"
         )
 
+    measured = {"image": Path(str(image)).name}
     if key == "zero":
-        out, detail = data - calibration, f"subtracted {Path(image).name}"
+        out = data - calibration
+        detail = f"subtracted {Path(str(image)).name}"
+        measured["level removed"] = round(float(np.median(calibration)), 3)
     elif key == "dark":
         frame_time = float(header.get(params.exposure_key, 1.0))
         dark_time = float(cal_header.get(params.exposure_key, 1.0))
         factor = frame_time / dark_time if dark_time else 1.0
         out = data - calibration * factor
-        detail = f"subtracted {Path(image).name} scaled by {factor:.3f}"
+        detail = f"subtracted {Path(str(image)).name} scaled by {factor:.3f}"
+        measured["scale"] = f"{frame_time:g}s / {dark_time:g}s = {factor:.3f}"
     else:
         safe = np.where(calibration < params.minreplace, params.minreplace, calibration)
-        normalised = safe / np.median(safe)
+        level = float(np.median(safe))
+        normalised = safe / level
         out = data / normalised
-        detail = f"divided by {Path(image).name}, normalised to its median"
+        detail = f"divided by {Path(str(image)).name}, normalised to its median"
+        measured["flat level"] = round(level, 2)
+        measured["response range"] = (f"{float(normalised.min()):.3f} to "
+                                      f"{float(normalised.max()):.3f}")
+        replaced = int((calibration < params.minreplace).sum())
+        if replaced:
+            measured["clamped"] = f"{replaced} pixels below {params.minreplace}"
 
     _mark(header, flag)
-    return out, Step(key, detail)
+    return out, Step(key, detail, why=WHY[key], measured=measured,
+                     before=Task.statistics(data), after=Task.statistics(out))
+
+
+class SetInstrumentParams(TaskParams):
+    instrument: str | None = Field(
+        None,
+        description="Translation file to use: a name like 'kpno/direct', an IRAF "
+                    "path like 'ccddb$kpno/direct.dat', or a file of your own. "
+                    "Leave it out to see what is installed.",
+        json_schema_extra={"positional": True},
+    )
+    list_available: bool = Field(
+        False, description="Show what translations are installed and stop."
+    )
+    workdir: Path = Field(
+        Path("."), description="Reduction directory whose project file to set."
+    )
+
+
+@register
+class SetInstrument(Task[SetInstrumentParams]):
+    name = "setinstrument"
+    package = "ccdred"
+    description = "Choose the header translation this reduction uses."
+    Params = SetInstrumentParams
+
+    def plan(self, params: SetInstrumentParams) -> list[Step]:
+        if params.list_available:
+            return [Step("list", "installed translations")]
+        return [
+            Step("read", str(params.instrument),
+                 why="A translation file says which keyword holds the filter, and "
+                     "what each IMAGETYP value means. Without one, harwood reads "
+                     "the common keywords and reports anything else as unknown."),
+            Step("write", f"instrument into {params.workdir}/harwood.yaml",
+                 why="It goes in the project file rather than a setting on the "
+                     "machine, so the reduction carries its own conventions and "
+                     "someone else can repeat it."),
+        ]
+
+    def execute(self, params: SetInstrumentParams) -> TaskResult:
+        from ..core import instrument as instruments
+
+        if params.list_available or not params.instrument:
+            found = instruments.installed()
+            rows = [{"observatory": place, "translations": ", ".join(names)}
+                    for place, names in sorted(found.items())]
+            if not rows:
+                raise RuntimeError(
+                    "no instrument translations found. harwood does not ship them "
+                    "yet; install iraf-noao, or write a file of your own -- two "
+                    "columns, 'parameter keyword' or 'HEADER-VALUE imagetype'."
+                )
+            if not params.instrument:
+                return TaskResult(data={"rows": rows},
+                                  warnings=["Name one to set it, as in "
+                                            "`harwood setinstrument kpno/direct`."],
+                                  steps=self.plan(params))
+            return TaskResult(data={"rows": rows}, steps=self.plan(params))
+
+        chosen = instruments.load(params.instrument)
+
+        import yaml
+
+        from ..core import params as store
+
+        project = store.find_project(params.workdir) or \
+            (params.workdir / store.PROJECT_FILE)
+        document = {}
+        if project.exists():
+            document = yaml.safe_load(project.read_text(encoding="utf-8")) or {}
+        document["instrument"] = str(params.instrument)
+        header = _project_header(project)
+        project.write_text(header + yaml.safe_dump(document, sort_keys=False,
+                                                   allow_unicode=False),
+                           encoding="utf-8")
+
+        return TaskResult(
+            outputs=[project],
+            data={"instrument": chosen.name, "source": chosen.source,
+                  "keywords": len(chosen.keywords), "types": len(chosen.types)},
+            history=[f"setinstrument: {params.instrument}"],
+            steps=self.plan(params),
+        )
+
+
+def _project_header(project: Path) -> str:
+    if not project.exists():
+        return ""
+    kept = []
+    for line in project.read_text(encoding="utf-8").splitlines():
+        if line.startswith("#") or not line.strip():
+            kept.append(line)
+        else:
+            break
+    return ("\n".join(kept) + "\n") if kept else ""
+
+
+class CcdListParams(TaskParams):
+    input: list[str] = Field(..., description="Images to list. Accepts globs and @lists.")
+    ccdtype: str = Field(
+        "", description="Show only images of this type: object, zero, dark, flat, comp."
+    )
+    long: bool = Field(
+        False, description="Also show which corrections have already been applied."
+    )
+    instrument: str | None = Field(
+        None, description="Translation to use. Taken from the project file when not given."
+    )
+
+
+@register
+class CcdList(Task[CcdListParams]):
+    name = "ccdlist"
+    package = "ccdred"
+    description = "List images as the reduction sees them: type, subset, what is done."
+    Params = CcdListParams
+
+    def plan(self, params: CcdListParams) -> list[Step]:
+        return [Step("classify", f"{len(params.input)} pattern(s) through the "
+                                 f"instrument translation",
+                     why="This is the check to run before ccdproc: if a frame comes "
+                         "back 'unknown', ccdproc will not know what to do with it "
+                         "either, and the translation file is what to fix.")]
+
+    def execute(self, params: CcdListParams) -> TaskResult:
+        from ..core import images
+        from ..core import instrument as instruments
+
+        inst = (instruments.load(params.instrument) if params.instrument
+                else instruments.from_project())
+        wanted = params.ccdtype.strip().lower()
+
+        rows, unknown = [], 0
+        for spec in images.expand(params.input):
+            hdul, hdu = images.open_hdu(spec)
+            try:
+                header = hdu.header.copy()
+                shape = ("x".join(str(n) for n in reversed(hdu.data.shape))
+                         if getattr(hdu, "data", None) is not None else "-")
+            finally:
+                hdul.close()
+
+            kind = inst.image_type(header)
+            if wanted and kind != wanted:
+                continue
+            if kind == "unknown":
+                unknown += 1
+
+            row = {"image": str(spec), "type": kind,
+                   "subset": inst.subset(header) or "-", "shape": shape,
+                   "exptime": inst.value(header, "exptime", "-"),
+                   "object": header.get("OBJECT", "")}
+            if params.long:
+                done = [name for name, (keyword, _) in MARKS.items()
+                        if keyword in header]
+                row["done"] = ", ".join(done) if done else "-"
+            rows.append(row)
+
+        warnings = []
+        if unknown:
+            warnings.append(
+                f"{unknown} image(s) came back 'unknown'. ccdproc will refuse them "
+                f"too. The '{inst.name}' translation is what decides this -- add "
+                "the missing IMAGETYP value to it, or pick another with "
+                "`harwood setinstrument`."
+            )
+        return TaskResult(data={"rows": rows, "instrument": inst.name},
+                          warnings=warnings, steps=self.plan(params))
