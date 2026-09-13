@@ -6,11 +6,11 @@
 # knowing which lines were thrown out is part of knowing the solution.
 
 task: apall
-image: /tmp/pytest-of-costamands/pytest-91/spec0/psp0022.fits
+image: /tmp/pytest-of-costamands/pytest-95/spec0/psp0022.fits
 aperture: 1
 units: pixels
 coordlist: ''
-created: '2026-09-13T12:42:04+00:00'
+created: '2026-09-13T12:45:33+00:00'
 fit:
   function: legendre
   order: 3

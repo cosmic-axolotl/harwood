@@ -336,3 +336,212 @@ def _database_path(params: IdentifyParams) -> Path:
 
     return database.path_for(params.image, params.database)
 
+
+
+DISPWHY = {
+    "read": "An extracted spectrum is counts against pixel. Which pixel is "
+            "which wavelength is not in it -- that lives in the dispersion "
+            "solution the arc gave, which is why the arc was taken.",
+    "solution": "The solution from identify: a function from pixel to "
+                "wavelength, fitted to lines whose laboratory wavelengths are "
+                "known. It belongs to the arc, and applies to the object frames "
+                "taken near it in time -- the spectrograph flexes as the "
+                "telescope moves, so an arc from the start of the night is not "
+                "the arc for the end of it.",
+    "apply": "Every pixel gets the wavelength the solution puts it at. The "
+             "spacing is not uniform -- a grating disperses as a sine -- so the "
+             "wavelengths come out unevenly spaced, and that is correct. "
+             "Resampling onto an even grid is a separate choice with a cost: it "
+             "interpolates, which correlates neighbouring pixels.",
+    "resample": "Put onto an evenly spaced wavelength grid, which is what most "
+                "analysis expects. The flux per pixel is conserved by weighting "
+                "each output bin by how much of each input pixel falls in it, so "
+                "a line's equivalent width survives -- but neighbouring pixels "
+                "are now correlated and the errors know it less well than they "
+                "did.",
+    "write": "The same file shape as before, with the wavelength column filled "
+             "in. Nothing is thrown away: the pixel column stays, so the "
+             "calibration can be checked or redone.",
+}
+
+
+class DispCorParams(TaskParams):
+    input: str = Field(..., description="Extracted spectrum, from apall.")
+    output: Path | None = Field(
+        None,
+        description="Where to write. Left out, it goes to this run's own "
+                    "directory, named after the input.",
+        json_schema_extra={"positional": True},
+    )
+    reference: str = Field(
+        "",
+        description="Arc whose dispersion solution to use -- the name identify "
+                    "was run on. Read from database/id<reference>.",
+    )
+    linearize: bool = Field(
+        False,
+        description="Resample onto an evenly spaced wavelength grid. Off by "
+                    "default: it interpolates, which correlates neighbouring "
+                    "pixels, and most analysis does not need it.",
+    )
+    npoints: int | None = Field(
+        None, ge=2,
+        description="How many points when linearizing. As many as came in, by "
+                    "default.",
+    )
+    database: Path = Field(
+        Path("."), description="Reduction directory holding database/."
+    )
+
+
+@register
+class DispCor(Task[DispCorParams]):
+    name = "dispcor"
+    package = "onedspec"
+    description = "Put wavelengths on an extracted spectrum."
+    Params = DispCorParams
+
+    def plan(self, params: DispCorParams) -> list[Step]:
+        steps = [
+            Step("read", params.input, why=DISPWHY["read"]),
+            Step("solution", f"database/id{Path(params.reference).stem}",
+                 why=DISPWHY["solution"]),
+            Step("apply", "wavelength for every pixel", why=DISPWHY["apply"]),
+        ]
+        if params.linearize:
+            steps.append(Step("resample", "onto an even wavelength grid",
+                              why=DISPWHY["resample"]))
+        steps.append(Step("write", str(params.output or "this run's directory"),
+                          why=DISPWHY["write"]))
+        return steps
+
+    def execute(self, params: DispCorParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import database, icfit, output, spectrum
+
+        if not params.reference:
+            from ..core.database import listing
+
+            known = [path.name[2:] for path in listing(params.database)
+                     if path.name.startswith("id")]
+            raise ValueError(
+                "--reference names the arc whose solution to use; there is no "
+                "way to guess which arc belongs to which exposure. "
+                + (f"This reduction has solutions for {', '.join(known)}."
+                   if known else "This reduction has none yet: run identify on "
+                                 "an arc first.")
+            )
+        apertures = spectrum.read(params.input)
+        solution = database.read(params.reference, params.database)
+
+        used = solution.used if solution.used is not None else None
+        pixel = solution.pixel if used is None else solution.pixel[used]
+        wavelength = (solution.wavelength if used is None
+                      else solution.wavelength[used])
+        fit = icfit.fit(pixel, wavelength,
+                        icfit.FitSpec(function=solution.function,
+                                      order=solution.order))
+        if fit.model is None:
+            raise RuntimeError(
+                f"the solution in database/id{Path(params.reference).stem} could "
+                f"not be refitted: {fit.message}"
+            )
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        by_action["solution"].measured = {
+            "features": f"{len(pixel)} of {len(solution)}",
+            "function": f"{solution.function} order {solution.order}",
+            "rms": f"{solution.rms:.4f} {solution.units}",
+        }
+
+        warnings = []
+        for aperture in apertures:
+            aperture.wavelength = fit(np.asarray(aperture.pixel, dtype=float))
+            if params.linearize:
+                _linearize(aperture, params.npoints)
+
+        first = apertures[0]
+        low, high = float(first.wavelength.min()), float(first.wavelength.max())
+        spacing = np.diff(first.wavelength)
+        by_action["apply"].measured = {
+            "range": f"{low:.2f} to {high:.2f} {solution.units}",
+            "dispersion": f"{float(np.median(spacing)):.5f} {solution.units}/px",
+            "spacing varies by":
+                f"{100 * float(np.ptp(spacing) / abs(np.median(spacing))):.2f}%",
+        }
+        if params.linearize:
+            by_action["resample"].measured = {
+                "points": len(first.wavelength),
+                "step": f"{float(spacing[0]):.5f} {solution.units}",
+            }
+            warnings.append(
+                "Linearizing interpolates, so neighbouring pixels are now "
+                "correlated: a spectrum resampled twice is smoother than the "
+                "data, and errors estimated from its scatter are too small.")
+
+        # The solution was fitted over the arc's pixels; using it far outside
+        # that range is extrapolation, and it is the quiet kind of wrong.
+        covered = (float(np.min(pixel)), float(np.max(pixel)))
+        outside = int((np.asarray(first.pixel) < covered[0]).sum()
+                      + (np.asarray(first.pixel) > covered[1]).sum())
+        if outside:
+            warnings.append(
+                f"{outside} of {len(first.pixel)} pixels fall outside the range "
+                f"the arc lines covered ({covered[0]:.0f} to {covered[1]:.0f}); "
+                "their wavelengths are extrapolated, and a polynomial "
+                "extrapolates badly."
+            )
+
+        destination = params.output or output.named_for(params.input, ".w.fits")
+        spectrum.write(destination, apertures, source=str(params.input))
+
+        return TaskResult(
+            outputs=[Path(destination)],
+            steps=steps,
+            warnings=warnings,
+            data={"apertures": len(apertures),
+                  "range": f"{low:.2f} to {high:.2f} {solution.units}",
+                  "extrapolated": outside},
+            history=[f"dispcor: {solution.function} order {solution.order} from "
+                     f"{params.reference}, rms {solution.rms:.4f} "
+                     f"{solution.units}"],
+        )
+
+
+def _linearize(aperture, npoints: int | None) -> None:
+    """Resample onto an even wavelength grid, conserving flux.
+
+    Each output bin gets the flux that actually falls in it, rather than the
+    value interpolated at its centre: a line's equivalent width survives, which
+    interpolating the flux density does not guarantee.
+    """
+    import numpy as np
+
+    wavelength = np.asarray(aperture.wavelength, dtype=float)
+    order = np.argsort(wavelength)
+    wavelength = wavelength[order]
+    count = npoints or wavelength.size
+    grid = np.linspace(wavelength[0], wavelength[-1], count)
+
+    edges = np.concatenate([[wavelength[0] - (wavelength[1] - wavelength[0]) / 2],
+                            (wavelength[1:] + wavelength[:-1]) / 2,
+                            [wavelength[-1] + (wavelength[-1] - wavelength[-2]) / 2]])
+    new_edges = np.concatenate([[grid[0] - (grid[1] - grid[0]) / 2],
+                                (grid[1:] + grid[:-1]) / 2,
+                                [grid[-1] + (grid[1] - grid[0]) / 2]])
+
+    for name in ("flux", "error", "sky", "raw"):
+        values = getattr(aperture, name, None)
+        if values is None:
+            continue
+        values = np.asarray(values, dtype=float)[order]
+        cumulative = np.concatenate([[0.0], np.cumsum(values * np.diff(edges))])
+        resampled = np.diff(np.interp(new_edges, edges, cumulative))
+        widths = np.diff(new_edges)
+        setattr(aperture, name, resampled / np.where(widths != 0, widths, 1.0))
+
+    aperture.wavelength = grid
+    aperture.pixel = np.interp(grid, wavelength,
+                               np.asarray(aperture.pixel, dtype=float)[order])

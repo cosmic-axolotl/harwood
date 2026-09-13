@@ -149,3 +149,103 @@ def test_positions_accepts_peaks_or_a_plain_array():
     np.testing.assert_array_equal(arc.positions(np.array([30.0, 10.0])), [10.0, 30.0])
     np.testing.assert_array_equal(
         arc.positions(peaks, limit=2, brightest=True), [10.0, 30.0])
+
+
+# --------------------------------------------------------------- dispcor
+
+
+@pytest.fixture
+def calibrated(tmp_path, monkeypatch, synthetic, catalogue):
+    """An arc extracted as a spectrum, with its solution in the database."""
+    from astropy.io import fits
+
+    from harwood.core import spectrum
+    from harwood.core.registry import get_task
+
+    monkeypatch.chdir(tmp_path)
+    flux, _, _ = synthetic
+    fits.PrimaryHDU(flux.astype(np.float32)).writeto(tmp_path / "arc.fits")
+
+    ap = spectrum.Aperture(number=1, centre=1.0, low=-1.0, high=1.0,
+                           pixel=np.arange(1.0, flux.size + 1.0), flux=flux,
+                           error=np.sqrt(np.abs(flux)), title="arc")
+    spectrum.write(tmp_path / "arc.ms.fits", [ap], source="arc.fits")
+
+    get_task("identify").run(image="arc.fits", crval=CRVAL, cdelt=CDELT,
+                             order=3, niterate=3, database=tmp_path)
+    return tmp_path
+
+
+def test_dispcor_puts_the_right_wavelengths_on_the_pixels(calibrated, catalogue):
+    """The end of the chain: the lines of the calibrated arc have to land on
+    the catalogue they were identified from."""
+    from harwood.core import spectrum
+    from harwood.core.registry import get_task
+
+    get_task("dispcor").run(input="arc.ms.fits", output="arc.w.fits",
+                            reference="arc.fits", database=calibrated)
+    star = spectrum.read(calibrated / "arc.w.fits")[0]
+
+    assert star.wavelength is not None
+    assert star.wavelength.min() == pytest.approx(
+        CRVAL + (1 - CENTRE) * CDELT, abs=0.05)
+
+    peaks = arc.find_peaks(star.flux, fwidth=4.0, threshold=10.0)
+    found = np.interp([peak.pixel for peak in peaks], star.pixel, star.wavelength)
+    distance = np.abs(found[:, None] - catalogue[None, :]).min(axis=1)
+    assert np.median(distance) < 0.01, "within a hundredth of an Angstrom"
+
+
+def test_dispcor_keeps_the_pixel_column(calibrated):
+    """Nothing is thrown away: the calibration can be checked or redone."""
+    from harwood.core import spectrum
+    from harwood.core.registry import get_task
+
+    get_task("dispcor").run(input="arc.ms.fits", output="arc.w.fits",
+                            reference="arc.fits", database=calibrated)
+    star = spectrum.read(calibrated / "arc.w.fits")[0]
+    np.testing.assert_allclose(star.pixel, np.arange(1.0, NPIXELS + 1.0))
+
+
+def test_dispcor_says_which_pixels_are_extrapolated(calibrated):
+    """A polynomial extrapolates badly, and the ends of a spectrum are usually
+    beyond the outermost line the arc gave."""
+    from harwood.core.registry import get_task
+
+    result = get_task("dispcor").run(input="arc.ms.fits", output="arc.w.fits",
+                                     reference="arc.fits", database=calibrated)
+    assert result.data["extrapolated"] > 0
+    assert any("extrapolated" in warning for warning in result.warnings)
+
+
+def test_linearizing_conserves_the_flux_and_says_what_it_costs(calibrated):
+    from harwood.core import spectrum
+    from harwood.core.registry import get_task
+
+    get_task("dispcor").run(input="arc.ms.fits", output="plain.fits",
+                            reference="arc.fits", database=calibrated)
+    result = get_task("dispcor").run(input="arc.ms.fits", output="even.fits",
+                                     reference="arc.fits", database=calibrated,
+                                     linearize=True)
+
+    plain = spectrum.read(calibrated / "plain.fits")[0]
+    even = spectrum.read(calibrated / "even.fits")[0]
+
+    spacing = np.diff(even.wavelength)
+    assert np.ptp(spacing) / np.median(spacing) < 1e-9, "evenly spaced"
+
+    # Flux per unit wavelength, integrated, is what has to survive.
+    before = np.trapezoid(plain.flux, plain.wavelength)
+    after = np.trapezoid(even.flux, even.wavelength)
+    assert after == pytest.approx(before, rel=0.01)
+
+    assert any("correlated" in warning for warning in result.warnings), \
+        "interpolation has a cost and it should be said"
+
+
+def test_dispcor_without_a_reference_lists_what_there_is(calibrated):
+    from harwood.core.registry import get_task
+
+    with pytest.raises(ValueError, match="solutions for arc"):
+        get_task("dispcor").run(input="arc.ms.fits", output="x.fits",
+                                database=calibrated)

@@ -21,7 +21,7 @@
 #                wontport   deliberately not portable; `note` says why
 #
 # Counts: 610 distinct task names across 52 packages.
-#   available: 18, partial: 9, planned: 328, replaced: 94, wontport: 161
+#   available: 18, partial: 10, planned: 327, replaced: 94, wontport: 161
 #   milestone mvp: 46, later: 295
 #
 # Known delta: the inventory counts 609 distinct names, this file holds 610.
@@ -703,7 +703,8 @@ tasks:
   calibrate: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   deredden: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  dispcor: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  dispcor: {pkg: onedspec, domain: spec-1d, status: partial, harwood: dispcor,
+    note: "applies a solution from identify to an extracted spectrum, with optional flux-conserving linearization; no log scale, no per-aperture references, no refspectra to choose the arc"}
   disptrans: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dopcor: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   ecidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
