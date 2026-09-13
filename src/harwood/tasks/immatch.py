@@ -20,6 +20,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from ..core import advice
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
@@ -435,15 +436,19 @@ class ImAlign(Task[ImAlignParams]):
         warnings = []
         fractional = [p for p in pairs if abs(p[0] % 1) > 0.01 or abs(p[1] % 1) > 0.01]
         if fractional and params.interp != "nearest":
-            warnings.append(
+            warnings.append(advice.warn(
                 f"{len(fractional)} of {len(pairs)} shifts were fractional, so "
                 f"{params.interp} interpolation mixed neighbouring pixels. That "
-                "correlates the noise: the sky looks quieter than it is, and any "
-                "error estimated from it afterwards will be too small. Measure "
-                "photometry on the unaligned frames, or use --interp nearest."
-            )
+                "correlates the noise: the sky looks quieter than it is, and "
+                "any error estimated from it afterwards will be too small.",
+                "measure photometry on the unaligned frames and shift the "
+                "coordinates instead, or use --interp nearest if the alignment "
+                "only has to be good to a pixel."))
         if params.trim:
-            warnings.append("--trim is not built yet; the frames were written whole.")
+            warnings.append(advice.note(
+                "--trim is not built yet; the frames were written whole.",
+                "cut them yourself with a section, as in 'harwood imcopy "
+                "out.fits[20:1000,20:1000] cropped.fits'."))
 
         return TaskResult(outputs=outputs, history=history, steps=self.plan(params),
                           warnings=warnings,

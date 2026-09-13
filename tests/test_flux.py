@@ -385,9 +385,10 @@ def test_an_uncalibrated_spectrum_is_refused_with_the_reason(tmp_path, monkeypat
                            error=np.ones(100))
     spectrum.write(tmp_path / "raw.fits", [ap])
 
-    with pytest.raises(ValueError, match="dispcor"):
+    with pytest.raises(ValueError) as raised:
         get_task("standard").run(input="raw.fits", output=tmp_path / "x",
                                  star_name=STAR, caldir=CALDIR)
+    assert "dispcor" in raised.value.fix
 
 
 def test_no_airmass_explains_what_it_costs(night):
@@ -399,18 +400,24 @@ def test_no_airmass_explains_what_it_costs(night):
     with fits.open(work / "std.ms.fits", mode="update") as hdus:
         del hdus[0].header["AIRMASS"]
 
-    with pytest.raises(ValueError, match="setairmass"):
+    with pytest.raises(ValueError) as raised:
         get_task("standard").run(input="std.ms.fits", output=work / "x",
                                  caldir=CALDIR)
+    assert "setairmass" in raised.value.fix
+    # What it costs, in the message rather than the suggestion: the reader
+    # should see why before they see how.
+    assert "30 per cent" in str(raised.value)
 
 
 def test_calibrate_without_a_solution_says_how_to_make_one(night):
     from harwood.core.registry import get_task
 
     work, _, _ = night
-    with pytest.raises(FileNotFoundError, match="standard on a flux standard"):
+    with pytest.raises(FileNotFoundError) as raised:
         get_task("calibrate").run(input="std.ms.fits", output=work / "x.fits",
                                   sensitivity="nothing", database=work)
+    assert "sensitivity function" in str(raised.value)
+    assert "standard on a flux standard" in raised.value.fix
 
 
 def test_the_standards_file_says_what_it_is(night):

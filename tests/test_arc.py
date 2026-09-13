@@ -246,6 +246,7 @@ def test_linearizing_conserves_the_flux_and_says_what_it_costs(calibrated):
 def test_dispcor_without_a_reference_lists_what_there_is(calibrated):
     from harwood.core.registry import get_task
 
-    with pytest.raises(ValueError, match="solutions for arc"):
+    with pytest.raises(ValueError) as raised:
         get_task("dispcor").run(input="arc.ms.fits", output="x.fits",
                                 database=calibrated)
+    assert "solutions for arc" in raised.value.fix

@@ -725,10 +725,16 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
             # A task's message is plain text and may well contain brackets --
             # "harwood[phot]" is exactly the sort of thing it says -- and rich
             # would read those as markup and eat them.
-            error_console.print(f"[red]{name} stopped:[/red] {escape(str(error))}")
-            advice = extras.hint(error) or extras.hint(error.__cause__ or error)
-            if advice:
-                error_console.print(f"  [yellow]{escape(advice)}[/yellow]")
+            from ..core.advice import Advice
+
+            # The same grammar as a warning: what happened, then what to do,
+            # on its own line. The suggestion may be carried by the error
+            # itself or supplied by the missing-package hint.
+            fix = (getattr(error, "fix", "")
+                   or extras.hint(error) or extras.hint(error.__cause__ or error)
+                   or "")
+            _print_advice([Advice(str(error), fix, "problem")],
+                          where=error_console, label=f"{name} stopped")
             if os.environ.get("HARWOOD_TRACEBACK"):
                 console.print_exception()
             else:
@@ -752,8 +758,7 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         console.print()
         _print_steps(result.steps, True)
         console.print()
-    for warning in result.warnings:
-        console.print(f"  [yellow]note:[/yellow] {warning}")
+    _print_advice(result.warnings)
     for key, value in result.data.items():
         if key == "rows":
             _print_rows(value)
@@ -764,6 +769,53 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     if folder is not None:
         console.print(f"  [dim]in {folder}"
                       + (", with run.yaml" if written else "") + "[/dim]")
+
+
+def _print_advice(items: list[Any], where: Any = None, label: str = "") -> None:
+    """Notices, each with what happened and what to do about it.
+
+    Colour is never the only channel: the level is spelled out in words and
+    carries its own symbol, so the severity survives greyscale, a pipe into a
+    file, a screen reader, and colour blindness. See `core.advice`.
+    """
+    import textwrap
+
+    from rich.markup import escape
+
+    from ..core.advice import as_advice
+
+    where = where or console
+    width = max(46, min(where.width, 100))
+    for item in items:
+        advice = as_advice(item)
+        colour = advice.colour
+
+        # The label occupies the first line, so it has to come out of that
+        # line's budget or the text runs past the edge. textwrap is given an
+        # indent of the same visible width, and the spaces are swapped for the
+        # coloured label afterwards -- markup would otherwise be counted as
+        # characters and every line would wrap short.
+        marker = f"{advice.symbol} {label or advice.level}"
+        head = "  " + marker + "  "
+        body = textwrap.wrap(advice.message, width,
+                             initial_indent=" " * len(head),
+                             subsequent_indent="     ") or [" " * len(head)]
+        where.print(f"  [{colour}]{marker}[/{colour}]  "
+                    + escape(body[0][len(head):]))
+        for line in body[1:]:
+            where.print(escape(line))
+
+        if advice.fix:
+            lead = "     -> try: "
+            for index, line in enumerate(
+                    textwrap.wrap(advice.fix, width,
+                                  initial_indent=" " * len(lead),
+                                  subsequent_indent=" " * len(lead))):
+                if index == 0:
+                    where.print(f"     [{colour}]->[/{colour}] try: "
+                                + escape(line[len(lead):]))
+                else:
+                    where.print(escape(line))
 
 
 def _identity_column(table: Table, name: str, width: int, **options: Any) -> None:

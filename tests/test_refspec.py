@@ -157,13 +157,15 @@ def test_an_exposure_with_no_time_gets_no_arc():
 
 
 def test_arcs_with_no_times_at_all_is_an_error_not_an_empty_answer():
-    with pytest.raises(ValueError, match="UT and EXPTIME"):
+    with pytest.raises(ValueError) as raised:
         refspec.assign([("obj", 2.5)], [("arc", None)], "interp")
+    assert "UT and EXPTIME" in raised.value.fix
 
 
 def test_an_unknown_mode_names_the_ones_that_exist():
-    with pytest.raises(ValueError, match="interp"):
+    with pytest.raises(ValueError) as raised:
         refspec.assign([("obj", 2.5)], NIGHT, "closest")
+    assert "interp" in raised.value.fix
 
 
 def test_the_keywords_round_trip_in_irafs_own_form():
@@ -342,9 +344,10 @@ def test_dispcor_with_no_assignment_says_how_to_get_one(flexing_night):
     from harwood.core.registry import get_task
 
     work, _ = flexing_night
-    with pytest.raises(ValueError, match="refspectra"):
+    with pytest.raises(ValueError) as raised:
         get_task("dispcor").run(input="star.ms.fits", output="w.fits",
                                 database=work)
+    assert "refspectra" in raised.value.fix, "the suggestion names the way out"
 
 
 def test_refspectra_will_not_overwrite_an_assignment_by_accident(flexing_night):
@@ -386,5 +389,6 @@ def test_setairmass_replaces_the_shutter_opening_value_and_says_so(flexing_night
 def test_setairmass_without_a_site_anywhere_says_which_it_knows():
     from harwood.core.registry import get_task
 
-    with pytest.raises(ValueError, match="kpno"):
+    with pytest.raises(ValueError) as raised:
         get_task("setairmass").run(images=["anything.fits"], observatory="narnia")
+    assert "kpno" in raised.value.fix

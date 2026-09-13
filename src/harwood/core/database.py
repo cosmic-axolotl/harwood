@@ -25,6 +25,8 @@ from pathlib import Path
 
 import numpy as np
 
+from . import advice
+
 DATABASE = "database"
 
 
@@ -119,21 +121,28 @@ def write(solution: Solution, workdir: Path | str = ".",
 #: Which task writes each prefix, for the `task:` line and for the error
 #: message that says how to make a missing solution.
 TASKS = {"id": "identify", "sens": "sensfunc", "ap": "aptrace"}
+#: What to do about each kind of missing solution -- the suggestion half of
+#: the notice, so the message can stay a plain statement of what is absent.
 MISSING = {
-    "id": "no dispersion solution for '{name}'. Looked for {path}. Run "
-          "identify on the arc first.",
-    "sens": "no sensitivity function called '{name}'. Looked for {path}. Run "
-            "standard on a flux standard and then sensfunc.",
-    "ap": "no trace for '{name}'. Looked for {path}.",
+    "id": "run identify on the arc first; its solution goes in database/id<arc>.",
+    "sens": "run standard on a flux standard and then sensfunc; the solution "
+            "goes in database/sens<name>.",
+    "ap": "run apall with tracing on; the trace goes in database/ap<image>.",
 }
+
+#: What each kind of solution is called, for the sentence that says it is gone.
+KINDS = {"id": "dispersion solution", "sens": "sensitivity function",
+         "ap": "trace"}
 
 
 def read(image: str, workdir: Path | str = ".", prefix: str = "id") -> Solution:
     """Read a solution, harwood's format or IRAF's."""
     destination = path_for(image, workdir, prefix)
     if not destination.exists():
-        template = MISSING.get(prefix, MISSING["id"])
-        raise FileNotFoundError(template.format(name=image, path=destination))
+        advice.fail(
+            f"no {KINDS.get(prefix, 'solution')} for '{image}'. Looked for "
+            f"{destination}.",
+            MISSING.get(prefix, MISSING["id"]), FileNotFoundError)
     text = destination.read_text(encoding="utf-8", errors="replace")
     if re.search(r"^begin\s", text, re.M):
         return read_iraf(destination)
@@ -146,7 +155,9 @@ def _read_harwood(path: Path, text: str) -> Solution:
     document = yaml.safe_load(text) or {}
     features = document.get("features") or []
     if not features:
-        raise ValueError(f"{path} lists no features")
+        advice.fail(f"{path} lists no features.",
+                    "the file should end with a `features:` block, one line "
+                    "per identified line. Run identify again to rewrite it.")
     rows = np.array([[row[0], row[1], row[2]] for row in features], dtype=float)
     used = np.array([bool(row[3]) if len(row) > 3 else True for row in features])
     fit = document.get("fit", {})
@@ -224,7 +235,9 @@ def read_iraf(path: Path) -> Solution:
         header[keyword] = value
 
     if not features:
-        raise ValueError(f"{path} is an IRAF database file with no features")
+        advice.fail(f"{path} is an IRAF database file with no features.",
+                    "it may be a truncated or partly written solution; run "
+                    "identify in harwood to make a new one.")
 
     return Solution(
         image=str(header.get("image", image)),

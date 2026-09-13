@@ -217,5 +217,7 @@ def test_an_iraf_database_file_can_be_read(tmp_path):
 def test_a_missing_solution_says_what_to_run(tmp_path):
     from harwood.core import database
 
-    with pytest.raises(FileNotFoundError, match="identify"):
+    with pytest.raises(FileNotFoundError) as raised:
         database.read("nothing.fits", tmp_path)
+    assert "dispersion solution" in str(raised.value)
+    assert "identify" in raised.value.fix

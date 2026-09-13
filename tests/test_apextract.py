@@ -210,9 +210,13 @@ def test_apall_end_to_end(frame):
 def test_apall_says_what_to_check_when_it_finds_nothing(frame):
     fits.PrimaryHDU(np.full((100, 40), 5.0, dtype=np.float32)).writeto(
         frame / "blank.fits")
-    with pytest.raises(RuntimeError, match="dispaxis"):
+    with pytest.raises(RuntimeError) as raised:
         get_task("apall").run(input="blank.fits", output="x.ms.fits",
                               threshold=8.0)
+    # The two things actually worth checking, in the suggestion rather than
+    # buried in the sentence that says it failed.
+    assert "--dispaxis" in raised.value.fix
+    assert "--threshold" in raised.value.fix
 
 
 def test_apall_explains_every_step_that_touches_the_data(frame):

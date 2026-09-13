@@ -23,6 +23,7 @@ from pathlib import Path
 
 from pydantic import Field
 
+from ..core import advice
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
@@ -110,47 +111,52 @@ class StandardTask(Task[StandardParams]):
 
         found = spectrum.read(params.input, number=params.aperture)
         if not found:
-            raise ValueError(
+            advice.fail(
                 f"'{params.input}' has no aperture {params.aperture}; it holds "
-                f"{spectrum.count(params.input)}.")
+                f"{spectrum.count(params.input)}.",
+                "use --aperture with a number in that range.")
         aperture = found[0]
         if aperture.wavelength is None or not any(aperture.wavelength):
-            raise ValueError(
+            advice.fail(
                 f"'{params.input}' is still in pixels. A flux standard has to "
                 "be wavelength-calibrated first, or there is no way to know "
-                "which band each count belongs to -- run dispcor on it.")
+                "which band each count belongs to.",
+                "run dispcor on it. That needs a dispersion solution, so "
+                "identify on an arc comes before it.")
 
         header = fits.getheader(params.input)
         name = params.star_name or str(header.get("OBJECT", "")).strip()
         if not name:
-            raise ValueError(
-                "--star-name says which standard this is; the header has no "
-                "OBJECT keyword to fall back on.")
+            advice.fail(
+                "the header has no OBJECT keyword, so the standard cannot be "
+                "named from the file.",
+                "give --star-name. 'harwood standards <caldir>' lists the "
+                "names each calibration directory uses.")
 
         path = flux.find_star(name, params.caldir)
         if path is None:
-            raise ValueError(_no_such_star(name, params.caldir))
+            advice.fail(*_no_such_star(name, params.caldir))
 
         airmass = params.airmass or _header_number(header, "AIRMASS")
         exptime = params.exptime or _header_number(header, "EXPTIME", "ITIME")
         if airmass is None:
-            raise ValueError(
-                "no airmass: give --airmass, or run setairmass to put the "
-                "effective one in the header. Without it the extinction "
-                "cannot be removed, and a standard observed at 1.8 airmasses "
-                "looks like an instrument 30 per cent less sensitive than it "
-                "is.")
+            advice.fail(
+                "no airmass. Without it the extinction cannot be removed, and "
+                "a standard observed at 1.8 airmasses looks like an instrument "
+                "30 per cent less sensitive than it is.",
+                "give --airmass, or run setairmass to put the effective one in "
+                "the header.")
         if exptime is None:
-            raise ValueError(
-                "no exposure time: give --exptime, or put EXPTIME in the "
-                "header. Counts per second is the only form that can be "
-                "compared between exposures.")
+            advice.fail(
+                "no exposure time. Counts per second is the only form that can "
+                "be compared between exposures.",
+                "give --exptime, or put EXPTIME in the header with hedit.")
 
         bands = flux.read_bands(path)
         measured = flux.measure(aperture, bands, exptime, airmass,
                                 star=name, edge=params.edge)
         if not measured:
-            raise ValueError(_no_overlap(aperture, bands, name, path))
+            advice.fail(*_no_overlap(aperture, bands, name, path))
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -185,17 +191,22 @@ class StandardTask(Task[StandardParams]):
 
         warnings = []
         if existing and existing.extinction_name != params.extinction:
-            warnings.append(
+            warnings.append(advice.problem(
                 f"the file already uses the extinction curve "
                 f"'{existing.extinction_name}' and this run gives "
                 f"'{params.extinction}'. sensfunc applies one curve to every "
-                "band, so mixing sites in one file is a mistake it cannot see.")
+                "band, so mixing sites in one file is a mistake it cannot see.",
+                f"start a separate standards file for the other site, or re-run "
+                f"with --extinction {existing.extinction_name} if that is the "
+                "right curve for all of them."))
         negative = [item for item in measured if item.counts <= 0]
         if negative:
-            warnings.append(
+            warnings.append(advice.note(
                 f"{len(negative)} bands have no positive counts and will drop "
                 "out of the fit. That is usually the ends of the spectrum, "
-                "where the response has fallen to nothing.")
+                "where the response has fallen to nothing.",
+                "nothing, if they are at the ends. If they are not, trim the "
+                "ends with --edge, in Angstroms, and look at the extraction."))
 
         return TaskResult(
             outputs=[Path(params.output)],
@@ -285,20 +296,25 @@ class SensFunc(Task[SensFuncParams]):
         from ..core import database, flux, icfit, stdfile
 
         if not Path(params.standards).exists():
-            raise ValueError(
-                f"'{params.standards}' does not exist. It is written by the "
-                "standard task: run that on a flux standard first.")
+            advice.fail(
+                f"'{params.standards}' does not exist.",
+                "it is written by the standard task; run that on a flux "
+                "standard first.")
         standard = stdfile.read(params.standards)
         if len(standard) < 2:
-            raise ValueError(
+            advice.fail(
                 f"'{params.standards}' holds {len(standard)} bands, which is "
-                "not enough to fit anything.")
+                "not enough to fit anything.",
+                "run standard again -- on another star, or with a smaller "
+                "--edge if the spectrum was being trimmed too hard.")
 
         name = params.extinction or standard.extinction_name
         if not name:
-            raise ValueError(
+            advice.fail(
                 "no extinction curve: the standards file does not name one and "
-                "--extinction was not given.")
+                "--extinction was not given.",
+                "give --extinction onedstds$kpnoextinct.dat, or the curve for "
+                "your own site.")
         curve = flux.read_extinction(name)
 
         spec = icfit.FitSpec(
@@ -314,7 +330,9 @@ class SensFunc(Task[SensFuncParams]):
                             title=f"sensfunc · {params.sensitivity}",
                             xlabel="wavelength", ylabel="sensitivity (mag)")
         if fit.model is None:
-            raise RuntimeError(f"the response could not be fitted: {fit.message}")
+            advice.fail(f"the response could not be fitted: {fit.message}",
+                        "lower --order, or look at the bands with "
+                        "--interactive.", RuntimeError)
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -352,16 +370,22 @@ class SensFunc(Task[SensFuncParams]):
         # error, and it is worth saying in per cent because magnitudes hide
         # how large it is.
         percent = 100.0 * (10.0 ** (0.4 * fit.rms) - 1.0)
-        warnings.append(
+        warnings.append(advice.note(
             f"the response scatters by {fit.rms:.3f} mag about the fit, which "
             f"is {percent:.1f} per cent in flux. That is the systematic floor "
             "on every spectrum calibrated with this solution -- it is not "
-            "reduced by observing the object for longer.")
+            "reduced by observing the object for longer.",
+            f"quote {percent:.1f} per cent as the systematic uncertainty on "
+            "every flux from this solution. To make it smaller, observe more "
+            "standards, not longer ones."))
         if kept < 0.7 * len(values):
-            warnings.append(
+            warnings.append(advice.warn(
                 f"only {kept} of {len(values)} bands survived rejection. Either "
                 "the order is too low to follow the real response, or some "
-                "bands are contaminated -- look at the fit with --interactive.")
+                "bands are contaminated.",
+                "look at the fit with --interactive. If the curve misses the "
+                "shape, raise --order a little; if a few bands sit far off on "
+                "their own, they are the problem and not the order."))
 
         return TaskResult(
             outputs=[destination],
@@ -450,24 +474,29 @@ class Calibrate(Task[CalibrateParams]):
 
         apertures = spectrum.read(params.input)
         if not apertures:
-            raise ValueError(f"'{params.input}' holds no extracted spectra.")
+            advice.fail(f"'{params.input}' holds no extracted spectra.",
+                        "run apall on the frame first; calibrate works on an "
+                        "extracted spectrum, not on a 2-D image.")
         if apertures[0].wavelength is None or not any(apertures[0].wavelength):
-            raise ValueError(
+            advice.fail(
                 f"'{params.input}' is still in pixels. Flux calibration needs "
                 "wavelengths -- both the sensitivity function and the "
-                "extinction are functions of wavelength. Run dispcor first.")
+                "extinction are functions of wavelength.",
+                "run dispcor on it first.")
 
         header = fits.getheader(params.input)
         airmass = params.airmass or _header_number(header, "AIRMASS")
         exptime = params.exptime or _header_number(header, "EXPTIME", "ITIME")
         if exptime is None:
-            raise ValueError(
-                "no exposure time: give --exptime, or put EXPTIME in the header.")
+            advice.fail(
+                "no exposure time, and a flux per second cannot be computed "
+                "without one.",
+                "give --exptime, or put EXPTIME in the header with hedit.")
         if airmass is None and params.extinct:
-            raise ValueError(
-                "no airmass, and the extinction correction needs one. Give "
-                "--airmass, run setairmass, or turn the correction off with "
-                "--no-extinct -- but then the flux is only right for a star at "
+            advice.fail(
+                "no airmass, and the extinction correction needs one.",
+                "give --airmass, or run setairmass. --no-extinct turns the "
+                "correction off, but then the flux is only right for a star at "
                 "the zenith.")
 
         steps = self.plan(params)
@@ -485,9 +514,11 @@ class Calibrate(Task[CalibrateParams]):
                                icfit.FitSpec(function=solution.function,
                                              order=solution.order))
             if fitted.model is None:
-                raise RuntimeError(
+                advice.fail(
                     f"the solution in database/sens{params.sensitivity} could "
-                    f"not be refitted: {fitted.message}")
+                    f"not be refitted: {fitted.message}",
+                    "run sensfunc again; the stored bands may be too few for "
+                    "the order the file records.", RuntimeError)
             response = fitted
             covered = (float(grid.min()), float(grid.max()))
         else:
@@ -538,17 +569,22 @@ class Calibrate(Task[CalibrateParams]):
         if params.flux and covered is not None:
             outside = int((wave < covered[0]).sum() + (wave > covered[1]).sum())
             if outside:
-                warnings.append(
+                warnings.append(advice.warn(
                     f"{outside} of {wave.size} pixels fall outside the "
                     f"{covered[0]:.0f} to {covered[1]:.0f} A the standards "
                     "covered. Their calibration is extrapolated, and a "
                     "response extrapolated past its last band goes wrong "
-                    "quickly.")
+                    "quickly.",
+                    f"trust the spectrum only between {covered[0]:.0f} and "
+                    f"{covered[1]:.0f} A, or run standard on a calibration star "
+                    "whose table reaches further."))
         if not params.flux:
-            warnings.append(
+            warnings.append(advice.note(
                 "--no-flux was given, so this spectrum is extinction-corrected "
                 "counts, not flux. It is comparable between exposures of the "
-                "same night and with nothing else.")
+                "same night and with nothing else.",
+                "run standard and sensfunc on a flux standard, then drop "
+                "--no-flux, to get a physical flux."))
 
         destination = params.output or output.named_for(params.input, ".f.fits")
         extra = fits.Header()
@@ -590,24 +626,26 @@ def _header_number(header, *keywords) -> float | None:
     return None
 
 
-def _no_such_star(name: str, caldir: str) -> str:
+def _no_such_star(name: str, caldir: str) -> tuple[str, str]:
     """A missing standard is usually a spelling or the wrong directory."""
     from ..core import flux
 
     elsewhere = flux.where_is(name)
     if elsewhere:
-        return (f"'{name}' is not in {caldir}, but it is in "
-                f"{', '.join(folder for folder, _ in elsewhere)}. Give "
-                f"--caldir {elsewhere[0][0]}.")
+        return (f"'{name}' is not in {caldir}, though it is in "
+                f"{', '.join(folder for folder, _ in elsewhere)}.",
+                f"give --caldir {elsewhere[0][0]}. 'harwood standards --star "
+                f"{name}' shows the band widths each one uses, which is the "
+                "thing to choose between.")
     known = flux.stars(caldir)
     close = [item for item in known if name.lower()[:3] in item][:6]
-    return (f"no standard called '{name}' in {caldir}."
-            + (f" Did you mean {', '.join(close)}?" if close else
-               f" It holds {len(known)} stars; 'harwood standards {caldir}' "
-               "lists them."))
+    return (f"no standard called '{name}' in {caldir}.",
+            (f"did you mean {', '.join(close)}?" if close else
+             f"{caldir} holds {len(known)} stars; 'harwood standards {caldir}' "
+             "lists them."))
 
 
-def _no_overlap(aperture, bands, name: str, path) -> str:
+def _no_overlap(aperture, bands, name: str, path) -> tuple[str, str]:
     """The spectrum and the standard's table do not meet."""
     return (
         f"none of {name}'s calibration bands falls inside the spectrum. The "
@@ -615,5 +653,7 @@ def _no_overlap(aperture, bands, name: str, path) -> str:
         f"A and the spectrum covers {min(aperture.wavelength):.0f} to "
         f"{max(aperture.wavelength):.0f} A. A band has to be wholly inside the "
         "spectrum to be measured, since a partly covered band looks like a "
-        "fainter star."
-    )
+        "fainter star.",
+        "check the dispersion solution put the spectrum where you expect, then "
+        f"pick a calibration directory whose bands reach it -- 'harwood "
+        f"standards --star {name}' shows the coverage of each.")

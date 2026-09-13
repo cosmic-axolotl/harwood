@@ -188,8 +188,9 @@ def test_observatory_lists_and_looks_up():
 
 
 def test_an_unknown_site_lists_the_ones_that_exist():
-    with pytest.raises(ValueError, match="--latitude"):
+    with pytest.raises(ValueError) as raised:
         get_task("observatory").run(name="narnia")
+    assert "kpno" in raised.value.fix and "--latitude" in raised.value.fix
 
 
 # --------------------------------------------------------- hedit and imgets
@@ -224,7 +225,9 @@ def test_hedit_will_not_invent_a_keyword_without_being_asked(frame):
     result = get_task("hedit").run(images=["sp.fits"], fields=["DISPAXSI"],
                                    value="2")
     assert "DISPAXSI" not in fits.getheader(frame / "sp.fits")
-    assert any("--add creates them" in warning for warning in result.warnings)
+    assert any("--add" in warning for warning in result.warnings)
+    # The suggestion is a field of its own now, not buried in the prose.
+    assert result.warnings[0].fix and result.warnings[0].level == "warning"
 
 
 def test_hedit_can_show_without_touching_anything(frame):

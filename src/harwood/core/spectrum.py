@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from . import advice
+
 EXTNAME = "SPEC"
 
 #: Columns a spectrum may carry, in the order they are written.
@@ -173,14 +175,15 @@ def read(path: Path | str, number: int | None = None) -> list[Aperture]:
         # the message: a file with no spectra in it is a wrong file, and a file
         # without *that* aperture is a wrong number.
         if present:
-            raise ValueError(
+            advice.fail(
                 f"'{path}' has no aperture {number}. It holds "
-                + ", ".join(str(index) for index in sorted(present)) + "."
-            )
-        raise ValueError(
-            f"'{path}' holds no extracted spectra. harwood writes one table per "
-            f"aperture, named {EXTNAME}; this file has none."
-        )
+                + ", ".join(str(index) for index in sorted(present)) + ".",
+                "use one of those numbers.")
+        advice.fail(
+            f"'{path}' holds no extracted spectra. harwood writes one table "
+            f"per aperture, named {EXTNAME}; this file has none.",
+            "run apall on the frame to extract it. If this file came from "
+            "IRAF as multispec, it needs converting first.")
     return found
 
 

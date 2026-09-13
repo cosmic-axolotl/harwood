@@ -23,6 +23,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from ..core import advice
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
@@ -203,10 +204,12 @@ class Identify(Task[IdentifyParams]):
         peaks = arc.find_peaks(flux, fwidth=params.fwidth,
                                threshold=params.threshold, minsep=params.minsep)
         if len(peaks) < 4:
-            raise RuntimeError(
-                f"only {len(peaks)} arc lines found. Lower --threshold (now "
-                f"{params.threshold}) or check --fwidth (now {params.fwidth})."
-            )
+            advice.fail(
+                f"only {len(peaks)} arc lines found, which is not enough to "
+                "fit a dispersion.",
+                f"lower --threshold (now {params.threshold}), or check --fwidth "
+                f"(now {params.fwidth}) against how wide the lines really are.",
+                RuntimeError)
         catalogue, _ = arc.read_linelist(params.coordlist)
 
         spec = icfit.FitSpec(function=params.function, order=params.order,
@@ -224,12 +227,13 @@ class Identify(Task[IdentifyParams]):
         else:
             found = self._match(params, peaks, catalogue, npixels, warnings)
             if not found:
-                raise RuntimeError(
-                    "no dispersion solution could be found automatically. Give "
-                    "--crval and --cdelt if you know roughly where the spectrum "
-                    "sits, or use --interactive and mark a few lines by hand -- "
-                    "which is what IRAF's identify asks for, and for this reason."
-                )
+                advice.fail(
+                    "no dispersion solution could be found automatically.",
+                    "give --crval and --cdelt if you know roughly where the "
+                    "spectrum sits -- one per cent is close enough -- or use "
+                    "--interactive and mark four or five lines by hand, which "
+                    "is what IRAF's identify asks for and for this reason.",
+                    RuntimeError)
             pixel, wavelength = found.pixel, found.wavelength
             fit = icfit.fit(pixel, wavelength, spec)
             # IRAF's `l`: once a solution exists, place the rest of the list.
@@ -241,7 +245,9 @@ class Identify(Task[IdentifyParams]):
                     fit = icfit.fit(pixel, wavelength, spec)
 
         if fit.model is None:
-            raise RuntimeError(f"the dispersion fit failed: {fit.message}")
+            advice.fail(f"the dispersion fit failed: {fit.message}",
+                        "lower --order, or raise --niterate so outliers are "
+                        "rejected before they bend the curve.", RuntimeError)
 
         used = fit.mask & ~fit.deleted
         scale = float(np.median(np.abs(np.gradient(fit(np.arange(1.0, npixels + 1.0))))))
@@ -254,19 +260,23 @@ class Identify(Task[IdentifyParams]):
         # dispcor a wavelength scale that is quietly wrong for every spectrum
         # taken that night, which is the failure this project exists to prevent.
         if rms_pixels > params.maxrms and not params.interactive:
-            raise RuntimeError(
+            advice.fail(
                 f"the solution scatters by {rms_pixels:.2f} px ({fit.rms:.4f} "
-                f"{params.units}), well beyond the {params.maxrms} px a line centre "
-                f"is uncertain by, so the {int(used.sum())} lines are probably "
-                "matched to the wrong catalogue entries. Nothing was written. "
-                "Sharpen --crval and --cdelt, or use --interactive and judge it "
-                "yourself; --maxrms lifts this if you have a reason."
-            )
+                f"{params.units}), well beyond the {params.maxrms} px a line "
+                f"centre is uncertain by, so the {int(used.sum())} lines are "
+                "probably matched to the wrong catalogue entries. Nothing was "
+                "written.",
+                "sharpen --crval and --cdelt, or use --interactive and mark a "
+                "few lines by hand. --maxrms lifts this limit if you have a "
+                "reason to accept it.", RuntimeError)
         if rms_pixels > 0.3:
-            warnings.append(
-                f"the solution scatters by {rms_pixels:.2f} px, which is looser than "
-                "an arc line centre. Check the identified lines before relying on it."
-            )
+            warnings.append(advice.warn(
+                f"the solution scatters by {rms_pixels:.2f} px, which is looser "
+                "than an arc line centre can be measured. Something is matched "
+                "to the wrong catalogue entry.",
+                "look at the identifications with --interactive and delete the "
+                "ones far off the curve; a single line matched to its "
+                "neighbour will do this."))
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -320,11 +330,14 @@ class Identify(Task[IdentifyParams]):
                 npixels=npixels, crval_search=params.crval_search,
                 cdelt_search=params.cdelt_search, tolerance=params.match)
 
-        warnings.append(
-            "no --crval or --cdelt given, so the dispersion was searched for blind. "
-            "Against a dense line list that is not reliable: check the reported "
-            "range and rms before trusting the solution."
-        )
+        warnings.append(advice.warn(
+            "no --crval or --cdelt given, so the dispersion was searched for "
+            "blind. Against a dense line list that is not reliable: several "
+            "quite different dispersions can fit a few dozen lines equally "
+            "well.",
+            "give --crval and --cdelt if you know roughly where the spectrum "
+            "sits -- to about one per cent is enough -- or use --interactive "
+            "and mark four or five lines by hand, spread across the range."))
         return arc.search_dispersion(
             peaks, catalogue,
             window=(float(catalogue.min()), float(catalogue.max())),
@@ -450,10 +463,12 @@ class DispCor(Task[DispCorParams]):
                                icfit.FitSpec(function=solution.function,
                                              order=solution.order))
             if fitted.model is None:
-                raise RuntimeError(
+                advice.fail(
                     f"the solution in database/id{Path(name).stem} could not be "
-                    f"refitted: {fitted.message}"
-                )
+                    f"refitted: {fitted.message}",
+                    "open the file and look at how many features it kept; a "
+                    "solution with too few surviving lines for its order cannot "
+                    "be rebuilt. Re-run identify on that arc.", RuntimeError)
             fits_.append((fitted, pixel))
 
         solution = solutions[0]
@@ -508,10 +523,12 @@ class DispCor(Task[DispCorParams]):
                 "points": len(first.wavelength),
                 "step": f"{float(spacing[0]):.5f} {solution.units}",
             }
-            warnings.append(
-                "Linearizing interpolates, so neighbouring pixels are now "
+            warnings.append(advice.note(
+                "linearizing interpolates, so neighbouring pixels are now "
                 "correlated: a spectrum resampled twice is smoother than the "
-                "data, and errors estimated from its scatter are too small.")
+                "data, and errors estimated from its scatter are too small.",
+                "leave --linearize off unless something downstream needs an "
+                "even grid. The wavelength column works without it."))
 
         # The solution was fitted over the arc's pixels; using it far outside
         # that range is extrapolation, and it is the quiet kind of wrong.
@@ -519,12 +536,14 @@ class DispCor(Task[DispCorParams]):
         outside = int((np.asarray(first.pixel) < covered[0]).sum()
                       + (np.asarray(first.pixel) > covered[1]).sum())
         if outside:
-            warnings.append(
+            warnings.append(advice.warn(
                 f"{outside} of {len(first.pixel)} pixels fall outside the range "
                 f"the arc lines covered ({covered[0]:.0f} to {covered[1]:.0f}); "
                 "their wavelengths are extrapolated, and a polynomial "
-                "extrapolates badly."
-            )
+                "extrapolates badly.",
+                "identify arc lines nearer the ends of the frame, or use only "
+                f"pixels {covered[0]:.0f} to {covered[1]:.0f} of this "
+                "spectrum."))
 
         if params.check:
             named, unnamed = _recognise(first)
@@ -534,19 +553,25 @@ class DispCor(Task[DispCorParams]):
                 "landing on": ", ".join(named[:5]) or "nothing recognisable",
             }
             if named and len(named) < max(2, (len(named) + len(unnamed)) // 4):
-                warnings.append(
+                warnings.append(advice.warn(
                     f"only {len(named)} of the {len(named) + len(unnamed)} "
                     "strongest features land on a catalogued line. That is "
                     "weak confirmation: either the spectrum is of something "
                     "whose lines are not in the catalogue, or the solution is "
-                    "in the wrong place.")
+                    "in the wrong place.",
+                    "run lineid on the result and look at what it names. If "
+                    "nothing recognisable appears, redo identify -- the arc's "
+                    "rms will not tell you this."))
             elif not named:
-                warnings.append(
+                warnings.append(advice.problem(
                     "none of the strongest features lands within an Angstrom "
                     "of a catalogued line. The arc's rms says the fit "
                     "reproduces the lines it was given -- a wrong solution can "
-                    "do that too -- so this is worth looking at before the "
-                    "spectrum is used.")
+                    "do that too -- so the solution is very likely in the "
+                    "wrong place.",
+                    "redo identify with --interactive and mark lines by hand. "
+                    "Check the wavelength range against what the grating was "
+                    "set to before trusting anything downstream."))
 
         destination = params.output or output.named_for(params.input, ".w.fits")
         spectrum.write(destination, apertures, source=str(params.input))
@@ -620,14 +645,14 @@ def _references(params: DispCorParams) -> tuple[list[str], list[float]]:
 
     known = [path.name[2:] for path in listing(params.database)
              if path.name.startswith("id")]
-    raise ValueError(
+    advice.fail(
         f"'{params.input}' does not say which arc calibrates it, and there is "
-        "no way to guess. Either name one with --reference, or run refspectra "
-        "over the night to assign them by time. "
+        "no way to guess which arc belongs to which exposure.",
+        "name one with --reference, or run refspectra over the night to assign "
+        "them by time. "
         + (f"This reduction has solutions for {', '.join(known)}."
-           if known else "This reduction has none yet: run identify on an arc "
-                         "first.")
-    )
+           if known else "This reduction has none yet, so run identify on an "
+                         "arc first."))
 
 
 def _linearize(aperture, npoints: int | None) -> None:
@@ -756,15 +781,18 @@ class RefSpectra(Task[RefSpectraParams]):
 
         targets = [spec.path for spec in images.expand(params.input)]
         if not targets:
-            raise ValueError(f"nothing matched {', '.join(params.input)}.")
+            advice.fail(f"nothing matched {', '.join(params.input)}.",
+                        "check the path and the pattern with 'harwood sections "
+                        f"{params.input[0]}', which shows what a template "
+                        "expands to.")
 
         names = params.references or _solutions(params.database)
         if not names:
-            raise ValueError(
+            advice.fail(
                 "there are no arcs to assign: --references names them, and "
-                f"database/ under {params.database} holds no solutions yet. Run "
-                "identify on an arc first."
-            )
+                f"database/ under {params.database} holds no solutions yet.",
+                "run identify on an arc first, or name the arc frames directly "
+                "with --references.")
 
         references, unreadable = [], []
         for name in names:
@@ -794,10 +822,12 @@ class RefSpectra(Task[RefSpectraParams]):
 
         warnings = []
         if unreadable:
-            warnings.append(
+            warnings.append(advice.warn(
                 f"no time could be read for {', '.join(unreadable)}: the header "
                 f"has neither {params.sort} nor UT and EXPTIME, so those arcs "
-                "took no part in the assignment.")
+                "took no part in the assignment.",
+                "run setairmass on the arcs to put UTMIDDLE in their headers, "
+                "or sort on a keyword they do have with --sort."))
 
         rows, written = [], []
         for assignment in assignments:
@@ -809,8 +839,11 @@ class RefSpectra(Task[RefSpectraParams]):
                 "why": assignment.reason,
             })
             if not assignment.references:
-                warnings.append(f"{Path(assignment.image).name}: no arc assigned "
-                                f"-- {assignment.reason}.")
+                warnings.append(advice.warn(
+                f"{Path(assignment.image).name}: no arc assigned "
+                f"-- {assignment.reason}.",
+                "check the frame has UT and EXPTIME in its header, and that "
+                "--references names arcs from the same night."))
                 continue
             if not params.assign:
                 continue
@@ -818,9 +851,11 @@ class RefSpectra(Task[RefSpectraParams]):
                 header = hdus[0].header
                 existing, _ = refspec.read_keywords(header)
                 if existing and not params.override:
-                    warnings.append(
+                    warnings.append(advice.note(
                         f"{Path(assignment.image).name} already names "
-                        f"{', '.join(existing)}; --override replaces it.")
+                        f"{', '.join(existing)}, so it was left alone.",
+                        "add --override to replace the assignment, or leave it "
+                        "if the one already there is right."))
                     continue
                 refspec.write_keywords(header, assignment)
                 brief = refspec.Assignment(
@@ -1010,23 +1045,25 @@ class LineId(Task[LineIdParams]):
 
         found = spectrum.read(params.input, number=params.aperture)
         if not found:
-            raise ValueError(
+            advice.fail(
                 f"'{params.input}' has no aperture {params.aperture}; it holds "
-                f"{spectrum.count(params.input)}."
-            )
+                f"{spectrum.count(params.input)}.",
+                "use --aperture with a number in that range, or run wspectext "
+                "to see what the file contains.")
         aperture = found[0]
         if aperture.wavelength is None or not np.any(aperture.wavelength):
-            raise ValueError(
+            advice.fail(
                 f"'{params.input}' has no wavelengths yet -- it is still in "
-                "pixels. Run dispcor on it first; naming a line needs to know "
-                "what wavelength it is at."
-            )
+                "pixels, and naming a line needs to know what wavelength it is "
+                "at.",
+                "run dispcor on it first. That needs a dispersion solution, so "
+                "identify on an arc comes before it.")
 
         if params.origin and params.origin not in species.ORIGINS:
-            raise ValueError(
-                f"no origin called '{params.origin}'. They are "
-                f"{', '.join(species.ORIGINS)}."
-            )
+            advice.fail(
+                f"no origin called '{params.origin}'.",
+                f"use one of {', '.join(species.ORIGINS)}, or leave --origin "
+                "out to consider every kind of line.")
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -1101,35 +1138,43 @@ class LineId(Task[LineIdParams]):
             # over hundreds of km/s are a set of misidentifications wearing a
             # median. Which of the two this is has to be said.
             if scatter > 3.0 * max(abs(median), 1.0):
-                warnings.append(
+                warnings.append(advice.problem(
                     f"the identified lines do not agree on a shift: "
-                    f"{median:+.1f} km/s with a scatter of {scatter:.1f}. That "
-                    "is a sign the identifications are wrong rather than that "
-                    "the object is moving -- try a smaller --tolerance or a "
-                    "higher --prominence.")
+                    f"{median:+.1f} km/s with a scatter of {scatter:.1f}. Lines "
+                    "that are identified correctly agree on one velocity; this "
+                    "scatter says several of them are wrong.",
+                    "narrow --tolerance, or raise --prominence to 2 so only "
+                    "the lines that name themselves are considered."))
             elif abs(median) > 2.0 * scatter and abs(median) > 20.0:
-                warnings.append(
+                warnings.append(advice.note(
                     f"the lines agree that everything is shifted by "
-                    f"{median:+.1f} km/s (scatter {scatter:.1f}). Re-running "
-                    f"with --velocity {median:.0f} would centre the "
-                    "identifications; the shift itself is the object's radial "
-                    "velocity, give or take the wavelength calibration.")
+                    f"{median:+.1f} km/s (scatter {scatter:.1f}). The shift is "
+                    "the object's radial velocity, give or take the wavelength "
+                    "calibration.",
+                    f"run it again with --velocity {median:.0f} to centre the "
+                    "identifications."))
 
         unidentified = len(matches) - len(named)
         if unidentified:
-            warnings.append(
+            warnings.append(advice.note(
                 f"{unidentified} of {len(matches)} features are not in the "
                 "catalogue, which holds only the lines that name themselves. "
-                "Unidentified here means unnamed, not unreal.")
+                "Unidentified here means unnamed, not unreal.",
+                "nothing, usually. If you expected one of them to be named, "
+                "widen --tolerance or lower --prominence, and check "
+                "'harwood lines --range' for what is catalogued there."))
 
         ambiguous = [match for match in named if not match.confident]
         if ambiguous:
             example = ambiguous[0]
-            warnings.append(
+            warnings.append(advice.note(
                 f"{len(ambiguous)} identifications are ambiguous -- at "
                 f"{example.wavelength:.2f} A the catalogue offers "
                 + " and ".join(item.line.name for item in example.candidates[:2])
-                + ". Wavelength alone cannot choose between them.")
+                + ". Wavelength alone cannot choose between them.",
+                "narrow it with --origin stellar, nebular, interstellar or "
+                "telluric. What you pointed the telescope at is exactly the "
+                "information the spectrum does not contain."))
 
         destination = params.output or output.named_for(params.input, ".lines.csv")
         _write_lines(destination, rows, params, aperture)

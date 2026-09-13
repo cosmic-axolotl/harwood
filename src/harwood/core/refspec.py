@@ -28,6 +28,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import advice
+
 MODES = ("nearest", "preceding", "following", "interp", "average", "match")
 
 
@@ -60,18 +62,19 @@ def assign(images: list[tuple[str, float | None]],
     say, and such an exposure gets no assignment rather than a guess.
     """
     if select not in MODES:
-        raise ValueError(
-            f"no selection mode called '{select}'. Choose one of "
-            f"{', '.join(MODES)}."
-        )
+        advice.fail(
+            f"no selection mode called '{select}'.",
+            f"choose one of {', '.join(MODES)}. 'interp' is the one that uses "
+            "both arcs of the night.")
 
     usable = sorted(((name, when) for name, when in references if when is not None),
                     key=lambda item: item[1])
     if not usable:
-        raise ValueError(
-            "none of the reference spectra has a usable time, so they cannot be "
-            "put in order. Check that the headers carry UT and EXPTIME."
-        )
+        advice.fail(
+            "none of the reference spectra has a usable time, so they cannot "
+            "be put in order.",
+            "run setairmass on the arcs to put UTMIDDLE in their headers, or "
+            "check they carry UT and EXPTIME.")
 
     assignments = []
     for name, when in images:

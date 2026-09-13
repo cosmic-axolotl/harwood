@@ -13,6 +13,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from ..core import advice
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult, Template
 
@@ -799,15 +800,17 @@ class HEdit(Task[HEditParams]):
         by_action["edit"].measured = actions
 
         if missing and not params.add and not params.delete and params.value:
-            warnings.append(
+            warnings.append(advice.warn(
                 f"{missing} of {len(rows)} were not there and were left alone. "
-                "--add creates them; without it hedit will not invent a "
-                "keyword, because a typo in a keyword name would otherwise "
-                "silently add a card nobody reads.")
+                "hedit will not invent a keyword, because a typo in a keyword "
+                "name would otherwise silently add a card nobody reads.",
+                "add --add if you meant to create them. If you did not, check "
+                "the spelling against 'harwood imheader <image> --long'."))
         if not params.update:
-            warnings.append(
+            warnings.append(advice.note(
                 "--no-update was given, so nothing was written. The table "
-                "above is what would have happened.")
+                "above is what would have happened.",
+                "run it again without --no-update to apply it."))
 
         return TaskResult(outputs=changed, steps=steps, warnings=warnings,
                           data={"rows": rows}, history=[])

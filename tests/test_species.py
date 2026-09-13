@@ -232,8 +232,9 @@ def test_lineid_refuses_a_spectrum_that_is_still_in_pixels(tmp_path, monkeypatch
                            error=np.ones(100))
     spectrum.write(tmp_path / "raw.fits", [ap])
 
-    with pytest.raises(ValueError, match="dispcor"):
+    with pytest.raises(ValueError) as raised:
         get_task("lineid").run(input="raw.fits", output=tmp_path / "x.csv")
+    assert "dispcor" in raised.value.fix
 
 
 def test_lineid_says_when_the_object_is_shifted(calibrated_star):
@@ -286,9 +287,10 @@ def test_an_unknown_origin_says_which_ones_exist(calibrated_star):
     from harwood.core.registry import get_task
 
     work, _ = calibrated_star
-    with pytest.raises(ValueError, match="telluric"):
+    with pytest.raises(ValueError) as raised:
         get_task("lineid").run(input="star.fits", output=work / "x.csv",
                                origin="galactic")
+    assert "telluric" in raised.value.fix
 
 
 # ------------------------------------------- naming as a check on dispcor

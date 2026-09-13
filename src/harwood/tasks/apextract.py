@@ -19,6 +19,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from ..core import advice
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
@@ -204,8 +205,11 @@ class ApAll(Task[ApAllParams]):
 
         data, header = images.read(params.input)
         if data.ndim != 2:
-            raise ValueError(f"'{params.input}' is {data.ndim}-dimensional; apall "
-                             "extracts spectra from a 2-D frame")
+            advice.fail(
+                f"'{params.input}' is {data.ndim}-dimensional; apall extracts "
+                "spectra from a 2-D frame.",
+                "give a single frame, or a section of one, as in "
+                "'name.fits[*,*,1]'.")
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -220,11 +224,12 @@ class ApAll(Task[ApAllParams]):
         peaks = apextract.find(spatial, nfind=params.nfind, minsep=params.minsep,
                                threshold=params.threshold)
         if not peaks:
-            raise RuntimeError(
-                f"no spectrum found in {params.input}. Lower --threshold (now "
-                f"{params.threshold}), or check --dispaxis: with the axes the "
-                "wrong way round the profile is the spectrum, not the slit."
-            )
+            advice.fail(
+                f"no spectrum found in {params.input}.",
+                f"lower --threshold (now {params.threshold}), or check "
+                "--dispaxis: with the axes the wrong way round the profile is "
+                "the spectrum rather than the slit, and nothing stands out.",
+                RuntimeError)
         by_action["find"].measured = {
             "found": len(peaks),
             "at": ", ".join(f"{peak['centre']:.2f}" for peak in peaks[:6]),
@@ -241,9 +246,11 @@ class ApAll(Task[ApAllParams]):
             found, band = run_apedit(spatial, found, band, params.ylevel,
                                      title=f"apedit · {params.input}")
             if not found:
-                raise RuntimeError(
-                    "every aperture was deleted, so there is nothing to extract."
-                )
+                advice.fail(
+                    "every aperture was deleted, so there is nothing to "
+                    "extract.",
+                    "run it again and keep at least one aperture, or drop "
+                    "--edit to take the ones apfind proposes.", RuntimeError)
             by_action["edit"].measured = {
                 "kept": len(found),
                 "changed": "yes" if len(found) != before else "edges or centres",
@@ -259,7 +266,9 @@ class ApAll(Task[ApAllParams]):
             if params.trace:
                 fit = self._trace(data, centre, params, spec)
                 if fit.model is None:
-                    raise RuntimeError(f"aperture {number}: {fit.message}")
+                    advice.fail(f"aperture {number}: {fit.message}",
+                        "lower --t-order, or raise --nsum so each trace point "
+                        "is measured on more signal.", RuntimeError)
                 traces.append(fit)
                 centre_at = fit
             else:
@@ -466,10 +475,10 @@ class WSpecText(Task[WSpecTextParams]):
         found = spectrum.read(params.input, number=params.aperture)
         if not found:
             total = spectrum.count(params.input)
-            raise ValueError(
+            advice.fail(
                 f"'{params.input}' has no aperture {params.aperture}; it holds "
-                f"{total}."
-            )
+                f"{total}.",
+                "use --aperture with a number in that range.")
         aperture = found[0]
         table = aperture.columns()
         if params.columns:
@@ -477,10 +486,10 @@ class WSpecText(Task[WSpecTextParams]):
                       if name.strip()]
             missing = [name for name in wanted if name not in table]
             if missing:
-                raise ValueError(
-                    f"no column called {', '.join(missing)}. This spectrum has "
-                    f"{', '.join(table)}."
-                )
+                advice.fail(
+                    f"no column called {', '.join(missing)}.",
+                    f"this spectrum has {', '.join(table)}; name one of those, "
+                    "or leave --columns out to write them all.")
             table = {name: table[name] for name in wanted}
 
         separator = {"csv": ",", "tsv": "\t", "fixed": "  "}[params.format]

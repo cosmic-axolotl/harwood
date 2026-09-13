@@ -23,6 +23,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from ..core import advice
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult, Template
 
@@ -319,10 +320,13 @@ class CcdProc(Task[CcdProcParams]):
                      f"{skipped} step(s) already done")
         warnings = []
         if params.inplace:
-            warnings.append(
+            warnings.append(advice.warn(
                 f"{len(outputs)} image(s) were corrected in place. The header "
                 "marks mean running again corrects nothing twice, but the "
-                "originals are gone.")
+                "originals are gone.",
+                "give --output next time so the raw frames survive. To get "
+                "them back now you would have to copy them from the archive "
+                "again."))
         return TaskResult(outputs=outputs, history=history, steps=all_steps,
                           warnings=warnings,
                           data={"images": len(targets), "steps_skipped": skipped,
@@ -839,11 +843,12 @@ class CcdList(Task[CcdListParams]):
 
         warnings = []
         if unknown:
-            warnings.append(
-                f"{unknown} image(s) came back 'unknown'. ccdproc will refuse them "
-                f"too. The '{inst.name}' translation is what decides this -- add "
-                "the missing IMAGETYP value to it, or pick another with "
-                "`harwood setinstrument`."
-            )
+            warnings.append(advice.warn(
+                f"{unknown} image(s) came back 'unknown'. ccdproc will refuse "
+                f"them too, so they would drop out of the reduction silently.",
+                f"add the missing IMAGETYP value to the '{inst.name}' "
+                "translation, or pick another with 'harwood setinstrument'. "
+                "'harwood imheader <image> IMAGETYP' shows what the frames "
+                "actually say."))
         return TaskResult(data={"rows": rows, "instrument": inst.name},
                           warnings=warnings, steps=self.plan(params))

@@ -43,6 +43,8 @@ from pathlib import Path
 
 import numpy as np
 
+from . import advice
+
 #: Flux density of a zero-magnitude source, erg/cm^2/s/Hz. IRAF's `fnuzero`.
 FNUZERO = 3.68e-20
 
@@ -165,17 +167,19 @@ def resolve(name: str | Path, caldir: str = "") -> Path:
     if "$" in text:
         prefix, _, filename = text.partition("$")
         if prefix != "onedstds":
-            raise ValueError(
-                f"unknown IRAF directory prefix '{prefix}$'. Flux calibration "
-                "data lives under onedstds$.")
+            advice.fail(
+                f"unknown IRAF directory prefix '{prefix}$'.",
+                "flux calibration data lives under onedstds$, as in "
+                "onedstds$kpnoextinct.dat.")
         for root in IRAF_STANDARDS:
             candidate = root / filename
             if candidate.is_file():
                 return candidate
-        raise FileNotFoundError(
-            f"'{text}' needs IRAF's calibration files. Looked in "
-            f"{', '.join(str(root) for root in IRAF_STANDARDS)}. Give a path "
-            "instead, or install iraf-noao.")
+        advice.fail(
+            f"'{text}' needs IRAF's calibration files, and none were found. "
+            f"Looked in {', '.join(str(root) for root in IRAF_STANDARDS)}.",
+            "install iraf-noao, or give a path to the file instead of the "
+            "onedstds$ shorthand.", FileNotFoundError)
 
     path = Path(text)
     if path.is_file():
@@ -184,7 +188,10 @@ def resolve(name: str | Path, caldir: str = "") -> Path:
         found = find_star(text, caldir)
         if found is not None:
             return found
-    raise FileNotFoundError(f"'{path}' does not exist")
+    advice.fail(f"'{path}' does not exist.",
+                "give a path to a calibration file, or a star name together "
+                "with --caldir. 'harwood standards' lists what is available.",
+                FileNotFoundError)
 
 
 def _roots() -> list[Path]:
@@ -277,7 +284,10 @@ def read_bands(path: Path | str) -> list[Band]:
         width = float(parts[2]) if len(parts) > 2 else 50.0
         bands.append(Band(wavelength, width, magnitude))
     if not bands:
-        raise ValueError(f"'{path}' holds no calibration bands")
+        advice.fail(f"'{path}' holds no calibration bands.",
+                    "the file should have one line per band: wavelength, "
+                    "magnitude, bandwidth. Check it is a standard star table "
+                    "and not something else.")
     return sorted(bands, key=lambda band: band.wavelength)
 
 
@@ -298,7 +308,10 @@ def read_extinction(name: str | Path) -> tuple[np.ndarray, np.ndarray]:
         except ValueError:
             continue
     if len(wavelength) < 2:
-        raise ValueError(f"'{path}' holds no extinction curve")
+        advice.fail(f"'{path}' holds no extinction curve.",
+                    "the file should have one line per point: wavelength, "
+                    "magnitudes per airmass. onedstds$kpnoextinct.dat is the "
+                    "shape to compare against.")
     order = np.argsort(wavelength)
     return np.array(wavelength)[order], np.array(value)[order]
 
@@ -333,7 +346,9 @@ def measure(aperture, bands: list[Band], exptime: float, airmass: float,
     wave = np.asarray(aperture.wavelength, dtype=float)
     flux = np.asarray(aperture.flux, dtype=float)
     if wave.size < 2:
-        raise ValueError("the spectrum has no wavelength scale")
+        advice.fail("the spectrum has no wavelength scale.",
+                    "run dispcor on it first; a band is a range of wavelengths "
+                    "and there is no way to integrate over one without them.")
 
     low, high = float(wave.min()), float(wave.max())
     out = []
@@ -383,11 +398,14 @@ def sensitivity(standard: Standard, curve, spec) -> tuple:
 
     good = np.isfinite(values)
     if good.sum() < 2:
-        raise ValueError(
+        advice.fail(
             "not enough usable bands to fit a sensitivity function: "
             f"{int(good.sum())} of {len(values)}. Bands with no counts, or a "
             "standard star file that does not overlap the spectrum, give "
-            "nothing to fit.")
+            "nothing to fit.",
+            "check the spectrum's wavelength range against the calibration "
+            "table with 'harwood standards --star <name>', and that the "
+            "extraction has positive counts across it.")
     return icfit.fit(wavelength[good], values[good], spec), wavelength[good], values[good]
 
 

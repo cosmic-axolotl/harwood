@@ -19,6 +19,7 @@ from pathlib import Path
 
 from pydantic import Field
 
+from ..core import advice
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
@@ -125,16 +126,17 @@ class SetAirmass(Task[SetAirmassParams]):
         elif params.observatory:
             site = observatory.find(params.observatory)
             if site is None:
-                raise ValueError(
-                    f"no observatory called '{params.observatory}'. Known ones "
-                    f"are {', '.join(observatory.listing())}; for anywhere else "
-                    "give --latitude and --longitude, the longitude positive "
-                    "west."
-                )
+                advice.fail(
+                    f"no observatory called '{params.observatory}'.",
+                    f"use one of {', '.join(observatory.listing())}; for "
+                    "anywhere else give --latitude and --longitude, the "
+                    "longitude positive west.")
 
         paths = [spec.path for spec in images.expand(params.images)]
         if not paths:
-            raise ValueError(f"nothing matched {', '.join(params.images)}.")
+            advice.fail(f"nothing matched {', '.join(params.images)}.",
+                        "check the path and the pattern; 'harwood sections' "
+                        "shows what a template expands to.")
 
         rows, warnings, changed = [], [], []
         for path in paths:
@@ -142,9 +144,11 @@ class SetAirmass(Task[SetAirmassParams]):
                 header = hdus[0].header
                 here = site or observatory.from_header(header)
                 if here is None:
-                    warnings.append(
+                    warnings.append(advice.warn(
                         f"{Path(path).name}: the header does not name an "
-                        "observatory and none was given, so it was left alone.")
+                        "observatory and none was given, so it was left alone.",
+                        "give --observatory, or --latitude and --longitude. "
+                        "'harwood observatory' lists the sites it knows."))
                     continue
 
                 measured = obstime.airmass(header, here.latitude, here.east,
@@ -153,10 +157,13 @@ class SetAirmass(Task[SetAirmassParams]):
                                         key="__none__")
                 jd = obstime.julian(header, params.ut, params.exposure)
                 if measured is None or middle is None:
-                    warnings.append(
+                    warnings.append(advice.warn(
                         f"{Path(path).name}: not enough in the header to compute "
                         "an airmass -- it needs RA, DEC, "
-                        f"{params.date} and {params.ut}.")
+                        f"{params.date} and {params.ut}.",
+                        f"look with 'harwood imheader {Path(path).name} --long'. "
+                        "A bias or a lamp often has no coordinates, and for "
+                        "those this is expected."))
                     continue
 
                 before = header.get("AIRMASS")
@@ -193,9 +200,11 @@ class SetAirmass(Task[SetAirmassParams]):
                 changed.append(Path(path))
 
         if not rows:
-            raise RuntimeError(
-                "nothing could be computed: " + (warnings[0] if warnings else "")
-            )
+            advice.fail(
+                "nothing could be computed for any frame.",
+                str(warnings[0].fix) if warnings else
+                "check the headers carry RA, DEC, a date and a time.",
+                RuntimeError)
 
         site_used = site or observatory.from_header(fits.getheader(paths[0]))
         by_action["site"].measured = {"site": site_used.describe()}
@@ -213,14 +222,15 @@ class SetAirmass(Task[SetAirmassParams]):
                  and abs(float(row["was"]) - row["airmass"]) > 0.01]
         if moved:
             worst = max(moved, key=lambda row: abs(float(row["was"]) - row["airmass"]))
-            warnings.append(
+            warnings.append(advice.note(
                 f"{len(moved)} of {len(rows)} frames had an airmass in the "
                 "header that differs from the effective one by more than 0.01 "
                 f"-- {worst['image']} had {worst['was']} and travelled through "
                 f"{worst['airmass']:.3f}. The old value was almost certainly "
                 "the airmass when the shutter opened; over a long exposure "
-                "that understates the extinction."
-            )
+                "that understates the extinction.",
+                "nothing -- the new value is the better one. Use --no-override "
+                "to keep what the header already had."))
 
         return TaskResult(
             outputs=changed,
@@ -309,13 +319,16 @@ class SetJD(Task[SetJDParams]):
         site = (observatory.find(params.observatory) if params.observatory
                 else None)
         if params.observatory and site is None:
-            raise ValueError(
-                f"no observatory called '{params.observatory}'. Known ones are "
-                f"{', '.join(observatory.listing())}.")
+            advice.fail(
+                f"no observatory called '{params.observatory}'.",
+                f"use one of {', '.join(observatory.listing())}, or give "
+                "--latitude and --longitude for anywhere else.")
 
         paths = [spec.path for spec in images.expand(params.images)]
         if not paths:
-            raise ValueError(f"nothing matched {', '.join(params.images)}.")
+            advice.fail(f"nothing matched {', '.join(params.images)}.",
+                        "check the path and the pattern; 'harwood sections' "
+                        "shows what a template expands to.")
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -329,9 +342,12 @@ class SetJD(Task[SetJDParams]):
                 here = site or observatory.from_header(header)
                 jd = obstime.julian(header, params.ut, params.exposure)
                 if jd is None:
-                    warnings.append(
+                    warnings.append(advice.warn(
                         f"{Path(path).name}: no Julian date could be computed "
-                        f"-- it needs a date and {params.ut}.")
+                        f"-- it needs a date and {params.ut}.",
+                        f"check DATE-OBS and {params.ut} are in the header, or "
+                        "name the keywords this camera uses with --date and "
+                        "--ut."))
                     continue
 
                 corrected = None
@@ -340,11 +356,14 @@ class SetJD(Task[SetJDParams]):
                         header, here.latitude, here.east, here.altitude,
                         params.ut, params.exposure, kind)
                 if corrected is None:
-                    warnings.append(
+                    warnings.append(advice.note(
                         f"{Path(path).name}: JD only. The "
                         f"{kind} correction needs RA, DEC and a site, and one "
                         "of them is missing -- for a lamp or a bias frame that "
-                        "is expected.")
+                        "is expected.",
+                        "nothing, for a calibration frame. For an object, check "
+                        "RA and DEC are in the header and that --observatory "
+                        "names the site."))
 
                 # The local Julian day: which civil night this belongs to. The
                 # half-day offset is what makes a whole night carry one number
@@ -373,8 +392,10 @@ class SetJD(Task[SetJDParams]):
                 changed.append(Path(path))
 
         if not rows:
-            raise RuntimeError(
-                "nothing could be computed: " + (warnings[0] if warnings else ""))
+            advice.fail(
+                "no Julian date could be computed for any frame.",
+                str(warnings[0].fix) if warnings else
+                "check the headers carry DATE-OBS and UT.", RuntimeError)
 
         by_action["when"].measured = {
             "frames": len(rows),
@@ -448,10 +469,12 @@ class Airmass(Task[AirmassParams]):
                         ("--date", params.date), ("--ut", params.ut))
                        if not value]
             if missing:
-                raise ValueError(
-                    "give an image to read from, or all of "
-                    f"{', '.join(missing)}. There is no useful default for "
-                    "where a telescope was pointing.")
+                advice.fail(
+                    f"not enough to work from: {', '.join(missing)} missing. "
+                    "There is no useful default for where a telescope was "
+                    "pointing.",
+                    "give an image to read the header from, or all of "
+                    f"{', '.join(missing)} on the command line.")
             header = fits.Header({
                 "RA": params.ra, "DEC": params.dec, "DATE-OBS": params.date,
                 "UT": params.ut, "EXPTIME": params.exptime})
@@ -459,10 +482,12 @@ class Airmass(Task[AirmassParams]):
         site = _site(params, observatory, header)
         measured = obstime.airmass(header, site.latitude, site.east, site.altitude)
         if measured is None:
-            raise ValueError(
+            advice.fail(
                 "not enough to compute an airmass, or the object was below "
                 "three degrees -- where the plane-parallel atmosphere has "
-                "stopped being a picture of anything.")
+                "stopped being a picture of anything.",
+                "check RA, DEC, the date and the time. If the object really "
+                "was that low, there is no airmass worth quoting.")
 
         lst = obstime.sidereal(header, site.east)
         steps = self.plan(params)
@@ -480,11 +505,14 @@ class Airmass(Task[AirmassParams]):
 
         warnings = []
         if measured.effective > 2.0:
-            warnings.append(
+            warnings.append(advice.warn(
                 f"{measured.effective:.2f} airmasses is low in the sky: "
                 "differential refraction spreads the image into a short "
                 "spectrum along the vertical, and unless the slit was turned "
-                "to the parallactic angle some colours miss it.")
+                "to the parallactic angle some colours miss it.",
+                "check the observing log for the slit angle. If it was not "
+                "parallactic, treat the blue end of this spectrum as "
+                "unreliable for flux."))
 
         return TaskResult(
             outputs=[], steps=steps, warnings=warnings,
@@ -542,16 +570,20 @@ class AstTimes(Task[AstTimesParams]):
             header = fits.getheader(params.image)
         else:
             if not params.date or not params.ut:
-                raise ValueError(
-                    "give an image to read from, or both --date and --ut.")
+                advice.fail(
+                    "no date and time given.",
+                    "give an image to read the header from, or both --date and "
+                    "--ut.")
             header = fits.Header({"DATE-OBS": params.date, "UT": params.ut,
                                   "EXPTIME": 0.0})
 
         site = _site(params, observatory, header)
         jd = obstime.julian(header)
         if jd is None:
-            raise ValueError(
-                "no date and time could be read. It needs DATE-OBS and UT.")
+            advice.fail(
+                "no date and time could be read.",
+                "it needs DATE-OBS and UT in the header, or --date and --ut on "
+                "the command line.")
         lst = obstime.sidereal(header, site.east)
         stamp = Time(jd, format="jd", scale="utc")
         parts = obstime.date(header)
@@ -609,10 +641,11 @@ class Observatory(Task[ObservatoryParams]):
         if params.name:
             site = observatory.find(params.name)
             if site is None:
-                raise ValueError(
-                    f"no observatory called '{params.name}'. Known ones are "
-                    f"{', '.join(observatory.listing())}. For anywhere else, "
-                    "setairmass and airmass take --latitude and --longitude.")
+                advice.fail(
+                    f"no observatory called '{params.name}'.",
+                    f"use one of {', '.join(observatory.listing())}. For "
+                    "anywhere else, setairmass and airmass take --latitude and "
+                    "--longitude directly.")
             sites = [site]
         else:
             sites = [observatory.SITES[code] for code in observatory.listing()]
@@ -638,15 +671,16 @@ def _site(params, observatory, header):
     if params.observatory:
         site = observatory.find(params.observatory)
         if site is None:
-            raise ValueError(
-                f"no observatory called '{params.observatory}'. Known ones are "
-                f"{', '.join(observatory.listing())}; for anywhere else give "
-                "--latitude and --longitude, the longitude positive west.")
+            advice.fail(
+                f"no observatory called '{params.observatory}'.",
+                f"use one of {', '.join(observatory.listing())}; for anywhere "
+                "else give --latitude and --longitude, the longitude positive "
+                "west.")
         return site
     site = observatory.from_header(header)
     if site is None:
-        raise ValueError(
-            "no observatory: the header does not name one and none was given. "
-            "Use --observatory, or --latitude and --longitude. "
-            "'harwood observatory' lists the sites.")
+        advice.fail(
+            "no observatory: the header does not name one and none was given.",
+            "give --observatory, or --latitude and --longitude. "
+            "'harwood observatory' lists the sites it knows.")
     return site
