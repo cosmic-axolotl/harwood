@@ -1,11 +1,3 @@
-# Documents
-
-`where-we-are.md` is the state of the project: where the idea came from, what
-the prototype taught, what runs now, how each claim was checked, and what is
-left. Start there.
-
-The two PDFs are what the code is built against.
-
 # The design contract
 
 `design-decisions.pdf` is the contract. When an implementation question comes
