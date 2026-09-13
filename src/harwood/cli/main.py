@@ -258,17 +258,23 @@ def doctor_cmd() -> None:
         table.add_row(f"kernel: {backend}", f"[green]{version}[/green]",
                       "fastest available" if backend == next(iter(kernels.available()))
                       else "")
+    from rich.markup import escape
+
     for missing in set(kernels.ORDER) - set(kernels.available()):
         table.add_row(f"kernel: {missing}", "[dim]not installed[/dim]",
-                      "pip install harwood[fast]" if missing == "numba" else "optional")
+                      escape("pip install harwood[fast]") if missing == "numba"
+                      else "built from harwood-kernels; not required")
     forced = kernels.requested()
     if forced:
         table.add_row("HARWOOD_BACKEND", f"[yellow]{forced}[/yellow]",
                       "forced by the environment")
 
     for package, extra in (("astropy", ""), ("photutils", "harwood[phot]"),
-                           ("ccdproc", "harwood[ccd]"), ("astroscrappy", "harwood[ccd]"),
-                           ("PySide6", "harwood[gui]"), ("pyqtgraph", "harwood[gui]")):
+                           ("ccdproc", "harwood[ccd]"),
+                           ("astroscrappy", "harwood[ccd]"),
+                           ("scipy", "harwood[phot]"),
+                           ("PySide6", "harwood[gui]"),
+                           ("pyqtgraph", "harwood[gui]")):
         table.add_row(package, *_probe(package, extra))
 
     session = os.environ.get("WAYLAND_DISPLAY") and "wayland" or \
@@ -281,12 +287,21 @@ def doctor_cmd() -> None:
 
 
 def _probe(package: str, extra: str) -> tuple[str, str]:
+    """Whether a package is there, and how to get it if not.
+
+    The install hint is escaped: rich reads `[phot]` as markup and eats it, so
+    the one command whose job is to tell you how to fix your install was
+    telling everybody to `pip install harwood`.
+    """
     from importlib.metadata import PackageNotFoundError, version
+
+    from rich.markup import escape
 
     try:
         return f"[green]{version(package)}[/green]", ""
     except PackageNotFoundError:
-        return "[yellow]not installed[/yellow]", f"pip install {extra}" if extra else ""
+        return ("[yellow]not installed[/yellow]",
+                escape(f"pip install {extra}") if extra else "")
 
 
 @app.command("log")
@@ -510,7 +525,9 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         _report_validation(name, error)
         raise SystemExit(2) from None
     except (ValueError, KeyError) as error:
-        error_console.print(f"[red]{name}:[/red] {error}")
+        from rich.markup import escape
+
+        error_console.print(f"[red]{name}:[/red] {escape(str(error))}")
         raise SystemExit(2) from None
 
     task = get_task(name)
@@ -540,7 +557,17 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
             # debugging -- hidden by default, never unavailable.
             import os
 
-            error_console.print(f"[red]{name} stopped:[/red] {error}")
+            from rich.markup import escape
+
+            from ..core import extras
+
+            # A task's message is plain text and may well contain brackets --
+            # "harwood[phot]" is exactly the sort of thing it says -- and rich
+            # would read those as markup and eat them.
+            error_console.print(f"[red]{name} stopped:[/red] {escape(str(error))}")
+            advice = extras.hint(error) or extras.hint(error.__cause__ or error)
+            if advice:
+                error_console.print(f"  [yellow]{escape(advice)}[/yellow]")
             if os.environ.get("HARWOOD_TRACEBACK"):
                 console.print_exception()
             else:

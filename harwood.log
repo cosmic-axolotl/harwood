@@ -488,3 +488,213 @@
 2026-09-13 08:56:25  ccdproc  /tmp/pytest-of-costamands/pytest-70/test_an_overscan_section_short0/frame.fits
   overscan: legendre order 2 over [25:30,3:38], mean level 109.75, rms 0.00
 2026-09-13 08:56:25  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:14  ccdproc  /home/costamands/iraf/exercises/phot/m92001.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 499.67, rms 0.24
+  trim: [1:320,1:512] -> 320x512
+2026-09-13 09:14:14  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:14  ccdproc  /home/costamands/iraf/exercises/phot/m92007.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 509.03, rms 0.69
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+2026-09-13 09:14:14  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:14  ccdproc  /home/costamands/iraf/exercises/phot/m92010.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 505.82, rms 1.17
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+  flat: divided by FlatV.fits, normalised to its median
+2026-09-13 09:14:14  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:14  ccdproc  /home/costamands/iraf/exercises/phot/m92011.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 506.11, rms 1.08
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+  flat: divided by FlatV.fits, normalised to its median
+2026-09-13 09:14:14  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:15  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_exercise_two_reproduces_i0/m92001.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 499.58, rms 0.35
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:14:15  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_exercise_two_reproduces_i0/m92006.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 503.78, rms 0.76
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:14:15  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_exercise_two_reproduces_i0/m92007.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 504.68, rms 0.72, 1 points rejected
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:14:15  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_exercise_two_reproduces_i0/m92010.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 505.44, rms 1.59, 3 points rejected
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:14:15  ccdproc finished: 4 image(s), 0 step(s) already done
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_the_whole_chain_recovers_0/bias0.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.99, rms 1.90
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_the_whole_chain_recovers_0/bias1.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.10, rms 1.87
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_the_whole_chain_recovers_0/bias2.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.01, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_the_whole_chain_recovers_0/bias3.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.95, rms 1.86
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_the_whole_chain_recovers_0/bias4.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.98, rms 1.98
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:16  ccdproc finished: 5 image(s), 0 step(s) already done
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_the_whole_chain_recovers_0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+  zero: subtracted Zero.fits
+2026-09-13 09:14:16  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_ccdproc_refuses_to_bias_s0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:16  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_ccdproc_refuses_to_bias_s0/once.fits
+  overscan -- skipped: OVERSCAN already in the header
+  trim -- skipped: TRIM already in the header
+2026-09-13 09:14:16  ccdproc finished: 1 image(s), 2 step(s) already done
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_the_plan_tells_the_truth_0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:16  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:16  ccdproc  /tmp/pytest-of-costamands/pytest-71/test_an_overscan_section_short0/frame.fits
+  overscan: legendre order 2 over [25:30,3:38], mean level 109.75, rms 0.00
+2026-09-13 09:14:16  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:48  ccdproc  /home/costamands/iraf/exercises/phot/m92001.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 499.67, rms 0.24
+  trim: [1:320,1:512] -> 320x512
+2026-09-13 09:14:48  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:48  ccdproc  /home/costamands/iraf/exercises/phot/m92007.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 509.03, rms 0.69
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+2026-09-13 09:14:48  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:48  ccdproc  /home/costamands/iraf/exercises/phot/m92010.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 505.82, rms 1.17
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+  flat: divided by FlatV.fits, normalised to its median
+2026-09-13 09:14:48  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:48  ccdproc  /home/costamands/iraf/exercises/phot/m92011.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 506.11, rms 1.08
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+  flat: divided by FlatV.fits, normalised to its median
+2026-09-13 09:14:48  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:49  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_exercise_two_reproduces_i0/m92001.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 499.58, rms 0.35
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:14:49  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_exercise_two_reproduces_i0/m92006.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 503.78, rms 0.76
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:14:49  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_exercise_two_reproduces_i0/m92007.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 504.68, rms 0.72, 1 points rejected
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:14:49  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_exercise_two_reproduces_i0/m92010.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 505.44, rms 1.59, 3 points rejected
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:14:49  ccdproc finished: 4 image(s), 0 step(s) already done
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_the_whole_chain_recovers_0/bias0.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.99, rms 1.90
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_the_whole_chain_recovers_0/bias1.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.10, rms 1.87
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_the_whole_chain_recovers_0/bias2.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.01, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_the_whole_chain_recovers_0/bias3.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.95, rms 1.86
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_the_whole_chain_recovers_0/bias4.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.98, rms 1.98
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:51  ccdproc finished: 5 image(s), 0 step(s) already done
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_the_whole_chain_recovers_0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+  zero: subtracted Zero.fits
+2026-09-13 09:14:51  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_ccdproc_refuses_to_bias_s0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:51  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_ccdproc_refuses_to_bias_s0/once.fits
+  overscan -- skipped: OVERSCAN already in the header
+  trim -- skipped: TRIM already in the header
+2026-09-13 09:14:51  ccdproc finished: 1 image(s), 2 step(s) already done
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_the_plan_tells_the_truth_0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:14:51  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:14:51  ccdproc  /tmp/pytest-of-costamands/pytest-73/test_an_overscan_section_short0/frame.fits
+  overscan: legendre order 2 over [25:30,3:38], mean level 109.75, rms 0.00
+2026-09-13 09:14:51  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:15:59  ccdproc  /home/costamands/iraf/exercises/phot/m92001.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 499.67, rms 0.24
+  trim: [1:320,1:512] -> 320x512
+2026-09-13 09:15:59  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:16:00  ccdproc  /home/costamands/iraf/exercises/phot/m92007.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 509.03, rms 0.69
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+2026-09-13 09:16:00  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:16:00  ccdproc  /home/costamands/iraf/exercises/phot/m92010.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 505.82, rms 1.17
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+  flat: divided by FlatV.fits, normalised to its median
+2026-09-13 09:16:00  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:16:00  ccdproc  /home/costamands/iraf/exercises/phot/m92011.fits
+  overscan: legendre order 1 over [321:352,1:512], mean level 506.11, rms 1.08
+  trim: [1:320,1:512] -> 320x512
+  zero: subtracted Zero.fits
+  flat: divided by FlatV.fits, normalised to its median
+2026-09-13 09:16:00  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:16:01  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_exercise_two_reproduces_i0/m92001.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 499.58, rms 0.35
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:16:01  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_exercise_two_reproduces_i0/m92006.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 503.78, rms 0.76
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:16:01  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_exercise_two_reproduces_i0/m92007.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 504.68, rms 0.72, 1 points rejected
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:16:01  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_exercise_two_reproduces_i0/m92010.fits
+  overscan: chebyshev order 1 over [335:350,2:510], mean level 505.44, rms 1.59, 3 points rejected
+  trim: [1:318,2:510] -> 318x509
+2026-09-13 09:16:01  ccdproc finished: 4 image(s), 0 step(s) already done
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_the_whole_chain_recovers_0/bias0.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.99, rms 1.90
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_the_whole_chain_recovers_0/bias1.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.10, rms 1.87
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_the_whole_chain_recovers_0/bias2.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.01, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_the_whole_chain_recovers_0/bias3.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.95, rms 1.86
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_the_whole_chain_recovers_0/bias4.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1002.98, rms 1.98
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:16:02  ccdproc finished: 5 image(s), 0 step(s) already done
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_the_whole_chain_recovers_0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+  zero: subtracted Zero.fits
+2026-09-13 09:16:02  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_ccdproc_refuses_to_bias_s0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:16:02  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_ccdproc_refuses_to_bias_s0/once.fits
+  overscan -- skipped: OVERSCAN already in the header
+  trim -- skipped: TRIM already in the header
+2026-09-13 09:16:02  ccdproc finished: 1 image(s), 2 step(s) already done
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_the_plan_tells_the_truth_0/obj.fits
+  overscan: legendre order 1 over [181:200,*], mean level 1003.08, rms 1.88
+  trim: [1:180,1:160] -> 180x160
+2026-09-13 09:16:02  ccdproc finished: 1 image(s), 0 step(s) already done
+2026-09-13 09:16:02  ccdproc  /tmp/pytest-of-costamands/pytest-75/test_an_overscan_section_short0/frame.fits
+  overscan: legendre order 2 over [25:30,3:38], mean level 109.75, rms 0.00
+2026-09-13 09:16:02  ccdproc finished: 1 image(s), 0 step(s) already done

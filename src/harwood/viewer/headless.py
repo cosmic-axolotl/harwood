@@ -43,7 +43,8 @@ class HeadlessDisplay:
     def _render(self, frame: int) -> None:
         import numpy as np
         from astropy.visualization import ZScaleInterval
-        from PIL import Image  # pillow ships with matplotlib-free stacks too
+
+        from .png import write_grey
 
         data, _, scale = self._frames[frame]
         if scale == "zscale":
@@ -51,5 +52,5 @@ class HeadlessDisplay:
         else:
             low, high = float(np.nanmin(data)), float(np.nanmax(data))
         scaled = np.clip((np.asarray(data) - low) / max(high - low, 1e-12), 0, 1)
-        image = Image.fromarray((scaled[::-1] * 255).astype("uint8"))
-        image.save(self.output)
+        # FITS counts rows from the bottom and PNG from the top.
+        write_grey(self.output, scaled[::-1] * 255)

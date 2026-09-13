@@ -90,8 +90,13 @@ def reset() -> None:
 
 
 def _autodetect() -> str:
+    """Pick a backend that can actually work here.
+
+    Never ds9: it is a last resort you ask for, not one to fall into. Falling
+    into it would also mean the answer to "PySide6 is not installed" is a
+    different program's window appearing, which is not an answer.
+    """
     import os
-    import shutil
 
     if os.environ.get("HARWOOD_DISPLAY"):
         return os.environ["HARWOOD_DISPLAY"]
@@ -99,8 +104,6 @@ def _autodetect() -> str:
         return "headless"
     try:
         import PySide6  # noqa: F401
-
-        return "native"
     except ImportError:
-        pass
-    return "ds9" if shutil.which("ds9") else "headless"
+        return "headless"
+    return "native"

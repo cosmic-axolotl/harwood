@@ -24,17 +24,22 @@ dependencies = [
   "numpy>=1.24",
   "astropy>=6.0",
   "pydantic>=2.6",
-  "typer>=0.12",
+  "click>=8.1",
   "rich>=13.0",
   "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
 ccd = ["ccdproc>=2.4", "astroscrappy>=1.2"]
-phot = ["photutils>=1.13"]
+# scipy is here rather than in the base because the core only needs it for
+# spline fits and for imalign's resampling, and both say so when it is absent.
+# Anyone doing photometry has it regardless: photutils requires it.
+phot = ["photutils>=1.13", "scipy>=1.10"]
 gui = ["PySide6-Essentials>=6.6", "pyqtgraph>=0.13"]
 fast = ["numba>=0.59"]
-ds9 = ["pyds9>=1.8"]
+# Not on PyPI yet: the compiled kernels are built from the harwood-kernels
+# directory in this repository, and the dispatcher falls back without them.
+rust = ["harwood-kernels>=0.1"]
 all = ["harwood[ccd,phot,gui,fast]"]
 dev = ["pytest>=8.0", "pytest-cov", "ruff", "mypy"]
 

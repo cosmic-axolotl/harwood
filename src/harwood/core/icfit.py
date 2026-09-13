@@ -171,7 +171,14 @@ def _build(x: np.ndarray, y: np.ndarray, spec: FitSpec):
         return series.fit(x, y, deg=degree)
 
     # Splines: `order` is the number of polynomial pieces, as in IRAF.
-    from scipy.interpolate import LSQUnivariateSpline
+    try:
+        from scipy.interpolate import LSQUnivariateSpline
+    except ImportError as error:
+        raise ValueError(
+            f"'{spec.function}' needs scipy, which is part of harwood[phot]. "
+            "Run: pip install harwood[phot] -- or use legendre or chebyshev, "
+            "which need nothing extra."
+        ) from error
 
     degree = 1 if spec.function == "spline1" else 3
     pieces = max(1, order)

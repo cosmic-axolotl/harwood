@@ -383,9 +383,16 @@ class ImAlign(Task[ImAlignParams]):
     def execute(self, params: ImAlignParams) -> TaskResult:
         import numpy as np
         from astropy.io import fits
-        from scipy.ndimage import shift as ndshift
 
         from ..core import images, provenance
+
+        try:
+            from scipy.ndimage import shift as ndshift
+        except ImportError as error:
+            raise RuntimeError(
+                "imalign resamples with scipy, which is part of harwood[phot]. "
+                "Run: pip install harwood[phot]"
+            ) from error
         from ..core.registry import get_task
 
         specs = images.expand(params.input)
