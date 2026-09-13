@@ -155,6 +155,19 @@ class ImCombineParams(TaskParams):
         "EXPTIME",
         description="Header keyword holding the exposure time, for scale='exposure'.",
     )
+    ccdtype: str = Field(
+        "",
+        description="Only combine images of this type: zero, dark, flat, object. "
+                    "Reads the instrument translation, so a whole night can be "
+                    "given and the right frames picked out.",
+    )
+    subsets: bool = Field(
+        False,
+        description="Combine each subset separately, appending its short name to "
+                    "the output: Flat becomes FlatB and FlatV. The names come from "
+                    "the `subsets` file, which you edit to say B and V rather than "
+                    "whatever the filter wheel reported.",
+    )
     sigmas: Path | None = Field(
         None,
         description="Optional output image holding the pixel-by-pixel standard deviation.",
@@ -232,14 +245,52 @@ class ImCombine(Task[ImCombineParams]):
         return steps
 
     def execute(self, params: ImCombineParams) -> TaskResult:
+        from ..core import images
+
+        specs = images.expand(params.input)
+        groups = _group(specs, params)
+        if len(groups) == 1 and not params.subsets:
+            return self._combine(list(groups.values())[0], params, params.output)
+
+        outputs, data, history, steps = [], {}, [], []
+        for name, members in sorted(groups.items()):
+            destination = _with_subset(params.output, name)
+            result = self._combine(members, params, destination)
+            outputs.extend(result.outputs)
+            history.extend(result.history)
+            steps.extend(result.steps)
+            data[name or "all"] = f"{result.data['images']} images -> {destination.name}"
+        return TaskResult(outputs=outputs, data=data, history=history, steps=steps,
+                          backend=None)
+
+    def _combine(self, specs, params: ImCombineParams, output) -> TaskResult:
         import numpy as np
         from astropy.io import fits
 
         from .. import kernels
         from ..core import images, provenance
 
-        specs = images.expand(params.input)
+        output = Path(output)
         stack, headers = images.read_stack(specs)
+
+        # minmax drops a fixed number of values whether or not they deserve it,
+        # so with too few frames it drops them all -- and every pixel then gets
+        # the blank value, which is a frame full of zeros that looks like a
+        # frame. Refuse rather than write it.
+        if params.reject == "minmax":
+            dropped = params.nlow + params.nhigh
+            if dropped >= len(specs):
+                raise ValueError(
+                    f"minmax would drop {params.nlow} low and {params.nhigh} high "
+                    f"from {len(specs)} image(s), leaving nothing. Lower --nlow and "
+                    f"--nhigh, give more frames, or use --reject none for a single "
+                    f"frame."
+                )
+            if len(specs) - dropped < params.nkeep:
+                raise ValueError(
+                    f"minmax would leave {len(specs) - dropped} of {len(specs)} "
+                    f"images, fewer than the {params.nkeep} --nkeep requires."
+                )
 
         mask = np.zeros(stack.shape, dtype=bool)
         if params.lthreshold is not None:
@@ -294,11 +345,11 @@ class ImCombine(Task[ImCombineParams]):
             history.append(provenance.backend_note(backend_label))
         provenance.stamp_header(header, history)
 
-        params.output.parent.mkdir(parents=True, exist_ok=True)
+        output.parent.mkdir(parents=True, exist_ok=True)
         fits.PrimaryHDU(data=combined.astype(np.float32), header=header).writeto(
-            params.output, overwrite=True
+            output, overwrite=True
         )
-        outputs = [params.output]
+        outputs = [output]
         for path, array in ((params.sigmas, sigma), (params.nrejmasks, nrej)):
             if path:
                 fits.PrimaryHDU(data=np.asarray(array, dtype=np.float32),
@@ -442,17 +493,20 @@ def _make_preset(name: str, doc: str, defaults: dict[str, Any]):
 ZeroCombine = _make_preset(
     "zerocombine",
     "Combine bias frames. Preset of imcombine.",
-    {"combine": "average", "reject": "minmax"},
+    {"combine": "average", "reject": "minmax", "ccdtype": "zero"},
 )
 DarkCombine = _make_preset(
     "darkcombine",
     "Combine dark frames, scaled by exposure time. Preset of imcombine.",
-    {"combine": "average", "reject": "minmax", "scale": "exposure"},
+    {"combine": "average", "reject": "minmax", "scale": "exposure",
+     "ccdtype": "dark"},
 )
 FlatCombine = _make_preset(
     "flatcombine",
-    "Combine flat fields, scaled to a common level. Preset of imcombine.",
-    {"combine": "median", "reject": "ccdclip", "scale": "mode"},
+    "Combine flat fields, one per filter, scaled to a common level. "
+    "Preset of imcombine.",
+    {"combine": "median", "reject": "ccdclip", "scale": "mode",
+     "ccdtype": "flat", "subsets": True},
 )
 
 
@@ -524,3 +578,53 @@ def _measure_steps(steps, stack, working, combined, nrej, factors, offsets,
         }
         found["combine"].before = Task.statistics(working[0])
         found["combine"].after = Task.statistics(combined)
+
+
+def _group(specs, params) -> dict:
+    """Split the inputs by type and, when asked, by subset.
+
+    IRAF's `flatcombine m92*.fits Flat` on a whole night produces FlatB and
+    FlatV: it picks the flats out by their image type and combines each filter
+    on its own, because combining two filters together produces a flat for
+    neither.
+    """
+    from ..core import instrument as instruments
+    from ..core import subsets as subset_file
+
+    wanted = params.ccdtype.strip().lower()
+    if not wanted and not params.subsets:
+        return {"": list(specs)}
+
+    inst = instruments.from_project()
+    groups: dict[str, list] = {}
+    seen = []
+    for spec in specs:
+        from .ccdred import _peek
+
+        header = _peek(spec)
+        if wanted and inst.image_type(header) != wanted:
+            continue
+        subset = inst.subset(header)
+        seen.append(subset)
+        key = subset if params.subsets else ""
+        groups.setdefault(key, []).append(spec)
+
+    if not groups:
+        raise RuntimeError(
+            f"none of the {len(specs)} images is of type '{wanted}'. "
+            "harwood ccdlist shows what the instrument translation makes of each."
+        )
+    if params.subsets:
+        known = subset_file.record(sorted(set(seen)))
+        groups = {known.get(key, key): members for key, members in groups.items()}
+    return groups
+
+
+def _with_subset(output, subset: str) -> Path:
+    """`Flat` and `V` give `FlatV.fits`, keeping whatever extension was asked for."""
+    path = Path(output)
+    if not subset:
+        return path
+    suffix = path.suffix or ".fits"
+    stem = path.name[: -len(path.suffix)] if path.suffix else path.name
+    return path.parent / f"{stem}{subset}{suffix}"

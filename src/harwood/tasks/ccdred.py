@@ -130,6 +130,12 @@ class CcdProcParams(TaskParams):
     exposure_key: str = Field(
         "EXPTIME", description="Header keyword holding the exposure time."
     )
+    logfile: str = Field(
+        "harwood.log",
+        description="Plain text log of what was done to each frame, appended as "
+                    "the run goes so you can watch it in another window. Empty "
+                    "keeps none; the JSON log and the headers are kept regardless.",
+    )
     minreplace: float = Field(
         1.0, description="Flat values below this are replaced, to avoid dividing by noise."
     )
@@ -238,11 +244,12 @@ class CcdProc(Task[CcdProcParams]):
         import numpy as np
         from astropy.io import fits
 
-        from ..core import images, provenance
+        from ..core import images, logfile, provenance, subsets
 
         specs = images.expand(params.input)
         survey = _survey(specs, params)
         targets = survey["targets"]
+        subsets.record(sorted(set(survey["subsets"].values())))
         if not targets:
             raise RuntimeError(
                 f"none of the {len(specs)} images is of type '{params.ccdtype}'. "
@@ -295,6 +302,8 @@ class CcdProc(Task[CcdProcParams]):
 
             lines = [f"ccdproc: {step.render()}" for step in steps if not step.skipped]
             provenance.stamp_header(header, lines)
+            logfile.write(params.logfile, "ccdproc", str(spec),
+                          [step.render() for step in steps])
             destination.parent.mkdir(parents=True, exist_ok=True)
             fits.PrimaryHDU(data=data.astype(np.float32), header=header).writeto(
                 destination, overwrite=True
@@ -305,6 +314,9 @@ class CcdProc(Task[CcdProcParams]):
 
         skipped = sum(1 for step in all_steps if step.skipped)
         all_steps = prepared.pop("_steps", []) + all_steps
+        logfile.note(params.logfile,
+                     f"ccdproc finished: {len(outputs)} image(s), "
+                     f"{skipped} step(s) already done")
         warnings = []
         if params.inplace:
             warnings.append(
@@ -789,7 +801,9 @@ class CcdList(Task[CcdListParams]):
                 else instruments.from_project())
         wanted = params.ccdtype.strip().lower()
 
-        rows, unknown = [], 0
+        from ..core import subsets as subset_file
+
+        rows, unknown, seen = [], 0, []
         for spec in images.expand(params.input):
             hdul, hdu = images.open_hdu(spec)
             try:
@@ -805,8 +819,11 @@ class CcdList(Task[CcdListParams]):
             if kind == "unknown":
                 unknown += 1
 
+            subset = inst.subset(header)
+            seen.append(subset)
             row = {"image": str(spec), "type": kind,
-                   "subset": inst.subset(header) or "-", "shape": shape,
+                   "subset": subset_file.name_for(subset, create=False) or "-",
+                   "raw subset": subset or "-", "shape": shape,
                    "exptime": inst.value(header, "exptime", "-"),
                    "object": header.get("OBJECT", "")}
             if params.long:
@@ -814,6 +831,11 @@ class CcdList(Task[CcdListParams]):
                         if keyword in header]
                 row["done"] = ", ".join(done) if done else "-"
             rows.append(row)
+
+        known = subset_file.record(sorted(set(seen)))
+        for row in rows:
+            raw = row["raw subset"]
+            row["subset"] = known.get(raw, row["subset"]) if raw != "-" else "-"
 
         warnings = []
         if unknown:

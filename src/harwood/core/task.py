@@ -171,7 +171,11 @@ class Task(ABC, Generic[P]):
         if params is None:
             params = {}
         if isinstance(params, dict):
-            params = self.Params(**{**params, **kwargs})
+            # The preset's defaults sit underneath, exactly as they do on the
+            # command line. Without this a preset behaves differently depending
+            # on how it was called, and `flatcombine` from Python would not be
+            # the `flatcombine` a user runs.
+            params = self.Params(**{**self.defaults, **params, **kwargs})
         elif kwargs:
             params = params.model_copy(update=kwargs)
 

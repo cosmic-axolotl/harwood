@@ -374,7 +374,7 @@ tasks:
   darkcombine: {pkg: imred.ccdred, domain: combine, status: available, harwood: darkcombine}
   flatcombine: {pkg: imred.ccdred, domain: combine, status: available, harwood: flatcombine}
   imcombine: {pkg: images.immatch, domain: combine, status: partial, harwood: imcombine,
-    note: "combine/reject/scale/zero and the sigma and rejection-count outputs; no offsets, masks, weights, pclip or lmedian"}
+    note: "combine/reject/scale/zero, ccdtype selection, per-subset grouping, and the sigma and rejection-count outputs; no offsets, masks, weights, pclip or lmedian"}
   lscombine: {pkg: twodspec.longslit, domain: combine, status: planned, milestone: later}
   odcombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
   scombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}

@@ -1,0 +1,13 @@
+# What separates one set of flats from another, and what to call it.
+#
+# The left column is what the header says. The right column is the short name
+# harwood uses when it has to name a file after a subset -- edit it to
+# something you will recognise, such as B or V, and nothing else needs to
+# change.
+#
+# Lines added automatically the first time each subset is seen.
+
+# subset              name
+'2 0'                 s20
+'5 0'                 s50
+'6 0'                 s60
