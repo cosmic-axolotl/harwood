@@ -196,3 +196,108 @@ def test_a_section_does_not_leak_into_the_derived_name(frames):
     finally:
         output.end(token)
     assert name.name == "obj.coo"
+
+
+# ------------------------------------------------------- the one window
+
+
+def test_a_panel_docks_into_the_window_when_there_is_one():
+    """Section 8.2: the whole environment in one window. A radial profile in a
+    different window from the star it came from is most of what is wrong with
+    working across three windows."""
+    import numpy as np
+
+    from harwood.viewer import _qt
+    from harwood.viewer.implot_panel import ImplotPanel
+    from harwood.viewer.window import HarwoodWindow
+
+    _qt.application()
+    window = HarwoodWindow()
+    try:
+        assert _qt.window() is window, "the window announces itself"
+        panel = ImplotPanel(np.zeros((10, 10)), "test")
+        window.open_panel(panel, "implot")
+        assert window.work.count() == 1
+        assert window.work_dock.isVisibleTo(window)
+
+        window.close_panel(panel)
+        assert window.work.count() == 0
+    finally:
+        _qt.set_window(None)
+        window.close()
+
+
+def test_a_panel_opens_on_its_own_when_there_is_no_window():
+    """Run from a shell, `harwood implot` is a window of its own -- the panels
+    do not know which is happening."""
+    from harwood.viewer import _qt
+
+    _qt.set_window(None)
+    assert _qt.window() is None
+
+
+def test_the_prompt_runs_the_same_commands_as_the_shell(tmp_path, monkeypatch):
+    import numpy as np
+    from astropy.io import fits
+
+    from harwood.viewer import _qt
+    from harwood.viewer.window import HarwoodWindow
+
+    monkeypatch.chdir(tmp_path)
+    fits.PrimaryHDU(np.full((12, 12), 7.0, dtype=np.float32)).writeto(
+        tmp_path / "a.fits")
+
+    _qt.application()
+    window = HarwoodWindow()
+    try:
+        window.prompt.setText("imstatistics a.fits --fields image,midpt")
+        window._run_command()
+        text = window.session.toPlainText()
+        assert "hw> imstatistics" in text
+        assert "7" in text, "the task's own output lands in the log"
+    finally:
+        _qt.set_window(None)
+        window.close()
+
+
+def test_a_failing_command_does_not_end_the_session(tmp_path, monkeypatch):
+    from harwood.viewer import _qt
+    from harwood.viewer.window import HarwoodWindow
+
+    monkeypatch.chdir(tmp_path)
+    _qt.application()
+    window = HarwoodWindow()
+    try:
+        window.prompt.setText("imstatistics nothing-here.fits")
+        window._run_command()
+        window.prompt.setText("help phot")
+        window._run_command()
+        assert "aperture" in window.session.toPlainText().lower()
+    finally:
+        _qt.set_window(None)
+        window.close()
+
+
+def test_display_from_the_prompt_loads_into_this_window(tmp_path, monkeypatch):
+    """Opening a second window would be two of everything, and a second event
+    loop that never returns."""
+    import numpy as np
+    from astropy.io import fits
+
+    from harwood.viewer import _qt
+    from harwood.viewer.window import HarwoodWindow
+
+    monkeypatch.chdir(tmp_path)
+    fits.PrimaryHDU(np.arange(144, dtype=np.float32).reshape(12, 12)).writeto(
+        tmp_path / "b.fits")
+
+    _qt.application()
+    window = HarwoodWindow()
+    try:
+        window.prompt.setText("display b.fits --no-wait")
+        window._run_command()
+        assert 1 in window.frames, "loaded into frame 1 of this window"
+        assert window.frames[1].data.shape == (12, 12)
+    finally:
+        _qt.set_window(None)
+        window.close()

@@ -150,8 +150,13 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._build_image()
         self._build_examine()
         self._build_params()
+        self._build_work()
         self._build_session()
         self._build_status()
+
+        from ._qt import set_window
+
+        set_window(self)
 
         self.log("harwood viewer. Hover for coordinates; press ? over the image "
                  "for the examine keys.")
@@ -285,13 +290,63 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
         self.resizeDocks([self.examine_dock, dock], [420, 300], QtCore.Qt.Vertical)
 
+    def _build_work(self) -> None:
+        """Where an interactive panel goes when a task opens one.
+
+        A tab rather than a floating dialog: the whole reason for one window is
+        that a radial profile and the star it came from should be the same
+        glance apart. Hidden until something needs it, so an empty strip does
+        not sit there taking room.
+        """
+        self.work = QtWidgets.QTabWidget()
+        self.work.setDocumentMode(True)
+        self.work.setTabsClosable(False)
+        self.work_dock = QtWidgets.QDockWidget("Work")
+        self.work_dock.setWidget(self.work)
+        self.work_dock.hide()
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.work_dock)
+
+    def open_panel(self, panel, title: str) -> None:
+        """Dock a panel into this window and bring it forward."""
+        index = self.work.addTab(panel, title)
+        self.work.setCurrentIndex(index)
+        self.work_dock.setWindowTitle(title)
+        self.work_dock.show()
+        self.resizeDocks([self.work_dock], [460], QtCore.Qt.Vertical)
+        panel.setFocus()
+        self.log(f"  {title} opened; press q there when you are done")
+
+    def close_panel(self, panel) -> None:
+        index = self.work.indexOf(panel)
+        if index >= 0:
+            self.work.removeTab(index)
+        panel.setParent(None)
+        if self.work.count() == 0:
+            self.work_dock.hide()
+
     def _build_session(self) -> None:
         dock = QtWidgets.QDockWidget("Session")
+        body = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(body)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
         self.session = QtWidgets.QPlainTextEdit()
         self.session.setReadOnly(True)
-        self.session.setMaximumBlockCount(2000)
-        dock.setWidget(self.session)
-        dock.setMinimumHeight(150)
+        self.session.setMaximumBlockCount(4000)
+        layout.addWidget(self.session, stretch=1)
+
+        self.prompt = QtWidgets.QLineEdit()
+        self.prompt.setPlaceholderText("hw>  display obj.fits · imexamine · "
+                                       "ccdproc --plan · help phot")
+        self.prompt.returnPressed.connect(self._run_command)
+        layout.addWidget(self.prompt)
+        self._history: list[str] = []
+        self._history_at = 0
+        self.prompt.installEventFilter(self)
+
+        dock.setWidget(body)
+        dock.setMinimumHeight(170)
         self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, dock)
 
     def _build_status(self) -> None:
@@ -397,11 +452,6 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             f"  x = {x:8.2f}   y = {y:8.2f}   (1-based)    value = {value:>10}{sky}"
         )
         self._cursor = (x, y)
-
-    def eventFilter(self, obj, event) -> bool:
-        if event.type() == QtCore.QEvent.KeyPress:
-            return self._key(event.text())
-        return super().eventFilter(obj, event)
 
     def _key(self, key: str) -> bool:
         """Section 8.4: lower case is the task's, upper case is the window's."""
@@ -581,6 +631,83 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _params_changed(self) -> None:
         self._read_params()
+
+    def _run_command(self) -> None:
+        """Run a harwood command typed at the prompt, in this process.
+
+        The same commands as the shell, because they are the same commands --
+        the CLI is invoked directly rather than through a subprocess, so a task
+        that opens a panel opens it *here*, and `display` loads into the frame
+        you are looking at.
+        """
+        import shlex
+
+        line = self.prompt.text().strip()
+        self.prompt.clear()
+        if not line:
+            return
+        self._history.append(line)
+        self._history_at = len(self._history)
+        self.log(line, prompt=True)
+
+        if line in ("exit", "quit", "bye"):
+            self.close()
+            return
+
+        try:
+            arguments = shlex.split(line)
+        except ValueError as error:
+            self.log(f"  {error} -- unbalanced quotes?")
+            return
+
+        import contextlib
+        import io
+        import warnings
+
+        import click
+
+        from ..cli.main import app
+
+        captured = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(captured), \
+                    contextlib.redirect_stderr(captured), \
+                    warnings.catch_warnings():
+                # A 1987 header writes its date as 01/09/87 and astropy says so
+                # every time it is read. It is true and it is not actionable, and
+                # a session log full of it is a session log nobody reads.
+                warnings.filterwarnings("ignore", message=".*datfix.*")
+                warnings.filterwarnings("ignore", message=".*FITSFixedWarning.*")
+                app.main(args=arguments, prog_name="harwood", standalone_mode=False)
+        except click.ClickException as error:
+            captured.write(f"{error.format_message()}\n")
+        except (click.exceptions.Exit, SystemExit):
+            pass
+        except Exception as error:               # a failure must not end the session
+            captured.write(f"{type(error).__name__}: {error}\n")
+
+        for line in captured.getvalue().splitlines():
+            if line.strip():
+                self.log(f"  {line}")
+
+    def eventFilter(self, obj, event) -> bool:
+        """Up and down walk the history at the prompt; keys over the image are
+        the examine keys."""
+        if obj is getattr(self, "prompt", None) and \
+                event.type() == QtCore.QEvent.KeyPress:
+            if event.key() == QtCore.Qt.Key_Up and self._history:
+                self._history_at = max(0, self._history_at - 1)
+                self.prompt.setText(self._history[self._history_at])
+                return True
+            if event.key() == QtCore.Qt.Key_Down and self._history:
+                self._history_at = min(len(self._history), self._history_at + 1)
+                self.prompt.setText(self._history[self._history_at]
+                                    if self._history_at < len(self._history) else "")
+                return True
+            return False
+        if event.type() == QtCore.QEvent.KeyPress:
+            return self._key(event.text())
+        return super().eventFilter(obj, event)
 
     def log(self, text: str, prompt: bool = False) -> None:
         self.session.appendPlainText(("hw> " if prompt else "") + text)

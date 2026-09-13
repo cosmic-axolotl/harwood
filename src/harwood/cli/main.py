@@ -408,7 +408,7 @@ def display_cmd(image: str, frame: int, scale: str, backend: str | None,
                      for row in table], frame=frame)
         console.print(f"[dim]{len(table)} positions marked from {coords}[/dim]")
 
-    if wait and hasattr(screen, "run"):
+    if wait and hasattr(screen, "run") and getattr(screen, "owns", True):
         raise SystemExit(screen.run())
     if hasattr(screen, "output"):
         console.print(f"  [cyan]->[/cyan] {screen.output}")

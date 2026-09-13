@@ -30,7 +30,6 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import icfit
-from ._qt import application
 
 ACCENT = "#e0a33e"
 SKY = "#4fb59b"
@@ -304,14 +303,8 @@ def apply_command(spec: icfit.FitSpec, text: str) -> icfit.FitSpec:
 def run(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit",
         xlabel: str = "x", ylabel: str = "y") -> icfit.Fit:
     """Open the panel, wait for `q`, and hand back the fit that was accepted."""
-    application()
-    dialog = QtWidgets.QDialog()
-    dialog.setWindowTitle(title)
-    dialog.resize(980, 620)
+    from .dock import show
+
     panel = IcfitPanel(x, y, spec, title=title, xlabel=xlabel, ylabel=ylabel)
-    panel.finished.connect(dialog.accept)
-    layout = QtWidgets.QVBoxLayout(dialog)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.addWidget(panel)
-    dialog.exec()
+    show(panel, title, size=(980, 620))
     return panel.result()

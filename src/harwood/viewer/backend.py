@@ -17,12 +17,19 @@ class NativeDisplay:
     """
 
     def __init__(self, **_: Any) -> None:
-        from ._qt import application
+        from ._qt import application, window
         from .window import HarwoodWindow
 
         self.app = application()
-        self.window = HarwoodWindow()
-        self.window.show()
+        # Reuse the window that is already open. `display` typed at the prompt
+        # inside `harwood gui` has to load into the frame you are looking at;
+        # opening a second window would be two of everything and a second event
+        # loop that never returns.
+        existing = window()
+        self.owns = existing is None
+        self.window = existing if existing is not None else HarwoodWindow()
+        if self.owns:
+            self.window.show()
 
     def show(self, data: Any, header: Any = None, frame: int = 1,
              name: str = "", scale: str = "zscale") -> None:
@@ -42,7 +49,14 @@ class NativeDisplay:
         self._pump()
 
     def run(self) -> int:
-        """Hand control to Qt. Used by `harwood gui`."""
+        """Hand control to Qt. Used by `harwood gui`.
+
+        Does nothing when the window was already open and running: the event
+        loop is somebody else's, and entering a second one from inside it is
+        how a prompt stops answering.
+        """
+        if not self.owns:
+            return 0
         return self.app.exec()
 
     def close(self) -> None:

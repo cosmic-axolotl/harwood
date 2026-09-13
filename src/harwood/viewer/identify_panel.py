@@ -24,7 +24,6 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import arc, icfit
-from ._qt import application
 from .icfit_panel import ACCENT, GROUND, INK, LINE, MUTED, PANEL, SKY, IcfitPanel
 
 HELP = [
@@ -310,14 +309,8 @@ class IdentifyPanel(QtWidgets.QWidget):
 def run(flux, peaks, catalogue, spec=None, title="identify", match: float = 1.5,
         units: str = "Angstroms"):
     """Open the panel and hand back the solution that was accepted."""
-    application()
-    dialog = QtWidgets.QDialog()
-    dialog.setWindowTitle(title)
-    dialog.resize(1150, 780)
+    from .dock import show
+
     panel = IdentifyPanel(flux, peaks, catalogue, spec, match=match, units=units)
-    panel.finished.connect(dialog.accept)
-    layout = QtWidgets.QVBoxLayout(dialog)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.addWidget(panel)
-    dialog.exec()
+    show(panel, title, size=(1150, 780))
     return panel.result()

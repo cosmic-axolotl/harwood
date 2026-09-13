@@ -26,8 +26,6 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
-from ._qt import application
-
 INK = "#d7dee5"
 MUTED = "#8b9aa8"
 GROUND = "#141a21"
@@ -258,13 +256,6 @@ class ImplotPanel(QtWidgets.QWidget):
 
 def run(data, name: str = "image") -> None:
     """Open implot and wait for `q`."""
-    application()
-    dialog = QtWidgets.QDialog()
-    dialog.setWindowTitle(f"implot · {name}")
-    dialog.resize(1080, 640)
-    panel = ImplotPanel(data, name)
-    panel.finished.connect(dialog.accept)
-    layout = QtWidgets.QVBoxLayout(dialog)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.addWidget(panel)
-    dialog.exec()
+    from .dock import show
+
+    show(ImplotPanel(data, name), f"implot · {name}", size=(1080, 640))
