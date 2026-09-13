@@ -64,11 +64,17 @@ def path_for(image: str, workdir: Path | str = ".", prefix: str = "id") -> Path:
     return Path(workdir) / DATABASE / f"{prefix}{name}"
 
 
-def write(solution: Solution, workdir: Path | str = ".") -> Path:
-    """Write a solution to `database/id<image>`."""
+def write(solution: Solution, workdir: Path | str = ".",
+          prefix: str = "id") -> Path:
+    """Write a solution to `database/<prefix><image>`.
+
+    The prefix is IRAF's way of keeping different kinds of solution in one
+    directory without them colliding: `id` for a dispersion solution, `sens`
+    for an instrument response, `ap` for a trace.
+    """
     import yaml
 
-    destination = path_for(solution.image, workdir)
+    destination = path_for(solution.image, workdir, prefix)
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     used = (np.ones(len(solution), dtype=bool) if solution.used is None
@@ -77,7 +83,7 @@ def write(solution: Solution, workdir: Path | str = ".") -> Path:
               else np.asarray(solution.fitted, dtype=float))
 
     document = {
-        "task": "identify",
+        "task": TASKS.get(prefix, "identify"),
         "image": solution.image,
         "aperture": solution.aperture,
         "units": solution.units,
@@ -110,14 +116,24 @@ def write(solution: Solution, workdir: Path | str = ".") -> Path:
     return destination
 
 
-def read(image: str, workdir: Path | str = ".") -> Solution:
+#: Which task writes each prefix, for the `task:` line and for the error
+#: message that says how to make a missing solution.
+TASKS = {"id": "identify", "sens": "sensfunc", "ap": "aptrace"}
+MISSING = {
+    "id": "no dispersion solution for '{name}'. Looked for {path}. Run "
+          "identify on the arc first.",
+    "sens": "no sensitivity function called '{name}'. Looked for {path}. Run "
+            "standard on a flux standard and then sensfunc.",
+    "ap": "no trace for '{name}'. Looked for {path}.",
+}
+
+
+def read(image: str, workdir: Path | str = ".", prefix: str = "id") -> Solution:
     """Read a solution, harwood's format or IRAF's."""
-    destination = path_for(image, workdir)
+    destination = path_for(image, workdir, prefix)
     if not destination.exists():
-        raise FileNotFoundError(
-            f"no dispersion solution for '{image}'. Looked for {destination}. "
-            "Run identify on the arc first."
-        )
+        template = MISSING.get(prefix, MISSING["id"])
+        raise FileNotFoundError(template.format(name=image, path=destination))
     text = destination.read_text(encoding="utf-8", errors="replace")
     if re.search(r"^begin\s", text, re.M):
         return read_iraf(destination)

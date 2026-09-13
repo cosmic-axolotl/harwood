@@ -48,7 +48,7 @@ def test_help_and_lpar_have_different_jobs(run):
 
 def test_an_iraf_name_harwood_does_not_run_gets_an_answer_not_an_error(run):
     for name, expected in (("rfits", "not be ported"),
-                           ("sensfunc", "after the MVP"),
+                           ("continuum", "after the MVP"),
                            ("tselect", "replaced")):
         result = run("help", name)
         assert expected in result.output, name
@@ -269,3 +269,33 @@ def test_the_new_spectroscopic_tasks_are_documented_like_the_rest(run):
         assert manual.exit_code == 0, task
         values = run("lpar", task)
         assert values.exit_code == 0, task
+
+
+def test_standards_lists_the_calibration_directories(run):
+    result = run("standards")
+    if "No calibration data found" in result.output:
+        pytest.skip("IRAF's onedstds are not installed")
+    assert result.exit_code == 0
+    assert "spec50cal" in result.output
+
+
+def test_standards_finds_one_star_across_directories(run):
+    """The same star is calibrated in several, with different band widths and
+    sometimes different fluxes. Choosing between them is a real decision."""
+    result = run("standards", "--star", "feige110")
+    if result.exit_code == 3 and "onedstds" in result.output:
+        pytest.skip("IRAF's onedstds are not installed")
+    assert result.exit_code == 0
+    assert result.output.count("bands of") > 1
+
+
+def test_an_unknown_standard_says_what_to_run(run):
+    result = run("standards", "--star", "not a star")
+    assert result.exit_code == 3
+    assert "harwood standards" in result.output
+
+
+def test_the_flux_chain_is_documented_like_the_rest(run):
+    for task in ("standard", "sensfunc", "calibrate"):
+        assert run("help", task).exit_code == 0, task
+        assert run("lpar", task).exit_code == 0, task

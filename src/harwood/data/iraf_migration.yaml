@@ -712,7 +712,10 @@ tasks:
   # --- spec-1d (later, 36 tasks) --------------------------------
   aidpars: {pkg: onedspec, domain: spec-1d, status: replaced, note: "absorbed into the task's Pydantic parameter model"}
   autoidentify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  calibrate: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  calibrate: {pkg: onedspec, domain: spec-1d, status: partial, harwood: calibrate,
+    note: "applies extinction and the sensitivity function, writing flux in
+           erg/cm2/s/angstrom with BUNIT to say so. No F_nu output and no per-aperture
+           sensitivity."}
   continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   deredden: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dispcor: {pkg: onedspec, domain: spec-1d, status: partial, harwood: dispcor,
@@ -743,13 +746,19 @@ tasks:
   sbands: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   scoords: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   scopy: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  sensfunc: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  sensfunc: {pkg: onedspec, domain: spec-1d, status: partial, harwood: sensfunc,
+    note: "removes the extinction band by band at that band's airmass, then fits the
+           response with icfit; the solution goes to database/sens<name>. No per-aperture
+           solutions and no fitting of a revised extinction curve."}
   sfit: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sflip: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   skysub: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
   skytweak: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   specshift: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  standard: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  standard: {pkg: onedspec, domain: spec-1d, status: partial, harwood: standard,
+    note: "integrates a calibrated standard over the bands of an onedstds$ table and
+           records counts, flux and airmass per band; appends, so several stars build one
+           fit. No beam switching, no interactive band editing, no blackbody standards."}
   telluric: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
 
   # --- spec-pipelines (later, 20 tasks) -------------------------

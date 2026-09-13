@@ -359,6 +359,68 @@ def _print_lines(found, title: str) -> None:
     console.print(table)
 
 
+@app.command("standards")
+@click.argument("caldir", required=False)
+@click.option("--star", default="", help="Find one star, wherever it lives.")
+def standards_cmd(caldir: str | None, star: str) -> None:
+    """List the flux standards available, or find one.
+
+    The same star appears in several calibration directories with different
+    band widths and, sometimes, different fluxes -- they were calibrated
+    against different primary standards. Which one you use is a choice, so it
+    is worth seeing them side by side.
+    """
+    from ..core import flux
+
+    if star:
+        found = flux.where_is(star)
+        if not found:
+            error_console.print(
+                f"[red]No standard called '{star}'.[/red] Run "
+                "[bold]harwood standards[/bold] to see the directories.")
+            raise SystemExit(3)
+        console.print(f"[bold]{star}[/bold] is in:")
+        for folder, path in found:
+            bands = flux.read_bands(path)
+            console.print(
+                f"  [bold]{folder}[/bold]  {len(bands)} bands of "
+                f"{bands[0].width:.0f} A, {bands[0].wavelength:.0f} to "
+                f"{bands[-1].wavelength:.0f} A   [dim]{path}[/dim]")
+        console.print(f"[dim]Pick one with: standard --caldir {found[0][0]}[/dim]")
+        return
+
+    if caldir:
+        names = flux.stars(caldir)
+        if not names:
+            error_console.print(
+                f"[red]No calibration directory called '{caldir}'[/red], or it "
+                "is empty. Run [bold]harwood standards[/bold] for the list.")
+            raise SystemExit(3)
+        console.print(f"[bold]{caldir}[/bold] -- "
+                      f"{flux.CALDIRS.get(caldir, 'a calibration directory')}")
+        console.print("  " + "  ".join(name for name in names if name != "names"))
+        return
+
+    roots = [root for root in flux.IRAF_STANDARDS if root.is_dir()]
+    if not roots:
+        error_console.print(
+            "[red]No calibration data found.[/red] harwood reads IRAF's "
+            f"onedstds; looked in {', '.join(str(r) for r in flux.IRAF_STANDARDS)}.")
+        raise SystemExit(3)
+
+    table = Table(title="flux standards", title_style="bold")
+    table.add_column("caldir", style="bold")
+    table.add_column("stars", justify="right")
+    table.add_column("what it is")
+    for name, what in flux.CALDIRS.items():
+        found = flux.stars(name)
+        if found:
+            table.add_row(name, str(len([s for s in found if s != "names"])), what)
+    console.print(table)
+    console.print("[dim]harwood standards spec50cal lists its stars; "
+                  "harwood standards --star feige110 finds one.[/dim]")
+
+
 # ------------------------------------------------------------ the project
 
 

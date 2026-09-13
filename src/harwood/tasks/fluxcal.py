@@ -1,0 +1,619 @@
+"""onedspec -- flux calibration: standard, sensfunc, calibrate.
+
+Three tasks and one idea. Counts are a property of the telescope, the grating,
+the detector, the slit and the weather; flux is a property of the star.
+Getting from one to the other means observing something whose flux is already
+known and measuring what this instrument did to it.
+
+What makes it three tasks rather than one is that the middle step is shared.
+`standard` measures one calibration star, and can be run again on another, and
+another -- each run appends. `sensfunc` then fits all of them together, which
+is the whole reason the extinction is taken out per band rather than per
+exposure: bands from stars observed at different airmasses become comparable,
+and the fit sees more of the wavelength range than any one star covers.
+
+The files these read are IRAF's own, under `onedstds$`, because the standards
+are somebody else's measurements and reproducing them would only introduce
+errors.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import Field
+
+from ..core.registry import register
+from ..core.task import Step, Task, TaskParams, TaskResult
+
+STDWHY = {
+    "star": "The calibration star's true flux, measured by somebody else and "
+            "tabulated in bands. Which table matters: the same star appears in "
+            "several with different band widths and, sometimes, different "
+            "fluxes, because they were calibrated against different primary "
+            "standards.",
+    "bands": "The observed spectrum is integrated over each band and divided by "
+             "the band width and the exposure time, which gives counts per "
+             "second per Angstrom -- directly comparable with a flux density. "
+             "A band only partly covered by the spectrum is dropped rather "
+             "than scaled up: a half-covered band looks exactly like a star "
+             "half as bright, and afterwards nothing can tell the two apart.",
+    "airmass": "The airmass is recorded with each band rather than applied "
+               "here, so that sensfunc can remove the extinction per band and "
+               "combine stars observed at different airmasses in one fit.",
+    "write": "The measurements are appended, not replaced. Running standard on "
+             "a second star adds to the same file, and sensfunc fits them "
+             "together -- which is how the fit covers more wavelength than any "
+             "single standard does.",
+}
+
+
+class StandardParams(TaskParams):
+    input: str = Field(..., description="Calibrated spectrum of a standard star.")
+    output: Path = Field(
+        Path("std"),
+        description="Where the measurements go. Appended to if it exists.",
+        json_schema_extra={"positional": True},
+    )
+    star_name: str = Field(
+        "",
+        description="The standard's name, as the calibration directory spells "
+                    "it. Read from the OBJECT keyword when left out.",
+    )
+    caldir: str = Field(
+        "spec50cal",
+        description="Which calibration directory: spec50cal, spec16cal, "
+                    "oke1990, iidscal. 'harwood standards' lists them.",
+    )
+    extinction: str = Field(
+        "onedstds$kpnoextinct.dat",
+        description="Extinction curve for the site. Recorded now, applied by "
+                    "sensfunc.",
+    )
+    airmass: float | None = Field(
+        None, gt=0,
+        description="Airmass of the exposure. Read from the header when left "
+                    "out -- setairmass puts the effective one there.",
+    )
+    exptime: float | None = Field(
+        None, gt=0, description="Exposure time. Read from the header when left out."
+    )
+    aperture: int = Field(1, ge=1, description="Which aperture to measure.")
+    edge: float = Field(
+        0.0, ge=0,
+        description="Ignore this many Angstroms at each end of the spectrum, "
+                    "where the response falls off.",
+    )
+
+
+@register
+class StandardTask(Task[StandardParams]):
+    name = "standard"
+    package = "onedspec"
+    description = "Measure a flux standard in bands, against its known flux."
+    Params = StandardParams
+
+    def plan(self, params: StandardParams) -> list[Step]:
+        return [
+            Step("star", params.star_name or "from the OBJECT keyword",
+                 why=STDWHY["star"]),
+            Step("bands", "integrate the spectrum over each band",
+                 why=STDWHY["bands"]),
+            Step("airmass", "recorded with each band", why=STDWHY["airmass"]),
+            Step("write", str(params.output), why=STDWHY["write"]),
+        ]
+
+    def execute(self, params: StandardParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import flux, spectrum, stdfile
+
+        found = spectrum.read(params.input, number=params.aperture)
+        if not found:
+            raise ValueError(
+                f"'{params.input}' has no aperture {params.aperture}; it holds "
+                f"{spectrum.count(params.input)}.")
+        aperture = found[0]
+        if aperture.wavelength is None or not any(aperture.wavelength):
+            raise ValueError(
+                f"'{params.input}' is still in pixels. A flux standard has to "
+                "be wavelength-calibrated first, or there is no way to know "
+                "which band each count belongs to -- run dispcor on it.")
+
+        header = fits.getheader(params.input)
+        name = params.star_name or str(header.get("OBJECT", "")).strip()
+        if not name:
+            raise ValueError(
+                "--star-name says which standard this is; the header has no "
+                "OBJECT keyword to fall back on.")
+
+        path = flux.find_star(name, params.caldir)
+        if path is None:
+            raise ValueError(_no_such_star(name, params.caldir))
+
+        airmass = params.airmass or _header_number(header, "AIRMASS")
+        exptime = params.exptime or _header_number(header, "EXPTIME", "ITIME")
+        if airmass is None:
+            raise ValueError(
+                "no airmass: give --airmass, or run setairmass to put the "
+                "effective one in the header. Without it the extinction "
+                "cannot be removed, and a standard observed at 1.8 airmasses "
+                "looks like an instrument 30 per cent less sensitive than it "
+                "is.")
+        if exptime is None:
+            raise ValueError(
+                "no exposure time: give --exptime, or put EXPTIME in the "
+                "header. Counts per second is the only form that can be "
+                "compared between exposures.")
+
+        bands = flux.read_bands(path)
+        measured = flux.measure(aperture, bands, exptime, airmass,
+                                star=name, edge=params.edge)
+        if not measured:
+            raise ValueError(_no_overlap(aperture, bands, name, path))
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        by_action["star"].measured = {
+            "star": name,
+            "table": f"{params.caldir}/{path.name}",
+            "bands in the table": len(bands),
+            "covering": f"{bands[0].wavelength:.0f} to "
+                        f"{bands[-1].wavelength:.0f} A",
+        }
+        by_action["bands"].measured = {
+            "bands measured": f"{len(measured)} of {len(bands)}",
+            "spectrum covers": f"{min(aperture.wavelength):.0f} to "
+                               f"{max(aperture.wavelength):.0f} A",
+            "band width": f"{measured[0].width:.0f} A",
+        }
+        by_action["airmass"].measured = {
+            "airmass": f"{airmass:.4f}",
+            "exposure": f"{exptime:.1f} s",
+            "extinction curve": params.extinction,
+        }
+
+        existing = stdfile.read(params.output) if Path(params.output).exists() else None
+        total = stdfile.append(params.output, measured, params.extinction,
+                               params.caldir)
+        by_action["write"].measured = {
+            "bands in this run": len(measured),
+            "bands in the file": total,
+            "stars in the file": len({item.star for item
+                                      in stdfile.read(params.output).measurements}),
+        }
+
+        warnings = []
+        if existing and existing.extinction_name != params.extinction:
+            warnings.append(
+                f"the file already uses the extinction curve "
+                f"'{existing.extinction_name}' and this run gives "
+                f"'{params.extinction}'. sensfunc applies one curve to every "
+                "band, so mixing sites in one file is a mistake it cannot see.")
+        negative = [item for item in measured if item.counts <= 0]
+        if negative:
+            warnings.append(
+                f"{len(negative)} bands have no positive counts and will drop "
+                "out of the fit. That is usually the ends of the spectrum, "
+                "where the response has fallen to nothing.")
+
+        return TaskResult(
+            outputs=[Path(params.output)],
+            steps=steps,
+            warnings=warnings,
+            data={"rows": [{"wavelength": round(item.wavelength, 1),
+                            "width": round(item.width, 1),
+                            "magnitude": round(item.magnitude, 3),
+                            "flux": f"{item.flux:.4g}",
+                            "counts/s/A": f"{item.counts:.5g}"}
+                           for item in measured]},
+            history=[f"standard: {name} from {params.caldir}, {len(measured)} "
+                     f"bands at airmass {airmass:.3f}"],
+        )
+
+
+SENSWHY = {
+    "read": "Every band that standard measured, from every star it was run on. "
+            "One fit over all of them covers more wavelength than any single "
+            "standard does.",
+    "extinct": "The extinction is removed band by band, using the airmass of "
+               "the exposure that band came from. This is what makes stars "
+               "observed at different airmasses comparable: what is left after "
+               "the atmosphere is taken out belongs to the instrument, and the "
+               "instrument did not change between exposures.",
+    "fit": "A smooth curve through the response. The instrument's sensitivity "
+           "varies with wavelength because the grating, the coatings and the "
+           "detector all do, and all of those are smooth -- so a low order is "
+           "right and a high one is fitting the errors in the standard star's "
+           "own calibration.",
+    "write": "The solution goes to database/sens<name>, where calibrate reads "
+             "it. The rejected bands are kept: knowing which were thrown out "
+             "is part of knowing the answer.",
+}
+
+
+class SensFuncParams(TaskParams):
+    standards: Path = Field(
+        Path("std"), description="File the standard task wrote.",
+        json_schema_extra={"positional": True},
+    )
+    sensitivity: str = Field(
+        "sens", description="Name for the solution, written to database/sens<name>."
+    )
+    extinction: str = Field(
+        "", description="Extinction curve. Taken from the standards file when "
+                        "left out."
+    )
+    function: str = Field(
+        "spline3", description="chebyshev, legendre, spline3 or spline1."
+    )
+    order: int = Field(
+        6, ge=1,
+        description="Number of terms, or pieces for a spline. Low: the "
+                    "response is smooth.",
+    )
+    low_reject: float = Field(3.0, ge=0, description="Reject below this many sigma.")
+    high_reject: float = Field(3.0, ge=0, description="Reject above this many sigma.")
+    niterate: int = Field(2, ge=0, description="Rejection passes.")
+    database: Path = Field(Path("."), description="Reduction directory holding database/.")
+    interactive: bool = Field(
+        False, description="Fit in the icfit panel, where the order can be changed."
+    )
+
+
+@register
+class SensFunc(Task[SensFuncParams]):
+    name = "sensfunc"
+    package = "onedspec"
+    description = "Fit the instrument's response from the measured standards."
+    Params = SensFuncParams
+
+    def plan(self, params: SensFuncParams) -> list[Step]:
+        return [
+            Step("read", str(params.standards), why=SENSWHY["read"]),
+            Step("extinct", "per band, at that band's airmass",
+                 why=SENSWHY["extinct"]),
+            Step("fit", f"{params.function} order {params.order}",
+                 why=SENSWHY["fit"]),
+            Step("write", f"database/sens{params.sensitivity}",
+                 why=SENSWHY["write"]),
+        ]
+
+    def execute(self, params: SensFuncParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import database, flux, icfit, stdfile
+
+        if not Path(params.standards).exists():
+            raise ValueError(
+                f"'{params.standards}' does not exist. It is written by the "
+                "standard task: run that on a flux standard first.")
+        standard = stdfile.read(params.standards)
+        if len(standard) < 2:
+            raise ValueError(
+                f"'{params.standards}' holds {len(standard)} bands, which is "
+                "not enough to fit anything.")
+
+        name = params.extinction or standard.extinction_name
+        if not name:
+            raise ValueError(
+                "no extinction curve: the standards file does not name one and "
+                "--extinction was not given.")
+        curve = flux.read_extinction(name)
+
+        spec = icfit.FitSpec(
+            function=params.function, order=params.order,
+            low_reject=params.low_reject, high_reject=params.high_reject,
+            niterate=params.niterate)
+
+        fit, wavelength, values = flux.sensitivity(standard, curve, spec)
+        if params.interactive:
+            from ..viewer.icfit_panel import run as run_icfit
+
+            fit = run_icfit(wavelength, values, spec,
+                            title=f"sensfunc · {params.sensitivity}",
+                            xlabel="wavelength", ylabel="sensitivity (mag)")
+        if fit.model is None:
+            raise RuntimeError(f"the response could not be fitted: {fit.message}")
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        by_action["read"].measured = {
+            "bands": len(standard),
+            "stars": ", ".join(sorted({item.star for item in standard.measurements})),
+            "covering": f"{wavelength.min():.0f} to {wavelength.max():.0f} A",
+        }
+        airmasses = [item.airmass for item in standard.measurements]
+        by_action["extinct"].measured = {
+            "curve": name,
+            "airmass": (f"{min(airmasses):.3f}" if min(airmasses) == max(airmasses)
+                        else f"{min(airmasses):.3f} to {max(airmasses):.3f}"),
+            "extinction at the ends":
+                f"{flux.extinction_at([wavelength.min()], curve)[0]:.3f} to "
+                f"{flux.extinction_at([wavelength.max()], curve)[0]:.3f} mag/airmass",
+        }
+
+        kept = int(np.sum(fit.mask))
+        by_action["fit"].measured = {
+            "bands used": f"{kept} of {len(values)}",
+            "rms": f"{fit.rms:.4f} mag",
+            "response range": f"{values.min():.2f} to {values.max():.2f} mag",
+        }
+
+        solution = database.Solution(
+            image=params.sensitivity, pixel=wavelength, wavelength=values,
+            function=params.function, order=params.order, rms=float(fit.rms),
+            used=fit.mask, units="mag",
+        )
+        destination = database.write(solution, params.database, prefix="sens")
+
+        warnings = []
+        # The rms is the honest size of the flux calibration's systematic
+        # error, and it is worth saying in per cent because magnitudes hide
+        # how large it is.
+        percent = 100.0 * (10.0 ** (0.4 * fit.rms) - 1.0)
+        warnings.append(
+            f"the response scatters by {fit.rms:.3f} mag about the fit, which "
+            f"is {percent:.1f} per cent in flux. That is the systematic floor "
+            "on every spectrum calibrated with this solution -- it is not "
+            "reduced by observing the object for longer.")
+        if kept < 0.7 * len(values):
+            warnings.append(
+                f"only {kept} of {len(values)} bands survived rejection. Either "
+                "the order is too low to follow the real response, or some "
+                "bands are contaminated -- look at the fit with --interactive.")
+
+        return TaskResult(
+            outputs=[destination],
+            steps=steps,
+            warnings=warnings,
+            data={"bands": len(values), "used": kept,
+                  "rms": round(float(fit.rms), 4)},
+            history=[f"sensfunc: {params.function} order {params.order}, "
+                     f"{kept} bands, rms {fit.rms:.4f} mag"],
+        )
+
+
+CALWHY = {
+    "read": "The extracted spectrum, in counts, and the sensitivity solution "
+            "that says what this instrument does to flux at each wavelength.",
+    "extinct": "The counts are corrected to what they would have been above "
+               "the atmosphere, using this exposure's own airmass. This is "
+               "where an airmass from the middle of the exposure matters "
+               "rather than one from the shutter opening: at 1.8 airmasses in "
+               "the blue the difference between them is a few per cent.",
+    "apply": "Sensitivity is in magnitudes, so applying it is a division: "
+             "F = counts / (exptime * 10^(0.4 S)). What comes out is a flux "
+             "density in erg/cm2/s/Angstrom, which is a property of the star "
+             "and not of the night it was observed on.",
+    "write": "The same file shape as before, with the flux now physical. BUNIT "
+             "says so, and the counts are not recoverable from it -- which is "
+             "why the calibrated spectrum is a new file rather than an "
+             "overwrite.",
+}
+
+
+class CalibrateParams(TaskParams):
+    input: str = Field(..., description="Extracted, wavelength-calibrated spectrum.")
+    output: Path | None = Field(
+        None,
+        description="Where to write. Left out, it goes to this run's own "
+                    "directory.",
+        json_schema_extra={"positional": True},
+    )
+    sensitivity: str = Field(
+        "sens", description="Name of the solution, read from database/sens<name>."
+    )
+    extinction: str = Field(
+        "onedstds$kpnoextinct.dat", description="Extinction curve for the site."
+    )
+    extinct: bool = Field(
+        True, description="Correct for atmospheric extinction."
+    )
+    flux: bool = Field(
+        True, description="Apply the sensitivity function. Off, only the "
+                          "extinction is done."
+    )
+    airmass: float | None = Field(
+        None, gt=0, description="Airmass. Read from the header when left out."
+    )
+    exptime: float | None = Field(
+        None, gt=0, description="Exposure time. Read from the header when left out."
+    )
+    database: Path = Field(Path("."), description="Reduction directory holding database/.")
+
+
+@register
+class Calibrate(Task[CalibrateParams]):
+    name = "calibrate"
+    package = "onedspec"
+    description = "Apply the sensitivity function and extinction to a spectrum."
+    Params = CalibrateParams
+
+    def plan(self, params: CalibrateParams) -> list[Step]:
+        steps = [Step("read", params.input, why=CALWHY["read"])]
+        steps.append(Step("extinct", params.extinction, why=CALWHY["extinct"],
+                          skipped=not params.extinct,
+                          reason="" if params.extinct else "--no-extinct"))
+        steps.append(Step("apply", f"database/sens{params.sensitivity}",
+                          why=CALWHY["apply"], skipped=not params.flux,
+                          reason="" if params.flux else "--no-flux"))
+        steps.append(Step("write", str(params.output or "this run's directory"),
+                          why=CALWHY["write"]))
+        return steps
+
+    def execute(self, params: CalibrateParams) -> TaskResult:
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import database, flux, icfit, output, spectrum
+
+        apertures = spectrum.read(params.input)
+        if not apertures:
+            raise ValueError(f"'{params.input}' holds no extracted spectra.")
+        if apertures[0].wavelength is None or not any(apertures[0].wavelength):
+            raise ValueError(
+                f"'{params.input}' is still in pixels. Flux calibration needs "
+                "wavelengths -- both the sensitivity function and the "
+                "extinction are functions of wavelength. Run dispcor first.")
+
+        header = fits.getheader(params.input)
+        airmass = params.airmass or _header_number(header, "AIRMASS")
+        exptime = params.exptime or _header_number(header, "EXPTIME", "ITIME")
+        if exptime is None:
+            raise ValueError(
+                "no exposure time: give --exptime, or put EXPTIME in the header.")
+        if airmass is None and params.extinct:
+            raise ValueError(
+                "no airmass, and the extinction correction needs one. Give "
+                "--airmass, run setairmass, or turn the correction off with "
+                "--no-extinct -- but then the flux is only right for a star at "
+                "the zenith.")
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        curve = flux.read_extinction(params.extinction) if params.extinct else None
+
+        if params.flux:
+            solution = database.read(params.sensitivity, params.database,
+                                     prefix="sens")
+            used = solution.used
+            grid = solution.pixel if used is None else solution.pixel[used]
+            values = (solution.wavelength if used is None
+                      else solution.wavelength[used])
+            fitted = icfit.fit(grid, values,
+                               icfit.FitSpec(function=solution.function,
+                                             order=solution.order))
+            if fitted.model is None:
+                raise RuntimeError(
+                    f"the solution in database/sens{params.sensitivity} could "
+                    f"not be refitted: {fitted.message}")
+            response = fitted
+            covered = (float(grid.min()), float(grid.max()))
+        else:
+            response = _unit_response()
+            covered = None
+
+        for aperture in apertures:
+            calibrated, uncertainty = flux.calibrate(
+                aperture, response, curve, airmass or 1.0, exptime,
+                extinct=params.extinct)
+            aperture.flux = calibrated
+            if uncertainty is not None:
+                aperture.error = uncertainty
+
+        first = apertures[0]
+        wave = np.asarray(first.wavelength, dtype=float)
+        by_action["read"].measured = {
+            "apertures": len(apertures),
+            "range": f"{wave.min():.1f} to {wave.max():.1f} A",
+            "exposure": f"{exptime:.1f} s",
+        }
+        if params.extinct:
+            coefficient = flux.extinction_at(wave, curve)
+            gain = 10.0 ** (0.4 * coefficient * airmass)
+            by_action["extinct"].measured = {
+                "airmass": f"{airmass:.4f}",
+                "correction at the blue end": f"x{gain[0]:.3f}",
+                "correction at the red end": f"x{gain[-1]:.3f}",
+            }
+        if params.flux:
+            by_action["apply"].measured = {
+                "solution": f"{solution.function} order {solution.order}",
+                "rms of the fit": f"{solution.rms:.4f} mag",
+                "fitted over": f"{covered[0]:.0f} to {covered[1]:.0f} A",
+            }
+
+        warnings = []
+        good = np.isfinite(first.flux) & (first.flux > 0)
+        if good.any():
+            median = float(np.median(first.flux[good]))
+            middle = float(np.median(wave))
+            by_action["write"].measured = {
+                "median flux": f"{median:.4g} {flux.FLUX_UNIT}",
+                "as a magnitude":
+                    f"{flux.flux_to_magnitude(median, middle):.2f} at "
+                    f"{middle:.0f} A",
+            }
+        if params.flux and covered is not None:
+            outside = int((wave < covered[0]).sum() + (wave > covered[1]).sum())
+            if outside:
+                warnings.append(
+                    f"{outside} of {wave.size} pixels fall outside the "
+                    f"{covered[0]:.0f} to {covered[1]:.0f} A the standards "
+                    "covered. Their calibration is extrapolated, and a "
+                    "response extrapolated past its last band goes wrong "
+                    "quickly.")
+        if not params.flux:
+            warnings.append(
+                "--no-flux was given, so this spectrum is extinction-corrected "
+                "counts, not flux. It is comparable between exposures of the "
+                "same night and with nothing else.")
+
+        destination = params.output or output.named_for(params.input, ".f.fits")
+        extra = fits.Header()
+        extra["BUNIT"] = (flux.FLUX_UNIT if params.flux else "counts",
+                          "what the flux column is in")
+        spectrum.write(destination, apertures, header=extra,
+                       source=str(params.input))
+
+        return TaskResult(
+            outputs=[Path(destination)],
+            steps=steps,
+            warnings=warnings,
+            data={"apertures": len(apertures),
+                  "unit": flux.FLUX_UNIT if params.flux else "counts"},
+            history=[f"calibrate: sens{params.sensitivity}"
+                     + (f", extinction {params.extinction} at airmass "
+                        f"{airmass:.3f}" if params.extinct else
+                        ", no extinction correction")],
+        )
+
+
+def _unit_response():
+    """A sensitivity of zero magnitudes everywhere: counts, unchanged."""
+    import numpy as np
+
+    def response(wavelength):
+        return np.zeros_like(np.asarray(wavelength, dtype=float))
+    return response
+
+
+def _header_number(header, *keywords) -> float | None:
+    for keyword in keywords:
+        value = header.get(keyword)
+        if value is not None:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _no_such_star(name: str, caldir: str) -> str:
+    """A missing standard is usually a spelling or the wrong directory."""
+    from ..core import flux
+
+    elsewhere = flux.where_is(name)
+    if elsewhere:
+        return (f"'{name}' is not in {caldir}, but it is in "
+                f"{', '.join(folder for folder, _ in elsewhere)}. Give "
+                f"--caldir {elsewhere[0][0]}.")
+    known = flux.stars(caldir)
+    close = [item for item in known if name.lower()[:3] in item][:6]
+    return (f"no standard called '{name}' in {caldir}."
+            + (f" Did you mean {', '.join(close)}?" if close else
+               f" It holds {len(known)} stars; 'harwood standards {caldir}' "
+               "lists them."))
+
+
+def _no_overlap(aperture, bands, name: str, path) -> str:
+    """The spectrum and the standard's table do not meet."""
+    return (
+        f"none of {name}'s calibration bands falls inside the spectrum. The "
+        f"table covers {bands[0].wavelength:.0f} to {bands[-1].wavelength:.0f} "
+        f"A and the spectrum covers {min(aperture.wavelength):.0f} to "
+        f"{max(aperture.wavelength):.0f} A. A band has to be wholly inside the "
+        "spectrum to be measured, since a partly covered band looks like a "
+        "fainter star."
+    )
