@@ -1,0 +1,26 @@
+# harwood dispersion solution.
+#
+# One line per identified feature: the pixel it was measured at, the
+# wavelength it was matched to, what the fit gives there, and whether
+# the fit used it. Deleted or rejected features are kept on purpose --
+# knowing which lines were thrown out is part of knowing the solution.
+
+task: apall
+image: /tmp/pytest-of-costamands/pytest-82/spec0/psp0020.fits
+aperture: 1
+units: pixels
+coordlist: ''
+created: '2026-09-13T12:30:51+00:00'
+fit:
+  function: legendre
+  order: 3
+  rms: 0.015758
+apertures:
+- number: 1
+  centre: 53.9244
+  low: -3.9244
+  high: 4.0756
+
+features:
+#  pixel      wavelength    fitted       used
+  - [   53.9244,      8.00000,     53.92436, true]

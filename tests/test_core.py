@@ -205,7 +205,7 @@ def test_presets_are_the_same_engine():
 
 def test_migration_map_answers_for_a_task_harwood_does_not_run():
     assert "not be ported" in migration.explain("rfits")
-    assert "after the MVP" in migration.explain("apall")
+    assert "after the MVP" in migration.explain("sensfunc")
     assert migration.explain("daofind") is None
 
 

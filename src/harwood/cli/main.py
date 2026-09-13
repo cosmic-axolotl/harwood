@@ -652,7 +652,17 @@ def _print_steps(steps: list[Any], explain: bool) -> None:
         console.print()
 
 
-def _print_rows(rows: list[dict[str, Any]]) -> None:
+def _print_rows(rows: Any) -> None:
+    """Print a task's `rows` as a table -- when that is what they are.
+
+    `rows` is the CLI's convention for "a table to print", and a task that
+    means something else by the word should not crash the command. It is a
+    shared namespace and the cost of getting it wrong should be a plain line,
+    not a traceback.
+    """
+    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+        console.print(f"  rows: {_show(rows)}")
+        return
     if not rows:
         console.print("  [yellow]no rows[/yellow]")
         return

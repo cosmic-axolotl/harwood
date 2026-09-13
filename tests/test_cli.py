@@ -48,7 +48,7 @@ def test_help_and_lpar_have_different_jobs(run):
 
 def test_an_iraf_name_harwood_does_not_run_gets_an_answer_not_an_error(run):
     for name, expected in (("rfits", "not be ported"),
-                           ("apall", "after the MVP"),
+                           ("sensfunc", "after the MVP"),
                            ("tselect", "replaced")):
         result = run("help", name)
         assert expected in result.output, name
