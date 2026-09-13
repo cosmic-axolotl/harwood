@@ -62,6 +62,14 @@ def explain(name: str) -> str | None:
         return None
     status, note = entry["status"], entry.get("note")
     if status in ("available", "partial"):
+        # An IRAF name that harwood runs under a different one still needs
+        # answering: `apedit` is part of `apall`, and "did you mean apall?"
+        # makes that look like a guess rather than the answer.
+        harwood = entry.get("harwood")
+        if harwood and harwood != name:
+            return (f"'{name}' ({entry['pkg']}) is harwood's '{harwood}'"
+                    + (f": {note}." if note else ". Run "
+                       f"`harwood help {harwood}`."))
         return None
     if status == "planned":
         when = "in the MVP" if entry.get("milestone") == "mvp" else "after the MVP"

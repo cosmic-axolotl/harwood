@@ -21,7 +21,7 @@
 #                wontport   deliberately not portable; `note` says why
 #
 # Counts: 610 distinct task names across 52 packages.
-#   available: 15, partial: 8, planned: 332, replaced: 94, wontport: 161
+#   available: 18, partial: 9, planned: 328, replaced: 94, wontport: 161
 #   milestone mvp: 46, later: 295
 #
 # Known delta: the inventory counts 609 distinct names, this file holds 610.
@@ -654,16 +654,20 @@ tasks:
   apall: {pkg: twodspec.apextract, domain: spec-2d, status: partial, harwood: apall,
     note: "finds, sizes, traces and extracts, with a plain or an optimal sum and a background either side; no apedit, no aperture reference from another frame, one background shape only"}
   apdefault: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
-  apedit: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
-  apfind: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apedit: {pkg: twodspec.apextract, domain: spec-2d, status: available, harwood: apall,
+    note: "part of apall: --edit opens it, and the finding and sizing happen there"}
+  apfind: {pkg: twodspec.apextract, domain: spec-2d, status: available, harwood: apall,
+    note: "part of apall: --edit opens it, and the finding and sizing happen there"}
   apfit: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apflatten: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apnoise: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apnormalize: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   aprecenter: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
-  apresize: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apresize: {pkg: twodspec.apextract, domain: spec-2d, status: available, harwood: apall,
+    note: "part of apall: --edit opens it, and the finding and sizing happen there"}
   apscatter: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
-  apsum: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  apsum: {pkg: twodspec.apextract, domain: spec-2d, status: partial, harwood: apall,
+    note: "extraction is done by apall; apsum as a separate task reusing a stored aperture is not built"}
   aptrace: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   extinction: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
   fceval: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}

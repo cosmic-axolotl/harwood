@@ -279,3 +279,13 @@ def test_the_unexplained_backlog_is_exactly_what_we_think_it_is():
         "ccdproc's plan reads real headers; if that changed, check it here "
         "rather than leaving it uncounted"
     )
+
+
+def test_an_iraf_name_that_harwood_runs_under_another_name_says_which():
+    """`apedit` is part of `apall`. "Did you mean apall?" makes that look like a
+    guess; the map knows, so it should say so."""
+    answer = migration.explain("apedit")
+    assert answer is not None
+    assert "apall" in answer
+    assert migration.explain("daofind") is None, \
+        "a name harwood runs under its own name needs no answer"

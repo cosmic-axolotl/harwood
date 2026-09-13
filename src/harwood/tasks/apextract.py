@@ -34,6 +34,10 @@ WHY = {
                "what nsum limits.",
     "find": "The peaks in the spatial profile are the spectra. One for a star on "
             "a long slit, many for fibres or an echelle.",
+    "edit": "The finder is right most of the time, and the times it is not are "
+            "the ones that matter: two stars it merged, a galaxy reaching past "
+            "the threshold, a sky band landing on a neighbour. You have to look "
+            "at the profile, so this shows it.",
     "resize": "The aperture is set where the profile falls to a fraction of its "
               "peak, rather than to a fixed width, because a fibre and a long "
               "slit want very different apertures and the profile knows which "
@@ -105,6 +109,13 @@ class ApAllParams(TaskParams):
                     "--lower and --upper are not given.",
     )
 
+    edit: bool = Field(
+        False,
+        description="Adjust the apertures by hand before extracting, on the "
+                    "profile they came from. The times the finder is wrong are "
+                    "the ones that matter, and none of them is a parameter you "
+                    "can set in advance.",
+    )
     trace: bool = Field(
         True, description="Follow the spectrum along the dispersion. Turning this "
                           "off assumes it sits on one column, which it does not."
@@ -167,6 +178,9 @@ class ApAll(Task[ApAllParams]):
                  else f"edges where the profile falls to {params.ylevel:.0%}",
                  why=WHY["resize"]),
         ]
+        if params.edit:
+            steps.append(Step("edit", "by hand, on the spatial profile",
+                              why=WHY["edit"]))
         if params.trace:
             steps.append(Step("trace", f"every {params.t_step} px, "
                                        f"{params.t_function} order {params.t_order}"
@@ -216,15 +230,31 @@ class ApAll(Task[ApAllParams]):
             "at": ", ".join(f"{peak['centre']:.2f}" for peak in peaks[:6]),
         }
 
+        found = [{"centre": peak["centre"],
+                  **self._limits(spatial, peak["centre"], params)}
+                 for peak in peaks]
+        band = [params.b_inner, params.b_outer] if params.background else None
+        if params.edit:
+            from ..viewer.aperture_panel import run as run_apedit
+
+            before = len(found)
+            found, band = run_apedit(spatial, found, band, params.ylevel,
+                                     title=f"apedit · {params.input}")
+            if not found:
+                raise RuntimeError(
+                    "every aperture was deleted, so there is nothing to extract."
+                )
+            by_action["edit"].measured = {
+                "kept": len(found),
+                "changed": "yes" if len(found) != before else "edges or centres",
+            }
+
         spec = icfit.FitSpec(function=params.t_function, order=params.t_order,
                              niterate=params.t_niterate)
         apertures, traces = [], []
-        for number, peak in enumerate(peaks, start=1):
-            centre = peak["centre"]
-            if params.lower is not None and params.upper is not None:
-                low, high = params.lower, params.upper
-            else:
-                low, high = apextract.edges(spatial, centre, params.ylevel)
+        for number, chosen in enumerate(found, start=1):
+            centre = chosen["centre"]
+            low, high = chosen["low"], chosen["high"]
 
             if params.trace:
                 fit = self._trace(data, centre, params, spec)
@@ -242,8 +272,7 @@ class ApAll(Task[ApAllParams]):
 
             measured = apextract.extract(
                 data, centre_at, low, high, dispaxis=params.dispaxis,
-                background=(params.b_inner, params.b_outer)
-                if params.background else None,
+                background=tuple(band) if band else None,
                 gain=params.gain, rdnoise=params.rdnoise, weights=params.weights)
 
             apertures.append(spectrum.Aperture(
@@ -269,9 +298,11 @@ class ApAll(Task[ApAllParams]):
                 "rms": f"{fit.rms:.3f} px",
                 "drift": f"{ends[1] - ends[0]:+.2f} px end to end",
             }
-        if params.background:
+        if params.background and "background" in by_action:
             by_action["background"].measured = {
                 "sky": f"{float(np.median(apertures[0].sky)):.1f} counts per pixel",
+                "band": f"{band[0]:g} to {band[1]:g} px outside each edge"
+                        if band else "none",
             }
 
         first = apertures[0]
@@ -299,6 +330,15 @@ class ApAll(Task[ApAllParams]):
                      f"{params.weights}, trace {params.t_function} order "
                      f"{params.t_order}"],
         )
+
+    def _limits(self, spatial, centre, params) -> dict:
+        """Where this aperture's edges go, before anyone edits them."""
+        from ..core import apextract
+
+        if params.lower is not None and params.upper is not None:
+            return {"low": params.lower, "high": params.upper}
+        low, high = apextract.edges(spatial, centre, params.ylevel)
+        return {"low": low, "high": high}
 
     def _trace(self, data, centre, params, spec):
         from ..core import apextract
