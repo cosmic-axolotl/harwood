@@ -209,15 +209,11 @@ def test_migration_map_answers_for_a_task_harwood_does_not_run():
     assert migration.explain("daofind") is None
 
 
-#: Tasks whose steps do not yet say what they do to the data. This list is the
-#: backlog, kept in a test so it cannot be quietly forgotten: writing an
-#: explanation *and* forgetting to write one both fail until the list matches
-#: reality. It should only ever get shorter.
-UNEXPLAINED = {
-    "daofind", "darkcombine", "flatcombine", "hselect", "identify", "imalign",
-    "imcentroid", "imcombine", "imcopy", "imdelete", "imheader", "implot",
-    "imstatistics", "phot", "sections", "xyxymatch", "zerocombine",
-}
+#: Tasks whose steps do not yet say what they do to the data. This started as a
+#: backlog of seventeen and is now empty, so it has turned into a standard: a
+#: new task that explains nothing fails this test until it does, or until
+#: someone decides to put it here and say why.
+UNEXPLAINED: set[str] = set()
 
 
 def _example_params(cls):
@@ -232,6 +228,8 @@ def _example_params(cls):
         origin = typing.get_origin(annotation)
         if origin is list:
             values[name] = ["example.fits"]
+        elif origin is typing.Literal:
+            values[name] = typing.get_args(annotation)[0]
         elif annotation is int:
             values[name] = 1
         elif annotation is float:
@@ -273,8 +271,10 @@ def test_the_unexplained_backlog_is_exactly_what_we_think_it_is():
         f"the backlog moved.\n"
         f"  newly explained: {sorted(UNEXPLAINED & checked - unexplained)}\n"
         f"  newly unexplained: {sorted(unexplained - UNEXPLAINED)}\n"
-        f"Update UNEXPLAINED in this file."
+        f"Every task says what its steps do to the data. Write the `why` of the "
+        f"new one's steps, or add it to UNEXPLAINED here with a reason."
     )
+    assert len(explained) > 15, "the check itself must still be reaching the tasks"
     assert "ccdproc" in needs_data, (
         "ccdproc's plan reads real headers; if that changed, check it here "
         "rather than leaving it uncounted"

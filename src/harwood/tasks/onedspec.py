@@ -26,6 +26,45 @@ from pydantic import Field
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
+WHY = {
+    "read": "A two-dimensional arc is collapsed to one dimension by adding "
+            "several rows or columns across the slit. The lamp fills the slit "
+            "evenly, so adding across it costs nothing and buys signal -- which "
+            "is why identify does this itself rather than requiring an "
+            "extraction first.",
+    "find": "An arc line is an image of the slit, so its width is the "
+            "instrumental resolution and not the star's seeing. Peaks are "
+            "centred by their flux centroid, which is good to about a tenth of "
+            "a pixel -- and that number is the yardstick for the whole "
+            "solution: a fit that scatters much more than that has matched "
+            "lines to the wrong wavelengths.",
+    "catalogue": "The line list is laboratory wavelengths of a known lamp, in "
+                 "air. Which lamp matters and so does how dense the list is: "
+                 "thorium has three thousand lines, which is why a blind search "
+                 "for the dispersion is ambiguous and why IRAF asks you to mark "
+                 "a few by hand.",
+    "mark": "Four or five lines spread across the spectrum pin down a low-order "
+            "solution; the line list then places the rest. Spread matters more "
+            "than number -- five lines bunched in the middle constrain the ends "
+            "not at all.",
+    "match": "Each peak is assigned the catalogue line the approximate "
+             "dispersion puts nearest to it. The approximation has to be good "
+             "to about one part in a hundred, or a peak lands nearer a "
+             "neighbour of the right line than the right line itself.",
+    "search": "With no approximate dispersion given, one is searched for. "
+              "Against a dense line list several quite different dispersions "
+              "score nearly the same and a cubic fits any of them to a tenth of "
+              "a pixel, so the result is checked before it is believed.",
+    "fit": "Wavelength against pixel is smooth but not linear: a grating "
+           "disperses as a sine, and the camera adds its own distortion. Three "
+           "or four terms of a Chebyshev polynomial follow that; more terms "
+           "start following the errors in the line centres instead.",
+    "write": "The solution goes to database/id<image>, where reidentify, "
+             "refspectra and dispcor all look for it. Rejected and deleted "
+             "features are kept in the file: knowing which lines were thrown "
+             "out is part of knowing the solution.",
+}
+
 
 class IdentifyParams(TaskParams):
     image: str = Field(..., description="Arc spectrum. A 2-D frame is collapsed first.")
@@ -123,25 +162,31 @@ class Identify(Task[IdentifyParams]):
 
     def plan(self, params: IdentifyParams) -> list[Step]:
         steps = [
-            Step("read", f"{params.image}, {params.section}, nsum {params.nsum}"),
+            Step("read", f"{params.image}, {params.section}, nsum {params.nsum}",
+                 why=WHY["read"]),
             Step("find", f"peaks wider than {params.minsep} px, above "
-                         f"{params.threshold} sigma, fwidth {params.fwidth}"),
-            Step("catalogue", params.coordlist),
+                         f"{params.threshold} sigma, fwidth {params.fwidth}",
+                 why=WHY["find"]),
+            Step("catalogue", params.coordlist, why=WHY["catalogue"]),
         ]
         if params.interactive:
-            steps.append(Step("mark", "by hand, in the identify panel"))
+            steps.append(Step("mark", "by hand, in the identify panel",
+                              why=WHY["mark"]))
         elif params.crval is not None and params.cdelt is not None:
             steps.append(Step("match", f"around crval {params.crval}, "
                                        f"cdelt {params.cdelt}"
                               + (f" +/- {params.cdelt_search:.0%}"
-                                 if params.cdelt_search else "")))
+                                 if params.cdelt_search else ""),
+                              why=WHY["match"]))
         else:
             steps.append(Step("match", "no crval/cdelt given -- searching blind, "
-                                       "which a dense line list may defeat"))
+                                       "which a dense line list may defeat",
+                              why=WHY["search"]))
         steps.append(Step("fit", f"{params.function} order {params.order}"
                                  + (f", {params.niterate} rejection passes"
-                                    if params.niterate else "")))
-        steps.append(Step("write", str(_database_path(params))))
+                                    if params.niterate else ""),
+                          why=WHY["fit"]))
+        steps.append(Step("write", str(_database_path(params)), why=WHY["write"]))
         return steps
 
     def execute(self, params: IdentifyParams) -> TaskResult:
@@ -223,6 +268,25 @@ class Identify(Task[IdentifyParams]):
                 "an arc line centre. Check the identified lines before relying on it."
             )
 
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        by_action["read"].measured = {"pixels": npixels}
+        by_action["find"].measured = {
+            "peaks": len(peaks),
+            "typical width": f"{float(np.median([p.width for p in peaks])):.2f} px",
+        }
+        by_action["catalogue"].measured = {"lines in list": catalogue.size}
+        if "match" in by_action:
+            by_action["match"].measured = {"identified": len(pixel)}
+        by_action["fit"].measured = {
+            "used": f"{int(used.sum())} of {len(pixel)}",
+            "rms": f"{fit.rms:.4f} {params.units}",
+            "in pixels": f"{rms_pixels:.3f} px"
+                         + ("  -- about a line centre's precision"
+                            if rms_pixels < 0.2 else "  -- looser than a line centre"),
+            "dispersion": f"{scale:.5f} {params.units}/px",
+        }
+
         solution = database.Solution(
             image=str(params.image), pixel=pixel, wavelength=wavelength,
             function=params.function, order=params.order, rms=float(fit.rms),
@@ -242,7 +306,7 @@ class Identify(Task[IdentifyParams]):
             history=[f"identify: {int(used.sum())} features, {params.function} "
                      f"order {params.order}, rms {fit.rms:.4f} {params.units}, "
                      f"from {params.coordlist}"],
-            steps=self.plan(params),
+            steps=steps,
             warnings=warnings,
         )
 

@@ -23,6 +23,52 @@ from pydantic import Field
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
+WHY = {
+    "read": "Two lists of positions of the same field, taken at different times "
+            "or through different filters. Nothing about them says which entry "
+            "is which star -- that is the whole problem.",
+    "match:tolerance": "Nearest neighbour within a radius, after estimating the "
+                       "shift from the histogram of all pairwise offsets. Fast, "
+                       "and right when the frames are already close; it cannot "
+                       "cope with rotation.",
+    "match:triangles": "Triangles of stars are described by quantities that "
+                       "survive translation, rotation and scale -- the ratio of "
+                       "the longest side to the shortest, and the angle between "
+                       "them. So the same three stars give the same two numbers "
+                       "in any frame however it moved, and matching triangles "
+                       "vote for the pairs of stars that made them.",
+    "fit": "A linear transform: x' = a + bx + cy, y' = d + ex + fy. Six "
+           "coefficients hold translation, rotation, scale and shear, and the "
+           "shift, rotation and scale are read back out of them because "
+           "'rotated by 0.03 degrees' says more than six numbers. Outliers are "
+           "rejected against a robust sigma: least squares has no defence "
+           "against one wrong pair, which will bend the whole solution towards "
+           "itself while still returning an answer.",
+    "write": "The matched pairs, so a later fit can use them without matching "
+             "again, with the transform recorded in the metadata.",
+    "centre": "Each star is centred by its flux centroid in a small box. A "
+              "coarse box first, in case the frame moved further than the fine "
+              "one covers; then the fine one, which is what sets the precision.",
+    "compare": "The shift is the median of what the stars say, not the mean: one "
+               "mismatched star would move a mean and cannot move a median. The "
+               "scatter of the individual answers is reported beside it, because "
+               "that is what tells you whether to trust the median.",
+    "report": "A shift good to a tenth of a pixel is a real measurement; one "
+              "whose stars disagree by a pixel means something else is going on "
+              "-- rotation, a wrong star, or a field that moved more than the "
+              "box.",
+    "measure": "The shifts are measured from the stars themselves rather than "
+               "assumed, because guiding errors, flexure and refraction all move "
+               "the field by amounts nobody wrote down.",
+    "shift": "Resampling onto the reference grid. A whole-pixel shift moves "
+             "values without touching them; a fractional one interpolates, which "
+             "mixes neighbouring pixels and correlates the noise -- the sky then "
+             "looks quieter than it is and any error estimated from it "
+             "afterwards is too small.",
+    "trim": "Cut to the region every frame has in common, so no pixel of the "
+            "result is missing from some of them.",
+}
+
 
 class XyxyMatchParams(TaskParams):
     input: Path = Field(..., description="Coordinate list to match.")
@@ -65,12 +111,14 @@ class XyxyMatch(Task[XyxyMatchParams]):
 
     def plan(self, params: XyxyMatchParams) -> list[Step]:
         return [
-            Step("read", f"{params.input} against {params.reference}"),
+            Step("read", f"{params.input} against {params.reference}",
+                 why=WHY["read"]),
             Step("match", f"{params.matching}"
                  + (f", {params.nmatch} brightest" if params.matching == "triangles"
-                    else f", within {params.tolerance} px")),
-            Step("fit", "linear transform: shift, scale, rotation"),
-            Step("write", str(params.output)),
+                    else f", within {params.tolerance} px"),
+                 why=WHY[f"match:{params.matching}"]),
+            Step("fit", "linear transform: shift, scale, rotation", why=WHY["fit"]),
+            Step("write", str(params.output), why=WHY["write"]),
         ]
 
     def execute(self, params: XyxyMatchParams) -> TaskResult:
@@ -114,8 +162,24 @@ class XyxyMatch(Task[XyxyMatchParams]):
                       harwood_transform=list(transform["coefficients"]),
                       harwood_call=provenance.current_stamp() or "")
 
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        by_action["read"].measured = {"reference": len(reference),
+                                      "input": len(moving)}
+        by_action["match"].measured = {"pairs": len(found), "method": found.method}
+        by_action["fit"].measured = {
+            "shift": f"{transform['xshift']:+.3f}, {transform['yshift']:+.3f} px",
+            "rotation": f"{transform['rotation']:+.4f} deg",
+            "scale": f"{transform['xscale']:.6f}",
+            "rms": f"{transform['rms']:.3f} px"
+                   + ("  -- what centroids are good for"
+                      if transform["rms"] < 0.4 else "  -- looser than centroids"),
+            "rejected": transform["nrejected"],
+        }
+
         return TaskResult(
             outputs=[params.output],
+            steps=steps,
             data={"pairs": len(found), "xshift": round(transform["xshift"], 4),
                   "yshift": round(transform["yshift"], 4),
                   "rotation_deg": round(transform["rotation"], 5),
@@ -126,7 +190,6 @@ class XyxyMatch(Task[XyxyMatchParams]):
                      f"shift {transform['xshift']:+.3f} {transform['yshift']:+.3f}, "
                      f"rotation {transform['rotation']:+.4f} deg, "
                      f"rms {transform['rms']:.3f}"],
-            steps=self.plan(params),
         )
 
 
@@ -187,11 +250,11 @@ class ImCentroid(Task[ImCentroidParams]):
 
         specs = images.expand(params.input)
         return [
-            Step("read", f"{params.coords} and {len(specs)} images"),
+            Step("read", f"{params.coords} and {len(specs)} images", why=WHY["read"]),
             Step("centre", f"box {params.boxsize} px, {params.niterate} passes, "
-                           f"coarse search {params.bigbox} px"),
-            Step("compare", f"against {params.reference}"),
-            Step("report", "shift per image, with its scatter"),
+                           f"coarse search {params.bigbox} px", why=WHY["centre"]),
+            Step("compare", f"against {params.reference}", why=WHY["compare"]),
+            Step("report", "shift per image, with its scatter", why=WHY["report"]),
         ]
 
     def execute(self, params: ImCentroidParams) -> TaskResult:
@@ -300,16 +363,21 @@ class ImAlign(Task[ImAlignParams]):
         from ..core import images
 
         specs = images.expand(params.input)
-        steps = [Step("read", f"{len(specs)} images, reference {params.reference}")]
+        steps = [Step("read", f"{len(specs)} images, reference {params.reference}",
+                      why=WHY["read"])]
         if params.shifts:
-            steps.append(Step("shifts", "given on the command line"))
+            steps.append(Step("shifts", "given on the command line",
+                              why="Taken as stated rather than measured."))
         else:
             steps.append(Step("measure", f"centroids from {params.coords}, "
-                                         f"box {params.boxsize} px"))
-        steps.append(Step("shift", f"{params.interp} interpolation"))
+                                         f"box {params.boxsize} px",
+                              why=WHY["measure"]))
+        steps.append(Step("shift", f"{params.interp} interpolation", why=WHY["shift"]))
         if params.trim:
-            steps.append(Step("trim", "to the common region"))
-        steps.append(Step("write", str(params.output)))
+            steps.append(Step("trim", "to the common region", why=WHY["trim"]))
+        steps.append(Step("write", str(params.output),
+                          why="Each frame records the shift applied in XSHIFT and "
+                              "YSHIFT, so the alignment can be undone or checked."))
         return steps
 
     def execute(self, params: ImAlignParams) -> TaskResult:

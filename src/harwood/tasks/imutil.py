@@ -16,6 +16,47 @@ from pydantic import Field
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult, Template
 
+WHY = {
+    "read headers": "Only the headers are read, not the pixels, so this is quick "
+                    "over a whole night. The header is where the telescope wrote "
+                    "down what it was doing, and it is the only record of that.",
+    "print": "The summary picks the keywords a reduction turns on -- image type, "
+             "exposure, filter, object -- because those are what decide which "
+             "frame is which.",
+    "evaluate": "A boolean expression over the header, evaluated per frame. This "
+                "is how a night gets sorted: 'IMAGETYP == \'zero\'' finds the "
+                "biases, 'EXPTIME > 30 and FILTER == \'V\'' finds the long V "
+                "exposures. The namespace holds the header's own keywords and "
+                "nothing else -- a header expression is a filter, not a place to "
+                "run code.",
+    "select": "The keywords asked for, for every frame that matched.",
+    "measure": "Statistics over the pixels. The median resists a bright star "
+               "where the mean does not; the mode is the most common value and is "
+               "what a flat field is normalised by; the spread says how much "
+               "noise there is to work against.",
+    "threshold": "Pixels outside these limits are left out of every statistic. "
+                 "Saturated pixels carry no information and would otherwise drag "
+                 "the mean and inflate the spread.",
+    "clip": "Iterative rejection before measuring, so a handful of stars do not "
+            "decide what the sky level is.",
+    "compute": "Arithmetic pixel by pixel. A constant operand applies everywhere; "
+               "an image operand has to be the same shape, because two frames of "
+               "different sizes are not two frames of the same thing.",
+    "copy": "Pixels and header together. A section copies part of a frame, which "
+            "is how a subraster becomes an image in its own right.",
+    "delete": "Files go for good. The confirmation exists because a pattern that "
+              "matches more than was meant is how a night's work disappears.",
+    "expand": "What an image template actually matches, before anything is run "
+              "on it. Worth doing first when the template renames things.",
+    "write": "Written as 32-bit floating point, whatever came in. A reduced frame "
+             "holds fractions of a count and negative sky residuals, and neither "
+             "fits in the integers a detector writes.",
+    "plot": "A cut through the image, plotted. This is how the sections get "
+            "decided: you look at where the illuminated pixels stop and the "
+            "overscan begins, rather than trusting that the header is right "
+            "about it.",
+}
+
 
 class ImHeaderParams(TaskParams):
     input: list[str] = Field(..., description="Images to inspect. Accepts globs and @lists.")
@@ -35,8 +76,10 @@ class ImHeader(Task[ImHeaderParams]):
     Params = ImHeaderParams
 
     def plan(self, params: ImHeaderParams) -> list[Step]:
-        return [Step("read headers", f"{len(params.input)} patterns"),
-                Step("print", "whole header" if params.longheader else "summary")]
+        return [Step("read headers", f"{len(params.input)} patterns",
+                     why=WHY["read headers"]),
+                Step("print", "whole header" if params.longheader else "summary",
+                     why=WHY["print"])]
 
     def execute(self, params: ImHeaderParams) -> TaskResult:
         from ..core import images
@@ -94,8 +137,9 @@ class HSelect(Task[HSelectParams]):
     Params = HSelectParams
 
     def plan(self, params: HSelectParams) -> list[Step]:
-        return [Step("evaluate", f"{params.expr!r} over each header"),
-                Step("print", ", ".join(params.fields))]
+        return [Step("evaluate", f"{params.expr!r} over each header",
+                     why=WHY["evaluate"]),
+                Step("print", ", ".join(params.fields), why=WHY["select"])]
 
     def execute(self, params: HSelectParams) -> TaskResult:
         from ..core import images
@@ -193,13 +237,16 @@ class ImStatistics(Task[ImStatParams]):
 
     def plan(self, params: ImStatParams) -> list[Step]:
         steps = [Step("read", f"{len(params.input)} patterns"
-                              + (f", section {params.section}" if params.section else ""))]
+                              + (f", section {params.section}" if params.section else ""),
+                      why=WHY["read headers"])]
         if params.lower is not None or params.upper is not None:
-            steps.append(Step("threshold", f"keep {params.lower} .. {params.upper}"))
+            steps.append(Step("threshold", f"keep {params.lower} .. {params.upper}",
+                              why=WHY["threshold"]))
         if params.nclip:
             steps.append(Step("clip", f"{params.nclip} iterations at "
-                                      f"-{params.lsigma}/+{params.hsigma} sigma"))
-        steps.append(Step("measure", params.fields))
+                                      f"-{params.lsigma}/+{params.hsigma} sigma",
+                              why=WHY["clip"]))
+        steps.append(Step("measure", params.fields, why=WHY["measure"]))
         return steps
 
     def execute(self, params: ImStatParams) -> TaskResult:
@@ -342,7 +389,8 @@ class ImArith(Task[ImArithParams]):
         right = _operand_list(params.operand2)
         detail = f"{len(left)} image(s) {params.op} " + (
             params.operand2 if len(right) <= 1 else f"{len(right)} image(s)")
-        return [Step("compute", detail), Step("write", params.result)]
+        return [Step("compute", detail, why=WHY["compute"]),
+                Step("write", params.result, why=WHY["write"])]
 
     def execute(self, params: ImArithParams) -> TaskResult:
         import numpy as np
@@ -453,8 +501,9 @@ class ImCopy(Task[ImCopyParams]):
         from ..core import images
 
         specs = images.expand(params.input)
-        return [Step("copy", f"{len(specs)} image(s), first {specs[0]}"),
-                Step("write", params.output)]
+        return [Step("copy", f"{len(specs)} image(s), first {specs[0]}",
+                     why=WHY["copy"]),
+                Step("write", params.output, why=WHY["write"])]
 
     def execute(self, params: ImCopyParams) -> TaskResult:
         import numpy as np
@@ -500,7 +549,8 @@ class ImDelete(Task[ImDeleteParams]):
 
         specs = images.expand(params.input)
         return [Step("delete", ", ".join(str(s.path) for s in specs[:6])
-                     + (f" and {len(specs) - 6} more" if len(specs) > 6 else ""))]
+                     + (f" and {len(specs) - 6} more" if len(specs) > 6 else ""),
+                     why=WHY["delete"])]
 
     def execute(self, params: ImDeleteParams) -> TaskResult:
         from ..core import images
@@ -542,7 +592,7 @@ class Sections(Task[SectionsParams]):
     Params = SectionsParams
 
     def plan(self, params: SectionsParams) -> list[Step]:
-        return [Step("expand", params.template)]
+        return [Step("expand", params.template, why=WHY["expand"])]
 
     def execute(self, params: SectionsParams) -> TaskResult:
         from ..core import images
@@ -591,10 +641,14 @@ class Implot(Task[ImplotParams]):
     def plan(self, params: ImplotParams) -> list[Step]:
         what = (f"column {params.column}" if params.column
                 else f"line {params.line}" if params.line else "the middle line")
-        return [Step("read", params.image),
+        return [Step("read", params.image, why=WHY["read headers"]),
                 Step("plot", what + (f", {params.nsum} averaged"
-                                     if params.nsum > 1 else "")),
-                Step("wait", "keys: l c :l :c e r C o q")]
+                                     if params.nsum > 1 else ""),
+                     why=WHY["plot"]),
+                Step("wait", "keys: l c :l :c e r C o q",
+                     why="Lower case picks what to plot, a colon command takes a "
+                         "range, and e expands a corner at a time -- the keys the "
+                         "tutorials tell you to press.")]
 
     def execute(self, params: ImplotParams) -> TaskResult:
         from ..core import images

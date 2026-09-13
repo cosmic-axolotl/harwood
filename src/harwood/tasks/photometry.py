@@ -22,6 +22,49 @@ from pydantic import Field, model_validator
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
+WHY = {
+    "read": "Pixels come in as floating point whatever the detector wrote. A "
+            "measurement is never made on the integers a CCD happens to produce: "
+            "a sum of sixteen-bit frames overflows silently, and a difference of "
+            "unsigned ones wraps.",
+    "background": "The detection threshold is set in units of the noise, not in "
+                  "counts, so it means the same thing on a bright night and a dark "
+                  "one. The sky level and its scatter are measured with clipping, "
+                  "so the stars themselves do not inflate the estimate of the "
+                  "noise they are to be detected against.",
+    "detect": "DAOFIND convolves the image with a Gaussian of the given width and "
+              "looks for maxima in the result. The width is the whole parameter: "
+              "a filter matched to the stars suppresses everything that is not "
+              "star-shaped, so a cosmic ray, which is sharper, and a galaxy, which "
+              "is broader, both respond less than a star of the same brightness.",
+    "filter": "Sharpness and roundness are shape statistics, and they separate "
+              "things a brightness cut cannot. A cosmic ray is too sharp to be a "
+              "point source through this atmosphere; a galaxy is too broad; a bad "
+              "column is too elongated.",
+    "border": "The convolution needs whole pixels around a source to judge it, so "
+              "anything closer to the edge than its own width is an artefact of "
+              "the truncated filter rather than a star. On real frames this is a "
+              "fifth of all detections.",
+    "sky": "The sky is measured in an annulus around each star rather than once "
+           "for the frame, because it is not flat: there are gradients, scattered "
+           "light, and the wings of neighbours. The annulus starts outside the "
+           "aperture so the star does not measure its own background.",
+    "measure": "The aperture sum minus the sky over the same area. The radius "
+               "trades light against noise: too small and a seeing change moves "
+               "the answer, too large and the sky noise over the extra area "
+               "swamps the star. Four or five times the FWHM catches essentially "
+               "all the light.",
+    "calibrate": "Instrumental magnitude is -2.5 log10(counts per second) plus a "
+                 "zero point, which is arbitrary until standards tie it to a real "
+                 "system. The uncertainty has three parts: photon noise from the "
+                 "star, sky noise over the aperture, and the uncertainty in the "
+                 "mean sky itself -- and in a crowded field the third one, which "
+                 "a naive implementation drops, is what dominates.",
+    "write": "Coordinates leave here 1-based and (x, y), as IRAF and DS9 write "
+             "them, with the convention recorded in the file so nothing "
+             "downstream has to assume it.",
+}
+
 
 class DaoFindParams(TaskParams):
     image: str = Field(..., description="Image to search. Accepts 'obj.fits[SCI,1]'.")
@@ -69,17 +112,21 @@ class DaoFind(Task[DaoFindParams]):
 
     def plan(self, params: DaoFindParams) -> list[Step]:
         return [
-            Step("read", params.image),
+            Step("read", params.image, why=WHY["read"]),
             Step("background", "sigma-clipped statistics"
-                 if params.sigma is None else f"sigma={params.sigma} as given"),
+                 if params.sigma is None else f"sigma={params.sigma} as given",
+                 why=WHY["background"]),
             Step("detect", f"DAOFIND, fwhm={params.fwhm}, "
-                           f"threshold={params.threshold} sigma"),
+                           f"threshold={params.threshold} sigma",
+                 why=WHY["detect"]),
             Step("filter", f"sharpness {params.sharplo}..{params.sharphi}, "
-                           f"roundness {params.roundlo}..{params.roundhi}"),
+                           f"roundness {params.roundlo}..{params.roundhi}",
+                 why=WHY["filter"]),
             Step("border", f"drop anything within "
-                           f"{_border(params):g} px of the edge"),
+                           f"{_border(params):g} px of the edge",
+                 why=WHY["border"]),
             Step("write", f"{params.output or 'obj.coo in this run''s directory'}, "
-                          "coordinates 1-based (x,y)"),
+                          "coordinates 1-based (x,y)", why=WHY["write"]),
         ]
 
     def execute(self, params: DaoFindParams) -> TaskResult:
@@ -142,15 +189,30 @@ class DaoFind(Task[DaoFindParams]):
                       harwood_sigma=float(sigma),
                       harwood_call=provenance.current_stamp() or "")
 
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        peaks = np.asarray(_column(found, "peak", "max_value"), dtype=float)
+        by_action["background"].measured = {
+            "sky": round(float(median), 3), "sigma": round(float(sigma), 3),
+            "threshold": f"{params.threshold * sigma:.2f} counts above sky",
+        }
+        by_action["detect"].measured = {
+            "found": len(found) + dropped,
+            "peaks": f"{peaks.min():.1f} to {peaks.max():.1f} counts",
+        }
+        by_action["border"].measured = {
+            "dropped": f"{dropped} of {len(found) + dropped}", "kept": len(found),
+        }
+
         return TaskResult(
             outputs=[destination],
+            steps=steps,
             data={"sources": len(catalogue), "dropped_at_border": dropped,
                   "background": float(median), "sigma": float(sigma)},
             history=[f"daofind: {len(catalogue)} sources, fwhm={params.fwhm}, "
                      f"threshold={params.threshold} sigma (sky={median:.2f}, "
                      f"sigma={sigma:.2f}), {dropped} dropped within "
                      f"{border:g} px of the edge"],
-            steps=self.plan(params),
         )
 
 
@@ -206,14 +268,17 @@ class Phot(Task[PhotParams]):
     def plan(self, params: PhotParams) -> list[Step]:
         radii = ", ".join(str(r) for r in params.apertures)
         return [
-            Step("read", f"{params.image} and {params.coords}"),
+            Step("read", f"{params.image} and {params.coords}", why=WHY["read"]),
             Step("sky", f"{params.salgorithm} over the annulus "
                         f"{params.annulus}..{params.annulus + params.dannulus} px, "
-                        f"with its measured scatter for the error"),
-            Step("measure", f"apertures {radii} px"),
+                        f"with its measured scatter for the error",
+                 why=WHY["sky"]),
+            Step("measure", f"apertures {radii} px", why=WHY["measure"]),
             Step("calibrate", f"zmag={params.zmag}, epadu={params.epadu}, "
-                              f"exposure from {params.exposure}"),
-            Step("write", str(params.output or "obj.mag in this run's directory")),
+                              f"exposure from {params.exposure}",
+                 why=WHY["calibrate"]),
+            Step("write", str(params.output or "obj.mag in this run's directory"),
+                 why=WHY["write"]),
         ]
 
     def execute(self, params: PhotParams) -> TaskResult:
@@ -293,13 +358,39 @@ class Phot(Task[PhotParams]):
 
         first = "" if len(params.apertures) == 1 else f"_{params.apertures[0]:g}"
         measured = int(np.isfinite(out[f"mag{first}"]).sum())
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        first = "" if len(params.apertures) == 1 else f"_{params.apertures[0]:g}"
+        magnitudes = np.asarray(out[f"mag{first}"], dtype=float)
+        errors = np.asarray(out[f"merr{first}"], dtype=float)
+        good = np.isfinite(magnitudes)
+
+        by_action["sky"].measured = {
+            "sky": f"{float(np.median(sky)):.2f} counts",
+            "scatter": f"{float(np.median(sky_sigma)):.2f} counts",
+            "annulus area": f"{float(np.median(nsky)):.0f} px",
+        }
+        by_action["measure"].measured = {
+            "stars": len(out), "measured": int(good.sum()),
+            "aperture area": f"{float(area if np.isscalar(area) else np.median(area)):.0f} px",
+        }
+        if good.any():
+            by_action["calibrate"].measured = {
+                "exposure": f"{exptime:g} s",
+                "magnitudes": f"{magnitudes[good].min():.2f} to "
+                              f"{magnitudes[good].max():.2f}",
+                "best error": f"{np.nanmin(errors[good]) * 1000:.0f} mmag",
+                "median error": f"{np.nanmedian(errors[good]) * 1000:.0f} mmag",
+            }
+
         return TaskResult(
             outputs=[destination],
+            steps=steps,
             data={"stars": len(out), "measured": measured,
                   "sky_median": float(np.median(sky))},
             history=[f"phot: apertures={params.apertures} annulus={params.annulus} "
-                     f"dannulus={params.dannulus} zmag={params.zmag} epadu={params.epadu}"],
-            steps=self.plan(params),
+                     f"dannulus={params.dannulus} zmag={params.zmag} "
+                     f"epadu={params.epadu}"],
         )
 
 
