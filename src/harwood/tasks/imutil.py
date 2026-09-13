@@ -661,3 +661,235 @@ class Implot(Task[ImplotParams]):
         run(data, name=str(params.image))
         return TaskResult(data={"shape": "x".join(str(n) for n in reversed(data.shape))},
                           steps=self.plan(params))
+
+
+HEDWHY = {
+    "read": "Every image the template matches. A keyword edit is nearly always "
+            "wanted on a whole set -- all the flats, all of one night -- and "
+            "doing it one file at a time is how half a set ends up different "
+            "from the other half.",
+    "edit": "The keyword is set, added or deleted. What it was before goes to "
+            "HISTORY: a header changed with no record of what it said is a "
+            "file nobody can retrace, and headers are edited precisely when "
+            "something was wrong, which is exactly when the old value matters.",
+    "write": "In place. There is no output copy, because a header edit on a "
+             "hundred frames that wrote a hundred copies would be worse than "
+             "the problem -- but --no-update shows what would happen without "
+             "touching anything, and it is worth using first.",
+}
+
+
+class HEditParams(TaskParams):
+    images: list[str] = Field(
+        ..., description="Images to edit. Globs and @lists expand.",
+        json_schema_extra={"positional": True},
+    )
+    fields: list[str] = Field(
+        ..., description="Keywords to edit, e.g. 'DISPAXIS' or 'OBJECT'."
+    )
+    value: str = Field(
+        "",
+        description="What to set it to. Numbers become numbers and yes/no "
+                    "become booleans, unless quoted.",
+    )
+    comment: str = Field("", description="Comment for the card.")
+    add: bool = Field(
+        False, description="Add the keyword when it is not there. Without this "
+                           "a missing keyword is reported, not created."
+    )
+    delete: bool = Field(False, description="Delete the keyword instead of setting it.")
+    update: bool = Field(
+        True, description="Write the change. Off, it only shows what would happen."
+    )
+    extension: int = Field(0, ge=0, description="Which HDU's header to edit.")
+
+
+@register
+class HEdit(Task[HEditParams]):
+    name = "hedit"
+    package = "imutil"
+    description = "Edit header keywords, over one image or a whole night."
+    Params = HEditParams
+
+    def plan(self, params: HEditParams) -> list[Step]:
+        what = ("delete" if params.delete
+                else f"set to {params.value!r}" if params.value != ""
+                else "show")
+        return [
+            Step("read", ", ".join(params.images), why=HEDWHY["read"]),
+            Step("edit", f"{', '.join(params.fields)}: {what}", why=HEDWHY["edit"]),
+            Step("write", "in place" if params.update
+                 else "nothing -- --no-update was given", why=HEDWHY["write"],
+                 skipped=not params.update,
+                 reason="" if params.update else "showing only"),
+        ]
+
+    def execute(self, params: HEditParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import images
+
+        paths = [spec.path for spec in images.expand(params.images)]
+        if not paths:
+            raise ValueError(f"nothing matched {', '.join(params.images)}.")
+        if params.delete and params.value:
+            raise ValueError(
+                "--delete removes the keyword and --value sets it; they cannot "
+                "both apply. Drop one.")
+
+        wanted = [name.strip().upper() for field in params.fields
+                  for name in str(field).split(",") if name.strip()]
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+
+        rows, warnings, changed = [], [], []
+        missing = 0
+        for path in paths:
+            mode = "update" if params.update else "readonly"
+            with fits.open(path, mode=mode) as hdus:
+                header = hdus[params.extension].header
+                touched = False
+                for keyword in wanted:
+                    before = header.get(keyword)
+                    if params.delete:
+                        if before is None:
+                            missing += 1
+                            rows.append(_row(path, keyword, before, "absent"))
+                            continue
+                        if params.update:
+                            del header[keyword]
+                            header.add_history(
+                                f"hedit: deleted {keyword} (was {before!r})")
+                            touched = True
+                        rows.append(_row(path, keyword, before, "deleted"))
+                        continue
+
+                    if params.value == "":
+                        rows.append(_row(path, keyword, before,
+                                         "absent" if before is None else "unchanged"))
+                        if before is None:
+                            missing += 1
+                        continue
+
+                    if before is None and not params.add:
+                        missing += 1
+                        rows.append(_row(path, keyword, before,
+                                         "absent -- --add would create it"))
+                        continue
+
+                    value = _typed(params.value)
+                    if params.update:
+                        header[keyword] = ((value, params.comment) if params.comment
+                                           else value)
+                        header.add_history(
+                            f"hedit: {keyword} = {value!r}"
+                            + (f", was {before!r}" if before is not None else
+                               ", added"))
+                        touched = True
+                    rows.append(_row(path, keyword, before,
+                                     "added" if before is None else "set"))
+                if touched:
+                    changed.append(Path(path))
+
+        by_action["read"].measured = {"images": len(paths),
+                                      "keywords": len(wanted)}
+        actions = {}
+        for row in rows:
+            actions[row["action"]] = actions.get(row["action"], 0) + 1
+        by_action["edit"].measured = actions
+
+        if missing and not params.add and not params.delete and params.value:
+            warnings.append(
+                f"{missing} of {len(rows)} were not there and were left alone. "
+                "--add creates them; without it hedit will not invent a "
+                "keyword, because a typo in a keyword name would otherwise "
+                "silently add a card nobody reads.")
+        if not params.update:
+            warnings.append(
+                "--no-update was given, so nothing was written. The table "
+                "above is what would have happened.")
+
+        return TaskResult(outputs=changed, steps=steps, warnings=warnings,
+                          data={"rows": rows}, history=[])
+
+
+def _row(path, keyword, before, action: str) -> dict:
+    return {"image": Path(path).name, "keyword": keyword,
+            "was": "-" if before is None else str(before)[:28],
+            "action": action}
+
+
+def _typed(text: str):
+    """`3` is a number, `yes` is a boolean, `'3'` is the string three.
+
+    IRAF's headers are typed and its hedit guesses the same way. Quoting is
+    the escape hatch, and it is needed more often than it looks: an OBJECT of
+    `4211` is a name, not a count.
+    """
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
+        return text[1:-1]
+    lowered = text.strip().lower()
+    if lowered in ("yes", "true"):
+        return True
+    if lowered in ("no", "false"):
+        return False
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        return text
+
+
+class ImGetsParams(TaskParams):
+    image: str = Field(
+        ..., description="Image to read.", json_schema_extra={"positional": True}
+    )
+    param: str = Field(
+        ..., description="Keyword to get.", json_schema_extra={"positional": True}
+    )
+    default: str = Field(
+        "0", description="What to return when the keyword is not there."
+    )
+    extension: int = Field(0, ge=0, description="Which HDU's header to read.")
+
+
+@register
+class ImGets(Task[ImGetsParams]):
+    name = "imgets"
+    package = "imutil"
+    description = "Get one header keyword, for a script to read."
+    Params = ImGetsParams
+
+    def plan(self, params: ImGetsParams) -> list[Step]:
+        return [
+            Step("get", f"{params.param} from {params.image}",
+                 why="One keyword, one value, nothing else printed -- so a "
+                     "shell loop can use it. hselect is for asking many "
+                     "images a question; this is for asking one image one "
+                     "thing and getting an answer a script can read."),
+        ]
+
+    def execute(self, params: ImGetsParams) -> TaskResult:
+        from astropy.io import fits
+
+        header = fits.getheader(params.image, ext=params.extension)
+        keyword = params.param.strip().upper()
+        value = header.get(keyword)
+        found = value is not None
+
+        steps = self.plan(params)
+        steps[0].measured = {
+            "value": str(value) if found else params.default,
+            "found": "yes" if found else "no, the default was used",
+        }
+        return TaskResult(
+            outputs=[], steps=steps,
+            warnings=[] if found else
+            [f"'{params.image}' has no {keyword}; the answer is the default, "
+             f"{params.default!r}. hselect lists what the header does have."],
+            data={"value": str(value) if found else params.default,
+                  "found": found},
+            history=[])

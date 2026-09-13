@@ -254,10 +254,16 @@ tasks:
   ccdhedit: {pkg: imred.ccdred, domain: headers, status: planned, milestone: later}
   ccdinstrument: {pkg: imred.ccdred, domain: headers, status: planned, milestone: mvp}
   ccdlist: {pkg: imred.ccdred, domain: headers, status: available, harwood: ccdlist}
-  hedit: {pkg: images.imutil, domain: headers, status: planned, milestone: mvp}
+  hedit: {pkg: images.imutil, domain: headers, status: partial, harwood: hedit,
+    note: "sets, adds and deletes keywords over an image template, recording the old value
+           in HISTORY. No expression-valued edits (IRAF's value can be a formula over the
+           header) and no per-image confirmation prompt -- --no-update shows the plan
+           instead."}
   hfix: {pkg: proto, domain: headers, status: planned, milestone: later}
   hselect: {pkg: images.imutil, domain: headers, status: available, harwood: hselect}
-  imgets: {pkg: images.imutil, domain: headers, status: planned, milestone: mvp}
+  imgets: {pkg: images.imutil, domain: headers, status: partial, harwood: imgets,
+    note: "one keyword from one image, with a default when it is absent. No IRAF parameter
+           side effects: the value comes back in the result rather than in imgets.value."}
   imheader: {pkg: images.imutil, domain: headers, status: available, harwood: imheader}
   keypar: {pkg: utilities.nttools, domain: headers, status: replaced,
     note: "astropy.table plus ECSV replace the t* family"}
@@ -276,7 +282,9 @@ tasks:
     note: "effective airmass by Simpson's rule over the exposure, plus UTMIDDLE and JD; a built-in observatory table rather than IRAF's obsdb.dat, and no separate intype/outtype coordinate conversions"}
   setinstrument: {pkg: imred.ccdred, domain: headers, status: partial, harwood: setinstrument,
     note: "chooses a header translation and records it in the project; reads IRAF's own ccddb files, but harwood ships none of its own yet"}
-  setjd: {pkg: [astutil, onedspec], domain: headers, status: planned, milestone: mvp}
+  setjd: {pkg: [astutil, onedspec], domain: headers, status: partial, harwood: setjd,
+    note: "julian, heliocentric (or barycentric) and local julian dates at mid-exposure,
+           written to the header with the correction recorded in HISTORY."}
   slist: {pkg: onedspec, domain: headers, status: planned, milestone: later}
   tabkey: {pkg: utilities.nttools, domain: headers, status: replaced,
     note: "astropy.table plus ECSV replace the t* family"}
@@ -794,10 +802,18 @@ tasks:
   rvreidlines: {pkg: rv, domain: radial-velocity, status: planned, milestone: later}
 
   # --- time-observatory (core, 6 tasks) ------------------------
-  airmass: {pkg: astutil, domain: time-observatory, status: planned, milestone: mvp}
-  asttimes: {pkg: astutil, domain: time-observatory, status: planned, milestone: mvp}
+  airmass: {pkg: astutil, domain: time-observatory, status: partial, harwood: airmass,
+    note: "effective airmass over an exposure, from a header or from coordinates given on
+           the command line, with the refraction correction. Not interactive, and no
+           observing-plan table over a night."}
+  asttimes: {pkg: astutil, domain: time-observatory, status: partial, harwood: asttimes,
+    note: "UT to julian date, modified julian date, epoch and local sidereal time. No
+           conversion back from sidereal, and no epoch-to-date direction."}
   gratings: {pkg: astutil, domain: time-observatory, status: planned, milestone: later}
-  observatory: {pkg: noao, domain: time-observatory, status: planned, milestone: mvp}
+  observatory: {pkg: noao, domain: time-observatory, status: partial, harwood: observatory,
+    note: "lists the built-in sites or looks one up, with longitude positive west as IRAF
+           stores it. The table is harwood's own rather than IRAF's obsdb.dat, and there is
+           no way yet to add a site permanently -- give --latitude and --longitude instead."}
   pairmass: {pkg: obsutil, domain: time-observatory, status: planned, milestone: later}
   pdm: {pkg: astutil, domain: time-observatory, status: planned, milestone: later}
 

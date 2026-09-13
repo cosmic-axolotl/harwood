@@ -220,45 +220,6 @@ def lpar_cmd(task: str) -> None:
     console.print(f"[dim]project file: {project or 'none in this directory or above'}[/dim]")
 
 
-@app.command("observatories")
-@click.argument("name", required=False)
-def observatories_cmd(name: str | None) -> None:
-    """List the observatories setairmass knows, or look one up.
-
-    IRAF keeps these in obsdb.dat and harwood keeps the same values built in,
-    so a header saying `OBSERVAT = 'KPNO'` is enough to compute an airmass.
-    """
-    from ..core import observatory
-
-    if name:
-        site = observatory.find(name)
-        if site is None:
-            error_console.print(
-                f"[red]No observatory called '{name}'.[/red] Run "
-                "[bold]harwood observatories[/bold] for the list, or give "
-                "setairmass --latitude and --longitude directly.")
-            raise SystemExit(3)
-        console.print(f"[bold]{site.code}[/bold]  {site.describe()}")
-        console.print(f"[dim]longitude positive west, as IRAF stores it; "
-                      f"{site.east:+.3f} counted east.[/dim]")
-        return
-
-    table = Table(title="observatories", title_style="bold")
-    table.add_column("code", style="bold")
-    table.add_column("name")
-    table.add_column("latitude", justify="right")
-    table.add_column("longitude W", justify="right")
-    table.add_column("height", justify="right")
-    for code in observatory.listing():
-        site = observatory.SITES[code]
-        table.add_row(code, site.name, f"{site.latitude:+.4f}",
-                      f"{site.longitude:+.4f}", f"{site.altitude:.0f} m")
-    console.print(table)
-    console.print("[dim]Longitude is positive west, as IRAF stores it. For a "
-                  "site not listed, setairmass takes --latitude and "
-                  "--longitude.[/dim]")
-
-
 @app.command("lines")
 @click.argument("query", required=False)
 @click.option("--range", "span", nargs=2, type=float,

@@ -59,7 +59,7 @@ class SetAirmassParams(TaskParams):
         "",
         description="Where the telescope is -- 'kpno', 'ctio', 'lna'. Read "
                     "from the OBSERVAT keyword when left out. "
-                    "'harwood observatories' lists them.",
+                    "'harwood observatory' lists them.",
     )
     latitude: float | None = Field(
         None, ge=-90, le=90,
@@ -237,3 +237,416 @@ def _clock(hours: float) -> str:
     hour, rest = divmod(total, 3600.0)
     minute, second = divmod(rest, 60.0)
     return f"{int(hour):02d}:{int(minute):02d}:{second:04.1f}"
+
+
+JDWHY = {
+    "when": "The middle of the exposure, on a continuous count of days rather "
+            "than a calendar. A Julian date has no months, no leap years and "
+            "no midnight: subtracting two of them gives an interval, which "
+            "subtracting two calendar dates does not.",
+    "helio": "The Earth's orbit is 300 light-seconds across, so the same "
+             "photon arriving in January and in July differs by up to 16.6 "
+             "minutes of travel time. For anything periodic -- an eclipsing "
+             "binary, a Cepheid, a transit -- that is the difference between a "
+             "coherent light curve and a smeared one, and it is why a period "
+             "is quoted against HJD and not JD.",
+    "write": "JD and HJD go into the header, beside the UTMIDDLE they are "
+             "computed from. Anything folding a light curve reads them from "
+             "there rather than recomputing, so the correction is applied once "
+             "and recorded.",
+}
+
+
+class SetJDParams(TaskParams):
+    images: list[str] = Field(
+        ..., description="Frames to stamp. Globs and @lists expand.",
+        json_schema_extra={"positional": True},
+    )
+    observatory: str = Field(
+        "", description="Where the telescope is. Read from OBSERVAT when left out."
+    )
+    jd: str = Field("JD", description="Keyword for the Julian date.")
+    hjd: str = Field("HJD", description="Keyword for the heliocentric Julian date.")
+    ljd: str = Field(
+        "LJD", description="Keyword for the local Julian date -- the local "
+                           "civil day the night belongs to."
+    )
+    barycentric: bool = Field(
+        False,
+        description="Correct to the solar system barycentre rather than the "
+                    "Sun's centre. Better by up to 4 seconds, and what pulsar "
+                    "timing uses.",
+    )
+    ut: str = Field("UT", description="Keyword holding the UT at the start.")
+    exposure: str = Field("EXPTIME", description="Keyword holding the duration.")
+    update: bool = Field(True, description="Write the results back.")
+
+
+@register
+class SetJD(Task[SetJDParams]):
+    name = "setjd"
+    package = "astutil"
+    description = "Put Julian and heliocentric Julian dates in the headers."
+    Params = SetJDParams
+
+    def plan(self, params: SetJDParams) -> list[Step]:
+        return [
+            Step("when", "mid-exposure, as a Julian date", why=JDWHY["when"]),
+            Step("helio",
+                 "to the barycentre" if params.barycentric else "to the Sun",
+                 why=JDWHY["helio"]),
+            Step("write", f"{params.jd}, {params.hjd}, {params.ljd}"
+                 if params.update else "nothing -- --no-update was given",
+                 why=JDWHY["write"], skipped=not params.update,
+                 reason="" if params.update else "reporting only"),
+        ]
+
+    def execute(self, params: SetJDParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import images, observatory, obstime
+
+        site = (observatory.find(params.observatory) if params.observatory
+                else None)
+        if params.observatory and site is None:
+            raise ValueError(
+                f"no observatory called '{params.observatory}'. Known ones are "
+                f"{', '.join(observatory.listing())}.")
+
+        paths = [spec.path for spec in images.expand(params.images)]
+        if not paths:
+            raise ValueError(f"nothing matched {', '.join(params.images)}.")
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        kind = "barycentric" if params.barycentric else "heliocentric"
+
+        rows, warnings, changed = [], [], []
+        for path in paths:
+            mode = "update" if params.update else "readonly"
+            with fits.open(path, mode=mode) as hdus:
+                header = hdus[0].header
+                here = site or observatory.from_header(header)
+                jd = obstime.julian(header, params.ut, params.exposure)
+                if jd is None:
+                    warnings.append(
+                        f"{Path(path).name}: no Julian date could be computed "
+                        f"-- it needs a date and {params.ut}.")
+                    continue
+
+                corrected = None
+                if here is not None:
+                    corrected = obstime.heliocentric(
+                        header, here.latitude, here.east, here.altitude,
+                        params.ut, params.exposure, kind)
+                if corrected is None:
+                    warnings.append(
+                        f"{Path(path).name}: JD only. The "
+                        f"{kind} correction needs RA, DEC and a site, and one "
+                        "of them is missing -- for a lamp or a bias frame that "
+                        "is expected.")
+
+                # The local Julian day: which civil night this belongs to. The
+                # half-day offset is what makes a whole night carry one number
+                # instead of changing at midnight, which is the point.
+                local = float(int(jd + 0.5 - (here.timezone / 24.0 if here else 0.0)))
+                rows.append({
+                    "image": Path(path).name,
+                    "jd": round(jd, 6),
+                    "hjd": round(corrected[0], 6) if corrected else None,
+                    "correction s": round(corrected[1], 1) if corrected else None,
+                    "ljd": local,
+                })
+                if not params.update:
+                    continue
+                header[params.jd] = (round(jd, 6), "julian date at mid-exposure")
+                header[params.ljd] = (local, "local julian day of this night")
+                if corrected:
+                    header[params.hjd] = (
+                        round(corrected[0], 6),
+                        f"{kind} julian date at mid-exposure")
+                    header.add_history(
+                        f"setjd: JD {jd:.6f}, {kind} correction "
+                        f"{corrected[1]:+.1f} s")
+                else:
+                    header.add_history(f"setjd: JD {jd:.6f}, no sky correction")
+                changed.append(Path(path))
+
+        if not rows:
+            raise RuntimeError(
+                "nothing could be computed: " + (warnings[0] if warnings else ""))
+
+        by_action["when"].measured = {
+            "frames": len(rows),
+            "span": f"{max(row['jd'] for row in rows) - min(row['jd'] for row in rows):.5f} d",
+        }
+        corrections = [row["correction s"] for row in rows
+                       if row["correction s"] is not None]
+        if corrections:
+            by_action["helio"].measured = {
+                "kind": kind,
+                "correction": (f"{corrections[0]:+.1f} s"
+                               if min(corrections) == max(corrections) else
+                               f"{min(corrections):+.1f} to {max(corrections):+.1f} s"),
+                "of a maximum": "+-499 s, the light-crossing time of the orbit",
+            }
+        else:
+            by_action["helio"].skipped = True
+            by_action["helio"].reason = "no frame had both coordinates and a site"
+
+        return TaskResult(outputs=changed, steps=steps, warnings=warnings,
+                          data={"rows": rows}, history=[])
+
+
+class AirmassParams(TaskParams):
+    image: str = Field(
+        "", description="Read the coordinates and time from this frame's header.",
+        json_schema_extra={"positional": True},
+    )
+    ra: str = Field("", description="Right ascension, hh:mm:ss or decimal hours.")
+    dec: str = Field("", description="Declination, dd:mm:ss or decimal degrees.")
+    date: str = Field("", description="Observing date, yyyy-mm-dd or dd/mm/yy.")
+    ut: str = Field("", description="UT at the start of the exposure.")
+    exptime: float = Field(
+        0.0, ge=0, description="Exposure length in seconds, for the effective airmass."
+    )
+    observatory: str = Field("", description="Where the telescope is.")
+    latitude: float | None = Field(None, ge=-90, le=90, description="Degrees, positive north.")
+    longitude: float | None = Field(
+        None, description="Degrees, positive WEST as IRAF stores it."
+    )
+    altitude: float = Field(2000.0, description="Metres above sea level.")
+
+
+@register
+class Airmass(Task[AirmassParams]):
+    name = "airmass"
+    package = "astutil"
+    description = "Work out the airmass for a position, a time and a site."
+    Params = AirmassParams
+
+    def plan(self, params: AirmassParams) -> list[Step]:
+        return [
+            Step("where", params.image or f"{params.ra} {params.dec}",
+                 why="Airmass is a property of where the object was in the sky "
+                     "as seen from one place at one moment, so all three have "
+                     "to be known before there is anything to compute."),
+            Step("compute", "sec z, corrected for refraction",
+                 why=WHY["where"]),
+        ]
+
+    def execute(self, params: AirmassParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import observatory, obstime
+
+        if params.image:
+            header = fits.getheader(params.image)
+        else:
+            missing = [name for name, value in
+                       (("--ra", params.ra), ("--dec", params.dec),
+                        ("--date", params.date), ("--ut", params.ut))
+                       if not value]
+            if missing:
+                raise ValueError(
+                    "give an image to read from, or all of "
+                    f"{', '.join(missing)}. There is no useful default for "
+                    "where a telescope was pointing.")
+            header = fits.Header({
+                "RA": params.ra, "DEC": params.dec, "DATE-OBS": params.date,
+                "UT": params.ut, "EXPTIME": params.exptime})
+
+        site = _site(params, observatory, header)
+        measured = obstime.airmass(header, site.latitude, site.east, site.altitude)
+        if measured is None:
+            raise ValueError(
+                "not enough to compute an airmass, or the object was below "
+                "three degrees -- where the plane-parallel atmosphere has "
+                "stopped being a picture of anything.")
+
+        lst = obstime.sidereal(header, site.east)
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        by_action["where"].measured = {
+            "site": site.describe(),
+            "position": f"{header.get('RA')} {header.get('DEC')}",
+            "mid-exposure UT": _clock(obstime.middle(header)),
+        }
+        by_action["compute"].measured = {
+            "airmass": f"{measured.effective:.4f}",
+            "start to end": f"{measured.begin:.4f} to {measured.end:.4f}",
+            "sidereal time": "unknown" if lst is None else _clock(lst),
+        }
+
+        warnings = []
+        if measured.effective > 2.0:
+            warnings.append(
+                f"{measured.effective:.2f} airmasses is low in the sky: "
+                "differential refraction spreads the image into a short "
+                "spectrum along the vertical, and unless the slit was turned "
+                "to the parallactic angle some colours miss it.")
+
+        return TaskResult(
+            outputs=[], steps=steps, warnings=warnings,
+            data={"airmass": round(measured.effective, 4),
+                  "begin": round(measured.begin, 4),
+                  "end": round(measured.end, 4),
+                  "sidereal": None if lst is None else _clock(lst)},
+            history=[])
+
+
+class AstTimesParams(TaskParams):
+    image: str = Field(
+        "", description="Read the date and time from this frame's header.",
+        json_schema_extra={"positional": True},
+    )
+    date: str = Field("", description="yyyy-mm-dd or dd/mm/yy.")
+    ut: str = Field("", description="Universal time, hh:mm:ss.")
+    observatory: str = Field("", description="Where the telescope is.")
+    longitude: float | None = Field(
+        None, description="Degrees, positive WEST as IRAF stores it."
+    )
+    latitude: float | None = Field(None, ge=-90, le=90, description="Degrees, positive north.")
+    altitude: float = Field(2000.0, description="Metres above sea level.")
+
+
+@register
+class AstTimes(Task[AstTimesParams]):
+    name = "asttimes"
+    package = "astutil"
+    description = "Convert between UT, Julian date, epoch and sidereal time."
+    Params = AstTimesParams
+
+    def plan(self, params: AstTimesParams) -> list[Step]:
+        return [
+            Step("read", params.image or f"{params.date} {params.ut}",
+                 why="One instant, named four ways. Which name is right "
+                     "depends on the question: a calendar date for a log, a "
+                     "Julian date for an interval, an epoch for a coordinate "
+                     "system, sidereal time for what is overhead."),
+            Step("convert", "to JD, epoch and local sidereal time",
+                 why="Sidereal time runs about four minutes a day fast on "
+                     "solar time, because a day is one rotation *plus* the "
+                     "bit the Earth moved around the Sun. That is why the "
+                     "same stars rise four minutes earlier each night, and "
+                     "why an observing plan is made in sidereal time."),
+        ]
+
+    def execute(self, params: AstTimesParams) -> TaskResult:
+        from astropy.io import fits
+        from astropy.time import Time
+
+        from ..core import observatory, obstime
+
+        if params.image:
+            header = fits.getheader(params.image)
+        else:
+            if not params.date or not params.ut:
+                raise ValueError(
+                    "give an image to read from, or both --date and --ut.")
+            header = fits.Header({"DATE-OBS": params.date, "UT": params.ut,
+                                  "EXPTIME": 0.0})
+
+        site = _site(params, observatory, header)
+        jd = obstime.julian(header)
+        if jd is None:
+            raise ValueError(
+                "no date and time could be read. It needs DATE-OBS and UT.")
+        lst = obstime.sidereal(header, site.east)
+        stamp = Time(jd, format="jd", scale="utc")
+        parts = obstime.date(header)
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        by_action["read"].measured = {
+            "site": site.describe(),
+            "date": f"{parts[0]:04d}-{parts[1]:02d}-{parts[2]:02d}",
+            "ut": _clock(obstime.hours(header.get("UT")) or 0.0),
+        }
+        by_action["convert"].measured = {
+            "julian date": f"{jd:.6f}",
+            "modified julian date": f"{jd - 2400000.5:.6f}",
+            "epoch": f"{stamp.jyear:.5f}",
+            "local sidereal time": "unknown" if lst is None else _clock(lst),
+        }
+
+        return TaskResult(
+            outputs=[], steps=steps, warnings=[],
+            data={"jd": round(jd, 6), "mjd": round(jd - 2400000.5, 6),
+                  "epoch": round(float(stamp.jyear), 5),
+                  "sidereal": None if lst is None else _clock(lst)},
+            history=[])
+
+
+class ObservatoryParams(TaskParams):
+    name: str = Field(
+        "", description="A site to look up. Left out, every one is listed.",
+        json_schema_extra={"positional": True},
+    )
+
+
+@register
+class Observatory(Task[ObservatoryParams]):
+    name = "observatory"
+    package = "astutil"
+    description = "List the observatories, or look one up."
+    Params = ObservatoryParams
+
+    def plan(self, params: ObservatoryParams) -> list[Step]:
+        return [
+            Step("look", params.name or "every site",
+                 why="Longitude here is positive WEST, as IRAF's obsdb stores "
+                     "it and the opposite of every modern library. A sign "
+                     "error does not fail -- it puts the object on the other "
+                     "side of the meridian and returns a perfectly plausible "
+                     "wrong airmass -- so it is worth seeing the value with "
+                     "its hemisphere spelled out."),
+        ]
+
+    def execute(self, params: ObservatoryParams) -> TaskResult:
+        from ..core import observatory
+
+        if params.name:
+            site = observatory.find(params.name)
+            if site is None:
+                raise ValueError(
+                    f"no observatory called '{params.name}'. Known ones are "
+                    f"{', '.join(observatory.listing())}. For anywhere else, "
+                    "setairmass and airmass take --latitude and --longitude.")
+            sites = [site]
+        else:
+            sites = [observatory.SITES[code] for code in observatory.listing()]
+
+        rows = [{"code": site.code, "name": site.name,
+                 "latitude": round(site.latitude, 4),
+                 "longitude W": round(site.longitude, 4),
+                 "height m": round(site.altitude),
+                 "timezone": site.timezone}
+                for site in sites]
+        steps = self.plan(params)
+        steps[0].measured = {"sites": len(rows)}
+        return TaskResult(outputs=[], steps=steps, warnings=[],
+                          data={"rows": rows}, history=[])
+
+
+def _site(params, observatory, header):
+    """The site from the parameters, the header, or an error saying so."""
+    if params.latitude is not None and params.longitude is not None:
+        return observatory.Site("given", "coordinates given on the command line",
+                                params.longitude, params.latitude,
+                                params.altitude)
+    if params.observatory:
+        site = observatory.find(params.observatory)
+        if site is None:
+            raise ValueError(
+                f"no observatory called '{params.observatory}'. Known ones are "
+                f"{', '.join(observatory.listing())}; for anywhere else give "
+                "--latitude and --longitude, the longitude positive west.")
+        return site
+    site = observatory.from_header(header)
+    if site is None:
+        raise ValueError(
+            "no observatory: the header does not name one and none was given. "
+            "Use --observatory, or --latitude and --longitude. "
+            "'harwood observatory' lists the sites.")
+    return site

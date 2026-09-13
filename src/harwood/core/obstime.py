@@ -209,3 +209,56 @@ def airmass(header: Any, latitude: float, longitude: float, height: float = 2000
     if any(value is None for value in values):
         return None
     return Airmass(*values)
+
+
+def sidereal(header: Any, longitude: float, ut_key: str = "UT",
+             exposure_key: str = "EXPTIME") -> float | None:
+    """Local mean sidereal time at mid-exposure, in decimal hours.
+
+    `longitude` is positive east. Sidereal time is what says which part of the
+    sky is overhead, so it is the quantity behind the hour angle and behind
+    the airmass -- and the one an observer reads off the wall to decide what
+    to point at next.
+    """
+    jd = julian(header, ut_key, exposure_key)
+    if jd is None:
+        return None
+
+    import astropy.units as u
+    from astropy.coordinates import EarthLocation
+    from astropy.time import Time
+
+    when = Time(jd, format="jd", scale="utc",
+                location=EarthLocation(lat=0.0 * u.deg, lon=longitude * u.deg))
+    return float(when.sidereal_time("mean").hour)
+
+
+def heliocentric(header: Any, latitude: float, longitude: float,
+                 height: float = 2000.0, ut_key: str = "UT",
+                 exposure_key: str = "EXPTIME",
+                 kind: str = "heliocentric") -> tuple[float, float] | None:
+    """Heliocentric (or barycentric) Julian date, and the correction applied.
+
+    The Earth's orbit is 300 light-seconds across, so a photon arriving today
+    and the same photon arriving in six months differ by up to 16.6 minutes of
+    travel time. For anything periodic -- an eclipsing binary, a Cepheid, a
+    transit -- that is the difference between a coherent light curve and a
+    smeared one, and it is why a period is quoted against HJD rather than JD.
+
+    Returns (corrected JD, correction in seconds), or None when the header
+    does not say enough.
+    """
+    jd = julian(header, ut_key, exposure_key)
+    position = sky_position(header)
+    if jd is None or position is None:
+        return None
+
+    import astropy.units as u
+    from astropy.coordinates import EarthLocation
+    from astropy.time import Time
+
+    where = EarthLocation(lat=latitude * u.deg, lon=longitude * u.deg,
+                          height=height * u.m)
+    when = Time(jd, format="jd", scale="utc", location=where)
+    delay = when.light_travel_time(position, kind)
+    return float((when.utc + delay).jd), float(delay.sec)

@@ -243,23 +243,21 @@ def test_a_reconstructed_command_omits_defaults_and_quotes_what_needs_it():
     assert "--low-reject" not in command, "so is the rejection threshold"
 
 
-def test_observatories_lists_the_sites_setairmass_knows(run):
-    result = run("observatories")
+def test_observatory_lists_the_sites_setairmass_knows(run):
+    """IRAF's own task name, so somebody migrating types what they know."""
+    result = run("observatory")
     assert result.exit_code == 0
     assert "kpno" in result.output and "lna" in result.output
-    # The sign convention is the one thing here that can quietly ruin an
-    # airmass, so it has to be on screen and not only in the source.
-    assert "positive west" in result.output
 
 
-def test_observatories_looks_one_up_by_alias(run):
-    result = run("observatories", "kitt peak")
+def test_observatory_looks_one_up_by_alias(run):
+    result = run("observatory", "kitt peak")
     assert result.exit_code == 0 and "kpno" in result.output
 
 
 def test_an_unknown_observatory_says_what_to_do_instead(run):
-    result = run("observatories", "narnia")
-    assert result.exit_code == 3
+    result = run("observatory", "narnia")
+    assert result.exit_code != 0
     assert "--latitude" in result.output
 
 

@@ -4,7 +4,7 @@ An airmass is a property of the sky as seen *from somewhere*, so computing one
 needs the site. Headers rarely carry the coordinates; at most they carry a name
 -- `OBSERVAT = 'KPNO'` -- and the reduction package is expected to know the
 rest. IRAF keeps that knowledge in `obsdb.dat`; this is the same table for the
-sites harwood is likely to meet, and `harwood observatories` prints it.
+sites harwood is likely to meet, and the `observatory` task prints it.
 
 **The sign of the longitude.** IRAF counts longitude positive *west*, and so
 does this table, because that is what an IRAF user will recognise and what
