@@ -40,9 +40,58 @@ def show(panel: Any, title: str, size: tuple[int, int] = (1000, 640)) -> Any:
     dialog = QtWidgets.QDialog()
     dialog.setWindowTitle(title)
     dialog.resize(*size)
+    # Small enough to be arranged on a laptop, and resizable: a dialog with a
+    # size grip and no maximise button is the one thing worse than a fixed one.
+    dialog.setMinimumSize(520, 360)
+    dialog.setSizeGripEnabled(True)
+    dialog.setWindowFlag(QtCore.Qt.WindowMaximizeButtonHint, True)
+
     panel.finished.connect(dialog.accept)
     layout = QtWidgets.QVBoxLayout(dialog)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.addWidget(panel)
+    _text_shortcuts(dialog)
     dialog.exec()
     return panel
+
+
+def _text_shortcuts(dialog: Any) -> None:
+    """Ctrl+ and Ctrl- in a panel that opened on its own.
+
+    The main window scales its text through its stylesheet; a dialog has none
+    of its own, so here the application font is moved instead. Same keys, so
+    it does not matter to the person pressing them which of the two they are
+    looking at.
+    """
+    from PySide6 import QtGui, QtWidgets
+
+    app = application()
+    start = app.font().pointSizeF()
+    if start <= 0:
+        start = 10.0
+
+    def step(direction: int) -> None:
+        font = app.font()
+        size = max(6.0, min(28.0, font.pointSizeF() + direction))
+        font.setPointSizeF(size)
+        app.setFont(font)
+        for widget in QtWidgets.QApplication.allWidgets():
+            widget.setFont(font)
+            widget.updateGeometry()
+
+    def reset() -> None:
+        font = app.font()
+        font.setPointSizeF(start)
+        app.setFont(font)
+
+    for sequences, slot in (
+        (("Ctrl++", "Ctrl+=", "Ctrl+Shift+=", "Ctrl+Shift++"), lambda: step(+1)),
+        (("Ctrl+-", "Ctrl+_"), lambda: step(-1)),
+        (("Ctrl+0",), reset),
+        (("F11",), lambda: (dialog.showNormal() if dialog.isFullScreen()
+                            else dialog.showFullScreen())),
+        (("Ctrl+M",), lambda: (dialog.showNormal() if dialog.isMaximized()
+                               else dialog.showMaximized())),
+    ):
+        for sequence in sequences:
+            QtGui.QShortcut(QtGui.QKeySequence(sequence), dialog, slot)

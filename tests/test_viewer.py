@@ -89,3 +89,202 @@ def test_an_unknown_display_backend_is_refused():
 def test_markers_carry_a_tag_that_is_never_drawn():
     marker = display.Marker(1.0, 2.0, tag="examine")
     assert marker.label == ""
+
+
+# ------------------------------------------------- the window, not the maths
+
+def _window():
+    """The main window, offscreen. Skipped where Qt is not installed."""
+    import os
+
+    pytest.importorskip("PySide6")
+    pytest.importorskip("pyqtgraph")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+    from harwood.viewer._qt import application
+    from harwood.viewer.window import HarwoodWindow
+
+    application()
+    window = HarwoodWindow()
+    window.load(np.random.default_rng(0).normal(500, 20, (200, 200)), name="t")
+    return window
+
+
+def test_the_stylesheet_carries_every_size_it_sets():
+    """One number moves the whole interface. A size hard-coded outside the
+    stylesheet is one that will not move with it."""
+    import re
+
+    pytest.importorskip("PySide6")
+    from harwood.viewer.window import stylesheet
+
+    small, large = stylesheet(1.0), stylesheet(2.0)
+    assert small != large
+
+    sizes = lambda sheet: [float(value) for value in       # noqa: E731
+                           re.findall(r"font-size: ([\d.]+)pt", sheet)]
+    assert sizes(small), "there are font sizes to scale"
+    for one, two in zip(sizes(small), sizes(large), strict=True):
+        assert two == pytest.approx(2 * one, rel=1e-6)
+
+
+def test_ctrl_plus_and_minus_move_the_text_and_stop_at_the_ends():
+    from harwood.viewer.window import SCALES
+
+    window = _window()
+    assert window.text_scale == 1.0
+
+    window.zoom_text(+1)
+    assert window.text_scale > 1.0
+    for _ in range(20):
+        window.zoom_text(+1)
+    assert window.text_scale == SCALES[-1], "and does not run off the end"
+    for _ in range(30):
+        window.zoom_text(-1)
+    assert window.text_scale == SCALES[0]
+
+    window.set_text_scale(1.0)
+    assert window.text_scale == 1.0
+
+
+def test_everything_that_fixed_a_width_grows_with_the_text():
+    """The usual way a zoom feature half works: the font grows and the box it
+    sits in does not, so the label it was lining up gets clipped."""
+    from PySide6 import QtGui
+
+    window = _window()
+
+    def measure():
+        return (QtGui.QFontMetrics(window.font()).height(),
+                window._param_labels[0].width(),
+                window._hints[0][0].minimumHeight(),
+                window.scale_box.width())
+
+    window.set_text_scale(1.0)
+    small = measure()
+    window.set_text_scale(2.0)
+    large = measure()
+
+    for one, two in zip(small, large, strict=True):
+        assert two > one, f"{one} did not grow"
+    # The toolbar combo is the one with a width given in pixels at build time,
+    # so it has to be multiplied rather than left alone.
+    assert large[3] == pytest.approx(2 * small[3], abs=2)
+
+
+def test_the_window_can_be_made_small_again():
+    """A minimum size larger than a laptop screen is how a window becomes
+    impossible to arrange."""
+    window = _window()
+    assert window.minimumWidth() <= 640 and window.minimumHeight() <= 420
+
+    window.resize(660, 430)
+    assert window.width() <= 700 and window.height() <= 480
+
+
+def test_maximise_and_full_screen_both_come_back():
+    window = _window()
+    window.show()
+
+    window.toggle_maximised()
+    assert window.isMaximized()
+    window.toggle_maximised()
+    assert not window.isMaximized()
+
+    window.toggle_full_screen()
+    assert window.isFullScreen()
+    window.toggle_full_screen()
+    assert not window.isFullScreen()
+
+
+def test_a_dragged_panel_can_be_put_back():
+    """Dragging a dock somewhere unhelpful is easy and undoing it by hand is
+    not. Qt can only restore a layout whose pieces are named, which is why
+    every dock has an objectName."""
+    from PySide6 import QtCore
+
+    window = _window()
+    window.show()
+    started = window.dockWidgetArea(window.params_dock)
+
+    window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, window.params_dock)
+    window.params_dock.setFloating(True)
+    assert window.dockWidgetArea(window.params_dock) != started
+
+    window.reset_layout()
+    assert window.dockWidgetArea(window.params_dock) == started
+    assert not window.params_dock.isFloating()
+
+
+def test_every_dock_is_named_so_the_layout_can_be_saved():
+    from PySide6 import QtWidgets
+
+    window = _window()
+    for dock in window.findChildren(QtWidgets.QDockWidget):
+        assert dock.objectName(), f"'{dock.windowTitle()}' has no objectName"
+    for bar in window.findChildren(QtWidgets.QToolBar):
+        assert bar.objectName()
+
+
+def test_a_panel_on_its_own_gets_the_same_keys():
+    """A panel run from a shell opens in a dialog rather than the main window,
+    and the person pressing Ctrl+ should not have to know which of the two
+    they are looking at."""
+    import os
+
+    pytest.importorskip("PySide6")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+    from PySide6 import QtGui, QtWidgets
+
+    from harwood.viewer import dock
+    from harwood.viewer._qt import application
+
+    app = application()
+    dialog = QtWidgets.QDialog()
+    dock._text_shortcuts(dialog)
+
+    keys = {shortcut.key().toString()
+            for shortcut in dialog.findChildren(QtGui.QShortcut)}
+    assert {"Ctrl+=", "Ctrl+-", "Ctrl+0", "F11", "Ctrl+M"} <= keys
+
+    before = app.font().pointSizeF()
+    grow, = [s for s in dialog.findChildren(QtGui.QShortcut)
+             if s.key().toString() == "Ctrl+="]
+    grow.activated.emit()
+    assert app.font().pointSizeF() > before
+
+    reset, = [s for s in dialog.findChildren(QtGui.QShortcut)
+              if s.key().toString() == "Ctrl+0"]
+    reset.activated.emit()
+    assert app.font().pointSizeF() == pytest.approx(before)
+
+
+def test_a_panel_dialog_can_be_resized_and_maximised():
+    """A dialog with no size grip and no maximise button is the one thing
+    worse than a window that cannot be made small."""
+    import os
+
+    pytest.importorskip("PySide6")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+    from PySide6 import QtCore, QtWidgets
+
+    from harwood.viewer._qt import application
+    from harwood.viewer.icfit_panel import IcfitPanel
+
+    application()
+    x = np.arange(40.0)
+    panel = IcfitPanel(x, x * 2 + 1)
+
+    dialog = QtWidgets.QDialog()
+    dialog.resize(900, 600)
+    dialog.setMinimumSize(520, 360)
+    dialog.setSizeGripEnabled(True)
+    dialog.setWindowFlag(QtCore.Qt.WindowMaximizeButtonHint, True)
+    QtWidgets.QVBoxLayout(dialog).addWidget(panel)
+
+    assert dialog.isSizeGripEnabled()
+    assert dialog.windowFlags() & QtCore.Qt.WindowMaximizeButtonHint
+    dialog.resize(560, 380)
+    assert dialog.width() < 900

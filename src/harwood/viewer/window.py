@@ -50,30 +50,61 @@ LINE = "#2a3541"
 ACCENT = "#e0a33e"
 SKY = "#4fb59b"
 
-STYLE = f"""
+#: Text sizes in points at scale 1.0, and the range Ctrl+/Ctrl- moves through.
+#: Points rather than pixels: a pixel size ignores the display's own scaling,
+#: which is how text ends up unreadable on a high-density screen and enormous
+#: on a projector.
+BASE = {"body": 9.0, "mono": 8.5, "small": 8.0}
+SCALES = (0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.4, 1.6, 1.8, 2.0, 2.3)
+
+
+def stylesheet(scale: float = 1.0) -> str:
+    """The window's appearance at a given text scale.
+
+    Everything that sets a size does it through `BASE`, so one number moves
+    the whole interface together. Anything that hard-codes a width in pixels
+    -- a label column, a fixed field -- has to be scaled alongside it or the
+    text outgrows its box, which is the usual way a zoom feature half works.
+    """
+    body = BASE["body"] * scale
+    mono = BASE["mono"] * scale
+    small = BASE["small"] * scale
+    return f"""
 QMainWindow, QWidget {{ background: {GROUND}; color: {INK};
-    font-family: "IBM Plex Sans", "DejaVu Sans", sans-serif; font-size: 12px; }}
-QDockWidget {{ color: {MUTED}; titlebar-close-icon: none; }}
-QDockWidget::title {{ background: {PANEL}; padding: 5px 9px;
+    font-family: "IBM Plex Sans", "DejaVu Sans", sans-serif;
+    font-size: {body:.1f}pt; }}
+QDockWidget {{ color: {MUTED}; titlebar-close-icon: none;
+    font-size: {body:.1f}pt; }}
+QDockWidget::title {{ background: {PANEL}; padding: {5 * scale:.0f}px 9px;
     border-bottom: 1px solid {LINE}; font-weight: 600; }}
 QToolBar {{ background: {PANEL}; border-bottom: 1px solid {LINE}; spacing: 7px;
     padding: 4px 8px; }}
 QComboBox, QLineEdit {{ background: {GROUND}; color: {INK};
     border: 1px solid {LINE}; border-radius: 3px; padding: 3px 7px;
+    font-size: {body:.1f}pt;
     selection-background-color: {ACCENT}; }}
-QComboBox::drop-down {{ border: none; width: 16px; }}
+QComboBox::drop-down {{ border: none; width: {16 * scale:.0f}px; }}
 QLineEdit:focus, QComboBox:focus {{ border-color: {ACCENT}; }}
-QToolButton {{ color: {INK}; padding: 3px 9px; border-radius: 3px; }}
+QToolButton {{ color: {INK}; padding: 3px 9px; border-radius: 3px;
+    font-size: {body:.1f}pt; }}
 QToolButton:hover {{ background: {LINE}; }}
 QPlainTextEdit {{ background: {GROUND}; color: {INK}; border: none;
-    font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace; font-size: 11px; }}
+    font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace;
+    font-size: {mono:.1f}pt; }}
 QStatusBar {{ background: {PANEL}; border-top: 1px solid {LINE}; color: {INK};
-    font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace; }}
-QLabel#hint {{ color: {MUTED}; font-size: 11px; }}
+    font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace;
+    font-size: {mono:.1f}pt; }}
+QLabel#hint {{ color: {MUTED}; font-size: {small:.1f}pt; }}
 QLabel#readout {{ font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace;
-    font-size: 11px; color: {INK}; }}
-QLabel#param {{ color: {MUTED}; font-weight: 600; }}
+    font-size: {mono:.1f}pt; color: {INK}; }}
+QLabel#param {{ color: {MUTED}; font-weight: 600; font-size: {body:.1f}pt; }}
+QToolTip {{ background: {PANEL}; color: {INK}; border: 1px solid {LINE};
+    padding: 4px; font-size: {small:.1f}pt; }}
 """
+
+
+#: Kept for anything that wants the default appearance without asking.
+STYLE = stylesheet()
 
 COLORMAPS = {
     "grey": [(0, 0, 0), (255, 255, 255)],
@@ -134,9 +165,19 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("harwood")
         self.setWindowTitle("harwood")
+        # A starting size that fits a laptop, and a floor low enough that the
+        # window can actually be made small. A minimum larger than the screen
+        # is how a window becomes impossible to arrange, which is most of what
+        # is annoying about IRAF's.
         self.resize(1500, 900)
-        self.setStyleSheet(STYLE)
+        self.setMinimumSize(640, 420)
+        self.text_scale = 1.0
+        self._param_labels: list[QtWidgets.QLabel] = []
+        self._fixed_widths: list[tuple[QtWidgets.QWidget, int]] = []
+        self._hints: list[tuple[QtWidgets.QLabel, str]] = []
+        self.setStyleSheet(stylesheet(self.text_scale))
 
         self.frames: dict[int, Frame] = {}
         self.current = 1
@@ -154,17 +195,110 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._build_session()
         self._build_status()
 
+        self._build_shortcuts()
+        self._default_state = self.saveState()
+
         from ._qt import set_window
 
         set_window(self)
 
         self.log("harwood viewer. Hover for coordinates; press ? over the image "
                  "for the examine keys.")
+        self.log("Ctrl+ and Ctrl- resize the text, Ctrl+0 resets it. "
+                 "F11 full screen, Ctrl+M maximise, Ctrl+Shift+R puts the "
+                 "panels back where they started.")
+
+    # ------------------------------------------- size, both kinds
+
+    def _build_shortcuts(self) -> None:
+        """Text size, window size, and a way back from a mangled layout.
+
+        Several bindings for one action on purpose: on many keyboards `+` is
+        a shifted key, so Ctrl+= and Ctrl+Shift+= have to mean the same thing
+        as Ctrl++ or the shortcut works for some people and not others.
+        """
+        def bind(sequences, slot):
+            for sequence in sequences:
+                shortcut = QtGui.QShortcut(QtGui.QKeySequence(sequence), self)
+                shortcut.setContext(QtCore.Qt.ApplicationShortcut)
+                shortcut.activated.connect(slot)
+
+        bind(("Ctrl++", "Ctrl+=", "Ctrl+Shift+=", "Ctrl+Shift++"),
+             lambda: self.zoom_text(+1))
+        bind(("Ctrl+-", "Ctrl+_"), lambda: self.zoom_text(-1))
+        bind(("Ctrl+0",), lambda: self.set_text_scale(1.0))
+        bind(("F11",), self.toggle_full_screen)
+        bind(("Ctrl+M",), self.toggle_maximised)
+        bind(("Ctrl+Shift+R",), self.reset_layout)
+
+    def zoom_text(self, direction: int) -> None:
+        """One step up or down the scale, stopping at the ends."""
+        current = min(range(len(SCALES)),
+                      key=lambda index: abs(SCALES[index] - self.text_scale))
+        index = max(0, min(len(SCALES) - 1, current + direction))
+        if SCALES[index] != self.text_scale:
+            self.set_text_scale(SCALES[index])
+        else:
+            self.log(f"text is already at its {'largest' if direction > 0 else 'smallest'}"
+                     f" ({self.text_scale:.2f}x).")
+
+    def set_text_scale(self, scale: float) -> None:
+        """Resize every piece of text in the window together.
+
+        The stylesheet carries the sizes, so most of this is one assignment.
+        The exception is anything that fixed a width in pixels to line a
+        column up: those have to move with the text or it outgrows its box --
+        which is the usual way a zoom feature half works.
+        """
+        self.text_scale = float(scale)
+        self.setStyleSheet(stylesheet(self.text_scale))
+
+        metrics = QtGui.QFontMetrics(self.font())
+        width = max(62, int(metrics.horizontalAdvance("fittype") * 1.7))
+        for label in self._param_labels:
+            label.setFixedWidth(width)
+            label.setContentsMargins(0, 0, 0, 0)
+        for widget, original in self._fixed_widths:
+            widget.setFixedWidth(int(original * self.text_scale))
+        for label, text in self._hints:
+            _size_hint(label, text, width + 6)
+        if hasattr(self, "params_dock"):
+            self.params_dock.setMinimumWidth(int(220 * self.text_scale))
+
+        self.log(f"text scale {self.text_scale:.2f}x"
+                 + ("  (Ctrl+0 to reset)" if self.text_scale != 1.0 else ""))
+
+    def toggle_full_screen(self) -> None:
+        """F11. Leaves the window where it was, rather than maximised."""
+        if self.isFullScreen():
+            self.showNormal()
+            self.log("left full screen.")
+        else:
+            self.showFullScreen()
+            self.log("full screen -- F11 again to come back.")
+
+    def toggle_maximised(self) -> None:
+        """Ctrl+M, for when the window manager gives no button to click."""
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    def reset_layout(self) -> None:
+        """Put the docks back where they started.
+
+        Dragging a dock somewhere unhelpful is easy and undoing it by hand is
+        not. Qt remembers the arrangement; this remembers the one it began
+        with, so there is always a way back.
+        """
+        self.restoreState(self._default_state)
+        self.log("panels back where they started.")
 
     # ------------------------------------------------------------ building
 
     def _build_toolbar(self) -> None:
         bar = QtWidgets.QToolBar()
+        bar.setObjectName("tools")
         bar.setMovable(False)
         self.addToolBar(bar)
 
@@ -181,6 +315,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             ("tile", self._tile, "Show every frame side by side"),
             ("header", self._show_header, "Show this frame's FITS header"),
             ("regions", self._clear_marks, "Clear the overlays on this frame"),
+            ("A-", lambda: self.zoom_text(-1), "Smaller text  (Ctrl-)"),
+            ("A+", lambda: self.zoom_text(+1), "Larger text  (Ctrl+)"),
+            ("reset", self.reset_layout,
+             "Put the panels back where they started  (Ctrl+Shift+R)"),
         ):
             action = QtGui.QAction(label, self)
             action.setToolTip(tip)
@@ -192,6 +330,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         box = QtWidgets.QComboBox()
         box.addItems(items)
         box.setFixedWidth(width)
+        # Remembered with the width it was given, so a text scale multiplies
+        # the original rather than compounding on the last scale.
+        self._fixed_widths.append((box, width))
         box.currentTextChanged.connect(lambda *_: slot())
         bar.addWidget(box)
         return box
@@ -214,6 +355,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _build_examine(self) -> None:
         dock = QtWidgets.QDockWidget("Examine")
+        dock.setObjectName("examine")
         body = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(body)
         layout.setContentsMargins(8, 6, 8, 8)
@@ -240,6 +382,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
     def _build_params(self) -> None:
         """The parameter editor, section 5: it explains rather than just accepts."""
         dock = QtWidgets.QDockWidget("Parameters · rimexam")
+        dock.setObjectName("parameters")
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
@@ -260,33 +403,44 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             label = QtWidgets.QLabel(name)
             label.setObjectName("param")
             label.setFixedWidth(62)
+            self._param_labels.append(label)
             edit = QtWidgets.QLineEdit(default)
             edit.setValidator(QtGui.QDoubleValidator(0.1, 500.0, 2))
             edit.editingFinished.connect(self._params_changed)
             row.addWidget(label)
             row.addWidget(edit)
             form.addLayout(row)
-            form.addWidget(_hint(explanation))
+            hint = _hint(explanation)
+            self._hints.append((hint, explanation))
+            form.addWidget(hint)
             self.param_widgets[name] = edit
 
         row = QtWidgets.QHBoxLayout()
         label = QtWidgets.QLabel("fittype")
         label.setObjectName("param")
         label.setFixedWidth(62)
+        self._param_labels.append(label)
         box = QtWidgets.QComboBox()
         box.addItems(["gaussian", "moffat"])
         box.currentTextChanged.connect(lambda *_: self._params_changed())
         row.addWidget(label)
         row.addWidget(box)
         form.addLayout(row)
-        form.addWidget(_hint("Profile fitted to measure the FWHM. Moffat has wings; "
-                             "it fits real seeing better than a gaussian."))
+        explanation = ("Profile fitted to measure the FWHM. Moffat has wings; "
+                       "it fits real seeing better than a gaussian.")
+        hint = _hint(explanation)
+        self._hints.append((hint, explanation))
+        form.addWidget(hint)
         self.param_widgets["fittype"] = box
         form.addStretch(1)
 
         scroll.setWidget(body)
         dock.setWidget(scroll)
-        dock.setMinimumWidth(300)
+        # A minimum, not a fixed width: 300 was wide enough that the image
+        # could not be given the room on a small screen. The scroll area
+        # handles the rest.
+        dock.setMinimumWidth(220)
+        self.params_dock = dock
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
         self.resizeDocks([self.examine_dock, dock], [420, 300], QtCore.Qt.Vertical)
 
@@ -302,6 +456,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.work.setDocumentMode(True)
         self.work.setTabsClosable(False)
         self.work_dock = QtWidgets.QDockWidget("Work")
+        self.work_dock.setObjectName("work")
         self.work_dock.setWidget(self.work)
         self.work_dock.hide()
         self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.work_dock)
@@ -326,6 +481,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _build_session(self) -> None:
         dock = QtWidgets.QDockWidget("Session")
+        dock.setObjectName("session")
         body = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(body)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -722,12 +878,28 @@ def _hint(text: str) -> QtWidgets.QLabel:
     label = QtWidgets.QLabel(text)
     label.setObjectName("hint")
     label.setWordWrap(True)
-    label.setContentsMargins(68, 0, 0, 8)
     label.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
-    metrics = label.fontMetrics()
-    lines = max(1, int(len(text) / 38) + 1)
-    label.setMinimumHeight(lines * metrics.height() + 10)
+    _size_hint(label, text, 68)
     return label
+
+
+def _size_hint(label, text: str, indent: int) -> None:
+    """Give a wrapped explanation room for the height it will actually take.
+
+    Recomputed whenever the text scale changes: a height worked out at one
+    font size clips the same words at a larger one, and a truncated
+    explanation is worse than none because it looks like the whole answer.
+    """
+    from PySide6 import QtWidgets as _widgets
+
+    label.setContentsMargins(indent, 0, 0, 8)
+    available = max(120, label.width() - indent) if label.width() else 240
+    metrics = label.fontMetrics()
+    rectangle = metrics.boundingRect(
+        0, 0, available, 10000,
+        int(_widgets.QLabel().alignment()) | 0x1000,      # TextWordWrap
+        text)
+    label.setMinimumHeight(rectangle.height() + 10)
 
 
 def _stretch(data: np.ndarray, low: float, high: float, kind: str) -> np.ndarray:
