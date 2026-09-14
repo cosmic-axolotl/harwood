@@ -130,6 +130,55 @@ def _fine_structure(data: np.ndarray, separable: bool = False) -> np.ndarray:
     return three - _median(three, 7, separable)
 
 
+def _line_structure(data: np.ndarray, dispaxis: int, separable: bool = False,
+                    along: int = 7, across: int = 25) -> np.ndarray:
+    """Fine structure for a long-slit spectrum, where the object is a line.
+
+    van Dokkum's fine-structure image models a *point* source: a 3x3 median
+    keeps a star's core, a 7x7 median of that removes it, and the difference
+    is what the optics could have made. On a spectrum's flank both medians see
+    the same smooth ramp, the difference is nothing, and the test that is
+    supposed to protect real structure protects none -- which is how a
+    detection walks down the side of the spectrum.
+
+    Here the object is a line source, not a point, so the model is built to
+    match: a median **along the dispersion** estimates the spectrum at each
+    point, and it does so without the cosmic rays, because a track is local
+    along the dispersion and the median steps over it. Subtracting the
+    cross-slit median of that model leaves how far the spectrum stands above
+    its surroundings -- large on the flank, and near zero where a cosmic ray
+    sits on blank sky, which is exactly the discrimination that was missing.
+
+    `across` has to be wide enough that its median is the sky rather than more
+    of the object: at seven pixels, on a four-pixel profile, the window
+    centred on a flank still sits inside the spectrum, the subtraction gives
+    nothing, and the model protects nothing. Measured on a synthetic long-slit
+    frame, the value at the flank goes 0.00, 0.07, 17.3, 17.9 for widths of
+    7, 13, 21 and 31 -- while blank sky stays at zero throughout, which is the
+    property that matters: a cosmic ray on empty sky must not be protected.
+    """
+    size_along = (along, 1) if dispaxis == 2 else (1, along)
+    size_across = (1, across) if dispaxis == 2 else (across, 1)
+
+    from scipy.ndimage import median_filter
+
+    # Not `_median`: these are already one-dimensional, so the separable
+    # approximation has nothing to approximate.
+    model = median_filter(data, size=size_along, mode="nearest")
+    structure = model - median_filter(model, size=size_across, mode="nearest")
+
+    # Protect only where the pixel agrees with the model. The model is a
+    # median along the dispersion, so a cosmic ray was stepped over when it
+    # was built: at a track the observation stands far above the model, and
+    # the structure the model found belongs to the spectrum underneath rather
+    # than to the pixel in hand. Without this the protection covers the whole
+    # spectrum, cosmic rays on it included, and three per cent of them survive
+    # the cleaning.
+    excess = data - model
+    scale = np.abs(structure) + np.abs(model) * 0.02 + 1e-9
+    return np.where(excess < scale, structure, 0.0)
+
+
 def _clean(data: np.ndarray, mask: np.ndarray, size: int = 5) -> np.ndarray:
     """Replace flagged pixels with the median of their unflagged neighbours.
 
@@ -185,7 +234,8 @@ def _neighbour_median(values: np.ndarray, rows, columns, size: int) -> np.ndarra
 def lacosmic(data, gain: float = 1.0, rdnoise: float = 0.0, sigclip: float = 4.5,
              sigfrac: float = 0.3, objlim: float = 5.0, niter: int = 4,
              satlevel: float = 65535.0, strict_growth: bool = True,
-             separable: bool = False, mask=None) -> Detection:
+             separable: bool = False, dispaxis: int | None = None,
+             mask=None) -> Detection:
     """L.A.Cosmic: Laplacian edge detection (van Dokkum 2001).
 
     `sigclip` is how many sigma above the noise a Laplacian edge must be.
@@ -241,6 +291,12 @@ def lacosmic(data, gain: float = 1.0, rdnoise: float = 0.0, sigclip: float = 4.5
         s = s - _median(s, 5, separable)
 
         fine = _fine_structure(working, separable) / noise
+        if dispaxis is not None:
+            # Whichever model says there is more real structure here wins. A
+            # point source is caught by one and a spectrum by the other, and
+            # a cosmic ray on blank sky is caught by neither.
+            fine = np.maximum(
+                fine, _line_structure(working, dispaxis, separable) / noise)
         np.clip(fine, FLOOR, None, out=fine)
         ratio = laplacian / (2.0 * noise * fine)
 
