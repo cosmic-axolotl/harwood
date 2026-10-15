@@ -33,7 +33,7 @@ from . import build
 console = Console()
 error_console = Console(stderr=True)
 
-BUILTINS = ("list", "help", "lpar", "init", "doctor", "recipe", "log", "gui")
+BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "gui")
 
 
 class Harwood(click.Group):
@@ -461,14 +461,22 @@ def _probe(package: str, extra: str) -> tuple[str, str]:
     the one command whose job is to tell you how to fix your install was
     telling everybody to `pip install harwood`.
     """
-    from importlib.metadata import PackageNotFoundError, version
+    from importlib.metadata import PackageNotFoundError, packages_distributions, version
+    from importlib.util import find_spec
 
-
-    try:
-        return f"[green]{version(package)}[/green]", ""
-    except PackageNotFoundError:
+    # By the module, not the distribution: harwood[gui] installs
+    # PySide6-Essentials, whose module is PySide6, and asking for a
+    # distribution called "PySide6" reported it missing on every install made
+    # the recommended way.
+    if find_spec(package) is None:
         return ("[yellow]not installed[/yellow]",
                 escape(f"pip install {extra}") if extra else "")
+    for distribution in [package, *packages_distributions().get(package, [])]:
+        try:
+            return f"[green]{version(distribution)}[/green]", ""
+        except PackageNotFoundError:
+            continue
+    return "[green]installed[/green]", ""
 
 
 @app.command("log")

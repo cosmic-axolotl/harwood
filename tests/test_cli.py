@@ -321,3 +321,25 @@ def test_a_list_is_written_as_iraf_writes_it(run, tmp_path):
     for typed in (("3,5,10",), ("3", "5,10")):
         assert build.collect(model, {"apertures": typed})["apertures"] == ["3", "5", "10"]
     assert model(image="a", coords="b", apertures=["3", "5", "8"]).apertures == [3, 5, 8]
+
+
+def test_doctor_finds_a_module_installed_under_another_name():
+    """harwood[gui] installs PySide6-Essentials, whose module is PySide6;
+    doctor asked for a distribution called PySide6 and reported it missing on
+    every install made the recommended way. yaml (from PyYAML) is the same
+    shape of case, and is always installed."""
+    from harwood.cli.main import _probe
+
+    result, hint = _probe("yaml", "harwood")
+    assert "not installed" not in result and not hint
+    assert "not installed" in _probe("no_such_module_here", "harwood")[0]
+
+
+def test_every_builtin_the_cli_lists_actually_runs(run):
+    """'recipe' was listed as a built-in and did not exist: typing it got a
+    suggestion to try 'gripes'. A listed command has to answer --help."""
+    from harwood.cli.main import BUILTINS
+
+    for name in BUILTINS:
+        result = run(name, "--help")
+        assert result.exit_code == 0, f"'{name}' is listed but does not run"

@@ -9,8 +9,9 @@ Two records, deliberately redundant:
   keywords and ``IMCMB`` cards naming combined inputs.
 
 The redundancy is the point. The log can reconstruct a runnable recipe
-(``harwood recipe from-log``); the header travels with the data when someone
-e-mails a single file to a collaborator.
+(`to_recipe` below; the `harwood recipe` command that will use it is later
+work, section 3.2); the header travels with the data when someone e-mails a
+single file to a collaborator.
 
 Header text is ASCII only -- section 6.2: FITS cards do not take "ção" or "ñ",
 so anything written into the data stays in English, whatever the interface
