@@ -106,9 +106,12 @@ def test_a_deleted_point_never_comes_back():
 
 
 def test_too_high_an_order_says_what_to_do():
+    """IRAF lowers the order to what the points allow and says nothing.
+    harwood gives IRAF's numbers and says what happened."""
     x = np.arange(1.0, 5.0)
-    result = icfit.fit(x, x, icfit.FitSpec(order=20))
-    assert result.model is None
+    result = icfit.fit(x, x * x, icfit.FitSpec(order=20))
+    assert result.model is not None
+    assert result(np.array([2.5]))[0] == pytest.approx(6.25), "through every point"
     assert "Lower the order" in result.message
 
 

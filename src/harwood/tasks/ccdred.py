@@ -108,7 +108,9 @@ class CcdProcParams(TaskParams):
         1, description="Average this many points before fitting; negative takes the "
                        "median instead, which ignores spikes.",
     )
-    niterate: int = Field(0, ge=0, description="Rejection passes over the overscan fit.")
+    niterate: int = Field(
+        1, ge=0, description="Rejection passes over the overscan fit; 1, as in IRAF."
+    )
     low_reject: float = Field(
         3.0, ge=0, description="Rejection threshold below the fit, in sigma."
     )
@@ -138,7 +140,9 @@ class CcdProcParams(TaskParams):
                     "keeps none; the JSON log and the headers are kept regardless.",
     )
     minreplace: float = Field(
-        1.0, description="Flat values below this are replaced, to avoid dividing by noise."
+        1.0, description="When a flat is processed, values below this are raised to "
+                         "it, so dividing by the flat never divides by noise -- as "
+                         "IRAF does."
     )
 
 
@@ -242,6 +246,8 @@ class CcdProc(Task[CcdProcParams]):
         return steps
 
     def execute(self, params: CcdProcParams) -> TaskResult:
+        import time
+
         import numpy as np
         from astropy.io import fits
 
@@ -300,6 +306,22 @@ class CcdProc(Task[CcdProcParams]):
                     data, step = _calibrate(data, header, key,
                                             calibration[key], params)
                     steps.append(step)
+
+            # A flat is left with nothing below minreplace, as IRAF leaves it,
+            # so that dividing by it later can never divide by noise or zero.
+            if survey["kinds"].get(spec) == "flat" and steps:
+                low = data < params.minreplace
+                if low.any():
+                    data = np.where(low, params.minreplace, data)
+                    steps.append(Step("minreplace", f"{int(low.sum())} pixels below "
+                                      f"{params.minreplace:g} set to it",
+                                      why=WHY["minreplace"],
+                                      measured={"replaced": int(low.sum())}))
+            # CCDMEAN, as IRAF writes it on everything ccdproc touches: it is
+            # the scale a flat is divided by, and IRAF reads it from the file.
+            if steps and any(not step.skipped for step in steps):
+                header["CCDMEAN"] = (float(np.mean(data)), "mean of the image after ccdproc")
+                header["CCDMEANT"] = (int(time.time()), "when CCDMEAN was computed")
 
             lines = [f"ccdproc: {step.render()}" for step in steps if not step.skipped]
             provenance.stamp_header(header, lines)
@@ -363,6 +385,11 @@ WHY = {
             "across the chip. The dark frame measures that rate, and is scaled to "
             "this exposure's time before subtraction -- twice the exposure, twice "
             "the dark.",
+    "minreplace": "A flat is about to be divided into every frame of the night, so "
+                  "a pixel near zero in it -- a dead column, a vignetted corner -- "
+                  "would turn into an enormous value in each of them. IRAF raises "
+                  "anything below minreplace to it when it processes a flat, and so "
+                  "does harwood.",
     "flat": "Pixels do not respond equally: quantum efficiency varies across the "
             "chip, dust on the window shadows it, and the optics vignette the "
             "corners. A flat field is a uniformly lit exposure, so it measures "
@@ -658,12 +685,23 @@ def _calibrate(data, header, key, image, params):
         detail = f"subtracted {Path(str(image)).name} scaled by {factor:.3f}"
         measured["scale"] = f"{frame_time:g}s / {dark_time:g}s = {factor:.3f}"
     else:
+        # IRAF: out = data * scale / flat, the scale being the flat's CCDMEAN --
+        # the mean, not the median, of the flat as ccdproc left it. A flat
+        # without CCDMEAN is one IRAF would process as a flat before using it,
+        # which replaces values below minreplace and then takes the mean; that
+        # is done here. (harwood used to normalise by the median: 0.11% off on
+        # the 1987 M92 flat, a constant 1.2 mmag in every magnitude.)
         safe = np.where(calibration < params.minreplace, params.minreplace, calibration)
-        level = float(np.median(safe))
+        if "CCDMEAN" in cal_header:
+            level = float(cal_header["CCDMEAN"])
+            source = "its CCDMEAN"
+        else:
+            level = float(np.mean(safe))
+            source = "its mean"
         normalised = safe / level
         out = data / normalised
-        detail = f"divided by {Path(str(image)).name}, normalised to its median"
-        measured["flat level"] = round(level, 2)
+        detail = f"divided by {Path(str(image)).name}, normalised to {source}"
+        measured["flat level"] = round(level, 3)
         measured["response range"] = (f"{float(normalised.min()):.3f} to "
                                       f"{float(normalised.max()):.3f}")
         replaced = int((calibration < params.minreplace).sum())

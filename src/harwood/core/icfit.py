@@ -136,41 +136,103 @@ def parse_sample(sample: str, x: np.ndarray) -> np.ndarray:
 
 
 def average(x: np.ndarray, y: np.ndarray, naverage: int) -> tuple[np.ndarray, np.ndarray]:
-    """Bin before fitting, as IRAF's `naverage` does.
+    """Bin before fitting, as IRAF's `naverage` does (rg_wtbin).
 
     Positive averages groups of `naverage` points; negative takes the median of
     groups of `|naverage|`, which is what you want when the data has spikes --
-    a cosmic ray on an overscan column, say.
+    a cosmic ray on an overscan column, say. A short group at the end is kept
+    only if it has at least max(min(n, 3), (n + 1) / 2) points, as in IRAF.
     """
-    n = int(naverage)
-    if abs(n) <= 1:
-        return x, y
-    size = abs(n)
-    count = len(x) // size
-    if count < 1:
-        return x, y
-    xs = x[: count * size].reshape(count, size)
-    ys = y[: count * size].reshape(count, size)
-    reducer = np.median if n < 0 else np.mean
-    return xs.mean(axis=1), reducer(ys, axis=1)
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    groups = _groups([np.arange(x.size)], naverage)
+    xb, yb, _ = _binned(x, y, np.ones(x.size), groups, naverage)
+    return xb, yb
 
 
-def _build(x: np.ndarray, y: np.ndarray, spec: FitSpec):
-    """Fit one function to the points given. Returns a callable."""
+def _runs(selected: np.ndarray) -> list[np.ndarray]:
+    """The sample as runs of consecutive indices -- IRAF's ranges."""
+    index = np.flatnonzero(selected)
+    if index.size == 0:
+        return []
+    breaks = np.flatnonzero(np.diff(index) != 1) + 1
+    return np.split(index, breaks)
+
+
+def _groups(runs: list[np.ndarray], naverage: int) -> list[np.ndarray]:
+    """rg_wtbin's grouping: consecutive points within each range."""
+    size = max(1, abs(int(naverage)))
+    groups = []
+    for run in runs:
+        start, first = 0, True
+        while start < run.size:
+            n = min(size, run.size - start)
+            if not first and n < max(min(size, 3), (size + 1) // 2):
+                break
+            groups.append(run[start:start + n])
+            start += n
+            first = False
+    return groups
+
+
+def _binned(x, y, w, groups, naverage):
+    """Each group's x (weighted mean), y (weighted mean, or median for a
+    negative naverage) and weight (the sum of its members')."""
+    n = len(groups)
+    xb, yb, wb = np.empty(n), np.empty(n), np.empty(n)
+    for k, members in enumerate(groups):
+        weights = w[members]
+        total = weights.sum()
+        xb[k] = ((x[members] * weights).sum() / total if total != 0
+                 else x[members].mean())
+        if naverage < 0 and members.size > 1:
+            values = np.sort(y[members][weights > 0] if total > 0 else y[members])
+            yb[k] = values[(values.size + 1) // 2 - 1]          # amed: lower median
+        else:
+            yb[k] = ((y[members] * weights).sum() / total if total != 0
+                     else y[members].mean())
+        wb[k] = total
+    return xb, yb, wb
+
+
+def _build(x: np.ndarray, y: np.ndarray, spec: FitSpec, weights=None,
+           xrange: tuple[float, float] | None = None):
+    """Fit one function to the points given, least squares weighted as IRAF's
+    curfit weights them (by w, not sqrt(w)). Returns a callable.
+
+    The order is clamped as ic_dosetup clamps it: a polynomial never has more
+    terms than points, a spline never more pieces than its points allow, and a
+    spline with no pieces left falls back to a polynomial through them all.
+    """
+    weights = np.ones_like(x) if weights is None else np.asarray(weights, dtype=float)
+    keep = weights > 0
+    x, y, weights = x[keep], y[keep], weights[keep]
+    nfit = x.size
     order = max(1, int(spec.order))
+    function = spec.function
+    if function == "spline1":
+        pieces = min(order, nfit - 1)
+    elif function == "spline3":
+        pieces = min(order, nfit - 3)
+    else:
+        pieces = 0
+    if function in ("spline1", "spline3") and pieces <= 0:
+        function, order = "legendre", nfit
 
-    if spec.function in ("legendre", "chebyshev"):
-        degree = order - 1          # IRAF counts terms; numpy counts degree
-        if len(x) <= degree:
+    if function in ("legendre", "chebyshev"):
+        degree = min(order, nfit) - 1          # IRAF counts terms; numpy counts degree
+        if nfit < 1 or degree < 0:
             raise ValueError(
-                f"{spec.function} order {order} needs more than {degree} points; "
-                f"{len(x)} are left. Lower the order or reject less."
+                f"{spec.function} order {order} needs points to fit; none are left. "
+                "Lower the order or reject less."
             )
         series = {"legendre": np.polynomial.Legendre,
-                  "chebyshev": np.polynomial.Chebyshev}[spec.function]
-        return series.fit(x, y, deg=degree)
+                  "chebyshev": np.polynomial.Chebyshev}[function]
+        return series.fit(x, y, deg=degree, w=np.sqrt(weights))
 
-    # Splines: `order` is the number of polynomial pieces, as in IRAF.
+    # Splines: `order` is the number of polynomial pieces, as in IRAF, laid
+    # evenly over the range the caller evaluates -- not over whatever points
+    # survived rejection, which would move the knots every iteration.
     try:
         from scipy.interpolate import LSQUnivariateSpline
     except ImportError as error:
@@ -180,27 +242,35 @@ def _build(x: np.ndarray, y: np.ndarray, spec: FitSpec):
             "which need nothing extra."
         ) from error
 
-    degree = 1 if spec.function == "spline1" else 3
-    pieces = max(1, order)
-    order_index = np.argsort(x)
-    xs, ys = x[order_index], y[order_index]
-    if pieces == 1:
-        knots = np.array([])
-    else:
-        edges = np.linspace(xs[0], xs[-1], pieces + 1)[1:-1]
-        knots = np.unique(edges)
-        knots = knots[(knots > xs[0]) & (knots < xs[-1])]
+    degree = 1 if function == "spline1" else 3
+    sort = np.argsort(x)
+    xs, ys, ws = x[sort], y[sort], weights[sort]
+    low, high = xrange if xrange is not None else (float(xs[0]), float(xs[-1]))
+    low, high = min(low, float(xs[0])), max(high, float(xs[-1]))
+    knots = np.linspace(low, high, pieces + 1)[1:-1]
     if len(xs) <= degree + len(knots):
         raise ValueError(
             f"{spec.function} with {pieces} pieces needs more points; "
             f"{len(xs)} are left."
         )
-    spline = LSQUnivariateSpline(xs, ys, knots, k=degree, ext="const")
-    return spline
+    try:
+        return LSQUnivariateSpline(xs, ys, knots, w=np.sqrt(ws), bbox=[low, high],
+                                   k=degree, ext="const")
+    except ValueError as error:
+        raise ValueError(
+            f"{spec.function} with {pieces} pieces cannot be fitted: some piece "
+            "has no points in it. Lower the order, or widen the sample."
+        ) from error
 
 
 def fit(x, y, spec: FitSpec | None = None, deleted=None, **overrides) -> Fit:
-    """Fit, reject, refit -- the whole `icfit` cycle in one call.
+    """Fit, reject, refit -- IRAF's ic_fit, one call.
+
+    In IRAF's order: the sample is cut into ranges, each range into groups of
+    `naverage` points (rg_wtbin), and the fit and the rejection both work on
+    those groups -- a rejected group takes all its points with it. The
+    rejection sigma is the rms of the residuals of the points still in, and
+    there is no rejection with fewer than five of them (ic_deviant).
 
     `deleted` marks points a human removed by hand; they never come back
     through rejection, which is the difference between "the algorithm dropped
@@ -215,52 +285,92 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None, **overrides) -> Fit:
     deleted = (np.zeros(x.shape, dtype=bool) if deleted is None
                else np.asarray(deleted, dtype=bool))
     in_sample = parse_sample(spec.sample, x)
-    mask = in_sample & ~deleted & np.isfinite(y)
-    if mask.sum() < 2:
-        return Fit(spec, x, y, mask, deleted, None,
+    usable = in_sample & ~deleted & np.isfinite(y)
+    if usable.sum() < 2:
+        return Fit(spec, x, y, usable, deleted, None,
                    "not enough points to fit; check the sample range")
 
-    model = None
-    for iteration in range(max(0, int(spec.niterate)) + 1):
-        xs, ys = average(x[mask], y[mask], spec.naverage)
-        try:
-            model = _build(xs, ys, spec)
-        except Exception as error:
-            return Fit(spec, x, y, mask, deleted, None, str(error))
+    weights = usable.astype(float)
+    groups = _groups(_runs(in_sample), spec.naverage)
+    xb, yb, wb = _binned(x, np.where(np.isfinite(y), y, 0.0), weights, groups,
+                         spec.naverage)
+    xrange = (float(np.min(x)), float(np.max(x)))
+    rejected = np.zeros(len(groups), dtype=bool)
 
-        if iteration >= int(spec.niterate):
+    def model_from(active):
+        return _build(xb, yb, spec, np.where(active, wb, 0.0), xrange)
+
+    def used_points():
+        mask = np.zeros(x.shape, dtype=bool)
+        for k, members in enumerate(groups):
+            if not rejected[k] and wb[k] > 0:
+                mask[members] = True
+        return mask & usable
+
+    try:
+        model = model_from(~rejected)
+    except Exception as error:
+        return Fit(spec, x, y, usable, deleted, None, str(error))
+
+    pixgrow = _pixgrow(xb, spec.grow)
+    for _ in range(max(0, int(spec.niterate))):
+        if spec.low_reject <= 0 and spec.high_reject <= 0:
             break
-        residual = y - np.asarray(model(x), dtype=float)
-        sigma = np.std(residual[mask], ddof=1) if mask.sum() > 2 else 0.0
-
-        # Two guards that a fitter used by dozens of tasks cannot do without.
-        #
-        # The first: once the fit is essentially exact, sigma collapses towards
-        # floating-point noise and a 3-sigma window narrows to nothing, so the
-        # next pass rejects the entire sample. The fit was already good; stop.
-        if sigma <= 0 or sigma <= 1e-10 * max(float(np.max(np.abs(y[mask]))), 1.0):
+        residual = yb - np.asarray(model(xb), dtype=float)
+        live = (wb != 0) & ~rejected
+        if live.sum() < 5:
             break
-
-        drop = mask.copy()
-        drop &= ((spec.low_reject > 0) & (residual < -spec.low_reject * sigma)) | \
-                ((spec.high_reject > 0) & (residual > spec.high_reject * sigma))
-        if spec.grow > 0 and drop.any():
-            drop = _grow(x, drop, spec.grow)
-        drop &= in_sample & ~deleted
-        if not drop.any():
+        sigma = float(np.sqrt(np.sum(residual[live] ** 2) / live.sum()))
+        # Not in IRAF: once the fit is exact to rounding, sigma collapses and
+        # a 3-sigma window narrows to nothing, so the next pass would reject
+        # the whole sample. The fit was already right; stop.
+        if sigma <= 1e-10 * max(float(np.max(np.abs(yb[live]))), 1.0):
             break
-
-        # The second: never reject past the point where the function can still
-        # be fitted. IRAF would fail on the next pass; saying so here, with the
-        # fit that did work still in hand, is more use than an error.
-        if (mask & ~drop).sum() < _minimum_points(spec):
-            return Fit(spec, x, y, mask, deleted, model,
+        low = -spec.low_reject * sigma if spec.low_reject > 0 else -np.inf
+        high = spec.high_reject * sigma if spec.high_reject > 0 else np.inf
+        new = np.zeros_like(rejected)
+        for i in np.flatnonzero(live & ((residual >= high) | (residual <= low))):
+            for j in range(max(0, i - pixgrow), min(len(xb), i + pixgrow + 1)):
+                if (abs(xb[i] - xb[j]) <= spec.grow or j == i) and wb[j] != 0 \
+                        and not rejected[j]:
+                    new[j] = True
+        if not new.any():
+            break
+        if (~(rejected | new) & (wb > 0)).sum() < _minimum_points(spec):
+            return Fit(spec, x, y, used_points(), deleted, model,
                        f"stopped rejecting: another pass would leave fewer than "
                        f"{_minimum_points(spec)} points, which {spec.function} "
                        f"order {spec.order} needs")
-        mask &= ~drop
+        rejected |= new
+        try:
+            model = model_from(~rejected)
+        except Exception as error:
+            return Fit(spec, x, y, used_points(), deleted, None, str(error))
 
-    return Fit(spec, x, y, mask, deleted, model)
+    return Fit(spec, x, y, used_points(), deleted, model, _clamped(spec, wb, rejected))
+
+
+def _clamped(spec: FitSpec, wb: np.ndarray, rejected: np.ndarray) -> str:
+    """IRAF lowers an order the points cannot support, silently. harwood
+    lowers it too -- the numbers are IRAF's -- but says so: a curve with as
+    many terms as points goes through every one of them, noise included."""
+    n = int(((wb > 0) & ~rejected).sum())
+    order = max(1, int(spec.order))
+    room = {"legendre": n, "chebyshev": n, "spline1": n - 1, "spline3": n - 3}
+    if order <= room[spec.function]:
+        return ""
+    return (f"order {order} asks for more than {n} points can give, so it was "
+            f"lowered as IRAF lowers it; the curve now passes through every "
+            f"point. Lower the order, or widen the sample.")
+
+
+def _pixgrow(x: np.ndarray, grow: float) -> int:
+    """How many neighbours either side a growing radius can reach (ic_deviant)."""
+    if grow <= 0 or x.size < 2:
+        return 0
+    steps = np.abs(np.diff(x))
+    steps = steps[steps >= 0.0001]
+    return int(np.max(grow / steps)) if steps.size else 0
 
 
 def _minimum_points(spec: FitSpec) -> int:
