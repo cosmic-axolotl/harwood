@@ -95,7 +95,7 @@ class Editor(QtWidgets.QDialog):
         row.addWidget(save)
         layout.addWidget(bar)
 
-        QtGui.QShortcut(QtGui.QKeySequence.Save, self, self._save)
+        QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Save, self, self._save)
 
     def _save(self) -> None:
         self.path.write_text(self.text.toPlainText(), encoding="utf-8")

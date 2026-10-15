@@ -63,13 +63,13 @@ class IcfitPanel(QtWidgets.QWidget):
                  title: str = "icfit", xlabel: str = "x", ylabel: str = "y",
                  parent=None) -> None:
         super().__init__(parent)
-        self.x = np.asarray(x, dtype=float)
-        self.y = np.asarray(y, dtype=float)
+        self.xdata = np.asarray(x, dtype=float)
+        self.ydata = np.asarray(y, dtype=float)
         self.spec = spec or icfit.FitSpec()
-        self.deleted = np.zeros(self.x.shape, dtype=bool)
+        self.deleted = np.zeros(self.xdata.shape, dtype=bool)
         self.axis = "data"
         self.title = title
-        self._cursor = (float(self.x.mean()), float(self.y.mean()))
+        self._cursor = (float(self.xdata.mean()), float(self.ydata.mean()))
 
         self.setStyleSheet(f"""
             QWidget {{ background: {GROUND}; color: {INK};
@@ -120,7 +120,7 @@ class IcfitPanel(QtWidgets.QWidget):
         self.command.returnPressed.connect(self._run_command)
         layout.addWidget(self.command)
 
-        self.plot.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.plot.installEventFilter(self)
         self.setFocusProxy(self.plot)
 
@@ -129,7 +129,7 @@ class IcfitPanel(QtWidgets.QWidget):
     # ---------------------------------------------------------------- fit
 
     def refit(self) -> None:
-        self.fit = icfit.fit(self.x, self.y, self.spec, deleted=self.deleted)
+        self.fit = icfit.fit(self.xdata, self.ydata, self.spec, deleted=self.deleted)
         self.redraw()
 
     def redraw(self) -> None:
@@ -139,26 +139,26 @@ class IcfitPanel(QtWidgets.QWidget):
 
         if self.axis == "residuals":
             values = self.fit.residuals
-            curve_y = np.zeros_like(self.x)
+            curve_y = np.zeros_like(self.xdata)
             label = f"residual ({self.ylabel})" if self.ylabel else "residual"
         elif self.axis == "ratio":
             with np.errstate(divide="ignore", invalid="ignore"):
-                values = np.where(self.fit.values != 0, self.y / self.fit.values, np.nan)
-            curve_y = np.ones_like(self.x)
+                values = np.where(self.fit.values != 0, self.ydata / self.fit.values, np.nan)
+            curve_y = np.ones_like(self.xdata)
             label = "data / fit"
         else:
-            values = self.y
+            values = self.ydata
             curve_y = None
             label = self.ylabel or "data"
         self.plot.setLabel("left", label, color=MUTED)
 
-        self._scatter(self.x[used], values[used], SKY, 5.0)
-        self._scatter(self.x[rejected], values[rejected], DROP, 6.5, symbol="x")
-        self._scatter(self.x[self.deleted], values[self.deleted], MUTED, 7.0, symbol="s")
+        self._scatter(self.xdata[used], values[used], SKY, 5.0)
+        self._scatter(self.xdata[rejected], values[rejected], DROP, 6.5, symbol="x")
+        self._scatter(self.xdata[self.deleted], values[self.deleted], MUTED, 7.0, symbol="s")
 
         if self.fit.model is not None:
-            grid = np.linspace(float(self.x.min()), float(self.x.max()), 400)
-            curve = (np.interp(grid, self.x, curve_y) if curve_y is not None
+            grid = np.linspace(float(self.xdata.min()), float(self.xdata.max()), 400)
+            curve = (np.interp(grid, self.xdata, curve_y) if curve_y is not None
                      else self.fit(grid))
             self.plot.plot(grid, curve, pen=pg.mkPen(ACCENT, width=2))
 
@@ -187,7 +187,7 @@ class IcfitPanel(QtWidgets.QWidget):
     # ------------------------------------------------------------- input
 
     def eventFilter(self, obj, event) -> bool:
-        if event.type() == QtCore.QEvent.KeyPress and self.key(event.text()):
+        if event.type() == QtCore.QEvent.Type.KeyPress and self.key(event.text()):
             return True
         return super().eventFilter(obj, event)
 
@@ -235,8 +235,8 @@ class IcfitPanel(QtWidgets.QWidget):
         (x0, x1), (y0, y1) = self.plot.getPlotItem().vb.viewRange()
         span_x = max(x1 - x0, 1e-12)
         span_y = max(y1 - y0, 1e-12)
-        values = self.y if self.axis == "data" else self.fit.residuals
-        distance = np.hypot((self.x - self._cursor[0]) / span_x,
+        values = self.ydata if self.axis == "data" else self.fit.residuals
+        distance = np.hypot((self.xdata - self._cursor[0]) / span_x,
                             (values - self._cursor[1]) / span_y)
         candidates = (np.flatnonzero(~self.deleted) if delete
                       else np.flatnonzero(self.deleted))

@@ -44,7 +44,7 @@ def show(panel: Any, title: str, size: tuple[int, int] = (1000, 640)) -> Any:
     # size grip and no maximise button is the one thing worse than a fixed one.
     dialog.setMinimumSize(520, 360)
     dialog.setSizeGripEnabled(True)
-    dialog.setWindowFlag(QtCore.Qt.WindowMaximizeButtonHint, True)
+    dialog.setWindowFlag(QtCore.Qt.WindowType.WindowMaximizeButtonHint, True)
 
     panel.finished.connect(dialog.accept)
     layout = QtWidgets.QVBoxLayout(dialog)

@@ -30,7 +30,7 @@ The three levels mean different things and the distinction is worth keeping:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, NoReturn
 
 Level = Literal["note", "warning", "problem"]
 
@@ -117,7 +117,7 @@ def worst(items) -> Level | None:
     return max(levels, key=lambda level: ORDER.get(level, 1)) if levels else None
 
 
-def fail(message: str, fix: str = "", kind: type[Exception] = ValueError):
+def fail(message: str, fix: str = "", kind: type[Exception] = ValueError) -> NoReturn:
     """Raise an error that carries a suggestion, keeping its usual type.
 
     The type matters: callers catch `ValueError` and `FileNotFoundError` for

@@ -102,7 +102,7 @@ class AperturePanel(QtWidgets.QWidget):
         self.plot.setLabel("bottom", "across the slit (pixels)", color=MUTED)
         self.plot.setLabel("left", "summed counts", color=MUTED)
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
-        self.plot.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.plot.installEventFilter(self)
         layout.addWidget(self.plot, stretch=1)
 
@@ -141,12 +141,12 @@ class AperturePanel(QtWidgets.QWidget):
                 self.plot.addItem(pg.InfiniteLine(
                     centre + offset, angle=90,
                     pen=pg.mkPen(colour, width=width,
-                                 style=QtCore.Qt.SolidLine if chosen
-                                 else QtCore.Qt.DashLine)))
+                                 style=QtCore.Qt.PenStyle.SolidLine if chosen
+                                 else QtCore.Qt.PenStyle.DashLine)))
             self.plot.addItem(pg.InfiniteLine(
                 centre, angle=90,
                 pen=pg.mkPen(ACCENT if chosen else MUTED, width=width,
-                             style=QtCore.Qt.DotLine)))
+                             style=QtCore.Qt.PenStyle.DotLine)))
 
             label = pg.TextItem(f"{index + 1}", color=ACCENT if chosen else MUTED,
                                 anchor=(0.5, 1.0))
@@ -186,7 +186,7 @@ class AperturePanel(QtWidgets.QWidget):
     # -------------------------------------------------------------- input
 
     def eventFilter(self, obj, event) -> bool:
-        if event.type() == QtCore.QEvent.KeyPress and self.key(event.text()):
+        if event.type() == QtCore.QEvent.Type.KeyPress and self.key(event.text()):
             return True
         return super().eventFilter(obj, event)
 

@@ -83,7 +83,7 @@ class IdentifyPanel(QtWidgets.QWidget):
         self.arc_plot.setLabel("bottom", "pixel", color=MUTED)
         self.arc_plot.setLabel("left", "counts", color=MUTED)
         self.arc_plot.scene().sigMouseMoved.connect(self._mouse_moved)
-        self.arc_plot.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.arc_plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.arc_plot.installEventFilter(self)
         layout.addWidget(self.arc_plot, stretch=3)
 
@@ -144,8 +144,8 @@ class IdentifyPanel(QtWidgets.QWidget):
 
     def refit(self) -> None:
         if len(self.marked_pixel) >= 2:
-            self.fit_panel.x = np.array(self.marked_pixel)
-            self.fit_panel.y = np.array(self.marked_wavelength)
+            self.fit_panel.xdata = np.array(self.marked_pixel)
+            self.fit_panel.ydata = np.array(self.marked_wavelength)
             self.fit_panel.deleted = np.zeros(len(self.marked_pixel), dtype=bool)
             self.fit_panel.spec = self.spec
             self.fit_panel.refit()
@@ -172,7 +172,7 @@ class IdentifyPanel(QtWidgets.QWidget):
     # -------------------------------------------------------------- input
 
     def eventFilter(self, obj, event) -> bool:
-        if event.type() == QtCore.QEvent.KeyPress and self.key(event.text()):
+        if event.type() == QtCore.QEvent.Type.KeyPress and self.key(event.text()):
             return True
         return super().eventFilter(obj, event)
 

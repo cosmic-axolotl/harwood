@@ -207,7 +207,7 @@ def test_a_dragged_panel_can_be_put_back():
     window.show()
     started = window.dockWidgetArea(window.params_dock)
 
-    window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, window.params_dock)
+    window.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, window.params_dock)
     window.params_dock.setFloating(True)
     assert window.dockWidgetArea(window.params_dock) != started
 
@@ -281,10 +281,10 @@ def test_a_panel_dialog_can_be_resized_and_maximised():
     dialog.resize(900, 600)
     dialog.setMinimumSize(520, 360)
     dialog.setSizeGripEnabled(True)
-    dialog.setWindowFlag(QtCore.Qt.WindowMaximizeButtonHint, True)
+    dialog.setWindowFlag(QtCore.Qt.WindowType.WindowMaximizeButtonHint, True)
     QtWidgets.QVBoxLayout(dialog).addWidget(panel)
 
     assert dialog.isSizeGripEnabled()
-    assert dialog.windowFlags() & QtCore.Qt.WindowMaximizeButtonHint
+    assert dialog.windowFlags() & QtCore.Qt.WindowType.WindowMaximizeButtonHint
     dialog.resize(560, 380)
     assert dialog.width() < 900

@@ -90,7 +90,7 @@ class SpeciesPanel(QtWidgets.QWidget):
         layout.addWidget(self.entry)
 
         self.plot.scene().sigMouseMoved.connect(self._moved)
-        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self._redraw()
 
     # ------------------------------------------------------------ drawing
@@ -129,9 +129,9 @@ class SpeciesPanel(QtWidgets.QWidget):
             rule = pg.InfiniteLine(
                 pos=mark.at, angle=90,
                 pen=pg.mkPen(colour, width=2 if mark.detected else 1,
-                             style=QtCore.Qt.DashLine
+                             style=QtCore.Qt.PenStyle.DashLine
                              if "telluric" in mark.line.origin
-                             else QtCore.Qt.SolidLine))
+                             else QtCore.Qt.PenStyle.SolidLine))
             self.plot.addItem(rule)
             label = pg.TextItem(mark.line.name, color=colour, anchor=(0, 1),
                                 angle=90)

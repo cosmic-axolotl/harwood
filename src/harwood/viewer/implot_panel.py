@@ -91,7 +91,7 @@ class ImplotPanel(QtWidgets.QWidget):
             item.enableAutoSIPrefix(False)
         self.plot.setLabel("left", "counts", color=MUTED)
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
-        self.plot.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.plot.installEventFilter(self)
         layout.addWidget(self.plot, stretch=1)
 
@@ -155,7 +155,7 @@ class ImplotPanel(QtWidgets.QWidget):
     # -------------------------------------------------------------- input
 
     def eventFilter(self, obj, event) -> bool:
-        if event.type() == QtCore.QEvent.KeyPress and self.key(event.text()):
+        if event.type() == QtCore.QEvent.Type.KeyPress and self.key(event.text()):
             return True
         return super().eventFilter(obj, event)
 

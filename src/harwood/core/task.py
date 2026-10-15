@@ -121,7 +121,7 @@ class TaskResult:
     #: Things the user needs told, not merely documented: a side effect of a
     #: choice they made, a caveat that applies to this run. Section 2.1 --
     #: nothing important happens where it cannot be seen.
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[Any] = field(default_factory=list)   #: str or core.advice.Advice
     duration_s: float = 0.0
     backend: str | None = None
 

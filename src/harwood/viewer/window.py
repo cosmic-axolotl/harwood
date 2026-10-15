@@ -229,7 +229,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         def bind(sequences, slot):
             for sequence in sequences:
                 shortcut = QtGui.QShortcut(QtGui.QKeySequence(sequence), self)
-                shortcut.setContext(QtCore.Qt.ApplicationShortcut)
+                shortcut.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
                 shortcut.activated.connect(slot)
 
         bind(("Ctrl++", "Ctrl+=", "Ctrl+Shift+=", "Ctrl+Shift++"),
@@ -358,7 +358,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.view.addItem(self.overlay)
 
         self.graphics.scene().sigMouseMoved.connect(self._mouse_moved)
-        self.graphics.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.graphics.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.graphics.installEventFilter(self)
         self.setCentralWidget(self.graphics)
 
@@ -381,11 +381,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         self.readout = QtWidgets.QLabel("press r over a star")
         self.readout.setObjectName("readout")
-        self.readout.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        self.readout.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.readout)
 
         dock.setWidget(body)
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
         self.examine_dock = dock
 
     def _build_params(self) -> None:
@@ -394,7 +394,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         dock.setObjectName("parameters")
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         body = QtWidgets.QWidget()
         form = QtWidgets.QVBoxLayout(body)
         form.setContentsMargins(8, 6, 8, 8)
@@ -455,8 +455,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         # handles the rest.
         dock.setMinimumWidth(220)
         self.params_dock = dock
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
-        self.resizeDocks([self.examine_dock, dock], [420, 300], QtCore.Qt.Vertical)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        self.resizeDocks([self.examine_dock, dock], [420, 300], QtCore.Qt.Orientation.Vertical)
 
     def _build_work(self) -> None:
         """Where an interactive panel goes when a task opens one.
@@ -473,7 +473,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.work_dock.setObjectName("work")
         self.work_dock.setWidget(self.work)
         self.work_dock.hide()
-        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.work_dock)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.work_dock)
 
     def open_panel(self, panel, title: str) -> None:
         """Dock a panel into this window and bring it forward."""
@@ -481,7 +481,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.work.setCurrentIndex(index)
         self.work_dock.setWindowTitle(title)
         self.work_dock.show()
-        self.resizeDocks([self.work_dock], [460], QtCore.Qt.Vertical)
+        self.resizeDocks([self.work_dock], [460], QtCore.Qt.Orientation.Vertical)
         panel.setFocus()
         self.log(f"  {title} opened; press q there when you are done")
 
@@ -517,7 +517,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         dock.setWidget(body)
         dock.setMinimumHeight(170)
-        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, dock)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
 
     def _build_status(self) -> None:
         self.status = QtWidgets.QLabel("")
@@ -900,18 +900,18 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         """Up and down walk the history at the prompt; keys over the image are
         the examine keys."""
         if obj is getattr(self, "prompt", None) and \
-                event.type() == QtCore.QEvent.KeyPress:
-            if event.key() == QtCore.Qt.Key_Up and self._history:
+                event.type() == QtCore.QEvent.Type.KeyPress:
+            if event.key() == QtCore.Qt.Key.Key_Up and self._history:
                 self._history_at = max(0, self._history_at - 1)
                 self.prompt.setText(self._history[self._history_at])
                 return True
-            if event.key() == QtCore.Qt.Key_Down and self._history:
+            if event.key() == QtCore.Qt.Key.Key_Down and self._history:
                 self._history_at = min(len(self._history), self._history_at + 1)
                 self.prompt.setText(self._history[self._history_at]
                                     if self._history_at < len(self._history) else "")
                 return True
             return False
-        if event.type() == QtCore.QEvent.KeyPress:
+        if event.type() == QtCore.QEvent.Type.KeyPress:
             return self._key(event.text())
         return super().eventFilter(obj, event)
 
@@ -928,7 +928,8 @@ def _hint(text: str) -> QtWidgets.QLabel:
     label = QtWidgets.QLabel(text)
     label.setObjectName("hint")
     label.setWordWrap(True)
-    label.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+    policy = QtWidgets.QSizePolicy.Policy
+    label.setSizePolicy(policy.Preferred, policy.Minimum)
     _size_hint(label, text, 68)
     return label
 
