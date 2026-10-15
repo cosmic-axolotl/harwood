@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 18, partial: 27, planned: 310, replaced: 94, wontport: 161
-#   milestone mvp: 57 (30 of them running), later: 298
+#   available: 18, partial: 28, planned: 309, replaced: 94, wontport: 161
+#   milestone mvp: 57 (31 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -459,7 +459,8 @@ tasks:
   apmask: {pkg: twodspec.apextract, domain: masks, status: planned, milestone: later}
   bpmedit: {pkg: images.tv, domain: masks, status: planned, milestone: later}
   epix: {pkg: proto, domain: masks, status: planned, milestone: later}
-  fixpix: {pkg: proto, domain: masks, status: planned, milestone: mvp}
+  fixpix: {pkg: proto, domain: masks, status: partial, milestone: mvp,
+    note: "IRAF's interpolation, ported and identical to IRAF's output; masks as images, BPM or text; no .pl pixel lists, and no verbose pixel listing"}
   imedit: {pkg: images.tv, domain: masks, status: planned, milestone: later}
   mskexpr: {pkg: proto, domain: masks, status: planned, milestone: mvp}
   mskregions: {pkg: proto, domain: masks, status: planned, milestone: later}

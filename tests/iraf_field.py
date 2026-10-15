@@ -47,3 +47,27 @@ def make_reference(directory) -> None:
     fits.writeto(directory / "field.fits", field(), overwrite=True)
     (directory / "cursor").write_text(
         "".join(f"{x} {y} 1 a\n" for x, y in CURSOR))
+
+
+def fixpix_case():
+    """An image and a mask with every shape fixpix decides differently on.
+
+    Mask values: 1 for the ordinary cases; 5 forces a region along lines and
+    7 along columns, for linterp=5 cinterp=7.
+    """
+    rng = np.random.default_rng(11)
+    ny, nx = 40, 50
+    yy, xx = np.mgrid[1:ny + 1, 1:nx + 1].astype(float)
+    image = (200 + 3 * xx + 2 * yy + rng.normal(0, 4, (ny, nx))).astype(np.float32)
+    mask = np.zeros((ny, nx), np.int16)
+    mask[5:35, 10] = 1            # a bad column: fixed along lines
+    mask[20, 15:30] = 1           # a bad row segment: fixed along columns
+    mask[8:11, 30:35] = 1         # a 5 wide, 3 tall block
+    mask[25, 40] = 1              # one hot pixel: a tie, so along the line
+    mask[0:4, 45] = 1             # a column stub at the bottom edge
+    mask[30, 0:3] = 1             # a row stub at the left edge
+    mask[12:16, 20] = 1           # an L: a column ...
+    mask[15, 20:26] = 1           # ... and a row sharing a pixel
+    mask[33:36, 30:38] = 5        # wide block, forced along lines
+    mask[2:4, 2:8] = 7            # wide block, forced along columns
+    return image, mask

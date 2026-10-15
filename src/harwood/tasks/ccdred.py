@@ -338,10 +338,11 @@ class CcdProc(Task[CcdProcParams]):
 #: needs it is running the task, not reading the source.
 WHY = {
     "fixpix": "Bad columns and hot pixels carry no information, and a bad column "
-              "running through a star ruins its photometry silently. Each is "
-              "replaced by interpolating its neighbours along the row -- which "
-              "makes the image look right without making the data real, so the "
-              "mask travels with the frame.",
+              "running through a star ruins its photometry silently. Each bad "
+              "region is replaced by interpolating across its narrowest side, "
+              "as IRAF does -- a bad column along the rows, a bad row along the "
+              "columns -- which makes the image look right without making the "
+              "data real, so the mask travels with the frame.",
     "overscan": "The overscan is a strip of pixels the detector reads out without "
                 "exposing them, so it carries the electronic offset the amplifier "
                 "adds to every pixel and nothing else. That offset drifts during a "
@@ -503,8 +504,6 @@ def _mark(header, flag: str) -> None:
 
 
 def _fixpix(data, bpm_path, header):
-    import numpy as np
-
     from ..core import images
 
     if _already(header, "fixpix"):
@@ -513,18 +512,19 @@ def _fixpix(data, bpm_path, header):
     bad = mask != 0
     if not bad.any():
         return data, Step("fixpix", "mask marks no bad pixels")
-    fixed = data.copy()
-    fixed[bad] = np.nan
-    # Linear interpolation along x, the way IRAF's fixpix does by default.
-    for row in np.where(bad.any(axis=1))[0]:
-        line = fixed[row]
-        holes = np.isnan(line)
-        line[holes] = np.interp(np.flatnonzero(holes), np.flatnonzero(~holes), line[~holes])
+    # IRAF's fixpix, the same code the fixpix task runs: across the narrowest
+    # side of each bad region. (This used to interpolate along x always,
+    # which is right for a bad column and wrong for a bad row.)
+    from ..core import fixpix
+
+    fixed, summary = fixpix.fix(data, mask)
     _mark(header, "fixpix")
     return fixed, Step(
         "fixpix", f"{int(bad.sum())} pixels replaced", why=WHY["fixpix"],
         measured={"replaced": f"{int(bad.sum())} pixels, "
-                              f"{100 * bad.mean():.3f}%"},
+                              f"{100 * bad.mean():.3f}%",
+                  "along lines": summary["along lines"],
+                  "along columns": summary["along columns"]},
         before=Task.statistics(data), after=Task.statistics(fixed))
 
 
