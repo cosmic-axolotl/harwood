@@ -143,12 +143,15 @@ class IdentifyPanel(QtWidgets.QWidget):
             f"{len(self.peaks)} found", color=INK, size="10pt")
 
     def refit(self) -> None:
-        if len(self.marked_pixel) >= 2:
-            self.fit_panel.xdata = np.array(self.marked_pixel)
-            self.fit_panel.ydata = np.array(self.marked_wavelength)
-            self.fit_panel.deleted = np.zeros(len(self.marked_pixel), dtype=bool)
-            self.fit_panel.spec = self.spec
-            self.fit_panel.refit()
+        # Always from the lines marked now, however few. The panel starts from
+        # a placeholder line, and keeping that -- or the fit from lines since
+        # deleted -- when fewer than two remain would hand identify a solution
+        # nobody made, which it would then write to the database.
+        self.fit_panel.xdata = np.array(self.marked_pixel, dtype=float)
+        self.fit_panel.ydata = np.array(self.marked_wavelength, dtype=float)
+        self.fit_panel.deleted = np.zeros(len(self.marked_pixel), dtype=bool)
+        self.fit_panel.spec = self.spec
+        self.fit_panel.refit()
         self._update_status()
 
     def _update_status(self) -> None:
@@ -284,6 +287,13 @@ class IdentifyPanel(QtWidgets.QWidget):
                 self.status.setText(f"'{text}' is not a wavelength.\n")
                 self._pending = None
                 return
+            # Marking a line that is already marked changes its wavelength, as
+            # in IRAF; adding it twice would give the fit a duplicate point.
+            again = [i for i, p in enumerate(self.marked_pixel)
+                     if abs(p - self._pending) < 0.5]
+            for index in reversed(again):
+                self.marked_pixel.pop(index)
+                self.marked_wavelength.pop(index)
             self.marked_pixel.append(self._pending)
             self.marked_wavelength.append(wavelength)
             order = np.argsort(self.marked_pixel)
@@ -294,6 +304,9 @@ class IdentifyPanel(QtWidgets.QWidget):
             self.refit()
             return
 
+        # A colon command abandons a line that was waiting for its wavelength,
+        # rather than leaving it to catch the next number typed.
+        self._pending = None
         try:
             self.spec = apply_command(self.spec, text.lstrip(":"))
         except ValueError as error:

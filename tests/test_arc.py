@@ -250,3 +250,19 @@ def test_dispcor_without_a_reference_lists_what_there_is(calibrated):
         get_task("dispcor").run(input="arc.ms.fits", output="x.fits",
                                 database=calibrated)
     assert "solutions for arc" in raised.value.fix
+
+
+def test_a_noiseless_arc_still_has_its_lines():
+    """With no noise, the threshold fell back on the standard deviation of
+    the residual -- which, with no noise, is made of the lines themselves.
+    Six strong lines lifted it above their own height and none was found."""
+    import numpy as np
+
+    from harwood.core import arc
+
+    x = np.arange(1.0, 1001.0)
+    where = [80.0, 210.0, 395.0, 520.0, 700.0, 880.0]
+    flux = 10 + sum(500 * np.exp(-0.5 * ((x - p) / 1.5) ** 2) for p in where)
+    found = sorted(peak.pixel for peak in arc.find_peaks(flux))
+    assert found == pytest.approx(where, abs=0.01)
+    assert arc.find_peaks(np.full(100, 7.0)) == [], "and a flat one has none"

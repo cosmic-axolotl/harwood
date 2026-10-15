@@ -891,6 +891,7 @@ def _edit_parameters(name: str, cls: Any) -> None:
     """
     import os
     import shlex
+    import shutil
     import subprocess
     import tempfile
 
@@ -912,6 +913,7 @@ def _edit_parameters(name: str, cls: Any) -> None:
     scratch.write_text(text, encoding="utf-8")
 
     editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+    keep = False
     try:
         if editor:
             subprocess.run([*shlex.split(editor), str(scratch)], check=False)
@@ -928,11 +930,15 @@ def _edit_parameters(name: str, cls: Any) -> None:
         except ValueError as error:
             error_console.print(f"[red]{name}: {error}[/red]")
             error_console.print(f"[dim]Your edits are still in {scratch}.[/dim]")
+            keep = True
             raise SystemExit(2) from None
 
         changed = parfile.apply(name, edited, cls.Params, project)
     finally:
-        pass
+        # The scratch copy goes, unless the message above has just told the
+        # user their edits are in it.
+        if not keep:
+            shutil.rmtree(directory, ignore_errors=True)
 
     if not changed:
         console.print("[dim]Nothing changed.[/dim]")

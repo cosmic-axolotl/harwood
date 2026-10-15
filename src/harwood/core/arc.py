@@ -175,7 +175,12 @@ def find_peaks(flux, fwidth: float = 4.0, threshold: float = 10.0,
     residual = continuum - flux if absorption else flux - continuum
     noise = 1.4826 * np.median(np.abs(residual - np.median(residual)))
     if noise <= 0:
-        noise = np.std(residual) or 1.0
+        # More than half the spectrum sits exactly on its continuum: there is
+        # no noise to measure against, and any line at all is significant.
+        # (The standard deviation used to stand in here, but without noise it
+        # is made of the lines themselves -- with six strong lines it rose
+        # above their own height and none was found.)
+        noise = 1e-6 * float(np.abs(residual).max()) or 1.0
     limit = threshold * noise
 
     half = max(1, int(round(fwidth / 2)))

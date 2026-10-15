@@ -198,10 +198,11 @@ class SpeciesPanel(QtWidgets.QWidget):
         return True
 
     def keyPressEvent(self, event) -> None:
-        if not self.key(event.text().lower()):
-            window = self.window()
-            if window is not None:
-                window.close()
+        # q emits `finished`, and whoever showed the panel closes it: the
+        # dialog when it is on its own, the dock when it sits in the main
+        # window. Closing self.window() here used to close *that* -- the
+        # whole of harwood gui -- from inside lineid.
+        self.key(event.text().lower())
 
     def _took_velocity(self) -> None:
         text = self.entry.text().strip()

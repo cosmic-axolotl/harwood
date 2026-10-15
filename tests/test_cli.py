@@ -343,3 +343,93 @@ def test_every_builtin_the_cli_lists_actually_runs(run):
     for name in BUILTINS:
         result = run(name, "--help")
         assert result.exit_code == 0, f"'{name}' is listed but does not run"
+
+
+def test_editpar_leaves_no_scratch_copy_behind_unless_it_says_so(run, tmp_path,
+                                                                  monkeypatch):
+    """Every --editpar made a temporary directory and none was removed. They
+    go now -- except when the edit was refused, where the message points the
+    user at the copy holding their changes."""
+    import tempfile
+
+    scratch = tmp_path / "tmp"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    monkeypatch.chdir(tmp_path)
+    run("init", str(tmp_path))
+
+    good = tmp_path / "good.sh"
+    good.write_text("#!/bin/sh\nsed -i 's/^order = 1$/order = 4/' \"$1\"\n")
+    good.chmod(0o755)
+    monkeypatch.setenv("EDITOR", str(good))
+    run("ccdproc", "--editpar")
+    assert list(scratch.iterdir()) == []
+
+    bad = tmp_path / "bad.sh"
+    bad.write_text("#!/bin/sh\necho 'sparkle = 3' >> \"$1\"\n")
+    bad.chmod(0o755)
+    monkeypatch.setenv("EDITOR", str(bad))
+    result = run("ccdproc", "--editpar")
+    kept = list(scratch.iterdir())
+    assert len(kept) == 1 and str(kept[0]) in result.output.replace("\n", "")
+
+
+def test_the_native_editor_saves_only_when_asked(tmp_path):
+    """harwood's own editor, used when no $EDITOR is set: Ctrl+S writes the
+    text and reports it saved; closing leaves the file as it was."""
+    import os
+
+    pytest.importorskip("PySide6")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from harwood.viewer._qt import application
+    from harwood.viewer.editor import Editor
+
+    application()
+    path = tmp_path / "ccdproc.par"
+    path.write_text("# order of the fit\norder = 1\n")
+
+    closed = Editor(path)
+    closed.text.setPlainText("order = 9\n")
+    closed.reject()
+    assert not closed.saved and "order = 1" in path.read_text()
+
+    saved = Editor(path)
+    saved.text.setPlainText(saved.text.toPlainText().replace("order = 1", "order = 4"))
+    saved._save()
+    assert saved.saved and "order = 4" in path.read_text()
+    assert path.read_text().startswith("# order"), "the comments are kept"
+
+
+def test_the_session_survives_whatever_is_typed_at_it(monkeypatch, capsys):
+    """hw> is where a night is spent. A typo, a task given nothing, an
+    unbalanced quote, a task that fails -- each must get a sentence and the
+    prompt back, never a traceback that ends the session."""
+    from harwood.cli import session
+
+    typed = iter(["", "list", "help phot", "nosuchtask", "phot",
+                  "imstatistics 'unbalanced", "imstatistics no_such_file.fits",
+                  "lpar daofind", "exit", "list"])
+    seen = []
+
+    def fake_input(prompt=""):
+        line = next(typed)
+        seen.append(line)
+        return line
+
+    monkeypatch.setattr(session.console, "input", fake_input)
+    session.start()
+    assert seen[-1] == "exit", "it stopped at exit, not before and not after"
+    out = capsys.readouterr()
+    text = out.out + out.err
+    assert "unbalanced quotes" in text
+    assert "Traceback" not in text
+
+
+def test_the_session_ends_cleanly_on_ctrl_d(monkeypatch):
+    from harwood.cli import session
+
+    def eof(prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr(session.console, "input", eof)
+    session.start()
