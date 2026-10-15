@@ -34,9 +34,8 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from ..core import pixels
+from ..core import examine, logfile, pixels
 from ..core.display import Marker
-from . import analysis
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=False)
 
@@ -113,15 +112,15 @@ COLORMAPS = {
     "sepia": [(12, 9, 6), (120, 78, 46), (214, 170, 116), (255, 246, 232)],
 }
 
-#: What each imexamine key does, shown in the session log on demand.
+#: What each key does, shown in the session log on `?`. The measuring keys
+#: come from `core.examine`, so the window cannot list a key it cannot answer.
 KEYS = {
-    "r": "radial profile and fit at the cursor",
-    "a": "aperture photometry at the cursor",
-    "m": "statistics of a box around the cursor",
-    "l": "plot the line through the cursor",
-    "c": "plot the column through the cursor",
+    **examine.KEYS,
+    "n": "next frame",
+    "p": "previous frame",
     "?": "list these keys",
-    "q": "leave examine mode",
+    "q": "end imexamine, when it is running as a task",
+    "Z": "reset the view to the whole image",
 }
 
 
@@ -163,6 +162,9 @@ class Frame:
 class HarwoodWindow(QtWidgets.QMainWindow):
     """The one window."""
 
+    #: q pressed, or the window closed: an imexamine waiting on it can return.
+    examine_done = QtCore.Signal()
+
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("harwood")
@@ -184,6 +186,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.examine_params = {
             "radius": 12.0, "buffer": 5.0, "width": 5.0, "fittype": "gaussian",
         }
+        #: The rest of rimexam, set by the imexamine task; not in the panel.
+        self.examine_settings = examine.Settings()
+        #: Every measurement made in this window, as (image, Result).
+        self.measurements: list[tuple[str, examine.Result]] = []
+        self.examine_logfile = ""
         self._blink_timer = QtCore.QTimer(self)
         self._blink_timer.timeout.connect(self._blink_step)
 
@@ -539,6 +546,25 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         target.markers.extend(markers)
         self._redraw()
 
+    def select_frame(self, frame: int) -> None:
+        """Show a loaded frame, as if it had been picked in the toolbar."""
+        if frame not in self.frames:
+            return
+        self.current = frame
+        self.frame_box.blockSignals(True)
+        self.frame_box.setCurrentText(f"{frame}  {self.frames[frame].name}")
+        self.frame_box.blockSignals(False)
+        self._redraw(reset_view=True)
+
+    def _step_frame(self, direction: int) -> None:
+        numbers = sorted(self.frames)
+        if len(numbers) < 2:
+            self.log("  only one frame is loaded")
+            return
+        position = numbers.index(self.current) if self.current in numbers else 0
+        self.select_frame(numbers[(position + direction) % len(numbers)])
+        self.log(f"  frame {self.current}  {self.frames[self.current].name}")
+
     def _frame_changed(self) -> None:
         text = self.frame_box.currentText()
         if text:
@@ -627,62 +653,113 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             for name, what in KEYS.items():
                 self.log(f"  [{name}] {what}")
             return True
+        if key == "q":
+            self.examine_done.emit()
+            return True
+        if key in ("n", "p"):
+            self._step_frame(+1 if key == "n" else -1)
+            return True
         if frame is None or position is None:
             return False
-
-        x, y = position
-        if key == "r":
-            self._examine_radial(frame, x, y)
-            return True
-        if key == "a":
-            self._examine_phot(frame, x, y)
-            return True
-        if key == "m":
-            stats = analysis.statistics(frame.data, x, y)
-            self.log(f"  [m] x={x:.2f} y={y:.2f}  " + "  ".join(
-                f"{k}={v:.4g}" for k, v in stats.items()))
-            return True
-        if key in ("l", "c"):
-            self._examine_cut(frame, x, y, key)
+        if key in examine.KEYS:
+            self.examine_at(key, *position)
             return True
         return False
 
     # ------------------------------------------------------ examine keys
 
-    def _examine_radial(self, frame: Frame, x: float, y: float) -> None:
-        params = self._read_params()
-        profile = analysis.radial_profile(
-            frame.data, x, y, radius=params["radius"], buffer=params["buffer"],
-            width=params["width"], fittype=params["fittype"],
-        )
-        self.plot.clear()
-        self.plot.setTitle("imexamine · r (radial profile)", color=INK, size="10pt")
-        self.plot.setLabel("bottom", "radius (pixels)", color=MUTED)
-        self.plot.setLabel("left", "counts above sky", color=MUTED)
-        self.plot.plot(profile.radii, profile.values - profile.sky, pen=None,
-                       symbol="o", symbolSize=4.5,
-                       symbolBrush=pg.mkBrush(130, 165, 200, 190),
-                       symbolPen=pg.mkPen(None))
-        if profile.converged:
-            self.plot.plot(profile.fit_radii, profile.fit - profile.sky,
-                           pen=pg.mkPen(ACCENT, width=2))
+    def configure_examine(self, settings: examine.Settings, logfile_name: str = "") -> None:
+        """Take the imexamine task's parameters: the panel shows the four it
+        has room for, and the rest are kept here."""
+        self.examine_settings = settings
+        self.examine_logfile = logfile_name
+        for name in ("radius", "buffer", "width"):
+            self.param_widgets[name].setText(f"{getattr(settings, name):g}")
+        self.param_widgets["fittype"].setCurrentText(settings.fittype)
+        self._read_params()
 
-        if profile.converged:
-            scale = _arcsec_per_pixel(frame)
-            seeing = f"  ({profile.fwhm * scale:.2f}\")" if scale else ""
-            self.readout.setText(
-                f"centre   x= {profile.x:.2f}   y= {profile.y:.2f}\n"
-                f"FWHM     {profile.fwhm:.2f} px{seeing}\n"
-                f"peak     {profile.peak:.1f}     sky {profile.sky:.1f}"
-                f"     fit: {profile.fittype}"
-            )
-            self.log(f"  [r] x={profile.x:.2f} y={profile.y:.2f}  "
-                     f"FWHM={profile.fwhm:.2f} px  peak={profile.peak:.0f}  "
-                     f"sky={profile.sky:.1f}")
-            self._mark_star(frame, profile.x, profile.y, params)
+    def wait_for_examine(self) -> None:
+        """Keep the keys answering until q, or until the window is closed.
+
+        A local event loop rather than the application's: inside `harwood gui`
+        the application loop is already running, and the prompt has to come
+        back when the task ends rather than when the window does.
+        """
+        loop = QtCore.QEventLoop()
+        self.examine_done.connect(loop.quit)
+        try:
+            if self.isVisible():
+                loop.exec()
+        finally:
+            self.examine_done.disconnect(loop.quit)
+
+    def closeEvent(self, event) -> None:
+        self.examine_done.emit()
+        super().closeEvent(event)
+
+    def examine_at(self, key: str, x: float, y: float) -> examine.Result | None:
+        """Answer one key at one 1-based position on the current frame."""
+        frame = self.frames.get(self.current)
+        if frame is None:
+            return None
+        params = self._read_params()
+        settings = self.examine_settings
+        for name in ("radius", "buffer", "width", "fittype"):
+            setattr(settings, name, params[name])
+
+        result = examine.examine(frame.data, key, x, y, settings)
+        self.measurements.append((frame.name, result))
+        for number, text in enumerate(result.line.splitlines()):
+            self.log(("  " if number == 0 else "    ") + text)
+        logfile.write(self.examine_logfile, "imexamine", frame.name,
+                      result.line.splitlines())
+
+        if result.plot is not None:
+            self._plot(result)
+        self._readout(frame, result)
+        if result.ok and key in ("r", "a"):
+            self._mark_star(frame, result.x, result.y, params)
+        return result
+
+    def _plot(self, result: examine.Result) -> None:
+        plot = result.plot
+        self.plot.clear()
+        self.plot.setTitle(f"imexamine · {result.key} ({plot['title']})", color=INK,
+                           size="10pt")
+        self.plot.setLabel("bottom", plot["xlabel"], color=MUTED)
+        self.plot.setLabel("left", plot["ylabel"], color=MUTED)
+        if plot["kind"] == "profile":
+            self.plot.plot(plot["x"], plot["y"], pen=None, symbol="o", symbolSize=4.5,
+                           symbolBrush=pg.mkBrush(130, 165, 200, 190),
+                           symbolPen=pg.mkPen(None))
+        elif plot["kind"] == "histogram":
+            self.plot.plot(plot["x"], plot["y"], stepMode="center", fillLevel=0,
+                           brush=pg.mkBrush(79, 181, 155, 90), pen=pg.mkPen(SKY))
         else:
-            self.readout.setText(profile.message or "no fit")
-            self.log(f"  [r] x={x:.2f} y={y:.2f}  {profile.message}")
+            self.plot.plot(plot["x"], plot["y"], pen=pg.mkPen(SKY, width=1))
+        if "fit_x" in plot:
+            self.plot.plot(plot["fit_x"], plot["fit_y"], pen=pg.mkPen(ACCENT, width=2))
+
+    def _readout(self, frame: Frame, result: examine.Result) -> None:
+        v = result.values
+        if not result.ok:
+            self.readout.setText(result.line.split("  ", 1)[-1])
+        elif result.key == "r":
+            scale = _arcsec_per_pixel(frame)
+            seeing = f"  ({v['fwhm'] * scale:.2f}\")" if scale else ""
+            self.readout.setText(
+                f"centre   x= {v['x']:.2f}   y= {v['y']:.2f}\n"
+                f"FWHM     {v['fwhm']:.2f} px{seeing}\n"
+                f"peak     {v['peak']:.1f}     sky {v['sky']:.1f}"
+                f"     fit: {self.examine_settings.fittype}")
+        elif result.key == "a":
+            self.readout.setText(
+                f"centre   x= {v['x']:.2f}   y= {v['y']:.2f}\n"
+                f"flux     {v['flux']:.1f}   over {v['area']:.0f} px\n"
+                f"sky      {v['sky']:.2f}      mag {v['mag']:.3f}"
+                f"     FWHM {v['fwhm']:.2f}")
+        else:
+            self.readout.setText(result.line.split("  ", 1)[-1].replace("  ", "\n", 2))
 
     def _mark_star(self, frame: Frame, x: float, y: float, params: dict) -> None:
         frame.markers = [m for m in frame.markers if m.tag != "examine"]
@@ -694,41 +771,6 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                    colour=SKY, tag="examine"),
         ]
         self._draw_overlay(frame)
-
-    def _examine_phot(self, frame: Frame, x: float, y: float) -> None:
-        params = self._read_params()
-        result = analysis.quick_phot(
-            frame.data, x, y, aperture=params["radius"] / 2,
-            annulus=params["radius"] + params["buffer"],
-            dannulus=params["width"],
-        )
-        self.readout.setText(
-            f"centre   x= {result['x']:.2f}   y= {result['y']:.2f}\n"
-            f"flux     {result['flux']:.1f}   over {result['area']:.0f} px\n"
-            f"sky      {result['sky']:.2f}      mag {result['mag']:.3f}"
-        )
-        self.log(f"  [a] x={result['x']:.2f} y={result['y']:.2f}  "
-                 f"flux={result['flux']:.1f}  sky={result['sky']:.2f}  "
-                 f"mag={result['mag']:.3f}")
-
-    def _examine_cut(self, frame: Frame, x: float, y: float, key: str) -> None:
-        row, col = int(round(y)) - 1, int(round(x)) - 1
-        if key == "l":
-            values = frame.data[np.clip(row, 0, frame.data.shape[0] - 1), :]
-            axis = np.arange(1, values.size + 1)
-            title, label = f"imexamine · l (line {row + 1})", "x (pixels)"
-        else:
-            values = frame.data[:, np.clip(col, 0, frame.data.shape[1] - 1)]
-            axis = np.arange(1, values.size + 1)
-            title, label = f"imexamine · c (column {col + 1})", "y (pixels)"
-        self.plot.clear()
-        self.plot.setTitle(title, color=INK, size="10pt")
-        self.plot.setLabel("bottom", label, color=MUTED)
-        self.plot.setLabel("left", "counts", color=MUTED)
-        self.plot.plot(axis, values, pen=pg.mkPen(SKY, width=1))
-        self.readout.setText(f"{title}\nmin {values.min():.1f}   "
-                             f"max {values.max():.1f}   median {np.median(values):.1f}")
-        self.log(f"  [{key}] {title.split('·')[1].strip()}")
 
     # ------------------------------------------------------------ toolbar
 

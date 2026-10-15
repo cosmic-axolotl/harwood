@@ -1,0 +1,288 @@
+"""imexamine: the same numbers from a key, a cursor file, and the window.
+
+Section 8.2 keeps the measurement out of the viewer so that these three agree
+by construction. This file checks that they do -- and that each key answers
+the question IRAF taught people to ask with it.
+"""
+
+import os
+
+import numpy as np
+import pytest
+
+from harwood.core import display, examine
+from harwood.core.registry import get_task
+
+FWHM = 3.40
+TRUE_X, TRUE_Y = 120.30, 90.70
+
+
+@pytest.fixture
+def star_image(tmp_path):
+    """One gaussian star at a known 1-based position, written to disk."""
+    from astropy.io import fits
+
+    ny, nx = 200, 240
+    sigma = FWHM / 2.3548
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    data = 4530.0 * np.exp(-(((xx - (TRUE_X - 1))**2 + (yy - (TRUE_Y - 1))**2)
+                             / (2 * sigma**2)))
+    data += 1030.5 + np.random.default_rng(1).normal(0, 3.0, (ny, nx))
+    path = tmp_path / "star.fits"
+    fits.writeto(path, data.astype("f4"))
+    return path, data
+
+
+# ---------------------------------------------------------------- the keys
+
+
+@pytest.mark.parametrize("key", ["r", "a"])
+def test_r_and_a_recentre_on_the_star_and_measure_its_width(star_image, key):
+    _, data = star_image
+    result = examine.examine(data, key, 121.0, 91.0)
+    assert result.ok
+    assert result.x == pytest.approx(TRUE_X, abs=0.05)
+    assert result.y == pytest.approx(TRUE_Y, abs=0.05)
+    assert result.values["fwhm"] == pytest.approx(FWHM, abs=0.1)
+
+
+def test_j_and_k_find_the_centre_along_their_own_axis(star_image):
+    """j fits along the line, so it measures x; k along the column, so y."""
+    _, data = star_image
+    along_line = examine.examine(data, "j", 121.0, 91.0)
+    along_column = examine.examine(data, "k", 121.0, 91.0)
+    assert along_line.values["centre"] == pytest.approx(TRUE_X, abs=0.05)
+    assert along_column.values["centre"] == pytest.approx(TRUE_Y, abs=0.05)
+    for result in (along_line, along_column):
+        assert result.values["fwhm"] == pytest.approx(FWHM, abs=0.1)
+        assert result.values["background"] == pytest.approx(1030.5, abs=3)
+
+
+def test_x_and_z_read_the_pixels_the_status_bar_would(star_image):
+    _, data = star_image
+    x = examine.examine(data, "x", 121.0, 91.0)
+    assert x.values["value"] == pytest.approx(data[90, 120])
+
+    z = examine.examine(data, "z", 121.0, 91.0)
+    assert z.values["columns"] == [119, 120, 121, 122, 123]
+    assert z.values["rows"] == [93, 92, 91, 90, 89], "top row first, as on screen"
+    centre_row = z.line.splitlines()[4]
+    assert centre_row.split()[0] == "91"
+    assert float(centre_row.split()[3]) == pytest.approx(data[90, 120], abs=0.05)
+
+
+def test_m_and_h_describe_the_same_box(star_image):
+    _, data = star_image
+    stats = examine.examine(data, "m", 50.0, 50.0, examine.Settings(box=9))
+    hist = examine.examine(data, "h", 50.0, 50.0, examine.Settings(box=9))
+    assert stats.values["npix"] == hist.values["npix"] == 81
+    assert hist.values["mode"] == pytest.approx(stats.values["median"], abs=10)
+
+
+def test_empty_sky_is_not_given_a_fwhm(star_image):
+    """A gaussian fits the brightest noise pixel happily. Reporting that as a
+    FWHM would put a number on nothing."""
+    _, data = star_image
+    result = examine.examine(data, "r", 20.0, 20.0)
+    assert not result.ok
+    assert "noise" in result.line
+
+
+def test_a_position_off_the_image_says_so(star_image):
+    _, data = star_image
+    result = examine.examine(data, "r", 500.0, 20.0)
+    assert not result.ok and "outside" in result.line
+
+
+def test_an_unknown_key_is_named_and_not_guessed(star_image):
+    _, data = star_image
+    result = examine.examine(data, "w", 50.0, 50.0)
+    assert not result.ok and "?" in result.line
+
+
+# --------------------------------------------------------- the cursor file
+
+
+def test_a_cursor_file_reads_like_iraf_s(tmp_path):
+    path = tmp_path / "cur"
+    path.write_text("# a comment\n\n10 20 r\n11.5 21.5 2 a   # trailing\n")
+    assert examine.read_cursor(path) == [(10.0, 20.0, 1, "r"), (11.5, 21.5, 2, "a")]
+
+
+def test_a_colon_command_in_a_cursor_file_is_refused_with_the_alternative(tmp_path):
+    path = tmp_path / "cur"
+    path.write_text("10 20 1 :radius\n")
+    with pytest.raises(ValueError) as raised:
+        examine.read_cursor(path)
+    assert "--radius" in raised.value.fix
+
+
+def test_imexamine_from_a_cursor_file_gives_the_numbers_and_a_log(star_image, tmp_path):
+    path, _ = star_image
+    cursor = tmp_path / "cur"
+    cursor.write_text("121 91 r\n121 91 j\n")
+    log = tmp_path / "imexam.log"
+
+    result = get_task("imexamine").run(input=[str(path)], imagecur=str(cursor),
+                                       logfile=str(log))
+    r, j = result.data["measurements"]
+    assert r["fwhm"] == pytest.approx(FWHM, abs=0.1)
+    assert j["centre"] == pytest.approx(TRUE_X, abs=0.05)
+    assert [row["key"] for row in result.data["rows"]] == ["r", "j"]
+
+    text = log.read_text()
+    assert "[r]" in text and "[j]" in text and "FWHM=3.4" in text
+
+
+def test_a_frame_that_was_not_loaded_is_named(star_image, tmp_path):
+    path, _ = star_image
+    cursor = tmp_path / "cur"
+    cursor.write_text("121 91 3 r\n")
+    with pytest.raises(ValueError) as raised:
+        get_task("imexamine").run(input=[str(path)], imagecur=str(cursor))
+    assert "frame 3" in str(raised.value)
+    assert raised.value.fix
+
+
+def test_without_a_screen_imexamine_points_to_the_cursor_file(star_image, monkeypatch):
+    path, _ = star_image
+    display.reset()
+    monkeypatch.setenv("HARWOOD_DISPLAY", "headless")
+    monkeypatch.chdir(path.parent)
+    try:
+        with pytest.raises(ValueError) as raised:
+            get_task("imexamine").run(input=[str(path)])
+        assert "--imagecur" in raised.value.fix
+    finally:
+        display.reset()
+
+
+# --------------------------------------------------------------- the display
+
+
+def test_display_headless_writes_a_png_and_marks_the_list(star_image, tmp_path,
+                                                          monkeypatch):
+    from astropy.table import Table
+
+    path, _ = star_image
+    coords = tmp_path / "star.coo"
+    table = Table({"x": [TRUE_X], "y": [TRUE_Y]})
+    table.meta["origin"] = 1
+    from harwood.core import catalog
+
+    catalog.write(table, coords)
+
+    display.reset()
+    monkeypatch.chdir(tmp_path)
+    try:
+        result = get_task("display").run(image=str(path), backend="headless",
+                                         coords=str(coords))
+    finally:
+        display.reset()
+    assert result.outputs and result.outputs[0].exists()
+    marked, = [step for step in result.steps if step.action == "mark"]
+    assert marked.measured["marked"] == 1
+
+
+def test_asking_for_ds9_says_it_is_not_there_yet():
+    display.reset()
+    with pytest.raises(ValueError) as raised:
+        display.get("ds9")
+    assert "headless" in raised.value.fix
+
+
+# ---------------------------------------------------------------- the window
+
+
+def _window():
+    pytest.importorskip("PySide6")
+    pytest.importorskip("pyqtgraph")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+    from harwood.viewer._qt import application
+    from harwood.viewer.window import HarwoodWindow
+
+    application()
+    return HarwoodWindow()
+
+
+def test_the_window_and_the_cursor_file_agree(star_image):
+    """Pressing r over the star and reading `121 91 r` from a file are the
+    same measurement, to the last digit."""
+    _, data = star_image
+    window = _window()
+    window.load(data, name="star")
+    pressed = window.examine_at("r", 121.0, 91.0)
+    read = examine.examine(data, "r", 121.0, 91.0)
+    assert pressed.values == read.values
+    assert window.measurements[-1] == ("star", pressed)
+    assert any(m.tag == "examine" for m in window.frames[1].markers)
+
+
+def test_the_task_s_parameters_reach_the_window(star_image, tmp_path):
+    _, data = star_image
+    window = _window()
+    window.load(data, name="star")
+    log = tmp_path / "imexam.log"
+    window.configure_examine(examine.Settings(radius=8, fittype="moffat"), str(log))
+
+    assert window.param_widgets["radius"].text() == "8"
+    assert window.param_widgets["fittype"].currentText() == "moffat"
+    window.examine_at("r", 121.0, 91.0)
+    assert window.examine_settings.fittype == "moffat"
+    assert "[r]" in log.read_text()
+
+
+def test_n_and_p_walk_the_frames_and_q_ends_the_wait(star_image):
+    _, data = star_image
+    window = _window()
+    for frame in (1, 2, 3):
+        window.load(data * frame, frame=frame, name=f"f{frame}")
+    window.select_frame(1)
+
+    window._key("n")
+    assert window.current == 2
+    window._key("p")
+    window._key("p")
+    assert window.current == 3, "p wraps round from the first frame"
+
+    ended = []
+    window.examine_done.connect(lambda: ended.append(True))
+    window._key("q")
+    assert ended
+
+
+def test_imexamine_in_the_window_returns_what_was_measured(star_image, monkeypatch):
+    """The interactive path end to end: the task opens the image, keys are
+    pressed, q ends it, and the measurements come back as the result."""
+    from PySide6 import QtCore
+
+    path, _ = star_image
+    display.reset()
+    monkeypatch.setenv("HARWOOD_DISPLAY", "native")
+    window = _window()
+    window.show()
+
+    def press():
+        window._cursor = (121.0, 91.0)
+        window._key("r")
+        window._key("a")
+        window._key("q")
+
+    # The keys are pressed once the task is actually waiting for them. A timer
+    # started any earlier fires inside the display's own event processing,
+    # and q would arrive before anyone was listening for it.
+    waiting = window.wait_for_examine
+
+    def wait_then_press():
+        QtCore.QTimer.singleShot(0, press)
+        waiting()
+
+    monkeypatch.setattr(window, "wait_for_examine", wait_then_press)
+    try:
+        result = get_task("imexamine").run(input=[str(path)], radius=10)
+    finally:
+        display.reset()
+    keys = [row["key"] for row in result.data["rows"]]
+    assert keys == ["r", "a"]
+    assert result.data["measurements"][0]["fwhm"] == pytest.approx(FWHM, abs=0.1)

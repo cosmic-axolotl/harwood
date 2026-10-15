@@ -25,4 +25,5 @@ The machine-readable half of the inventory lives in
 | 5 | A parameter editor that explains | `viewer/window.py` |
 | 6 | English by default | everywhere |
 | 7 | Numba first, Rust for stable kernels | `kernels/` |
-| 8 | Native viewer, DS9 as a last resort | `core/display.py`, `viewer/` |
+| 8 | Native viewer, DS9 as a last resort | `core/display.py`, `viewer/`, `tasks/tv.py` |
+| 8.2, 8.5 | imexamine keys answered outside the window, so a key, a cursor file and a test agree | `core/examine.py` |

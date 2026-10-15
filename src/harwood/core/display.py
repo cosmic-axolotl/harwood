@@ -72,9 +72,13 @@ def get(backend: str | None = None, **options: Any) -> Display:
 
         _current = HeadlessDisplay(**options)
     elif chosen == "ds9":
-        from ..viewer.ds9 import DS9Display
+        # Section 8.2 names it and nothing has needed it yet. Saying so beats
+        # the ModuleNotFoundError that importing a file that is not there gives.
+        from . import advice
 
-        _current = DS9Display(**options)
+        advice.fail("the ds9 backend is not written yet",
+                    "use the harwood window (leave --backend empty), or "
+                    "--backend headless for a PNG")
     else:
         raise ValueError(f"unknown display backend '{chosen}'; "
                          f"choose one of {', '.join(BACKENDS)}")

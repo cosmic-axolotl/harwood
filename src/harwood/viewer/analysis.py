@@ -26,6 +26,8 @@ class RadialProfile:
     radii: np.ndarray = field(repr=False)
     values: np.ndarray = field(repr=False)
     sky: float = 0.0
+    #: Scatter of the sky annulus, robust (1.4826 x the MAD).
+    noise: float = 0.0
     peak: float = 0.0
     fwhm: float = float("nan")
     fit: np.ndarray | None = field(default=None, repr=False)
@@ -95,7 +97,9 @@ def radial_profile(
     distance = np.hypot(rows - row, cols - col)
 
     ring = (distance >= radius + buffer) & (distance <= radius + buffer + width)
-    sky = float(np.median(box[ring])) if ring.any() else float(np.median(box))
+    sky_pixels = box[ring] if ring.any() else box.ravel()
+    sky = float(np.median(sky_pixels))
+    noise = float(1.4826 * np.median(np.abs(sky_pixels - sky)))
 
     inside = distance <= radius
     radii = distance[inside].ravel()
@@ -103,7 +107,7 @@ def radial_profile(
     order = np.argsort(radii)
     radii, values = radii[order], values[order]
 
-    profile = RadialProfile(x, y, radii, values, sky=sky,
+    profile = RadialProfile(x, y, radii, values, sky=sky, noise=noise,
                             peak=float(values.max() - sky) if values.size else 0.0,
                             fittype=fittype)
     _fit(profile)
@@ -119,6 +123,14 @@ def _fit(profile: RadialProfile) -> None:
     amplitude = profile.peak
     if amplitude <= 0:
         profile.message = "no source above the sky here"
+        return
+    # The brightest pixel of any patch of sky stands a few sigma above the
+    # rest, and a gaussian will happily fit it and report a FWHM. Five sigma
+    # is the floor below which that number describes the noise, not a star.
+    if profile.noise > 0 and amplitude < 5 * profile.noise:
+        profile.message = (f"nothing stands above the sky noise here (peak "
+                           f"{amplitude:.1f}, sky sigma {profile.noise:.1f}) -- "
+                           "point closer to a star")
         return
 
     y = profile.values - profile.sky

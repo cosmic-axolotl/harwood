@@ -33,7 +33,7 @@ from . import build
 console = Console()
 error_console = Console(stderr=True)
 
-BUILTINS = ("list", "help", "lpar", "init", "doctor", "recipe", "log", "display", "gui")
+BUILTINS = ("list", "help", "lpar", "init", "doctor", "recipe", "log", "gui")
 
 
 class Harwood(click.Group):
@@ -165,8 +165,13 @@ def help_cmd(task: str) -> None:
     console.print(f"[dim]package {cls.package}"
                   + (f" · IRAF {cls.iraf}" if cls.iraf and cls.iraf != cls.name else "")
                   + "[/dim]\n")
+    from rich.markup import escape
+
+    # Manuals and descriptions are plain text that quotes IRAF syntax --
+    # `[SCI,1]`, `x y [frame] key` -- and rich would take `[frame]` for a
+    # style tag and print nothing in its place.
     if cls.__doc__:
-        console.print(_dedent(cls.__doc__))
+        console.print(escape(_dedent(cls.__doc__)))
     if cls.defaults:
         values = ", ".join(f"{k}={v}" for k, v in cls.defaults.items())
         console.print(f"\n[cyan]A preset:[/cyan] {values}\n")
@@ -180,7 +185,8 @@ def help_cmd(task: str) -> None:
         required = field.is_required()
         default = "[red]required[/red]" if required else _show(field.get_default(
             call_default_factory=True))
-        table.add_row(name, _typename(field.annotation), default, field.description or "")
+        table.add_row(name, escape(_typename(field.annotation)), default,
+                      escape(field.description or ""))
     console.print(table)
     console.print(f"[dim]Effective values and where they come from: "
                   f"harwood lpar {task}[/dim]\n")
@@ -553,43 +559,6 @@ def _print_full_log(entries: list[dict[str, Any]], offset: int) -> None:
 # ------------------------------------------------------------- the display
 
 
-@app.command("display")
-@click.argument("image")
-@click.option("--frame", "-f", type=int, default=1, help="Frame to load the image into.")
-@click.option("--scale", type=click.Choice(["zscale", "minmax", "99.5%"]),
-              default="zscale", help="How the display limits are chosen.")
-@click.option("--backend", type=click.Choice(["native", "headless", "ds9"]),
-              help="Where to draw. Detected from the environment when not given.")
-@click.option("--coords", type=click.Path(path_type=Path),
-              help="Overlay a coordinate catalogue, as tvmark does.")
-@click.option("--radius", type=float, default=6.0, help="Radius of the overlay circles.")
-@click.option("--wait/--no-wait", default=True,
-              help="Keep the window open and interactive. --no-wait returns at once.")
-def display_cmd(image: str, frame: int, scale: str, backend: str | None,
-                coords: Path | None, radius: float, wait: bool) -> None:
-    """Load an image into the viewer."""
-    from ..core import display as display_module
-    from ..core import images
-
-    data, header = images.read(image)
-    screen = display_module.get(backend)
-    screen.show(data, header, frame=frame, name=str(image), scale=scale)
-
-    if coords:
-        from astropy.table import Table
-
-        table = Table.read(str(coords))
-        screen.mark([display_module.Marker(float(row["x"]), float(row["y"]),
-                                          radius=radius, label=str(row.get("id", "")))
-                     for row in table], frame=frame)
-        console.print(f"[dim]{len(table)} positions marked from {coords}[/dim]")
-
-    if wait and hasattr(screen, "run") and getattr(screen, "owns", True):
-        raise SystemExit(screen.run())
-    if hasattr(screen, "output"):
-        console.print(f"  [cyan]->[/cyan] {screen.output}")
-
-
 @app.command("gui")
 @click.argument("image", required=False)
 def gui_cmd(image: str | None) -> None:
@@ -762,6 +731,16 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     for key, value in result.data.items():
         if key == "rows":
             _print_rows(value)
+        elif key == "text":
+            # Text a task means to be read as it is -- a grid of pixel values,
+            # say -- which a table cell would wrap into nonsense.
+            for line in value:
+                console.print(line, markup=False, highlight=False)
+        elif isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
+            # Records for a program to use, not a person to read: printing a
+            # list of dicts is a wall of reprs. They are in the JSON log.
+            console.print(f"  {key}: {len(value)} [dim](each in harwood.log.jsonl, "
+                          f"and in result.data from Python)[/dim]")
         else:
             console.print(f"  {key}: {value}")
     for path in result.outputs:

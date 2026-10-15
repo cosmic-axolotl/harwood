@@ -297,3 +297,14 @@ def test_the_flux_chain_is_documented_like_the_rest(run):
     for task in ("standard", "sensfunc", "calibrate"):
         assert run("help", task).exit_code == 0, task
         assert run("lpar", task).exit_code == 0, task
+
+
+def test_the_manual_prints_iraf_syntax_rather_than_eating_it(run, monkeypatch):
+    """`x y [frame] key` went missing from imexamine's help: rich read
+    `[frame]` as a style tag. Manuals quote IRAF syntax constantly, so help
+    prints them as text."""
+    monkeypatch.setenv("COLUMNS", "200")
+    result = run("help", "imexamine")
+    assert result.exit_code == 0
+    assert "x y [frame] key" in result.output
+    assert "radial profile and FWHM" in result.output, "the keys are in the manual"

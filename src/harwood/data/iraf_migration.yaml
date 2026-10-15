@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 18, partial: 22, planned: 315, replaced: 94, wontport: 161
-#   milestone mvp: 57 (25 of them running), later: 298
+#   available: 18, partial: 25, planned: 312, replaced: 94, wontport: 161
+#   milestone mvp: 57 (28 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -531,7 +531,8 @@ tasks:
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
   cvl: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
-  display: {pkg: images.tv, domain: display, status: planned, milestone: mvp}
+  display: {pkg: images.tv, domain: display, status: partial, milestone: mvp,
+    note: "zscale, minmax and 99.5% limits, frames, and a coordinate list marked over the image; no z1/z2 or contrast, and the ds9 backend is not written"}
   erase: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
   frame: {pkg: images.tv.iis, domain: display, status: wontport,
@@ -549,7 +550,8 @@ tasks:
   hafton: {pkg: plot, domain: display, status: wontport, note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   imdkern: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
-  imexamine: {pkg: images.tv, domain: display, status: planned, milestone: mvp}
+  imexamine: {pkg: images.tv, domain: display, status: partial, milestone: mvp,
+    note: "keys r a m l c j k h x z, n and p, and imagecur for batch; no e (contour), s (surface), b, g, i, o, t, v or w keys, and no colon commands"}
   implot: {pkg: plot, domain: display, status: partial, milestone: mvp, harwood: implot,
     note: "plots lines and columns with the :l, :c, e, r, C and o keys; no contour, surface or overplot from a second image"}
   lumatch: {pkg: images.tv.iis, domain: display, status: wontport,
@@ -590,7 +592,8 @@ tasks:
   stdplot: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   surface: {pkg: plot, domain: display, status: planned, milestone: later}
-  tvmark: {pkg: images.tv, domain: display, status: planned, milestone: mvp}
+  tvmark: {pkg: images.tv, domain: display, status: partial, milestone: mvp, harwood: display,
+    note: "display --coords marks a coordinate list over the image; marking with the cursor and writing the marks back out are not built"}
   velvect: {pkg: plot, domain: display, status: planned, milestone: later}
   window: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}

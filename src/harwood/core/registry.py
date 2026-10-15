@@ -36,6 +36,7 @@ _MODULES = (
     "harwood.tasks.astutil",
     "harwood.tasks.fluxcal",
     "harwood.tasks.crutil",
+    "harwood.tasks.tv",
 )
 
 
