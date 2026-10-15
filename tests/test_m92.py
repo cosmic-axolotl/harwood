@@ -76,7 +76,7 @@ def measure(work, name):
                             output=work / f"{name}.coo", fwhm=FWHM, threshold=4.0)
     get_task("phot").run(image=str(work / f"{name}p.fits"), coords=work / f"{name}.coo",
                          output=work / f"{name}.mag", apertures=[10.0], annulus=15.0,
-                         dannulus=10.0, epadu=EPADU, zmag=25.0)
+                         dannulus=10.0, epadu=EPADU, zmag=25.0, exposure="EXPTIME")
     return catalog.read(work / f"{name}.mag")
 
 

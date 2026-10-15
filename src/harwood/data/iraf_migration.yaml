@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 18, partial: 25, planned: 312, replaced: 94, wontport: 161
-#   milestone mvp: 57 (28 of them running), later: 298
+#   available: 18, partial: 27, planned: 310, replaced: 94, wontport: 161
+#   milestone mvp: 57 (30 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -604,7 +604,8 @@ tasks:
   addstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   allstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   apfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
-  center: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: mvp}
+  center: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp,
+    note: "IRAF's centroid and none, ported and checked against IRAF's output; gauss, ofilter and the symmetry clean are not ported"}
   centerpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   chkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
@@ -619,7 +620,8 @@ tasks:
     note: "absorbed into the task's Pydantic parameter model"}
   fitparams: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   fitpsf: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
-  fitsky: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: mvp}
+  fitsky: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp,
+    note: "centroid, mode, median, mean and constant, ported and checked against IRAF's output; gauss, ofilter, crosscor, histplot, radplot, file, region growing and the percentile clips are not ported"}
   fitskypars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   group: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
@@ -643,7 +645,7 @@ tasks:
   pexamine: {pkg: digiphot.ptools, domain: photometry, status: planned, milestone: later}
   pfmerge: {pkg: digiphot.daophot, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   phot: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp, harwood: phot,
-    note: "one or several apertures with a local sky; no centering algorithms beyond the marginal centroid, and no fitsky variants"}
+    note: "IRAF's arithmetic, ported and checked against IRAF's output, with center's and fitsky's algorithms as listed there; positive features only, and no interactive mode"}
   photpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   polymark: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}

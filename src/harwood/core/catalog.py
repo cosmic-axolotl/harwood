@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any
 
 #: Extensions IRAF used, mapped to nothing in particular -- they are just names.
-IRAF_SUFFIXES = {".coo", ".mag", ".als", ".pst", ".psg", ".nst", ".arv", ".obs",
-                 ".ctg", ".dat", ".lis", ".txt"}
+IRAF_SUFFIXES = {".coo", ".mag", ".ctr", ".sky", ".als", ".pst", ".psg", ".nst",
+                 ".arv", ".obs", ".ctg", ".dat", ".lis", ".txt"}
 
 CONVENTION = "1-based (x,y), as IRAF and DS9"
 

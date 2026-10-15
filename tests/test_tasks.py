@@ -67,7 +67,8 @@ def test_the_whole_chain_recovers_the_truth(night):
     get_task("phot").run(image=str(tmp / "obj_p.fits"),
                                   coords=tmp / "stars.ecsv", output=tmp / "mags.ecsv",
                                   apertures=[6.0], annulus=12.0, dannulus=5.0,
-                                  epadu=GAIN, readnoise=RDNOISE, zmag=25.0)
+                                  epadu=GAIN, readnoise=RDNOISE, zmag=25.0,
+                                  exposure="EXPTIME")
 
     measured = Table.read(tmp / "mags.ecsv")
     assert len(measured) == len(night["x"]), "every injected star should be found"
