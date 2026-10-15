@@ -59,6 +59,22 @@ WHY = {
                       "+ level/gain + (snoise*level)^2 -- read noise, photon noise, "
                       "and flat-field error. Because it does not depend on the "
                       "stack, a second deviant value cannot hide the first.",
+    "reject:avsigclip": "Like sigclip, but the spread is not measured at each pixel "
+                        "from a handful of values: it is pooled along the whole "
+                        "image line and scaled by the square root of the level, "
+                        "the way photon noise scales. With few frames that is a far "
+                        "steadier sigma than any single pixel can give, which is "
+                        "why IRAF's flatcombine uses it.",
+    "reject:pclip": "The spread is read off the stack itself: the value pclip "
+                    "places away from the median stands for one sigma. Robust "
+                    "when nothing is known about the noise.",
+    "grow": "A cosmic ray's bright core is rejected, and its fainter edge would "
+            "not be; rejecting its neighbours within grow pixels, in the same "
+            "image, takes the edge too. The combine is then redone without them.",
+    "weight": "Each image counts in the average in proportion to its level or its "
+              "exposure -- IRAF's weighting, by the signal itself.",
+    "combine:lmedian": "The median, except that of two values the lower is taken "
+                       "rather than their average.",
     "combine:average": "The mean of what survived. Lowest noise when the "
                        "survivors really are just noise, which is what the "
                        "rejection was for.",
@@ -74,9 +90,10 @@ WHY = {
              "went into it survives being copied somewhere else.",
 }
 
-Combine = Literal["average", "median", "sum"]
-Reject = Literal["none", "minmax", "sigclip", "ccdclip", "crreject"]
+Combine = Literal["average", "median", "lmedian", "sum"]
+Reject = Literal["none", "minmax", "sigclip", "avsigclip", "ccdclip", "crreject", "pclip"]
 Scale = Literal["none", "mode", "median", "mean", "exposure"]
+Zero = Literal["none", "mode", "median", "mean"]
 
 
 class ImCombineParams(TaskParams):
@@ -90,7 +107,9 @@ class ImCombineParams(TaskParams):
 
     combine: Combine = Field(
         "average",
-        description="How surviving pixels are combined once rejection is done.",
+        description="How surviving pixels are combined once rejection is done. "
+                    "lmedian takes the lower of two values where median "
+                    "would average them.",
     )
     reject: Reject = Field(
         "none",
@@ -98,7 +117,10 @@ class ImCombineParams(TaskParams):
             "Rejection algorithm. 'sigclip' judges each pixel against the spread "
             "of the stack; 'ccdclip' and 'crreject' judge it against the CCD noise "
             "model (gain, rdnoise, snoise), which is what you want when few images "
-            "go in. 'minmax' simply drops the nlow lowest and nhigh highest."
+            "go in; 'avsigclip' uses a sigma pooled over each image line, scaled "
+            "by the Poisson expectation -- IRAF's flatcombine default. 'pclip' "
+            "measures the spread from the percentile pclip away from the median. "
+            "'minmax' simply drops the nlow lowest and nhigh highest."
         ),
     )
 
@@ -116,7 +138,23 @@ class ImCombineParams(TaskParams):
     nlow: int = Field(1, ge=0, description="For minmax: how many low pixels to drop.")
     nhigh: int = Field(1, ge=0, description="For minmax: how many high pixels to drop.")
     nkeep: int = Field(
-        1, ge=1, description="Minimum number of pixels to keep at each position."
+        1, description="Minimum number of pixels to keep at each position; "
+                       "negative, the most that may be rejected -- as in IRAF."
+    )
+    pclip: float = Field(
+        -0.5, description="For pclip: which value, counted from the median, measures "
+                          "the spread. Below 1 in size, a fraction of half the "
+                          "images; negative counts down from the median."
+    )
+    grow: float = Field(
+        0.0, ge=0, description="Also reject the neighbours of a rejected pixel within "
+                               "this radius, in the same image -- a cosmic ray's "
+                               "fainter edges with it."
+    )
+    sigscale: float = Field(
+        0.1, ge=0, description="When the scales differ from 1 by more than this, the "
+                               "sigma clipping corrects each image's sigma for its "
+                               "scale, as IRAF does."
     )
 
     gain: float = Field(
@@ -132,8 +170,13 @@ class ImCombineParams(TaskParams):
         "none",
         description="Scale each image before combining, by its level or its exposure time.",
     )
-    zero: Scale = Field(
+    zero: Zero = Field(
         "none", description="Subtract an additive offset from each image before combining."
+    )
+    weight: Scale = Field(
+        "none", description="Weight each image in the average by its level or its "
+                            "exposure time, as IRAF does (by the level itself, not "
+                            "by its inverse variance)."
     )
     statsec: str | None = Field(
         None,
@@ -193,11 +236,16 @@ class ImCombine(Task[ImCombineParams]):
     package = "immatch"
     description = "Combine images pixel by pixel, with rejection."
     Params = ImCombineParams
+    #: Which IRAF's scaling: images.imcombine's, or ccdred's combine (presets).
+    flavor = "imcombine"
 
     presets: dict[str, dict[str, Any]] = {
-        "zero": {"combine": "average", "reject": "minmax"},
-        "dark": {"combine": "average", "reject": "minmax", "scale": "exposure"},
-        "flat": {"combine": "median", "reject": "ccdclip", "scale": "mode"},
+        # IRAF's own, from ccdred's zerocombine.cl, darkcombine.cl, flatcombine.cl.
+        "zero": {"combine": "average", "reject": "minmax", "nlow": 0, "nhigh": 1},
+        "dark": {"combine": "average", "reject": "minmax", "nlow": 0, "nhigh": 1,
+                 "scale": "exposure"},
+        "flat": {"combine": "average", "reject": "avsigclip", "scale": "mode",
+                 "blank": 1.0},
         "cosmic": {"combine": "average", "reject": "crreject"},
     }
 
@@ -224,6 +272,12 @@ class ImCombine(Task[ImCombineParams]):
             steps.append(Step("reject", f"minmax, dropping {params.nlow} low "
                                         f"and {params.nhigh} high",
                               why=WHY["reject:minmax"]))
+        elif params.reject in ("avsigclip", "pclip"):
+            steps.append(Step("reject", f"{params.reject} at -{params.lsigma}/"
+                                        f"+{params.hsigma} sigma"
+                                        + (f", pclip {params.pclip:g}"
+                                           if params.reject == "pclip" else ""),
+                              why=WHY[f"reject:{params.reject}"]))
         elif params.reject in ("ccdclip", "crreject"):
             steps.append(Step("reject", f"{params.reject} against the noise model "
                                         f"(gain={params.gain}, rdnoise={params.rdnoise}, "
@@ -235,6 +289,10 @@ class ImCombine(Task[ImCombineParams]):
                                         f"sigma, centred on the "
                                         f"{'median' if params.mclip else 'mean'}",
                               why=WHY["reject:sigclip"]))
+        if params.grow > 0 and params.reject != "none":
+            steps.append(Step("grow", f"radius {params.grow:g} px", why=WHY["grow"]))
+        if params.weight != "none":
+            steps.append(Step("weight", f"by {params.weight}", why=WHY["weight"]))
         steps.append(Step("combine", params.combine,
                           why=WHY[f"combine:{params.combine}"]))
         steps.append(Step("write", str(params.output), why=WHY["write"]))
@@ -267,7 +325,6 @@ class ImCombine(Task[ImCombineParams]):
         import numpy as np
         from astropy.io import fits
 
-        from .. import kernels
         from ..core import images, provenance
 
         output = Path(output)
@@ -292,42 +349,47 @@ class ImCombine(Task[ImCombineParams]):
                     f"images, fewer than the {params.nkeep} --nkeep requires."
                 )
 
-        mask = np.zeros(stack.shape, dtype=bool)
+        from ..core import combine as engine
+
+        if self.flavor == "ccdred" and (params.grow > 0 or params.weight != "none"):
+            from ..core import advice
+
+            advice.fail(f"{self.name} has no grow or weight in IRAF -- ccdred's "
+                        "combine is called with grow=0 and weight=no",
+                        "use imcombine for those, with this preset's other values")
+
+        valid = np.ones(stack.shape, dtype=bool)
         if params.lthreshold is not None:
-            mask |= stack < params.lthreshold
+            valid &= stack >= params.lthreshold
         if params.hthreshold is not None:
-            mask |= stack > params.hthreshold
+            valid &= stack <= params.hthreshold
 
-        stat = _stat_slice(params.statsec, stack.shape[1:])
-        factors = _scale_factors(stack, headers, params, stat)
-        offsets = _zero_offsets(stack, params, stat)
-        working = (stack - offsets[:, None, None]) / factors[:, None, None]
-
-        backend_label = None
-        if params.reject in ("sigclip",):
-            kernel = kernels.get("sigclip_mean")
-            backend_label = kernel.label
-            mean, nrej = kernel(working, params.lsigma, params.hsigma, mclip=params.mclip,
-                                mask=mask)
-            keep_mask = None
-        elif params.reject in ("ccdclip", "crreject"):
-            kernel = kernels.get("ccdclip_mean")
-            backend_label = kernel.label
-            mean, nrej = kernel(working, gain=params.gain, rdnoise=params.rdnoise,
-                                snoise=params.snoise, lsigma=params.lsigma,
-                                hsigma=params.hsigma, mclip=params.mclip, mask=mask)
-            keep_mask = None
-        elif params.reject == "minmax":
-            mean, nrej, keep_mask = _minmax(working, params.nlow, params.nhigh, mask)
-        else:
-            keep = ~mask
-            count = keep.sum(axis=0)
-            mean = np.divide(np.where(keep, working, 0.0).sum(axis=0), count,
-                             out=np.zeros(working.shape[1:]), where=count > 0)
-            nrej = (working.shape[0] - count).astype(np.int32)
-            keep_mask = keep
-
-        combined, sigma = _finish(working, mean, nrej, keep_mask, params, mask)
+        section = _stat_slice(params.statsec, stack.shape[1:]) if params.statsec else None
+        uses_exposure = "exposure" in (params.scale, params.weight)
+        if uses_exposure:
+            missing = [str(s) for s, h in zip(specs, headers, strict=True)
+                       if params.exposure_key not in h]
+            if missing:
+                raise ValueError(
+                    f"scale or weight 'exposure' needs {params.exposure_key} in every "
+                    f"header; {', '.join(missing[:3])} has none. Name the keyword "
+                    "with --exposure-key.")
+        scaling = engine.ic_scale(
+            stack, headers, scale=params.scale, zero=params.zero, weight=params.weight,
+            exposure_key=params.exposure_key if uses_exposure else "",
+            section=section, lthresh=params.lthreshold, hthresh=params.hthreshold,
+            sigscale=params.sigscale, flavor=self.flavor)
+        combined, sigma, used, rejected = engine.combine(
+            stack, valid, scaling, combine=params.combine, reject=params.reject,
+            mclip=params.mclip, nlow=params.nlow, nhigh=params.nhigh,
+            nkeep=params.nkeep, lsigma=params.lsigma, hsigma=params.hsigma,
+            pclip=params.pclip, grow=params.grow, blank=params.blank,
+            rdnoise=params.rdnoise, gain=params.gain, snoise=params.snoise,
+            flavor=self.flavor)
+        nrej = (stack.shape[0] - used).astype(np.int32)
+        factors, offsets = scaling.scales, scaling.zeros
+        working = (stack / factors[:, None, None] - offsets[:, None, None])
+        backend_label = engine.backend()
 
         steps = self.plan(params)
         _measure_steps(steps, stack, working, combined, nrej, factors, offsets,
@@ -335,6 +397,27 @@ class ImCombine(Task[ImCombineParams]):
 
         header = headers[0].copy()
         provenance.record_inputs(header, [s.path for s in specs])
+        # As ic_scale writes them: how many exposures went in, and -- when the
+        # inputs carry one -- the CCDMEAN a flat is later divided by.
+        ncombine = [int(h.get("NCOMBINE", 1)) for h in headers]
+        header["NCOMBINE"] = (int(sum(ncombine)), "number of images combined")
+        means = [(w, float(h["CCDMEAN"]) / s) for w, h, s in
+                 zip(scaling.weights, headers, scaling.scales, strict=True)
+                 if "CCDMEAN" in h]
+        if "CCDMEAN" in header and means:
+            # imcombine divides by the weights of the images that had one;
+            # ccdred's combine by nothing, its weights already summing to one.
+            total = 1.0 if self.flavor == "ccdred" else sum(w for w, _ in means)
+            if total > 0:
+                header["CCDMEAN"] = sum(w * m for w, m in means) / total
+                header.remove("CCDMEANT", ignore_missing=True)
+        if self.flavor == "ccdred":
+            times = [float(h.get(params.exposure_key, 0.0)) for h in headers]
+            darks = [float(h.get("DARKTIME", t)) for h, t in zip(headers, times,
+                                                                   strict=True)]
+            weights, scales = scaling.weights, scaling.scales
+            header[params.exposure_key] = float(sum(weights * np.array(times) / scales))
+            header["DARKTIME"] = float(sum(weights * np.array(darks) / scales))
         history = [
             f"imcombine: combine={params.combine} reject={params.reject} "
             f"lsigma={params.lsigma} hsigma={params.hsigma}",
@@ -486,26 +569,28 @@ def _make_preset(name: str, doc: str, defaults: dict[str, Any]):
         name.title().replace("_", ""),
         (ImCombine,),
         {"name": name, "package": "ccdred", "description": doc, "iraf": name,
-         "Params": ImCombineParams, "presets": {}, "defaults": defaults},
+         "Params": ImCombineParams, "presets": {}, "defaults": defaults,
+         "flavor": "ccdred"},
     ))
 
 
 ZeroCombine = _make_preset(
     "zerocombine",
     "Combine bias frames. Preset of imcombine.",
-    {"combine": "average", "reject": "minmax", "ccdtype": "zero"},
+    {"combine": "average", "reject": "minmax", "nlow": 0, "nhigh": 1,
+     "ccdtype": "zero"},
 )
 DarkCombine = _make_preset(
     "darkcombine",
     "Combine dark frames, scaled by exposure time. Preset of imcombine.",
-    {"combine": "average", "reject": "minmax", "scale": "exposure",
-     "ccdtype": "dark"},
+    {"combine": "average", "reject": "minmax", "nlow": 0, "nhigh": 1,
+     "scale": "exposure", "ccdtype": "dark"},
 )
 FlatCombine = _make_preset(
     "flatcombine",
     "Combine flat fields, one per filter, scaled to a common level. "
     "Preset of imcombine.",
-    {"combine": "median", "reject": "ccdclip", "scale": "mode",
+    {"combine": "average", "reject": "avsigclip", "scale": "mode", "blank": 1.0,
      "ccdtype": "flat", "subsets": True},
 )
 

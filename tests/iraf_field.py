@@ -71,3 +71,22 @@ def fixpix_case():
     mask[33:36, 30:38] = 5        # wide block, forced along lines
     mask[2:4, 2:8] = 7            # wide block, forced along columns
     return image, mask
+
+
+def combine_stack():
+    """Seven frames of one field for imcombine: different sky levels and
+    exposure times, a star, cosmic rays in single frames, a few low pixels.
+    Returns [(data, exptime), ...]."""
+    rng = np.random.default_rng(23)
+    ny, nx = 40, 50
+    yy, xx = np.mgrid[1:ny + 1, 1:nx + 1].astype(float)
+    star = 2000 * np.exp(-((xx - 25.3) ** 2 + (yy - 20.6) ** 2) / (2 * 1.6 ** 2))
+    frames = []
+    for k, exptime in enumerate([10.0, 12.0, 10.0, 15.0, 10.0, 20.0, 11.0]):
+        level = 300.0 + 40 * k
+        gain = exptime / 10.0
+        image = (level + star) * gain + rng.normal(0, 8, (ny, nx))
+        image[rng.integers(0, ny, 6), rng.integers(0, nx, 6)] += rng.uniform(800, 5000, 6)
+        image[rng.integers(0, ny, 2), rng.integers(0, nx, 2)] -= 400
+        frames.append((image.astype(np.float32), exptime))
+    return frames

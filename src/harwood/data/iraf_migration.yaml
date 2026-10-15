@@ -393,7 +393,7 @@ tasks:
   darkcombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: darkcombine}
   flatcombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: flatcombine}
   imcombine: {pkg: images.immatch, domain: combine, status: partial, milestone: mvp, harwood: imcombine,
-    note: "combine/reject/scale/zero, ccdtype selection, per-subset grouping, and the sigma and rejection-count outputs; no offsets, masks, weights, pclip or lmedian"}
+    note: "IRAF's combining and rejection ported and checked against IRAF's output -- every combine and reject, scale, zero, weight, thresholds, grow, nkeep, the sigma and rejection-count images; no offsets, pixel masks, project, quadrature or nmodel"}
   lscombine: {pkg: twodspec.longslit, domain: combine, status: planned, milestone: later}
   odcombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
   scombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
