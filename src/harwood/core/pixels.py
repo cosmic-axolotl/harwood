@@ -82,7 +82,9 @@ def parse_section(section: str, shape: tuple[int, ...]) -> tuple[slice, ...]:
         [100:400,*]     columns 100 to 400 inclusive, every row
         [*,50:60]       every column, rows 50 to 60
         [100:400:2,*]   every other column
+        [*:2,*]         every other column of the whole width
         [-*,*]          reversed along x
+        [400:100,*]     columns 400 down to 100, reversed
 
     The section is written (x, y) and 1-based and *inclusive on both ends*;
     what comes back is (row, col) and 0-based and exclusive on the stop, so
@@ -119,16 +121,63 @@ def _one_axis(part: str, length: int, whole: str) -> slice:
         raise ValueError(f"cannot read '{part}' in section '{whole}'")
     first, last, step = match.groups()
     if first == "*":
-        raise ValueError(f"cannot read '{part}' in section '{whole}'")
+        # '*:2' is the whole axis, every other pixel.
+        if last is None or step is not None or reverse:
+            raise ValueError(f"cannot read '{part}' in section '{whole}'")
+        stride = int(last)
+        if stride < 1:
+            raise ValueError(f"the step in '{part}' of section '{whole}' must be positive")
+        return slice(None, None, stride)
 
     start = int(first)
     stop = int(last) if last is not None else start
-    stride = int(step) if step is not None else 1
-    if start < 1 or stop > length:
+    stride = abs(int(step)) if step is not None else 1
+    if stride == 0:
+        raise ValueError(f"the step in '{part}' of section '{whole}' must not be zero")
+    if not (1 <= start <= length and 1 <= stop <= length):
         raise ValueError(
             f"section '{whole}' asks for {start}:{stop} but the axis has {length} pixels"
         )
+    if start > stop:
+        # IRAF reads [60:6] backwards, from 60 down to 6.
+        return slice(start - 1, stop - 2 if stop >= 2 else None, -stride)
     return slice(start - 1, stop, stride)
+
+
+def section_geometry(slices: tuple[slice, ...], shape: tuple[int, ...]):
+    """(first pixel, step) along x, y, ... of a parsed section, 1-based; a
+    negative step reads the axis backwards."""
+    out = []
+    for axis in range(len(shape)):
+        slc = slices[len(shape) - 1 - axis]
+        picked = range(shape[len(shape) - 1 - axis])[slc]
+        out.append((picked[0] + 1 if len(picked) else 1, picked.step))
+    return out
+
+
+def section_header(header, geometry) -> None:
+    """Move the WCS with a section, as IRAF's imcopy does: the reference
+    pixel to (CRPIX - first) / step + 1, the CD column (or CDELT) scaled by
+    the step, and the logical system (LTV, LTM) with it."""
+    for axis, (first, step) in enumerate(geometry, 1):
+        if first == 1 and step == 1:
+            continue
+        if f"CRPIX{axis}" in header:
+            header[f"CRPIX{axis}"] = (header[f"CRPIX{axis}"] - first) / step + 1
+        scaled = False
+        for i in range(1, len(geometry) + 1):
+            key = f"CD{i}_{axis}"
+            if key in header:
+                header[key] = header[key] * step
+                scaled = True
+        if not scaled and f"CDELT{axis}" in header:
+            header[f"CDELT{axis}"] = header[f"CDELT{axis}"] * step
+        ltv = header.get(f"LTV{axis}", 0.0) / step + 1 - first / step
+        if ltv != 0 or f"LTV{axis}" in header:
+            header[f"LTV{axis}"] = ltv
+        ltm = header.get(f"LTM{axis}_{axis}", 1.0) / step
+        if ltm != 1 or f"LTM{axis}_{axis}" in header:
+            header[f"LTM{axis}_{axis}"] = ltm
 
 
 def section_slices(section: str | None, shape: tuple[int, ...]) -> tuple[slice, ...]:

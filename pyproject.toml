@@ -33,8 +33,8 @@ dependencies = [
 [project.optional-dependencies]
 ccd = ["ccdproc>=2.4", "astroscrappy>=1.2"]
 # scipy is here rather than in the base because the core only needs it for
-# spline fits and for imalign's resampling, and both say so when it is absent.
-# daofind and phot are ports of IRAF's apphot and need only numpy.
+# imexamine's profile fits and the cosmic-ray filters, and both say so when it
+# is absent. daofind, phot and imalign are ports of IRAF and need only numpy.
 phot = ["scipy>=1.10"]
 gui = ["PySide6-Essentials>=6.6", "pyqtgraph>=0.13"]
 fast = ["numba>=0.59"]

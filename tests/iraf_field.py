@@ -119,3 +119,35 @@ def crowded_field():
     image[:, 150] += 150.0                                   # a hot column
     image += rng.normal(0, 6.0, image.shape)
     return image.astype(np.float32)
+
+
+#: Where the frames of align_frames() sit relative to the first, (x, y).
+ALIGN_SHIFTS = [(0.0, 0.0), (2.37, -1.64), (-4.71, 3.18), (0.42, 0.93)]
+
+
+def align_frames():
+    """Four exposures of one field for imcentroid and imalign: thirty stars
+    and a sky that changes, each frame moved by ALIGN_SHIFTS and with its own
+    noise. Returns (frames, coords): the stars' positions in the first frame,
+    a hand's worth off -- plus one that leaves the image in the third frame,
+    one on blank sky and one on a pair."""
+    rng = np.random.default_rng(41)
+    ny, nx = 120, 140
+    yy, xx = np.mgrid[1:ny + 1, 1:nx + 1].astype(float)
+    stars = [(rng.uniform(8, nx - 8), rng.uniform(8, ny - 8), 10 ** rng.uniform(2.5, 3.8))
+             for _ in range(30)]
+    stars += [(70.4, 60.2, 3000.0), (72.6, 61.0, 1500.0)]      # a pair
+    stars += [(3.5, 100.3, 2500.0)]                           # leaves frame 3
+    frames = []
+    for k, (dx, dy) in enumerate(ALIGN_SHIFTS):
+        image = 150.0 + 20 * k + 0.1 * xx
+        for x, y, peak in stars:
+            image = image + peak * np.exp(-((xx - x - dx) ** 2 + (yy - y - dy) ** 2)
+                                          / (2 * 1.4 ** 2))
+        image += np.random.default_rng(50 + k).normal(0, 5.0, image.shape)
+        frames.append(image.astype(np.float32))
+    picks = sorted(range(30), key=lambda i: -stars[i][2])[:12]
+    coords = [(round(stars[i][0] + rng.uniform(-1, 1), 1),
+               round(stars[i][1] + rng.uniform(-1, 1), 1)) for i in picks]
+    coords += [(70.0, 60.0), (3.0, 100.0), (25.0, 115.0)]    # pair, edge, sky
+    return frames, coords

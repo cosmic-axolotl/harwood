@@ -1,0 +1,1069 @@
+{
+ "_comment": "IRAF 2.18.1. imshift: images.imgeom.imshift of tests/iraf_field.combine_stack()[0][0], constant=-5; sha256 of the output as big-endian float32 (spline3 differs by an ulp, so a sample of it is in iraf_imshift_spline3.npz instead). imcentroid: what images.immatch.imcentroid printed for tests/iraf_field.align_frames() (a0..a3, coords in 'coords') and for the raw M92 tapes fm920004-7 with the coordinates in 'm92_coords'. imalign: sha256 of IRAF's outputs for align_frames, all four against a0, default parameters but interp_type.",
+ "imshift": {
+  "nearest_nearest_0": [
+   "nearest",
+   "nearest",
+   2.3,
+   -1.7,
+   "7963687356de4f4288d2bdbf21554c54cb725028fe2b46e3713ae3858d0f8a59"
+  ],
+  "nearest_nearest_1": [
+   "nearest",
+   "nearest",
+   -3.6,
+   4.25,
+   "e0d0d54fe66b5bc4810454d63e0fa45a8958253bcee1384643d668fd7a7641dd"
+  ],
+  "nearest_nearest_2": [
+   "nearest",
+   "nearest",
+   0.5,
+   0.0,
+   "283f19cd3edfd89704424d047009966ce70a99e5c79444f9a29dca1af87a3c1c"
+  ],
+  "nearest_nearest_3": [
+   "nearest",
+   "nearest",
+   5.0,
+   -2.0,
+   "bde9cbc7ce1a100899c8c3a47c67006fdf954d945018184c33d8f9b050940b7a"
+  ],
+  "nearest_nearest_4": [
+   "nearest",
+   "nearest",
+   0.0,
+   0.73,
+   "66ee802d3382e203d16c528d6c9af585526baecf40c1b4400f8a4a20ed32a9f8"
+  ],
+  "nearest_nearest_5": [
+   "nearest",
+   "nearest",
+   -0.5,
+   1.5,
+   "fd3ce385d32098f0b4c519623200101198a7197607fe772d4340701f1eec3980"
+  ],
+  "nearest_constant_0": [
+   "nearest",
+   "constant",
+   2.3,
+   -1.7,
+   "4ae6aa54e6bbe7f2d7bca74b4f4b7e617c061572ad663ae000f44122f9755737"
+  ],
+  "nearest_constant_1": [
+   "nearest",
+   "constant",
+   -3.6,
+   4.25,
+   "5a8030375e2fc28af10844dc73f5cb28657b88177256380bd627810b86081034"
+  ],
+  "nearest_constant_2": [
+   "nearest",
+   "constant",
+   0.5,
+   0.0,
+   "49cf177b6f76cf9b04fa56a263656436a7dfa4e10cb0d88a1a4cfd5091c3ef56"
+  ],
+  "nearest_constant_3": [
+   "nearest",
+   "constant",
+   5.0,
+   -2.0,
+   "ad9ab36cf42aaf499250458e688c1973dd32250c4a53a47251f2c5c8c8595ee8"
+  ],
+  "nearest_constant_4": [
+   "nearest",
+   "constant",
+   0.0,
+   0.73,
+   "2bd04d50733265ac4285f71fef3e570ac38aef59d98a328b11a482892b46fce6"
+  ],
+  "nearest_constant_5": [
+   "nearest",
+   "constant",
+   -0.5,
+   1.5,
+   "77d0427a20e837035e7ce4a0fb37594bf9aaa7c50000ee787d43d673e9f897da"
+  ],
+  "nearest_reflect_0": [
+   "nearest",
+   "reflect",
+   2.3,
+   -1.7,
+   "d08b2b4584ffb202e9369de2414c75228659c93ef08ef8ba6866f44d9f7e9128"
+  ],
+  "nearest_reflect_1": [
+   "nearest",
+   "reflect",
+   -3.6,
+   4.25,
+   "76ef0639518e3120f02d9b768638df3a9a10cf30e87d8034c72618de0f886352"
+  ],
+  "nearest_reflect_2": [
+   "nearest",
+   "reflect",
+   0.5,
+   0.0,
+   "73aa98865c0b3c37d67b521a5fcc279d7537f918e0964cb30629cf0e37f88b62"
+  ],
+  "nearest_reflect_3": [
+   "nearest",
+   "reflect",
+   5.0,
+   -2.0,
+   "90c7e7891105ad10b9283424740f4a2b7d09858ed8e06aadaf0b7955ba9333dc"
+  ],
+  "nearest_reflect_4": [
+   "nearest",
+   "reflect",
+   0.0,
+   0.73,
+   "4b71a7d530a710de4b98bbc2c43014e0f833cf09023f3ba1180bb5a888c867d6"
+  ],
+  "nearest_reflect_5": [
+   "nearest",
+   "reflect",
+   -0.5,
+   1.5,
+   "74235de538a15d9be6f73cde96f60d0b206e6a2da367ab0e90f08da206d1f514"
+  ],
+  "nearest_wrap_0": [
+   "nearest",
+   "wrap",
+   2.3,
+   -1.7,
+   "9623e0520b435f8f5cc91c30d233b8be674de4f4c6de0e6b1d91f79747c6cebc"
+  ],
+  "nearest_wrap_1": [
+   "nearest",
+   "wrap",
+   -3.6,
+   4.25,
+   "63cb76da5591e6d42d1916d67936154fb91a595baacb2805e2471cf6bd188e59"
+  ],
+  "nearest_wrap_2": [
+   "nearest",
+   "wrap",
+   0.5,
+   0.0,
+   "51933922ece5685930c9462a9263336f92a8f2db4aa56dc99ff985505dba7f8b"
+  ],
+  "nearest_wrap_3": [
+   "nearest",
+   "wrap",
+   5.0,
+   -2.0,
+   "ba6994963c16894a8079bf4e4b06aff0293d22eeb08a6a561201d31521d96a7f"
+  ],
+  "nearest_wrap_4": [
+   "nearest",
+   "wrap",
+   0.0,
+   0.73,
+   "e22a94dd4809b9e2a3956737533b79f67758a4afbfd3cbc470671e897f938f2a"
+  ],
+  "nearest_wrap_5": [
+   "nearest",
+   "wrap",
+   -0.5,
+   1.5,
+   "4bec7e6f935725332995f0d2417002418b0e69b2d57b94a2d0aa13bc8913d846"
+  ],
+  "linear_nearest_0": [
+   "linear",
+   "nearest",
+   2.3,
+   -1.7,
+   "0737ee9f77fbf6a17fca4b678cf13b55ea7bb0112e5f0d6fe8a6797b122c29a4"
+  ],
+  "linear_nearest_1": [
+   "linear",
+   "nearest",
+   -3.6,
+   4.25,
+   "1b53bca96803a54588c96e21704dcc422dfbb289036ae4bb5d5c5b6b21b962b0"
+  ],
+  "linear_nearest_2": [
+   "linear",
+   "nearest",
+   0.5,
+   0.0,
+   "101a5091c8c30cf3d240bbcfe993f3273af2c056482dd6e6e2e5f5554eb0dd6d"
+  ],
+  "linear_nearest_3": [
+   "linear",
+   "nearest",
+   5.0,
+   -2.0,
+   "bde9cbc7ce1a100899c8c3a47c67006fdf954d945018184c33d8f9b050940b7a"
+  ],
+  "linear_nearest_4": [
+   "linear",
+   "nearest",
+   0.0,
+   0.73,
+   "0c649baf119edf3bf16036623015b4ed7412699e16c1fee8dabc259e4c008362"
+  ],
+  "linear_nearest_5": [
+   "linear",
+   "nearest",
+   -0.5,
+   1.5,
+   "e8521be3a27260de5643c8b8c03ada8bd767ab0d38756425426a483531cf8853"
+  ],
+  "linear_constant_0": [
+   "linear",
+   "constant",
+   2.3,
+   -1.7,
+   "9b4a7d7489651ac84bc72a014f37fd2345b5949a66ae13b20c36c5653fc79b09"
+  ],
+  "linear_constant_1": [
+   "linear",
+   "constant",
+   -3.6,
+   4.25,
+   "9f6e3fa0fa41803145a94ffa71f4acf17a449f397d761bdba3e61a6543ebd59e"
+  ],
+  "linear_constant_2": [
+   "linear",
+   "constant",
+   0.5,
+   0.0,
+   "26fd841d84b6d4637e40ae667e4bc05175d24b3458f80987d1f7603a677420d1"
+  ],
+  "linear_constant_3": [
+   "linear",
+   "constant",
+   5.0,
+   -2.0,
+   "ad9ab36cf42aaf499250458e688c1973dd32250c4a53a47251f2c5c8c8595ee8"
+  ],
+  "linear_constant_4": [
+   "linear",
+   "constant",
+   0.0,
+   0.73,
+   "bb350d2e4a888518657ea049e4034d0241d8ffb42a185ddbb9e18b9bbd345be8"
+  ],
+  "linear_constant_5": [
+   "linear",
+   "constant",
+   -0.5,
+   1.5,
+   "8b3ab7f33c77b8fd8501dc57d1c8eae2d53d79b2e115939869f9a97871a9bd2f"
+  ],
+  "linear_reflect_0": [
+   "linear",
+   "reflect",
+   2.3,
+   -1.7,
+   "3ba37733fa4d018d026a7faa8d267322c836a6eb47afbf93d83f204ab06a0481"
+  ],
+  "linear_reflect_1": [
+   "linear",
+   "reflect",
+   -3.6,
+   4.25,
+   "77b2e24f753dc32523d095f55b28badcd023a37516f4925bc207c0efadc429b9"
+  ],
+  "linear_reflect_2": [
+   "linear",
+   "reflect",
+   0.5,
+   0.0,
+   "01578dedf8a365c23093260d3bae230f37f6cb41bd061d1e1c61cbb1de8705dd"
+  ],
+  "linear_reflect_3": [
+   "linear",
+   "reflect",
+   5.0,
+   -2.0,
+   "90c7e7891105ad10b9283424740f4a2b7d09858ed8e06aadaf0b7955ba9333dc"
+  ],
+  "linear_reflect_4": [
+   "linear",
+   "reflect",
+   0.0,
+   0.73,
+   "922bb537eef40878df4662e0b77363bf7a124a7dda9449768787a8733b6f4b28"
+  ],
+  "linear_reflect_5": [
+   "linear",
+   "reflect",
+   -0.5,
+   1.5,
+   "c5108eb84591d5c2a0aad114cb38e87550a02a479fb000c66c8c7369f77cbd26"
+  ],
+  "linear_wrap_0": [
+   "linear",
+   "wrap",
+   2.3,
+   -1.7,
+   "92b6ff509f9af7f4ad9e99e7d74a5673c58d88664482d80c6f9eb6decedc3299"
+  ],
+  "linear_wrap_1": [
+   "linear",
+   "wrap",
+   -3.6,
+   4.25,
+   "e6c6e386e9821df3a558735fe74cd408e0864161b378d9c6076597df9e0889fd"
+  ],
+  "linear_wrap_2": [
+   "linear",
+   "wrap",
+   0.5,
+   0.0,
+   "f209c09a11efd5a23ccf664847faaaa35e3e108cd22bf8eaf43bbfea2664c08e"
+  ],
+  "linear_wrap_3": [
+   "linear",
+   "wrap",
+   5.0,
+   -2.0,
+   "ba6994963c16894a8079bf4e4b06aff0293d22eeb08a6a561201d31521d96a7f"
+  ],
+  "linear_wrap_4": [
+   "linear",
+   "wrap",
+   0.0,
+   0.73,
+   "e84c3dac842b2de08cd526a1bcf34bb2e94b23c7e89ffba03617232772724586"
+  ],
+  "linear_wrap_5": [
+   "linear",
+   "wrap",
+   -0.5,
+   1.5,
+   "7092993867aa7b8c9e7acd2b7302a4648ea4530158430dc091882019131714bc"
+  ],
+  "poly3_nearest_0": [
+   "poly3",
+   "nearest",
+   2.3,
+   -1.7,
+   "ebb361bba9c32112306db90b8f77d8c7b2e371706fce9a295b568883e434655f"
+  ],
+  "poly3_nearest_1": [
+   "poly3",
+   "nearest",
+   -3.6,
+   4.25,
+   "162fcbfb44e5713e813e87dc2d52ca508ef45e633a1bc8144541eb480e41d98e"
+  ],
+  "poly3_nearest_2": [
+   "poly3",
+   "nearest",
+   0.5,
+   0.0,
+   "636c4f073224b63fc69ddbff5e86f96671c9edc4b66ed78bbe94be3c9e92f548"
+  ],
+  "poly3_nearest_3": [
+   "poly3",
+   "nearest",
+   5.0,
+   -2.0,
+   "bde9cbc7ce1a100899c8c3a47c67006fdf954d945018184c33d8f9b050940b7a"
+  ],
+  "poly3_nearest_4": [
+   "poly3",
+   "nearest",
+   0.0,
+   0.73,
+   "c928ec6b49e94c490c5f27dd48dbcd188117f72b0f4a0e4c804a50893dbace02"
+  ],
+  "poly3_nearest_5": [
+   "poly3",
+   "nearest",
+   -0.5,
+   1.5,
+   "4adb72feb5dd32aca5f62efdd9e4ac0632a82366bf6d1b48f4668a6fff0616ca"
+  ],
+  "poly3_constant_0": [
+   "poly3",
+   "constant",
+   2.3,
+   -1.7,
+   "6f3dd14841b1486bebd5071ead14efb8849cab251a9dc432a7c81f875bcd3bee"
+  ],
+  "poly3_constant_1": [
+   "poly3",
+   "constant",
+   -3.6,
+   4.25,
+   "100bf53d2c99e659984657a8ece0191cdd3c494de38d2f06409cfbd309014a42"
+  ],
+  "poly3_constant_2": [
+   "poly3",
+   "constant",
+   0.5,
+   0.0,
+   "8aa85787bb67418196493ba6c2a73070ef432fe24e2c04688e0966bbf03a28c1"
+  ],
+  "poly3_constant_3": [
+   "poly3",
+   "constant",
+   5.0,
+   -2.0,
+   "ad9ab36cf42aaf499250458e688c1973dd32250c4a53a47251f2c5c8c8595ee8"
+  ],
+  "poly3_constant_4": [
+   "poly3",
+   "constant",
+   0.0,
+   0.73,
+   "a6be63324c17147529cd3cdcb1bf6903cadcb50a626dd6d44f1ecf2135be8b9f"
+  ],
+  "poly3_constant_5": [
+   "poly3",
+   "constant",
+   -0.5,
+   1.5,
+   "544aa7b6cb0d278a0a0043c3fd5c5dba90bc2053b818db214e489e75746a041a"
+  ],
+  "poly3_reflect_0": [
+   "poly3",
+   "reflect",
+   2.3,
+   -1.7,
+   "249ada905d411f4b20f178a0f1f3fcbe0ad5cdf59acc28194c9d0b472b507d5e"
+  ],
+  "poly3_reflect_1": [
+   "poly3",
+   "reflect",
+   -3.6,
+   4.25,
+   "325c17f097c9d85ed7c4b9ef6e2c3e2c7ed00fe35c2bb500d767402a6e1f87a7"
+  ],
+  "poly3_reflect_2": [
+   "poly3",
+   "reflect",
+   0.5,
+   0.0,
+   "feb7a95897ca4aaf4067a1a23afab43782c260c26b65d234fcc6c7574568f763"
+  ],
+  "poly3_reflect_3": [
+   "poly3",
+   "reflect",
+   5.0,
+   -2.0,
+   "90c7e7891105ad10b9283424740f4a2b7d09858ed8e06aadaf0b7955ba9333dc"
+  ],
+  "poly3_reflect_4": [
+   "poly3",
+   "reflect",
+   0.0,
+   0.73,
+   "339fedd82df03fd77c36deb5e3e107f81f750dd52c736bb494daee1e93cd6fbc"
+  ],
+  "poly3_reflect_5": [
+   "poly3",
+   "reflect",
+   -0.5,
+   1.5,
+   "ffe854c0cb28b1b0ec67b8fb295045fa67639de990e60bb245d7d581ae0632bd"
+  ],
+  "poly3_wrap_0": [
+   "poly3",
+   "wrap",
+   2.3,
+   -1.7,
+   "43c5924e629558e629a001f2af0518ce270559e86cc517a4c47a0112e4d053de"
+  ],
+  "poly3_wrap_1": [
+   "poly3",
+   "wrap",
+   -3.6,
+   4.25,
+   "f374db25c039ecf0a22117af3141755f1e2800abb0d431ab8e85d8260c0942f3"
+  ],
+  "poly3_wrap_2": [
+   "poly3",
+   "wrap",
+   0.5,
+   0.0,
+   "b8b0f0bd9aacb73c2c4e391e6c10ee6ea79f5442d4a96aaf5b1acc0453cc27b5"
+  ],
+  "poly3_wrap_3": [
+   "poly3",
+   "wrap",
+   5.0,
+   -2.0,
+   "ba6994963c16894a8079bf4e4b06aff0293d22eeb08a6a561201d31521d96a7f"
+  ],
+  "poly3_wrap_4": [
+   "poly3",
+   "wrap",
+   0.0,
+   0.73,
+   "b64246e4be74f98da56eaf03768e32bca78c0b0e5a1f5ca67ddafc8854aaed32"
+  ],
+  "poly3_wrap_5": [
+   "poly3",
+   "wrap",
+   -0.5,
+   1.5,
+   "b515e5760c18e7a80359fdbe9a09a5786b60a6e5203106e10e5dee43377c5014"
+  ],
+  "poly5_nearest_0": [
+   "poly5",
+   "nearest",
+   2.3,
+   -1.7,
+   "2b462f1a8e3cb7235f5a6ab79eb84fbc6e081e012e6b72ac7116c4888d38e562"
+  ],
+  "poly5_nearest_1": [
+   "poly5",
+   "nearest",
+   -3.6,
+   4.25,
+   "aeb308d96d23875d18582a5238d1c5a73740611266f76007f40b21bfb4d5a6bb"
+  ],
+  "poly5_nearest_2": [
+   "poly5",
+   "nearest",
+   0.5,
+   0.0,
+   "36344c18b655a273b90190ced6281163f81f48eac02f1e759d5d3b2bb085f7db"
+  ],
+  "poly5_nearest_3": [
+   "poly5",
+   "nearest",
+   5.0,
+   -2.0,
+   "bde9cbc7ce1a100899c8c3a47c67006fdf954d945018184c33d8f9b050940b7a"
+  ],
+  "poly5_nearest_4": [
+   "poly5",
+   "nearest",
+   0.0,
+   0.73,
+   "871b09209a91d771a0bb96f4cde733e824e040618e411434643f70f061a939b9"
+  ],
+  "poly5_nearest_5": [
+   "poly5",
+   "nearest",
+   -0.5,
+   1.5,
+   "84c30504aa6c2aa71d7bfbe52478cf71b249a05e56ff3cafc8e88862aabe45eb"
+  ],
+  "poly5_constant_0": [
+   "poly5",
+   "constant",
+   2.3,
+   -1.7,
+   "969d8894b4222961e6e4f558aec1de2d2776defcd0ac2d3b8aa07e3a71790ad0"
+  ],
+  "poly5_constant_1": [
+   "poly5",
+   "constant",
+   -3.6,
+   4.25,
+   "4f0d19f6038064fda7005db31da87f6139a7edcb64b78ed53e9fee6c31d0e365"
+  ],
+  "poly5_constant_2": [
+   "poly5",
+   "constant",
+   0.5,
+   0.0,
+   "8ca05b3d76cee67ca1a262d9d24a1c95e01c0fefb165ae49c93e996f15337368"
+  ],
+  "poly5_constant_3": [
+   "poly5",
+   "constant",
+   5.0,
+   -2.0,
+   "ad9ab36cf42aaf499250458e688c1973dd32250c4a53a47251f2c5c8c8595ee8"
+  ],
+  "poly5_constant_4": [
+   "poly5",
+   "constant",
+   0.0,
+   0.73,
+   "d72957e56f22b455f94787f634a736b2c2693b6bde4424c0635a4cf18ef68805"
+  ],
+  "poly5_constant_5": [
+   "poly5",
+   "constant",
+   -0.5,
+   1.5,
+   "cc14bf44c7227d7da27f012372fa6bec0d93e4a27bae51e703cc7eec1b10bb75"
+  ],
+  "poly5_reflect_0": [
+   "poly5",
+   "reflect",
+   2.3,
+   -1.7,
+   "826ccff038835945a586bc4231423478ac9939b0e1b7cdf35922e5c07134c1f5"
+  ],
+  "poly5_reflect_1": [
+   "poly5",
+   "reflect",
+   -3.6,
+   4.25,
+   "70e0ba8316eeaab3e31b2156c0387eeab9cd4572ea0a7f616ebb6d65eaaa0022"
+  ],
+  "poly5_reflect_2": [
+   "poly5",
+   "reflect",
+   0.5,
+   0.0,
+   "318bd51f3a4bf0e9b45b4d1af9e79311762f45a12c3eeb974ceaa8ef4a6bf082"
+  ],
+  "poly5_reflect_3": [
+   "poly5",
+   "reflect",
+   5.0,
+   -2.0,
+   "90c7e7891105ad10b9283424740f4a2b7d09858ed8e06aadaf0b7955ba9333dc"
+  ],
+  "poly5_reflect_4": [
+   "poly5",
+   "reflect",
+   0.0,
+   0.73,
+   "116c57519856e0a23b42cb3da2f7c8ebd0d6285126b9140a37ae9f00cf0bf5f2"
+  ],
+  "poly5_reflect_5": [
+   "poly5",
+   "reflect",
+   -0.5,
+   1.5,
+   "1b449c80cd7161a703a06d3c1404d95af50ea7aa8df787074936a7e0b397a15e"
+  ],
+  "poly5_wrap_0": [
+   "poly5",
+   "wrap",
+   2.3,
+   -1.7,
+   "4e5ce0aa3d650bb80da9c2c342aea46599a8bd999a5870de444f83cfa84d6695"
+  ],
+  "poly5_wrap_1": [
+   "poly5",
+   "wrap",
+   -3.6,
+   4.25,
+   "377438f9d018fec06a9a2dd9bbfdae5a496a21f2b6ba89eba4c1e9d903d072b8"
+  ],
+  "poly5_wrap_2": [
+   "poly5",
+   "wrap",
+   0.5,
+   0.0,
+   "5160913c9b44db0dc9d499b026401a514d30f82afb6fec965c07389107b2ecf2"
+  ],
+  "poly5_wrap_3": [
+   "poly5",
+   "wrap",
+   5.0,
+   -2.0,
+   "ba6994963c16894a8079bf4e4b06aff0293d22eeb08a6a561201d31521d96a7f"
+  ],
+  "poly5_wrap_4": [
+   "poly5",
+   "wrap",
+   0.0,
+   0.73,
+   "fe6e5d7c198776239d855fb95aebba6c8c30e6417067b979e1e19ec88120840e"
+  ],
+  "poly5_wrap_5": [
+   "poly5",
+   "wrap",
+   -0.5,
+   1.5,
+   "51986ecb95aceebf15c8db3895d1e3c516b222bed7cbfe3346a150bd15b233df"
+  ],
+  "spline3_nearest_0": [
+   "spline3",
+   "nearest",
+   2.3,
+   -1.7,
+   null
+  ],
+  "spline3_nearest_1": [
+   "spline3",
+   "nearest",
+   -3.6,
+   4.25,
+   null
+  ],
+  "spline3_nearest_2": [
+   "spline3",
+   "nearest",
+   0.5,
+   0.0,
+   null
+  ],
+  "spline3_nearest_3": [
+   "spline3",
+   "nearest",
+   5.0,
+   -2.0,
+   null
+  ],
+  "spline3_nearest_4": [
+   "spline3",
+   "nearest",
+   0.0,
+   0.73,
+   null
+  ],
+  "spline3_nearest_5": [
+   "spline3",
+   "nearest",
+   -0.5,
+   1.5,
+   null
+  ],
+  "spline3_constant_0": [
+   "spline3",
+   "constant",
+   2.3,
+   -1.7,
+   null
+  ],
+  "spline3_constant_1": [
+   "spline3",
+   "constant",
+   -3.6,
+   4.25,
+   null
+  ],
+  "spline3_constant_2": [
+   "spline3",
+   "constant",
+   0.5,
+   0.0,
+   null
+  ],
+  "spline3_constant_3": [
+   "spline3",
+   "constant",
+   5.0,
+   -2.0,
+   null
+  ],
+  "spline3_constant_4": [
+   "spline3",
+   "constant",
+   0.0,
+   0.73,
+   null
+  ],
+  "spline3_constant_5": [
+   "spline3",
+   "constant",
+   -0.5,
+   1.5,
+   null
+  ],
+  "spline3_reflect_0": [
+   "spline3",
+   "reflect",
+   2.3,
+   -1.7,
+   null
+  ],
+  "spline3_reflect_1": [
+   "spline3",
+   "reflect",
+   -3.6,
+   4.25,
+   null
+  ],
+  "spline3_reflect_2": [
+   "spline3",
+   "reflect",
+   0.5,
+   0.0,
+   null
+  ],
+  "spline3_reflect_3": [
+   "spline3",
+   "reflect",
+   5.0,
+   -2.0,
+   null
+  ],
+  "spline3_reflect_4": [
+   "spline3",
+   "reflect",
+   0.0,
+   0.73,
+   null
+  ],
+  "spline3_reflect_5": [
+   "spline3",
+   "reflect",
+   -0.5,
+   1.5,
+   null
+  ],
+  "spline3_wrap_0": [
+   "spline3",
+   "wrap",
+   2.3,
+   -1.7,
+   null
+  ],
+  "spline3_wrap_1": [
+   "spline3",
+   "wrap",
+   -3.6,
+   4.25,
+   null
+  ],
+  "spline3_wrap_2": [
+   "spline3",
+   "wrap",
+   0.5,
+   0.0,
+   null
+  ],
+  "spline3_wrap_3": [
+   "spline3",
+   "wrap",
+   5.0,
+   -2.0,
+   null
+  ],
+  "spline3_wrap_4": [
+   "spline3",
+   "wrap",
+   0.0,
+   0.73,
+   null
+  ],
+  "spline3_wrap_5": [
+   "spline3",
+   "wrap",
+   -0.5,
+   1.5,
+   null
+  ]
+ },
+ "imcentroid": {
+  "default": {
+   "params": {},
+   "printed": "#Coords        Image     X-center   Err      Y-center   Err     Num\n             a0.fits      76.409 (0.014)      18.039 (0.014)     1\n             a0.fits      29.038 (0.014)      86.459 (0.014)     2\n             a0.fits      51.623 (0.016)      81.737 (0.016)     3\n             a0.fits     113.515 (0.016)      87.537 (0.016)     4\n             a0.fits      85.118 (0.016)      84.206 (0.016)     5\n             a0.fits     122.895 (0.017)      44.266 (0.017)     6\n             a0.fits     116.904 (0.018)      23.265 (0.018)     7\n             a0.fits      87.494 (0.020)      54.993 (0.021)     8\n             a0.fits     115.490 (0.020)      61.513 (0.020)     9\n             a0.fits      88.099 (0.021)     107.058 (0.021)    10\n             a0.fits     118.376 (0.023)      11.524 (0.023)    11\n             a0.fits      49.884 (0.024)      52.621 (0.024)    12\n             a0.fits      70.983 (0.021)      60.429 (0.017)    13\n             a0.fits       3.500 (0.021)     100.323 (0.021)    14\n             a0.fits      26.934 (0.476)     112.761 (0.461)    15\n\n             a1.fits      78.743 (0.014)      16.409 (0.014)     1\n             a1.fits      31.420 (0.014)      84.803 (0.014)     2\n             a1.fits      54.010 (0.016)      80.147 (0.016)     3\n             a1.fits     115.865 (0.016)      85.881 (0.017)     4\n             a1.fits      87.476 (0.016)      82.532 (0.016)     5\n             a1.fits     125.291 (0.017)      42.585 (0.017)     6\n             a1.fits     119.303 (0.018)      21.582 (0.018)     7\n             a1.fits      89.857 (0.021)      53.377 (0.020)     8\n             a1.fits     117.838 (0.021)      59.851 (0.021)     9\n             a1.fits      90.451 (0.021)     105.421 (0.021)    10\n             a1.fits     120.708 (0.023)       9.872 (0.024)    11\n             a1.fits      52.296 (0.024)      51.010 (0.025)    12\n             a1.fits      73.351 (0.021)      58.748 (0.017)    13\n             a1.fits       5.863 (0.021)      98.634 (0.021)    14\n             a1.fits      26.857 (0.457)     112.591 (0.645)    15\n\n             a2.fits      71.656 (0.014)      21.237 (0.014)     1\n             a2.fits      24.345 (0.014)      89.619 (0.014)     2\n             a2.fits      46.910 (0.016)      84.917 (0.016)     3\n             a2.fits     108.793 (0.016)      90.695 (0.016)     4\n             a2.fits      80.403 (0.016)      87.372 (0.016)     5\n             a2.fits     118.204 (0.017)      47.430 (0.017)     6\n             a2.fits     112.214 (0.018)      26.423 (0.018)     7\n             a2.fits      82.758 (0.020)      58.189 (0.020)     8\n             a2.fits     110.764 (0.020)      64.674 (0.020)     9\n             a2.fits      83.381 (0.021)     110.245 (0.021)    10\n             a2.fits     113.635 (0.023)      14.685 (0.023)    11\n             a2.fits      45.209 (0.024)      55.808 (0.025)    12\n             a2.fits      66.267 (0.021)      63.591 (0.017)    13\n             a2.fits      21.250 (0.619)     117.356 (0.571)    15\n\n             a3.fits      76.776 (0.014)      18.962 (0.014)     1\n             a3.fits      29.463 (0.014)      87.393 (0.014)     2\n             a3.fits      52.060 (0.016)      82.654 (0.016)     3\n             a3.fits     113.938 (0.016)      88.476 (0.016)     4\n             a3.fits      85.521 (0.016)      85.108 (0.016)     5\n             a3.fits     123.351 (0.017)      45.179 (0.017)     6\n             a3.fits     117.362 (0.018)      24.173 (0.018)     7\n             a3.fits      87.894 (0.020)      55.898 (0.020)     8\n             a3.fits     115.914 (0.021)      62.454 (0.020)     9\n             a3.fits      88.495 (0.021)     107.977 (0.021)    10\n             a3.fits     118.777 (0.023)      12.460 (0.023)    11\n             a3.fits      50.326 (0.024)      53.569 (0.024)    12\n             a3.fits      71.428 (0.021)      61.361 (0.017)    13\n             a3.fits       3.911 (0.021)     101.263 (0.021)    14\n\n#Refcoords Reference     X-center   Err      Y-center   Err     Num\n             a0.fits      76.409 (0.014)      18.039 (0.014)     1\n             a0.fits      29.038 (0.014)      86.459 (0.014)     2\n             a0.fits      51.623 (0.016)      81.737 (0.016)     3\n             a0.fits     113.515 (0.016)      87.537 (0.016)     4\n             a0.fits      85.118 (0.016)      84.206 (0.016)     5\n             a0.fits     122.895 (0.017)      44.266 (0.017)     6\n             a0.fits     116.904 (0.018)      23.265 (0.018)     7\n             a0.fits      87.494 (0.020)      54.993 (0.021)     8\n             a0.fits     115.490 (0.020)      61.513 (0.020)     9\n             a0.fits      88.099 (0.021)     107.058 (0.021)    10\n             a0.fits     118.376 (0.023)      11.524 (0.023)    11\n             a0.fits      49.884 (0.024)      52.621 (0.024)    12\n             a0.fits      70.983 (0.021)      60.429 (0.017)    13\n             a0.fits       3.500 (0.021)     100.323 (0.021)    14\n             a0.fits      25.040 (0.461)     114.627 (0.474)    15\n\n#Shifts        Image    X-shift   Err      Y-shift   Err      N      Internal\n             a0.fits     -0.126 (0.045)      0.124 (0.045)   15   (0.126,0.124)\n             a1.fits     -2.331 (0.044)      1.677 (0.054)   15   (0.037,0.027)\n             a2.fits      4.649 (0.056)     -3.141 (0.053)   14   (0.066,0.032)\n             a3.fits     -0.421 (0.007)     -0.926 (0.007)   14   (0.007,0.004)\n\n#Trim_Section = [6:137,3:116]\n",
+   "stderr": "Warning: failed to converge near (26,115)\n"
+  },
+  "tight": {
+   "params": {
+    "boxsize": 5,
+    "bigbox": 15,
+    "niterate": 5,
+    "tolerance": 1,
+    "maxshift": 1.0
+   },
+   "printed": "#Coords        Image     X-center   Err      Y-center   Err     Num\n             a0.fits      76.356 (0.013)      18.032 (0.013)     1\n             a0.fits      29.047 (0.012)      86.265 (0.011)     2\n             a0.fits      51.804 (0.014)      81.404 (0.012)     3\n             a0.fits     113.523 (0.016)      87.549 (0.016)     4\n             a0.fits      85.072 (0.015)      84.141 (0.015)     5\n             a0.fits     116.935 (0.017)      23.196 (0.017)     7\n             a0.fits      87.489 (0.019)      54.993 (0.019)     8\n             a0.fits     118.341 (0.022)      11.534 (0.023)    11\n             a0.fits      70.931 (0.020)      60.286 (0.014)    13\n             a0.fits       3.502 (0.020)     100.222 (0.017)    14\n             a0.fits      25.479 (0.389)     113.951 (0.409)    15\n\n             a1.fits      78.800 (0.013)      16.384 (0.013)     1\n             a1.fits      31.387 (0.013)      84.841 (0.013)     2\n             a1.fits     115.917 (0.015)      85.927 (0.015)     4\n             a1.fits      87.472 (0.016)      82.541 (0.016)     5\n             a1.fits     119.266 (0.017)      21.599 (0.017)     7\n             a1.fits      89.902 (0.018)      53.322 (0.019)     8\n             a1.fits     120.772 (0.022)       9.909 (0.022)    11\n             a1.fits      27.550 (0.558)     112.257 (0.419)    15\n\n             a2.fits      71.709 (0.013)      21.171 (0.013)     1\n             a2.fits      24.315 (0.013)      89.641 (0.013)     2\n             a2.fits     108.857 (0.015)      90.755 (0.016)     4\n             a2.fits      80.381 (0.016)      87.339 (0.016)     5\n             a2.fits     112.169 (0.016)      26.394 (0.017)     7\n             a2.fits      82.857 (0.018)      58.139 (0.019)     8\n             a2.fits     110.764 (0.020)      64.436 (0.015)     9\n             a2.fits     113.679 (0.022)      14.740 (0.022)    11\n             a2.fits      66.231 (0.020)      63.379 (0.014)    13\n             a2.fits      20.804 (0.415)     117.292 (0.442)    15\n\n             a3.fits      76.844 (0.013)      18.978 (0.013)     1\n             a3.fits      29.461 (0.014)      87.265 (0.011)     2\n             a3.fits      52.093 (0.015)      82.398 (0.012)     3\n             a3.fits     113.947 (0.015)      88.462 (0.016)     4\n             a3.fits      85.528 (0.016)      85.090 (0.015)     5\n             a3.fits     117.301 (0.017)      24.117 (0.017)     7\n             a3.fits      87.943 (0.018)      55.943 (0.018)     8\n             a3.fits     118.831 (0.021)      12.445 (0.023)    11\n             a3.fits       3.942 (0.019)     101.149 (0.018)    14\n             a3.fits      26.326 (0.441)     115.409 (0.344)    15\n\n#Refcoords Reference     X-center   Err      Y-center   Err     Num\n             a0.fits      76.351 (0.013)      18.030 (0.012)     1\n             a0.fits      29.030 (0.013)      86.429 (0.013)     2\n             a0.fits      51.661 (0.015)      81.787 (0.015)     3\n             a0.fits     113.523 (0.016)      87.549 (0.016)     4\n             a0.fits      85.073 (0.015)      84.140 (0.015)     5\n             a0.fits     122.942 (0.015)      44.198 (0.016)     6\n             a0.fits     116.940 (0.016)      23.196 (0.017)     7\n             a0.fits      87.490 (0.020)      54.994 (0.018)     8\n             a0.fits     115.489 (0.020)      61.514 (0.020)     9\n             a0.fits      88.057 (0.020)     107.033 (0.020)    10\n             a0.fits     118.340 (0.022)      11.534 (0.023)    11\n             a0.fits      49.922 (0.021)      52.678 (0.023)    12\n             a0.fits      70.858 (0.018)      60.357 (0.016)    13\n             a0.fits       3.503 (0.020)     100.274 (0.020)    14\n             a0.fits      24.878 (0.268)     115.229 (0.389)    15\n\n#Shifts        Image    X-shift   Err      Y-shift   Err      N      Internal\n             a0.fits     -0.076 (0.044)      0.177 (0.052)   11   (0.054,0.116)\n             a1.fits     -2.430 (0.078)      1.790 (0.072)    8   (0.037,0.169)\n             a2.fits      4.621 (0.050)     -3.031 (0.059)   10   (0.062,0.112)\n             a3.fits     -0.543 (0.052)     -0.809 (0.052)   10   (0.101,0.077)\n\n#Trim_Section = [6:137,3:116]\n",
+   "stderr": ""
+  },
+  "given": {
+   "params": {
+    "background": 150.0,
+    "lower": 100.0,
+    "upper": 5000.0,
+    "shifts": true
+   },
+   "printed": "#Coords        Image     X-center   Err      Y-center   Err     Num\n             a0.fits      76.374 (0.016)      17.998 (0.016)     1\n             a0.fits      29.043 (0.016)      86.396 (0.016)     2\n             a0.fits      51.671 (0.015)      81.776 (0.015)     3\n             a0.fits     113.383 (0.016)      87.622 (0.016)     4\n             a0.fits      85.085 (0.016)      84.170 (0.016)     5\n             a0.fits     122.881 (0.017)      44.235 (0.016)     6\n             a0.fits     116.925 (0.018)      23.208 (0.018)     7\n             a0.fits      87.444 (0.020)      54.994 (0.020)     8\n             a0.fits     115.437 (0.020)      61.458 (0.020)     9\n             a0.fits      88.073 (0.020)     107.042 (0.020)    10\n             a0.fits     118.329 (0.023)      11.578 (0.023)    11\n             a0.fits      49.904 (0.024)      52.680 (0.024)    12\n             a0.fits      71.055 (0.018)      60.404 (0.016)    13\n             a0.fits       3.546 (0.020)     100.272 (0.020)    14\n             a0.fits      25.001 (0.421)     114.606 (0.430)    15\n\n             a1.fits      78.905 (0.017)      16.276 (0.017)     1\n             a1.fits      31.345 (0.016)      84.798 (0.016)     2\n             a1.fits      54.009 (0.015)      80.106 (0.015)     3\n             a1.fits     115.839 (0.016)      85.902 (0.016)     4\n             a1.fits      87.393 (0.016)      82.619 (0.016)     5\n             a1.fits     125.170 (0.017)      42.690 (0.017)     6\n             a1.fits     119.252 (0.018)      21.639 (0.018)     7\n             a1.fits      89.880 (0.020)      53.310 (0.020)     8\n             a1.fits     117.881 (0.020)      59.890 (0.020)     9\n             a1.fits      90.390 (0.020)     105.361 (0.020)    10\n             a1.fits     120.774 (0.023)       9.901 (0.023)    11\n             a1.fits      52.229 (0.024)      51.005 (0.024)    12\n             a1.fits      73.338 (0.018)      58.827 (0.016)    13\n             a1.fits       5.887 (0.020)      98.697 (0.020)    14\n             a1.fits      27.042 (0.156)     112.979 (0.163)    15\n\n             a2.fits      71.824 (0.017)      21.079 (0.017)     1\n             a2.fits      24.284 (0.017)      89.673 (0.017)     2\n             a2.fits      46.936 (0.015)      84.943 (0.015)     3\n             a2.fits     108.773 (0.016)      90.765 (0.016)     4\n             a2.fits      80.335 (0.016)      87.321 (0.016)     5\n             a2.fits     118.107 (0.017)      47.541 (0.017)     6\n             a2.fits     112.175 (0.018)      26.355 (0.018)     7\n             a2.fits      82.813 (0.020)      58.145 (0.020)     8\n             a2.fits     110.814 (0.020)      64.739 (0.020)     9\n             a2.fits      83.312 (0.020)     110.197 (0.020)    10\n             a2.fits     113.717 (0.023)      14.752 (0.023)    11\n             a2.fits      45.152 (0.024)      55.856 (0.024)    12\n             a2.fits      66.277 (0.018)      63.679 (0.016)    13\n             a2.fits      19.990 (0.115)     117.504 (0.107)    15\n\n             a3.fits      76.954 (0.016)      18.906 (0.016)     1\n             a3.fits      29.360 (0.019)      87.272 (0.019)     2\n             a3.fits      52.051 (0.015)      82.727 (0.015)     3\n             a3.fits     113.884 (0.016)      88.586 (0.016)     4\n             a3.fits      85.431 (0.016)      85.107 (0.016)     5\n             a3.fits     123.213 (0.017)      45.182 (0.017)     6\n             a3.fits     117.284 (0.018)      24.139 (0.018)     7\n             a3.fits      87.930 (0.020)      55.930 (0.020)     8\n             a3.fits     115.932 (0.020)      62.363 (0.020)     9\n             a3.fits      88.404 (0.020)     107.982 (0.020)    10\n             a3.fits     118.823 (0.023)      12.561 (0.023)    11\n             a3.fits      50.248 (0.024)      53.664 (0.024)    12\n             a3.fits      71.353 (0.018)      61.313 (0.016)    13\n             a3.fits       3.933 (0.021)     101.190 (0.021)    14\n             a3.fits      24.978 (0.095)     116.044 (0.094)    15\n\n#Refcoords Reference     X-center   Err      Y-center   Err     Num\n             a0.fits      76.374 (0.016)      17.998 (0.016)     1\n             a0.fits      29.043 (0.016)      86.396 (0.016)     2\n             a0.fits      51.671 (0.015)      81.776 (0.015)     3\n             a0.fits     113.383 (0.016)      87.622 (0.016)     4\n             a0.fits      85.085 (0.016)      84.170 (0.016)     5\n             a0.fits     122.881 (0.017)      44.235 (0.016)     6\n             a0.fits     116.925 (0.018)      23.208 (0.018)     7\n             a0.fits      87.444 (0.020)      54.994 (0.020)     8\n             a0.fits     115.437 (0.020)      61.458 (0.020)     9\n             a0.fits      88.073 (0.020)     107.042 (0.020)    10\n             a0.fits     118.329 (0.023)      11.578 (0.023)    11\n             a0.fits      49.904 (0.024)      52.680 (0.024)    12\n             a0.fits      71.055 (0.018)      60.404 (0.016)    13\n             a0.fits       3.546 (0.020)     100.272 (0.020)    14\n             a0.fits      25.001 (0.421)     114.606 (0.430)    15\n\n#Shifts        Image    X-shift   Err      Y-shift   Err      N      Internal\n             a0.fits      0.000 (0.040)      0.000 (0.041)   15   (0.000,0.000)\n             a1.fits     -2.345 (0.031)      1.629 (0.031)   15   (0.029,0.016)\n             a2.fits      4.721 (0.032)     -3.170 (0.032)   14   (0.030,0.027)\n             a3.fits     -0.375 (0.030)     -0.969 (0.030)   15   (0.036,0.034)\n\n#Trim_Section = [6:137,3:116]\n",
+   "stderr": ""
+  },
+  "even": {
+   "params": {
+    "boxsize": 6,
+    "bigbox": 12
+   },
+   "printed": "#Coords        Image     X-center   Err      Y-center   Err     Num\n             a0.fits      76.409 (0.014)      18.039 (0.014)     1\n             a0.fits      29.038 (0.014)      86.459 (0.014)     2\n             a0.fits      51.623 (0.016)      81.737 (0.016)     3\n             a0.fits     113.515 (0.016)      87.537 (0.016)     4\n             a0.fits      85.118 (0.016)      84.206 (0.016)     5\n             a0.fits     122.895 (0.017)      44.266 (0.017)     6\n             a0.fits     116.904 (0.018)      23.265 (0.018)     7\n             a0.fits      87.494 (0.020)      54.993 (0.021)     8\n             a0.fits     115.490 (0.020)      61.513 (0.020)     9\n             a0.fits      88.099 (0.021)     107.058 (0.021)    10\n             a0.fits     118.376 (0.023)      11.524 (0.023)    11\n             a0.fits      49.884 (0.024)      52.621 (0.024)    12\n             a0.fits      70.983 (0.021)      60.429 (0.017)    13\n             a0.fits       3.500 (0.021)     100.323 (0.021)    14\n             a0.fits      26.934 (0.476)     112.761 (0.461)    15\n\n             a1.fits      78.743 (0.014)      16.409 (0.014)     1\n             a1.fits      31.420 (0.014)      84.803 (0.014)     2\n             a1.fits      54.010 (0.016)      80.147 (0.016)     3\n             a1.fits     115.865 (0.016)      85.881 (0.017)     4\n             a1.fits      87.476 (0.016)      82.532 (0.016)     5\n             a1.fits     125.291 (0.017)      42.585 (0.017)     6\n             a1.fits     119.303 (0.018)      21.582 (0.018)     7\n             a1.fits      89.857 (0.021)      53.377 (0.020)     8\n             a1.fits     117.838 (0.021)      59.851 (0.021)     9\n             a1.fits      90.451 (0.021)     105.421 (0.021)    10\n             a1.fits     120.708 (0.023)       9.872 (0.024)    11\n             a1.fits      52.296 (0.024)      51.010 (0.025)    12\n             a1.fits      73.351 (0.021)      58.748 (0.017)    13\n             a1.fits       5.863 (0.021)      98.634 (0.021)    14\n             a1.fits      26.857 (0.457)     112.591 (0.645)    15\n\n             a2.fits      71.656 (0.014)      21.237 (0.014)     1\n             a2.fits      24.345 (0.014)      89.619 (0.014)     2\n             a2.fits      46.910 (0.016)      84.917 (0.016)     3\n             a2.fits     108.793 (0.016)      90.695 (0.016)     4\n             a2.fits      80.403 (0.016)      87.372 (0.016)     5\n             a2.fits     118.204 (0.017)      47.430 (0.017)     6\n             a2.fits     112.214 (0.018)      26.423 (0.018)     7\n             a2.fits      82.758 (0.020)      58.189 (0.020)     8\n             a2.fits     110.764 (0.020)      64.674 (0.020)     9\n             a2.fits      83.381 (0.021)     110.245 (0.021)    10\n             a2.fits     113.635 (0.023)      14.685 (0.023)    11\n             a2.fits      45.209 (0.024)      55.808 (0.025)    12\n             a2.fits      66.267 (0.021)      63.591 (0.017)    13\n             a2.fits      21.250 (0.619)     117.356 (0.571)    15\n\n             a3.fits      76.776 (0.014)      18.962 (0.014)     1\n             a3.fits      29.463 (0.014)      87.393 (0.014)     2\n             a3.fits      52.060 (0.016)      82.654 (0.016)     3\n             a3.fits     113.938 (0.016)      88.476 (0.016)     4\n             a3.fits      85.521 (0.016)      85.108 (0.016)     5\n             a3.fits     123.351 (0.017)      45.179 (0.017)     6\n             a3.fits     117.362 (0.018)      24.173 (0.018)     7\n             a3.fits      87.894 (0.020)      55.898 (0.020)     8\n             a3.fits     115.914 (0.021)      62.454 (0.020)     9\n             a3.fits      88.495 (0.021)     107.977 (0.021)    10\n             a3.fits     118.777 (0.023)      12.460 (0.023)    11\n             a3.fits      50.326 (0.024)      53.569 (0.024)    12\n             a3.fits      71.428 (0.021)      61.361 (0.017)    13\n             a3.fits       3.911 (0.021)     101.263 (0.021)    14\n\n#Refcoords Reference     X-center   Err      Y-center   Err     Num\n             a0.fits      76.409 (0.014)      18.039 (0.014)     1\n             a0.fits      29.038 (0.014)      86.459 (0.014)     2\n             a0.fits      51.623 (0.016)      81.737 (0.016)     3\n             a0.fits     113.515 (0.016)      87.537 (0.016)     4\n             a0.fits      85.118 (0.016)      84.206 (0.016)     5\n             a0.fits     122.895 (0.017)      44.266 (0.017)     6\n             a0.fits     116.904 (0.018)      23.265 (0.018)     7\n             a0.fits      87.494 (0.020)      54.993 (0.021)     8\n             a0.fits     115.490 (0.020)      61.513 (0.020)     9\n             a0.fits      88.099 (0.021)     107.058 (0.021)    10\n             a0.fits     118.376 (0.023)      11.524 (0.023)    11\n             a0.fits      49.884 (0.024)      52.621 (0.024)    12\n             a0.fits      70.983 (0.021)      60.429 (0.017)    13\n             a0.fits       3.500 (0.021)     100.323 (0.021)    14\n             a0.fits      25.040 (0.461)     114.627 (0.474)    15\n\n#Shifts        Image    X-shift   Err      Y-shift   Err      N      Internal\n             a0.fits     -0.126 (0.045)      0.124 (0.045)   15   (0.126,0.124)\n             a1.fits     -2.331 (0.044)      1.677 (0.054)   15   (0.037,0.027)\n             a2.fits      4.649 (0.056)     -3.141 (0.053)   14   (0.066,0.032)\n             a3.fits     -0.421 (0.007)     -0.926 (0.007)   14   (0.007,0.004)\n\n#Trim_Section = [6:137,3:116]\n",
+   "stderr": "Warning: boxsize must be odd, using 7\nWarning: bigbox must be odd, using 13\nWarning: failed to converge near (26,115)\n"
+  },
+  "m92": {
+   "params": {},
+   "printed": "#Coords        Image     X-center   Err      Y-center   Err     Num\n         m92010.fits     183.787 (0.010)     190.188 (0.011)     1\n         m92010.fits     192.103 (0.010)      83.960 (0.013)     2\n         m92010.fits      14.753 (0.016)     510.844 (0.007)     3\n         m92010.fits      63.661 (0.013)      20.175 (0.015)     4\n         m92010.fits      20.865 (0.013)     259.295 (0.016)     5\n         m92010.fits     234.323 (0.016)     135.207 (0.019)     6\n         m92010.fits     298.822 (0.016)     229.213 (0.019)     7\n         m92010.fits     186.932 (0.020)       6.128 (0.024)     8\n         m92010.fits     208.881 (0.024)     324.874 (0.028)     9\n         m92010.fits      44.463 (0.027)     323.608 (0.030)    10\n         m92010.fits     149.688 (0.031)     287.100 (0.035)    11\n         m92010.fits     104.447 (0.030)     426.771 (0.033)    12\n         m92010.fits     165.350 (0.036)     236.978 (0.042)    13\n         m92010.fits     311.866 (0.040)     172.848 (0.046)    14\n         m92010.fits      81.884 (0.041)      70.367 (0.046)    15\n\n         m92011.fits     184.353 (0.010)     191.907 (0.014)     1\n         m92011.fits     192.657 (0.012)      85.698 (0.016)     2\n         m92011.fits      64.143 (0.013)      21.798 (0.019)     4\n         m92011.fits      21.376 (0.014)     260.960 (0.020)     5\n         m92011.fits     234.874 (0.016)     136.950 (0.024)     6\n         m92011.fits     299.364 (0.017)     230.968 (0.023)     7\n         m92011.fits     187.421 (0.022)       7.765 (0.029)     8\n         m92011.fits     209.498 (0.027)     326.602 (0.033)     9\n         m92011.fits      45.032 (0.027)     325.260 (0.038)    10\n         m92011.fits     150.287 (0.033)     288.762 (0.043)    11\n         m92011.fits     105.035 (0.030)     428.475 (0.043)    12\n         m92011.fits     165.932 (0.038)     238.828 (0.052)    13\n         m92011.fits     312.322 (0.043)     174.616 (0.055)    14\n         m92011.fits      82.345 (0.044)      72.018 (0.057)    15\n\n         m92014.fits     179.287 (0.015)     192.438 (0.016)     1\n         m92014.fits     187.568 (0.015)      86.156 (0.017)     2\n         m92014.fits      58.926 (0.019)      22.277 (0.021)     4\n         m92014.fits      16.177 (0.019)     261.663 (0.021)     5\n         m92014.fits     229.790 (0.023)     137.438 (0.024)     6\n         m92014.fits     294.346 (0.029)     231.498 (0.029)     7\n         m92014.fits     182.330 (0.029)       8.263 (0.031)     8\n         m92014.fits     204.348 (0.033)     327.162 (0.036)     9\n         m92014.fits      39.693 (0.034)     325.972 (0.038)    10\n         m92014.fits     145.109 (0.031)     289.335 (0.032)    11\n         m92014.fits      99.742 (0.029)     429.172 (0.031)    12\n         m92014.fits     160.803 (0.050)     239.254 (0.053)    13\n         m92014.fits     307.275 (0.054)     175.109 (0.059)    14\n         m92014.fits      77.175 (0.061)      72.534 (0.063)    15\n\n         m92015.fits     179.281 (0.014)     192.429 (0.015)     1\n         m92015.fits     187.568 (0.014)      86.147 (0.016)     2\n         m92015.fits      58.958 (0.017)      22.265 (0.020)     4\n         m92015.fits      16.211 (0.017)     261.607 (0.020)     5\n         m92015.fits     229.775 (0.021)     137.460 (0.023)     6\n         m92015.fits     294.317 (0.026)     231.541 (0.028)     7\n         m92015.fits     182.308 (0.027)       8.237 (0.030)     8\n         m92015.fits     204.358 (0.030)     327.159 (0.034)     9\n         m92015.fits      39.786 (0.031)     325.939 (0.036)    10\n         m92015.fits     145.149 (0.028)     289.312 (0.031)    11\n         m92015.fits      99.782 (0.027)     429.102 (0.030)    12\n         m92015.fits     160.845 (0.043)     239.260 (0.051)    13\n         m92015.fits     307.322 (0.049)     175.153 (0.056)    14\n         m92015.fits      77.170 (0.053)      72.508 (0.061)    15\n\n#Refcoords Reference     X-center   Err      Y-center   Err     Num\n         m92010.fits     183.787 (0.010)     190.188 (0.011)     1\n         m92010.fits     192.103 (0.010)      83.960 (0.013)     2\n         m92010.fits      14.753 (0.016)     510.844 (0.007)     3\n         m92010.fits      63.661 (0.013)      20.175 (0.015)     4\n         m92010.fits      20.865 (0.013)     259.295 (0.016)     5\n         m92010.fits     234.323 (0.016)     135.207 (0.019)     6\n         m92010.fits     298.822 (0.016)     229.213 (0.019)     7\n         m92010.fits     186.932 (0.020)       6.128 (0.024)     8\n         m92010.fits     208.881 (0.024)     324.874 (0.028)     9\n         m92010.fits      44.463 (0.027)     323.608 (0.030)    10\n         m92010.fits     149.688 (0.031)     287.100 (0.035)    11\n         m92010.fits     104.447 (0.030)     426.771 (0.033)    12\n         m92010.fits     165.350 (0.036)     236.978 (0.042)    13\n         m92010.fits     311.866 (0.040)     172.848 (0.046)    14\n         m92010.fits      81.884 (0.041)      70.367 (0.046)    15\n\n#Shifts        Image    X-shift   Err      Y-shift   Err      N      Internal\n         m92010.fits      0.000 (0.009)      0.000 (0.010)   15   (0.000,0.000)\n         m92011.fits     -0.540 (0.010)     -1.707 (0.012)   14   (0.014,0.017)\n         m92014.fits      4.608 (0.011)     -2.254 (0.013)   14   (0.026,0.023)\n         m92015.fits      4.589 (0.011)     -2.243 (0.012)   14   (0.021,0.022)\n\n#Trim_Section = [6:351,1:509]\n",
+   "stderr": ""
+  }
+ },
+ "imalign": {
+  "linear": {
+   "sha256": [
+    "c1fe187094073e325b1b2b70311733374b6534e0cbe87ca282abf6b8e44711e7",
+    "2140d87b31f81dca8ad6d2c6eb81c8d4c5d7e316684cf48c46176035429d96dc",
+    "81fd8257fa0890a2733df4ad65c0ffa949d1a2af49809bb8da42eeda37b394e2",
+    "67e232a38ecee2a120f5c7902caf5503d8e92a4d236843fe26891a9dd110ecc2"
+   ],
+   "shape": [
+    114,
+    132
+   ],
+   "trim": "[6:137,3:116]"
+  },
+  "poly5": {
+   "sha256": [
+    "ad6532b77dbfd073060e2ac1c7f880d4a07547d303bc73e7d21903a419f422f0",
+    "b8309594cd0681b178710ab694bb7fb9d5d22f262f814b351807586aefe558a5",
+    "9b4f1b18598f117c780223f7d204e732d40b28a56c515de6ff470b21da0ead40",
+    "fe801098307358b7309590ecb77238ac815b2d1e33c3b1144c5f86067b33d19b"
+   ],
+   "shape": [
+    110,
+    128
+   ],
+   "trim": "[8:135,5:114]"
+  },
+  "spline3": {
+   "sha256": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "shape": [
+    110,
+    128
+   ],
+   "trim": "[8:135,5:114]"
+  }
+ },
+ "coords": [
+  [
+   75.5,
+   18.7
+  ],
+  [
+   29.0,
+   86.2
+  ],
+  [
+   51.7,
+   81.2
+  ],
+  [
+   113.0,
+   88.1
+  ],
+  [
+   84.9,
+   84.8
+  ],
+  [
+   123.9,
+   44.7
+  ],
+  [
+   116.3,
+   23.9
+  ],
+  [
+   87.4,
+   55.5
+  ],
+  [
+   114.8,
+   61.0
+  ],
+  [
+   88.4,
+   107.3
+  ],
+  [
+   117.5,
+   12.1
+  ],
+  [
+   50.8,
+   52.5
+  ],
+  [
+   70.0,
+   60.0
+  ],
+  [
+   3.0,
+   100.0
+  ],
+  [
+   25.0,
+   115.0
+  ]
+ ],
+ "m92_coords": [
+  [
+   183.78,
+   190.16
+  ],
+  [
+   192.1,
+   83.94
+  ],
+  [
+   14.78,
+   510.74
+  ],
+  [
+   63.64,
+   20.15
+  ],
+  [
+   20.88,
+   259.26
+  ],
+  [
+   234.34,
+   135.19
+  ],
+  [
+   298.82,
+   229.17
+  ],
+  [
+   186.93,
+   6.1
+  ],
+  [
+   208.9,
+   324.85
+  ],
+  [
+   44.45,
+   323.62
+  ],
+  [
+   149.71,
+   287.07
+  ],
+  [
+   104.37,
+   426.72
+  ],
+  [
+   165.38,
+   236.96
+  ],
+  [
+   311.89,
+   172.85
+  ],
+  [
+   81.91,
+   70.37
+  ]
+ ],
+ "initial_shifts": [
+  [
+   0.0,
+   0.0
+  ],
+  [
+   -2.0,
+   2.0
+  ],
+  [
+   5.0,
+   -3.0
+  ],
+  [
+   0.0,
+   -1.0
+  ]
+ ]
+}

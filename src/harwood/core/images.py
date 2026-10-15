@@ -27,7 +27,7 @@ from . import pixels
 
 _SPEC = re.compile(
     r"^(?P<path>[^\[\]]+?)"
-    r"(?:\[(?P<ext>[^\[\]:]*?(?:,\s*\d+)?)\])?"
+    r"(?:\[(?P<ext>[^\[\]:*]*?(?:,\s*\d+)?)\])?"
     r"(?:\[(?P<section>[^\[\]]*[:*][^\[\]]*)\])?$"
 )
 
@@ -290,7 +290,9 @@ def read(spec: ImageSpec | str) -> tuple[Any, Any]:
     finally:
         hdul.close()
     if spec.section:
-        data = data[pixels.parse_section(spec.section, data.shape)]
+        slices = pixels.parse_section(spec.section, data.shape)
+        pixels.section_header(header, pixels.section_geometry(slices, data.shape))
+        data = data[slices]
         header["HRWDSECT"] = (spec.section, "section read by harwood, 1-based (x,y)")
     return data, header
 

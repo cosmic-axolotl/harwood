@@ -245,9 +245,9 @@ def test_imcentroid_and_xyxymatch_agree_on_the_same_frames(reduced):
     centroid = get_task("imcentroid").run(
         input=[str(reduced / "m92011p.fits")], reference=str(reduced / "m92010p.fits"),
         coords=reduced / "ref.coo", boxsize=7)
-    row = centroid.data["rows"][0]
+    row = centroid.data["shifts"][0]
     assert row["nstars"] >= 20
-    assert row["xrms"] < 0.3 and row["yrms"] < 0.3
+    assert row["xinternal"] < 0.1 and row["yinternal"] < 0.1
 
     second = measure(reduced, "m92011")
     found = match.by_triangles(np.asarray(first["x"]), np.asarray(first["y"]),
@@ -260,8 +260,10 @@ def test_imcentroid_and_xyxymatch_agree_on_the_same_frames(reduced):
                                 np.asarray(second["x"])[found.input],
                                 np.asarray(second["y"])[found.input],
                                 niterate=3, reject=2.5)
-    assert row["xshift"] == pytest.approx(model["xshift"], abs=0.3)
-    assert row["yshift"] == pytest.approx(model["yshift"], abs=0.3)
+    # imcentroid reports reference minus image, the shift that moves the
+    # image onto the reference; the transform maps reference onto image.
+    assert row["xshift"] == pytest.approx(-model["xshift"], abs=0.3)
+    assert row["yshift"] == pytest.approx(-model["yshift"], abs=0.3)
 
 
 def test_imalign_closes_the_loop(reduced):
@@ -274,8 +276,8 @@ def test_imalign_closes_the_loop(reduced):
 
     result = get_task("imalign").run(
         input=[str(reduced / "m92010p.fits"), str(reduced / "m92011p.fits")],
-        reference=str(reduced / "m92010p.fits"), output=reduced / "aligned",
-        coords=reduced / "ref.coo", interp="linear")
+        reference=str(reduced / "m92010p.fits"), output=str(reduced / "aligned"),
+        coords=reduced / "ref.coo", interp_type="linear")
     assert len(result.outputs) == 2
     assert any("correlates the noise" in w for w in result.warnings), \
         "interpolating a fractional shift must be said out loud, not documented"

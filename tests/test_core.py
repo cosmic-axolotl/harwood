@@ -104,6 +104,45 @@ def test_reading_a_section_gives_the_right_pixels(tmp_path):
     assert "HRWDSECT" in header
 
 
+#: IRAF 2.18.1's imcopy of a 70x60 image whose pixel (x, y) holds
+#: 70 (y - 1) + x - 1, with CRPIX 50 40 and CD [[-1e-4, 2e-5], [3e-5, 1e-4]]:
+#: shape, first pixel, CRPIX1 CRPIX2, CD1_1 CD1_2 CD2_1 CD2_2, LTV1 LTV2,
+#: LTM1_1 LTM2_2 (None where IRAF writes no card).
+IRAF_SECTIONS = {
+    "[6:60,3:50]": ((48, 55), 145.0, (45.0, 38.0), (-1e-4, 2e-5, 3e-5, 1e-4),
+                    (-5.0, -2.0), (None, None)),
+    "[*:2,*]": ((60, 35), 0.0, (25.5, 40.0), (-2e-4, 2e-5, 6e-5, 1e-4),
+                (0.5, None), (0.5, None)),
+    "[-*,*]": ((60, 70), 69.0, (21.0, 40.0), (1e-4, 2e-5, -3e-5, 1e-4),
+               (71.0, None), (-1.0, None)),
+    "[60:6,10:40:3]": ((11, 55), 689.0, (11.0, 11.0), (1e-4, 6e-5, -3e-5, 3e-4),
+                       (61.0, -2.333333333333), (-1.0, 0.333333333333)),
+    "[5:65:4,-*]": ((60, 16), 4134.0, (12.25, 21.0), (-4e-4, -2e-5, 1.2e-4, -1e-4),
+                    (-0.25, 61.0), (0.25, -1.0)),
+}
+
+
+@pytest.mark.parametrize("section", list(IRAF_SECTIONS))
+def test_a_section_moves_the_wcs_as_iraf_s_imcopy_does(tmp_path, section):
+    shape, first, crpix, cd, ltv, ltm = IRAF_SECTIONS[section]
+    header = fits.Header({"CTYPE1": "RA---TAN", "CTYPE2": "DEC--TAN", "CRPIX1": 50.0,
+                          "CRPIX2": 40.0, "CRVAL1": 10.0, "CRVAL2": 20.0, "CD1_1": -1e-4,
+                          "CD1_2": 2e-5, "CD2_1": 3e-5, "CD2_2": 1e-4})
+    path = tmp_path / "w.fits"
+    fits.writeto(path, np.arange(60 * 70, dtype=np.float32).reshape(60, 70), header)
+    data, read = images.read(f"{path}{section}")
+    assert data.shape == shape and data[0, 0] == first
+    assert (read["CRPIX1"], read["CRPIX2"]) == pytest.approx(crpix)
+    assert [read[k] for k in ("CD1_1", "CD1_2", "CD2_1", "CD2_2")] == pytest.approx(cd)
+    for axis in (1, 2):
+        for key, expected in ((f"LTV{axis}", ltv[axis - 1]),
+                              (f"LTM{axis}_{axis}", ltm[axis - 1])):
+            if expected is None:
+                assert key not in read
+            else:
+                assert read[key] == pytest.approx(expected)
+
+
 def test_mismatched_shapes_are_refused_with_both_shapes(tmp_path):
     small, big = tmp_path / "s.fits", tmp_path / "b.fits"
     fits.PrimaryHDU(np.zeros((4, 4))).writeto(small)
