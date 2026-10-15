@@ -64,19 +64,107 @@ def test_x_and_z_read_the_pixels_the_status_bar_would(star_image):
     assert x.values["value"] == pytest.approx(data[90, 120])
 
     z = examine.examine(data, "z", 121.0, 91.0)
-    assert z.values["columns"] == [119, 120, 121, 122, 123]
-    assert z.values["rows"] == [93, 92, 91, 90, 89], "top row first, as on screen"
-    centre_row = z.line.splitlines()[4]
+    assert z.values["columns"] == list(range(117, 127)), "IRAF's 10x10"
+    assert z.values["rows"] == list(range(96, 86, -1)), "top row first, as on screen"
+    centre_row = z.line.splitlines()[2 + z.values["rows"].index(91)]
     assert centre_row.split()[0] == "91"
-    assert float(centre_row.split()[3]) == pytest.approx(data[90, 120], abs=0.05)
+    at = 1 + z.values["columns"].index(121)
+    assert float(centre_row.split()[at]) == pytest.approx(data[90, 120], abs=0.05)
 
 
 def test_m_and_h_describe_the_same_box(star_image):
     _, data = star_image
-    stats = examine.examine(data, "m", 50.0, 50.0, examine.Settings(box=9))
-    hist = examine.examine(data, "h", 50.0, 50.0, examine.Settings(box=9))
+    box = examine.Settings(ncstat=9, nlstat=9, ncolumns=9, nlines=9, nbins=40)
+    stats = examine.examine(data, "m", 50.0, 50.0, box)
+    hist = examine.examine(data, "h", 50.0, 50.0, box)
     assert stats.values["npix"] == hist.values["npix"] == 81
     assert hist.values["mode"] == pytest.approx(stats.values["median"], abs=10)
+
+
+def test_the_defaults_are_iraf_s():
+    """rimexam.par, imexamine.par, himexam.par and jimexam.par from IRAF
+    2.18, value for value. A FWHM read off harwood should mean what one read
+    off IRAF meant, and that starts with the same aperture."""
+    s = examine.Settings()
+    assert (s.radius, s.buffer, s.width, s.rplot) == (5.0, 5.0, 5.0, 8.0)
+    assert (s.fittype, s.beta, s.iterations, s.magzero) == ("moffat", None, 3, 25.0)
+    assert (s.ncstat, s.nlstat) == (5, 5)
+    assert (s.ncolumns, s.nlines, s.nbins) == (21, 21, 512)
+    assert (s.naverage, s.sigma) == (5, 1.0)
+
+
+def test_radius_is_the_aperture_not_the_plot(star_image):
+    """In IRAF `radius` is the aperture the flux is summed in; `rplot` only
+    says how far the profile is drawn. The flux of a gaussian inside r is
+    the total times 1 - exp(-r^2 / 2 sigma^2)."""
+    _, data = star_image
+    sigma = FWHM / 2.3548
+    total = 4530.0 * 2 * np.pi * sigma ** 2
+    fixed = examine.Settings(iterations=1)
+    for radius in (3.0, 5.0):
+        fixed.radius = radius
+        result = examine.examine(data, "a", 121.0, 91.0, fixed)
+        expected = total * (1 - np.exp(-radius ** 2 / (2 * sigma ** 2)))
+        assert result.values["flux"] == pytest.approx(expected, rel=0.03)
+
+    drawn = examine.examine(data, "r", 121.0, 91.0,
+                            examine.Settings(rplot=12, iterations=1))
+    assert drawn.plot["x"].max() > 11, "the profile is drawn to rplot"
+    assert drawn.values["radius"] == 5.0, "and the aperture did not move"
+
+
+def test_the_aperture_becomes_three_times_the_direct_fwhm(star_image):
+    """IRAF's manual says only a iterates; its code answers r and a with one
+    routine, so both do. The code is what people's numbers came from."""
+    _, data = star_image
+    a = examine.examine(data, "a", 121.0, 91.0)
+    r = examine.examine(data, "r", 121.0, 91.0)
+    assert a.values["radius"] == pytest.approx(3 * a.values["direct"], rel=0.03)
+    assert r.values == pytest.approx(a.values, nan_ok=True, rel=0, abs=0)
+    # IRAF's direct FWHM runs a few percent narrow -- 3.28 here, and 3.33 on
+    # a star integrated over the pixel -- because its correction for the
+    # pixel assumes the light was integrated. harwood reproduces that (the
+    # test against IRAF below), so it is checked loosely here.
+    assert a.values["direct"] == pytest.approx(FWHM, abs=0.15)
+    once = examine.examine(data, "a", 121.0, 91.0, examine.Settings(iterations=1))
+    assert once.values["radius"] == 5.0
+
+
+def test_an_elongated_star_has_an_ellipticity_and_an_angle():
+    """e and pa from the second moments; pa in degrees from the x axis."""
+    yy, xx = np.mgrid[0:80, 0:80]
+    u, v = (xx - 40) * np.cos(np.pi / 4) + (yy - 40) * np.sin(np.pi / 4), \
+        -(xx - 40) * np.sin(np.pi / 4) + (yy - 40) * np.cos(np.pi / 4)
+    data = 3000 * np.exp(-(u ** 2 / (2 * 3.0 ** 2) + v ** 2 / (2 * 1.5 ** 2))) + 100
+    data += np.random.default_rng(2).normal(0, 2, data.shape)
+    result = examine.examine(data, "r", 41.0, 41.0, examine.Settings(radius=8))
+    assert result.values["e"] > 0.4
+    assert result.values["pa"] == pytest.approx(45, abs=3)
+
+    round_star = examine.examine(data * 0 + _round(), "r", 41.0, 41.0)
+    assert round_star.values["e"] < 0.05
+
+
+def _round():
+    yy, xx = np.mgrid[0:80, 0:80]
+    return 3000 * np.exp(-((xx - 40) ** 2 + (yy - 40) ** 2) / (2 * 1.5 ** 2)) + 100
+
+
+def test_a_fixed_beta_is_kept_and_a_free_one_is_fitted(star_image):
+    _, data = star_image
+    fixed = examine.examine(data, "r", 121.0, 91.0, examine.Settings(beta=2.5))
+    free = examine.examine(data, "r", 121.0, 91.0)
+    assert fixed.values["beta"] == 2.5
+    assert free.values["beta"] > 2.5, "a gaussian star is a Moffat of large beta"
+    assert "MFWHM" in free.line
+
+
+def test_integer_data_get_no_more_bins_than_values():
+    """himexam's autoscale: 512 bins over values spanning 30 is a comb."""
+    data = np.random.default_rng(3).integers(100, 130, (50, 50)).astype(float)
+    result = examine.examine(data, "h", 25.0, 25.0)
+    assert result.values["nbins"] <= 30
+    assert result.values["npix"] == 21 * 21
 
 
 def test_empty_sky_is_not_given_a_fwhm(star_image):
@@ -105,8 +193,12 @@ def test_an_unknown_key_is_named_and_not_guessed(star_image):
 
 def test_a_cursor_file_reads_like_iraf_s(tmp_path):
     path = tmp_path / "cur"
-    path.write_text("# a comment\n\n10 20 r\n11.5 21.5 2 a   # trailing\n")
-    assert examine.read_cursor(path) == [(10.0, 20.0, 1, "r"), (11.5, 21.5, 2, "a")]
+    path.write_text("# a comment\n\n10 20 r\n11.5 21.5 2 a   # trailing\n"
+                    "30 40\n50 60 2\n")
+    assert examine.read_cursor(path, defkey="r") == [
+        (10.0, 20.0, 1, "r"), (11.5, 21.5, 2, "a"),
+        (30.0, 40.0, 1, "r"), (50.0, 60.0, 2, "r"),       # defkey fills the gap
+    ]
 
 
 def test_a_colon_command_in_a_cursor_file_is_refused_with_the_alternative(tmp_path):
@@ -214,7 +306,7 @@ def test_the_window_and_the_cursor_file_agree(star_image):
     window.load(data, name="star")
     pressed = window.examine_at("r", 121.0, 91.0)
     read = examine.examine(data, "r", 121.0, 91.0)
-    assert pressed.values == read.values
+    assert pressed.values == pytest.approx(read.values, nan_ok=True, rel=0, abs=0)
     assert window.measurements[-1] == ("star", pressed)
     assert any(m.tag == "examine" for m in window.frames[1].markers)
 
@@ -280,9 +372,60 @@ def test_imexamine_in_the_window_returns_what_was_measured(star_image, monkeypat
 
     monkeypatch.setattr(window, "wait_for_examine", wait_then_press)
     try:
-        result = get_task("imexamine").run(input=[str(path)], radius=10)
+        result = get_task("imexamine").run(input=[str(path)], iterations=1)
     finally:
         display.reset()
     keys = [row["key"] for row in result.data["rows"]]
     assert keys == ["r", "a"]
     assert result.data["measurements"][0]["fwhm"] == pytest.approx(FWHM, abs=0.1)
+
+
+# ----------------------------------------------------------- against IRAF
+
+
+def _iraf_log(fittype):
+    from pathlib import Path
+
+    path = Path(__file__).parent / "data" / f"imexam_iraf_{fittype}.log"
+    names = ["x", "y", "wx", "wy", "radius", "mag", "flux", "sky", "peak", "e", "pa"]
+    names += (["beta"] if fittype == "moffat" else []) + ["enclosed", "fwhm", "direct"]
+    rows = []
+    for line in path.read_text().splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        rows.append(dict(zip(names, (float(v) if v != "INDEF" else float("nan")
+                                     for v in line.split()), strict=True)))
+    return rows
+
+
+@pytest.mark.parametrize("fittype", ["moffat", "gaussian"])
+def test_the_a_key_prints_what_iraf_prints(fittype):
+    """IRAF 2.18's own imexamine, run on the same pixels (tests/iraf_field.py
+    builds them; tests/data holds what IRAF printed).
+
+    Everything the aperture and the magnitude depend on agrees to the
+    precision IRAF prints. The fit to the enclosed flux is the loose one: a
+    Moffat with a free beta is poorly constrained there, and IRAF's nlfit
+    stops at a 0.1% change in chi-squared where scipy goes on to the minimum
+    -- on the narrowest star the two settle 0.11 px apart. It is reported,
+    and decides nothing.
+    """
+    from iraf_field import CURSOR, field
+
+    data = field().astype(float)
+    settings = examine.Settings(fittype=fittype)
+    for (x, y), iraf in zip(CURSOR, _iraf_log(fittype), strict=True):
+        ours = examine.examine(data, "a", x, y, settings).values
+        assert ours["x"] == pytest.approx(iraf["x"], abs=0.006)
+        assert ours["y"] == pytest.approx(iraf["y"], abs=0.006)
+        assert ours["radius"] == pytest.approx(iraf["radius"], abs=0.015)
+        assert ours["mag"] == pytest.approx(iraf["mag"], abs=0.006)
+        assert ours["flux"] == pytest.approx(iraf["flux"], rel=5e-4)
+        assert ours["peak"] == pytest.approx(iraf["peak"], rel=2e-3)
+        assert ours["e"] == pytest.approx(iraf["e"], abs=0.006)
+        assert ours["fwhm"] == pytest.approx(iraf["fwhm"], abs=0.015)
+        assert ours["direct"] == pytest.approx(iraf["direct"], abs=0.006)
+        assert ours["enclosed"] == pytest.approx(iraf["enclosed"], abs=0.12)
+        if fittype == "moffat" and iraf["e"] < 0.1:
+            # An elongated star is no Moffat at all, and its beta is anything.
+            assert ours["beta"] == pytest.approx(iraf["beta"], abs=0.006)

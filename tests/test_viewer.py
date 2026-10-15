@@ -45,9 +45,9 @@ def test_the_r_key_recovers_the_injected_star(star_field):
 def test_the_sky_annulus_starts_beyond_the_buffer(star_field):
     """The buffer exists so the star's wings stay out of its own sky."""
     tight = analysis.radial_profile(star_field, TRUE_X, TRUE_Y, radius=4, buffer=0,
-                                    width=3)
+                                    width=3, iterations=1)
     fair = analysis.radial_profile(star_field, TRUE_X, TRUE_Y, radius=4, buffer=8,
-                                   width=5)
+                                   width=5, iterations=1)
     assert tight.sky > fair.sky, "a sky measured on the wings reads too high"
 
 

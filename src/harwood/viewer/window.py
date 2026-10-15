@@ -183,8 +183,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         self.frames: dict[int, Frame] = {}
         self.current = 1
+        # IRAF's rimexam defaults; the panel shows these five.
         self.examine_params = {
-            "radius": 12.0, "buffer": 5.0, "width": 5.0, "fittype": "gaussian",
+            "radius": 5.0, "buffer": 5.0, "width": 5.0, "rplot": 8.0,
+            "fittype": "moffat",
         }
         #: The rest of rimexam, set by the imexamine task; not in the panel.
         self.examine_settings = examine.Settings()
@@ -400,10 +402,14 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         self.param_widgets: dict[str, QtWidgets.QWidget] = {}
         fields = [
-            ("radius", "12", "Radius in pixels used for the profile and the fit."),
-            ("buffer", "5", "Gap between the profile radius and the sky annulus, so "
+            ("radius", "5", "Aperture radius: summed for the flux, used for "
+                            "centring, and fitted for the FWHM. r and a widen "
+                            "it to three times the direct FWHM, as IRAF does."),
+            ("buffer", "5", "Gap between the aperture and the sky annulus, so "
                             "the star's own wings stay out of its sky."),
             ("width", "5", "Width of the annulus used to estimate the sky."),
+            ("rplot", "8", "How far out the radial profile is drawn. Drawing "
+                           "only; the measurement uses the radius."),
         ]
         for name, default, explanation in fields:
             row = QtWidgets.QHBoxLayout()
@@ -429,6 +435,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._param_labels.append(label)
         box = QtWidgets.QComboBox()
         box.addItems(["gaussian", "moffat"])
+        box.setCurrentText("moffat")
         box.currentTextChanged.connect(lambda *_: self._params_changed())
         row.addWidget(label)
         row.addWidget(box)
@@ -673,7 +680,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         has room for, and the rest are kept here."""
         self.examine_settings = settings
         self.examine_logfile = logfile_name
-        for name in ("radius", "buffer", "width"):
+        for name in ("radius", "buffer", "width", "rplot"):
             self.param_widgets[name].setText(f"{getattr(settings, name):g}")
         self.param_widgets["fittype"].setCurrentText(settings.fittype)
         self._read_params()
@@ -704,7 +711,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             return None
         params = self._read_params()
         settings = self.examine_settings
-        for name in ("radius", "buffer", "width", "fittype"):
+        for name in ("radius", "buffer", "width", "rplot", "fittype"):
             setattr(settings, name, params[name])
 
         result = examine.examine(frame.data, key, x, y, settings)
@@ -718,7 +725,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self._plot(result)
         self._readout(frame, result)
         if result.ok and key in ("r", "a"):
-            self._mark_star(frame, result.x, result.y, params)
+            self._mark_star(frame, result.x, result.y, result.values["radius"], params)
         return result
 
     def _plot(self, result: examine.Result) -> None:
@@ -744,30 +751,31 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         v = result.values
         if not result.ok:
             self.readout.setText(result.line.split("  ", 1)[-1])
-        elif result.key == "r":
+        elif result.key in ("r", "a"):
             scale = _arcsec_per_pixel(frame)
             seeing = f"  ({v['fwhm'] * scale:.2f}\")" if scale else ""
+            fit = self.examine_settings.fittype
+            beta = f"   beta {v['beta']:.2f}" if fit == "moffat" else ""
             self.readout.setText(
-                f"centre   x= {v['x']:.2f}   y= {v['y']:.2f}\n"
-                f"FWHM     {v['fwhm']:.2f} px{seeing}\n"
-                f"peak     {v['peak']:.1f}     sky {v['sky']:.1f}"
-                f"     fit: {self.examine_settings.fittype}")
-        elif result.key == "a":
-            self.readout.setText(
-                f"centre   x= {v['x']:.2f}   y= {v['y']:.2f}\n"
-                f"flux     {v['flux']:.1f}   over {v['area']:.0f} px\n"
-                f"sky      {v['sky']:.2f}      mag {v['mag']:.3f}"
-                f"     FWHM {v['fwhm']:.2f}")
+                f"centre   x= {v['x']:.2f}   y= {v['y']:.2f}   r= {v['radius']:.2f}\n"
+                f"FWHM     {v['fwhm']:.2f} px{seeing}   {fit}{beta}\n"
+                f"enclosed {v['enclosed']:.2f}   direct {v['direct']:.2f} px\n"
+                f"e        {v['e']:.2f}   pa "
+                + ("INDEF" if v['pa'] != v['pa'] else f"{v['pa']:.0f}") + "\n"
+                f"mag      {v['mag']:.3f}   flux {v['flux']:.1f}\n"
+                f"peak     {v['peak']:.1f}   sky {v['sky']:.2f}")
         else:
             self.readout.setText(result.line.split("  ", 1)[-1].replace("  ", "\n", 2))
 
-    def _mark_star(self, frame: Frame, x: float, y: float, params: dict) -> None:
+    def _mark_star(self, frame: Frame, x: float, y: float, radius: float,
+                   params: dict) -> None:
+        """The aperture actually used -- after the a key widened it -- and the
+        sky annulus beyond it."""
         frame.markers = [m for m in frame.markers if m.tag != "examine"]
         frame.markers += [
-            Marker(x, y, radius=params["radius"] / 2, colour=ACCENT, tag="examine"),
-            Marker(x, y, radius=params["radius"] + params["buffer"], colour=SKY,
-                   tag="examine"),
-            Marker(x, y, radius=params["radius"] + params["buffer"] + params["width"],
+            Marker(x, y, radius=radius, colour=ACCENT, tag="examine"),
+            Marker(x, y, radius=radius + params["buffer"], colour=SKY, tag="examine"),
+            Marker(x, y, radius=radius + params["buffer"] + params["width"],
                    colour=SKY, tag="examine"),
         ]
         self._draw_overlay(frame)

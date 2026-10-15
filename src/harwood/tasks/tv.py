@@ -44,8 +44,11 @@ WHY = {
     "examine": "The measurements use the original pixels in floating point, "
                "never the scaled picture on the screen. Every star is "
                "recentred before it is measured, so the cursor only has to land "
-               "near it; the sky comes from an annulus that starts `buffer` "
-               "beyond the profile, which keeps the star's own wings out of it.",
+               "near it; the sky is the median of an annulus that starts "
+               "`buffer` beyond the aperture, which keeps the star's own wings "
+               "out of it. The FWHM fit weights each pixel by 1/r^2, so the "
+               "core counts as much as the many pixels in the wings -- the "
+               "weighting IRAF's rimexam uses, so the numbers compare.",
     "log": "Each measurement is appended as one line, as you make it -- the "
            "seeing of a night is something you want to read back the next "
            "morning, not remember.",
@@ -141,24 +144,59 @@ class ImexamineParams(TaskParams):
                         "none, as IRAF's keeplog=no; the run itself is always in "
                         "harwood.log.jsonl.",
     )
+    defkey: str = Field(
+        "a", min_length=1, max_length=1,
+        description="Key for a cursor-file line that gives only x and y, so a "
+                    "plain list of positions from another program can be "
+                    "examined as it is.",
+    )
+    # rimexam: the r and a keys
     radius: float = Field(
-        12.0, gt=0, description="How far out the radial profile and its fit go, "
-                                "in pixels. The a key's aperture is half of it.",
+        5.0, ge=1, description="Aperture radius: the pixels summed for the flux, "
+                               "used for centring, and fitted for the FWHM.",
     )
     buffer: float = Field(
-        5.0, ge=0, description="Gap between the profile and the sky annulus, so "
+        5.0, ge=0, description="Gap between the aperture and the sky annulus, so "
                                "the star's wings stay out of its own sky.",
     )
-    width: float = Field(5.0, gt=0, description="Width of the sky annulus, in pixels.")
+    width: float = Field(5.0, ge=1, description="Width of the sky annulus, in pixels.")
+    rplot: float = Field(
+        8.0, ge=1, description="Radius the radial profile is plotted out to. "
+                               "Drawing only; the measurement uses `radius`.",
+    )
     fittype: Literal["gaussian", "moffat"] = Field(
-        "gaussian", description="Profile fitted for the FWHM. Moffat has wings and "
-                                "usually fits real seeing better.",
+        "moffat", description="Profile fitted for the FWHM. Moffat has wings and "
+                              "fits real seeing better than a gaussian.",
+    )
+    beta: float | None = Field(
+        None, gt=0, description="Moffat beta held fixed. Empty fits it, as IRAF's "
+                                "INDEF does.",
+    )
+    iterations: int = Field(
+        3, ge=1, description="Passes of the r and a keys: after the first, the "
+                             "aperture becomes three times the direct FWHM. 1 "
+                             "keeps `radius`.",
     )
     magzero: float = Field(25.0, description="Zero point of the a key's magnitudes.")
-    box: int = Field(
-        11, ge=3, description="Side of the box the m and h keys measure, in pixels.",
+    # imexamine: the m key
+    ncstat: int = Field(5, ge=1, description="Columns in the m key's statistics box.")
+    nlstat: int = Field(5, ge=1, description="Lines in the m key's statistics box.")
+    # himexam: the h key
+    ncolumns: int = Field(21, ge=2, description="Columns in the h key's histogram box.")
+    nlines: int = Field(21, ge=2, description="Lines in the h key's histogram box.")
+    nbins: int = Field(
+        512, ge=1, description="Bins in the h key's histogram. Integer data never "
+                               "get more bins than distinct values.",
     )
-    nbins: int = Field(40, ge=5, description="Bins in the h key's histogram.")
+    # jimexam: the j and k keys
+    naverage: int = Field(
+        5, ge=1, description="Lines (j) or columns (k) averaged before the "
+                             "gaussian fit.",
+    )
+    sigma: float = Field(
+        1.0, gt=0, description="First guess of the j and k fit's sigma, in pixels. "
+                               "It has to be near the truth for the fit to converge.",
+    )
 
 
 @register
@@ -170,14 +208,24 @@ class Imexamine(Task[ImexamineParams]):
         a   aperture photometry and FWHM     k   gaussian fit along the column
         m   statistics of a box              h   histogram of a box
         l   plot the line                    x   coordinates and value
-        c   plot the column                  z   the 5x5 pixels around the cursor
+        c   plot the column                  z   the 10x10 pixels around it
         n   next frame                       p   previous frame
         ?   list the keys                    q   end the task
 
     Every star is recentred before it is measured, so the cursor only has to
     land near it. Without a screen, put the positions in a file -- one
-    `x y [frame] key` per line -- and pass it as --imagecur: the same code
+    `x y [frame] [key]` per line -- and pass it as --imagecur: the same code
     answers, so the numbers are the ones the window would have shown.
+
+    The parameters are IRAF's, with IRAF's defaults and meanings: `radius` is
+    the aperture, `rplot` how far the profile is drawn, and r and a widen the
+    aperture to three times the direct FWHM, `iterations` times. The line
+    reads as IRAF's: radius, magnitude, flux, sky, peak, ellipticity, position
+    angle, Moffat beta, and IRAF's three FWHMs -- of a fit to the enclosed
+    flux, of a fit to the pixels (MFWHM or GFWHM), and the direct one,
+    measured without a model. The arithmetic is a port of IRAF's own
+    (ierimexam.x and the starfocus code under it), and a test holds it to
+    what IRAF 2.18 printed for the same pixels.
     """
 
     name = "imexamine"
@@ -198,7 +246,9 @@ class Imexamine(Task[ImexamineParams]):
                                   "to the window, as in IRAF's cursor mode."))
         steps.append(Step("examine", f"radius {params.radius:g}, buffer "
                                      f"{params.buffer:g}, width {params.width:g}, "
-                                     f"{params.fittype}", why=WHY["examine"]))
+                                     f"rplot {params.rplot:g}, {params.fittype}, "
+                                     f"iterations {params.iterations}",
+                          why=WHY["examine"]))
         if params.logfile:
             steps.append(Step("log", params.logfile, why=WHY["log"]))
         return steps
@@ -211,10 +261,8 @@ class Imexamine(Task[ImexamineParams]):
             advice.fail(f"'{' '.join(params.input)}' matches no image",
                         "check the name, or run `harwood sections` on the template "
                         "to see what it matches", FileNotFoundError)
-        settings = examine.Settings(
-            radius=params.radius, buffer=params.buffer, width=params.width,
-            fittype=params.fittype, magzero=params.magzero, box=params.box,
-            nbins=params.nbins)
+        settings = examine.Settings(**{
+            name: getattr(params, name) for name in examine.Settings.__dataclass_fields__})
 
         if params.imagecur:
             results = self._from_cursor(params, specs, settings)
@@ -249,7 +297,7 @@ class Imexamine(Task[ImexamineParams]):
                         "empty to use the mouse", FileNotFoundError)
         loaded: dict[int, tuple[str, object]] = {}
         results = []
-        for x, y, frame, key in examine.read_cursor(params.imagecur):
+        for x, y, frame, key in examine.read_cursor(params.imagecur, params.defkey):
             index = frame - params.frame
             if not 0 <= index < len(specs):
                 advice.fail(f"{params.imagecur} asks for frame {frame}, and only "
