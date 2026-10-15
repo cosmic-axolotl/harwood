@@ -10,6 +10,12 @@ that drifted two pixels between exposures.
 
 Set HARWOOD_TEST_DATA to the exercises directory to run these; they skip
 otherwise, so the suite still passes on a machine without the tutorial.
+
+The frames are read from the ``fm92000N`` tape files, not the ``m92NNN.fits``
+beside them. The exercise has you run IRAF's ccdproc in place, which
+overwrites those with reduced frames -- and every assertion here about a raw
+overscan then fails for a reason that has nothing to do with harwood. The tape
+files are what ``rfits`` reads, so no step of the exercise touches them.
 """
 
 import os
@@ -24,8 +30,13 @@ from harwood.core.registry import get_task
 DATA = Path(os.environ.get("HARWOOD_TEST_DATA", "~/iraf/exercises")).expanduser()
 PHOT = DATA / "phot"
 
+#: Tape file -> the name the exercise gives it after ``rfits``.
+TAPE = {"fm920001": "m92001", "fm920002": "m92006", "fm920003": "m92007",
+        "fm920004": "m92010", "fm920005": "m92011", "fm920006": "m92014",
+        "fm920007": "m92015"}
+
 pytestmark = pytest.mark.skipif(
-    not (PHOT / "m92010.fits").exists(),
+    not all((PHOT / tape).exists() for tape in TAPE),
     reason=f"IRAF tutorial data not found under {DATA}",
 )
 
@@ -35,17 +46,26 @@ FWHM = 3.0
 
 
 @pytest.fixture(scope="module")
-def reduced(tmp_path_factory):
+def raw(tmp_path_factory):
+    """The seven raw frames under their exercise names, untouched by any reduction."""
+    where = tmp_path_factory.mktemp("m92raw")
+    for tape, name in TAPE.items():
+        (where / f"{name}.fits").write_bytes((PHOT / tape).read_bytes())
+    return where
+
+
+@pytest.fixture(scope="module")
+def reduced(tmp_path_factory, raw):
     """Bias, flat and two V frames, reduced the way exercise 2 does it."""
     work = tmp_path_factory.mktemp("m92")
     ccdproc = get_task("ccdproc")
 
-    ccdproc.run(input=[str(PHOT / "m92001.fits")], output=work / "Zero.fits",
+    ccdproc.run(input=[str(raw / "m92001.fits")], output=work / "Zero.fits",
                 overscan=True, trim=True)
-    ccdproc.run(input=[str(PHOT / "m92007.fits")], output=work / "FlatV.fits",
+    ccdproc.run(input=[str(raw / "m92007.fits")], output=work / "FlatV.fits",
                 overscan=True, trim=True, zerocor=True, zero=work / "Zero.fits")
     for name in ("m92010", "m92011"):
-        ccdproc.run(input=[str(PHOT / f"{name}.fits")], output=work / f"{name}p.fits",
+        ccdproc.run(input=[str(raw / f"{name}.fits")], output=work / f"{name}p.fits",
                     overscan=True, trim=True, zerocor=True, flatcor=True,
                     zero=work / "Zero.fits", flat=work / "FlatV.fits")
     return work
@@ -156,14 +176,14 @@ def test_detections_do_not_come_from_the_truncated_edge(reduced):
     assert y.min() > 2 * FWHM - 0.5
 
 
-def test_the_overscan_of_a_real_frame_fits_and_the_gradient_is_removed(reduced):
+def test_the_overscan_of_a_real_frame_fits_and_the_gradient_is_removed(raw):
     """The 1987 overscan has a real gradient of about one ADU across the chip."""
     from astropy.io import fits
 
     from harwood.core import icfit, pixels
 
-    raw = fits.getdata(PHOT / "m92010.fits").astype(float)
-    strip = raw[pixels.parse_section("[321:352,1:512]", raw.shape)]
+    frame = fits.getdata(raw / "m92010.fits").astype(float)
+    strip = frame[pixels.parse_section("[321:352,1:512]", frame.shape)]
     profile = strip.mean(axis=1)
     position = np.arange(1.0, profile.size + 1.0)
 
@@ -264,7 +284,7 @@ def test_imalign_closes_the_loop(reduced):
     assert abs(found.shift[0]) < 0.5 and abs(found.shift[1]) < 0.5
 
 
-def test_exercise_two_reproduces_its_own_numbers(tmp_path):
+def test_exercise_two_reproduces_its_own_numbers(tmp_path, raw):
     """Path 1 of the course's exercise 2, run end to end.
 
     The exercise states two numbers a reader can check: the trimmed frames are
@@ -279,7 +299,7 @@ def test_exercise_two_reproduces_its_own_numbers(tmp_path):
     from harwood.tasks.imutil import mode
 
     for name in ("m92001", "m92006", "m92007", "m92010"):
-        (tmp_path / f"{name}.fits").write_bytes((PHOT / f"{name}.fits").read_bytes())
+        (tmp_path / f"{name}.fits").write_bytes((raw / f"{name}.fits").read_bytes())
 
     # colbias: overscan over the columns the text picks, then trim.
     get_task("ccdproc").run(
