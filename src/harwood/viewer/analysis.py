@@ -94,6 +94,11 @@ def centroid(data: np.ndarray, x: float, y: float, radius: float = 5.0) -> tuple
         if x2 < x1 or y2 < y1:
             return xlast, ylast
         box = data[y1 - 1:y2, x1 - 1:x2]
+        if not np.isfinite(box).all():
+            # A blank (NaN) pixel in the box: IRAF has none, so there is no
+            # rule to follow. Leaving the position alone is the honest answer;
+            # the measurement that follows says the data were bad.
+            return xlast, ylast
         total = box.sum()
         columns = np.clip(box.sum(axis=0) - total / box.shape[1], 0, None)
         rows = np.clip(box.sum(axis=1) - total / box.shape[0], 0, None)
@@ -151,10 +156,20 @@ def radial_profile(
 
     ring = (r >= radius + buffer) & (r <= radius + buffer + width)
     sky_pixels = box[ring] if ring.any() else box.ravel()
+    sky_pixels = sky_pixels[np.isfinite(sky_pixels)]
+    if sky_pixels.size == 0:
+        return RadialProfile(x, y, np.array([]), np.array([]), radius=float(radius),
+                             fittype=fittype, message="no usable sky pixels around here")
     sky = float(np.median(sky_pixels))
     noise = float(1.4826 * np.median(np.abs(sky_pixels - sky)))
     signal = box - sky
 
+    if not np.isfinite(signal[r <= radius]).all():
+        profile = RadialProfile(x, y, np.array([]), np.array([]), radius=float(radius),
+                                sky=sky, fittype=fittype,
+                                message="blank (NaN) pixels inside the aperture -- "
+                                        "fix them first, or measure another star")
+        return profile
     inside = r <= radius
     shown = r <= rplot
     order = np.argsort(r[shown])

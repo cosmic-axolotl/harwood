@@ -308,3 +308,16 @@ def test_the_manual_prints_iraf_syntax_rather_than_eating_it(run, monkeypatch):
     assert result.exit_code == 0
     assert "x y [frame] key" in result.output
     assert "radial profile and FWHM" in result.output, "the keys are in the manual"
+
+
+def test_a_list_is_written_as_iraf_writes_it(run, tmp_path):
+    """'--apertures 3,5,10' was refused as 'not a valid float': click checked
+    the type before anything could split on the comma. IRAF writes lists that
+    way, so both that and the repeated option have to work."""
+    from harwood.cli import build
+    from harwood.core.registry import get_class
+
+    model = get_class("phot").Params
+    for typed in (("3,5,10",), ("3", "5,10")):
+        assert build.collect(model, {"apertures": typed})["apertures"] == ["3", "5", "10"]
+    assert model(image="a", coords="b", apertures=["3", "5", "8"]).apertures == [3, 5, 8]

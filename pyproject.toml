@@ -42,7 +42,7 @@ fast = ["numba>=0.59"]
 # directory in this repository, and the dispatcher falls back without them.
 rust = ["harwood-kernels>=0.1"]
 all = ["harwood[ccd,phot,gui,fast]"]
-dev = ["pytest>=8.0", "pytest-cov", "ruff", "mypy"]
+dev = ["pytest>=8.0", "pytest-cov", "hypothesis>=6", "ruff", "mypy"]
 
 [project.scripts]
 harwood = "harwood.cli.main:main"

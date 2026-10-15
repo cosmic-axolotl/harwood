@@ -181,6 +181,10 @@ def center(data: np.ndarray, x: float, y: float, pars: CenterPars | None = None,
         bnx, bny = c2 - c1 + 1, l2 - l1 + 1
         cxc, cyc = owx - c1 + 1, owy - l1 + 1
 
+        if not np.isfinite(box).all():
+            # Blank pixels: IRAF has none; treat them as bad data and keep the
+            # position rather than centring on an undefined marginal.
+            return Center(x, y, ier=CTR_BADDATA)
         ier = CTR_OK
         low = -np.inf if dpars.datamin is None else dpars.datamin
         high = np.inf if dpars.datamax is None else dpars.datamax
@@ -298,12 +302,14 @@ def sky_pixels(data: np.ndarray, x: float, y: float, annulus: float, dannulus: f
     r2 = (x - i) ** 2 + (y - j) ** 2
     ring = (r2 > rin ** 2) & (r2 <= rout ** 2)
     values = data[l1 - 1:l2, c1 - 1:c2][ring].astype(float)
-    bad = 0
+    finite = np.isfinite(values)
+    bad = int((~finite).sum())          # blank pixels count as bad, as datamin's do
+    values = values[finite]
     if dpars.datamin is not None or dpars.datamax is not None:
         low = -np.inf if dpars.datamin is None else dpars.datamin
         high = np.inf if dpars.datamax is None else dpars.datamax
         good = (values >= low) & (values <= high)
-        bad = int((~good).sum())
+        bad += int((~good).sum())
         values = values[good]
     if values.size == 0:
         return values, bad, (SKY_NSKY_TOO_SMALL if bad else SKY_OUTOFBOUNDS)
@@ -602,7 +608,8 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
         sums[k] = float((weight * box).sum())
         areas[k] = float(weight.sum())
         covered = weight > 0
-        if nmin > nmax and ((box[covered] < low) | (box[covered] > high)).any():
+        inside = box[covered]
+        if nmin > nmax and ((inside < low) | (inside > high) | ~np.isfinite(inside)).any():
             nmin = k + 1
 
     ier = APERT_OK if nmax == nap else APERT_OUTOFBOUNDS

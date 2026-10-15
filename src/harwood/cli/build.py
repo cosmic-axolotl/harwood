@@ -126,7 +126,9 @@ def parameters_for(model: type) -> list[click.Parameter]:
 
         params.append(click.Option(
             option_names(name),
-            type=click_type,
+            # A list option takes text, so that IRAF's '3,5,10' reaches
+            # collect() to be split; the model checks each value's type.
+            type=click.STRING if multiple else click_type,
             multiple=multiple,
             default=None,
             show_default=False,
@@ -162,7 +164,10 @@ def collect(model: type, kwargs: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, tuple):
             if not value:
                 continue
-            value = list(value)
+            # '--apertures 3,5,10' and '--apertures 3 --apertures 5' both,
+            # the first being how IRAF writes a list.
+            value = [part.strip() for item in value for part in str(item).split(",")
+                     if part.strip()] if _is_list_field(field) else list(value)
         elif isinstance(value, str) and _is_list_field(field):
             value = [part.strip() for part in value.split(",") if part.strip()]
         given[name] = value
