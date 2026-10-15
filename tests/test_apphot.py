@@ -84,3 +84,28 @@ def test_algorithms_not_ported_are_refused_by_name():
     with pytest.raises(ValueError) as raised:
         apphot.fitsky(data, 40, 45, apphot.SkyPars(salgorithm="ofilter"))
     assert "mode" in raised.value.fix
+
+
+@pytest.mark.parametrize("case, datamax, maxshift", [("edge", 9000.0, 0.8),
+                                                     ("flags", 5000.0, 0.6)])
+def test_the_flags_and_the_threshold_are_iraf_s(case, datamax, maxshift):
+    """The paths the defaults never take: a cthreshold with a sky sigma
+    (ap_ctr1d rather than ap_mctr1d), a datamax two stars saturate, and a
+    maxshift three of them exceed. IRAF keeps the centre it found and flags
+    it (cier 107, 108); an aperture holding a saturated pixel gets no
+    magnitude at all (pier 305)."""
+    data = field()
+    dpars = apphot.DataPars(epadu=2.0, sigma=5.0, datamax=datamax)
+    cpars = apphot.CenterPars(cthreshold=1.0, maxshift=maxshift)
+    for (x, y), iraf in zip(CURSOR, _iraf(case), strict=True):
+        c = apphot.center(data, x, y, cpars, dpars)
+        s = apphot.fitsky(data, c.x, c.y, apphot.SkyPars(salgorithm="mode"), dpars)
+        a = apphot.apertures(data, c.x, c.y, APERTURES, s, 25.0, dpars)
+        assert c.x == pytest.approx(iraf["xcenter"], abs=6e-4)
+        assert c.y == pytest.approx(iraf["ycenter"], abs=6e-4)
+        assert c.xerr == pytest.approx(iraf["xerr"], abs=6e-4)
+        assert c.ier == iraf["cier"]
+        assert s.value == pytest.approx(iraf["msky"], rel=1e-6)
+        assert s.nreject == iraf["nsrej"]
+        assert np.allclose(a.mag, iraf["mag"], atol=6e-4, equal_nan=True)
+        assert a.ier == iraf["pier"][0]
