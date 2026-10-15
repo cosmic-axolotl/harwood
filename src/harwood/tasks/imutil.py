@@ -215,8 +215,9 @@ class ImStatParams(TaskParams):
     lsigma: float = Field(
         3.0, ge=0, description="Clipping threshold below the mean, in sigma."
     )
-    hsigma: float = Field(
-        3.0, ge=0, description="Clipping threshold above the mean, in sigma."
+    usigma: float = Field(
+        3.0, ge=0, description="Clipping threshold above the mean, in sigma -- "
+                               "IRAF's usigma."
     )
     binwidth: float = Field(
         0.1, gt=0,
@@ -245,13 +246,12 @@ class ImStatistics(Task[ImStatParams]):
                               why=WHY["threshold"]))
         if params.nclip:
             steps.append(Step("clip", f"{params.nclip} iterations at "
-                                      f"-{params.lsigma}/+{params.hsigma} sigma",
+                                      f"-{params.lsigma}/+{params.usigma} sigma",
                               why=WHY["clip"]))
         steps.append(Step("measure", params.fields, why=WHY["measure"]))
         return steps
 
     def execute(self, params: ImStatParams) -> TaskResult:
-        import numpy as np
 
         from ..core import images
 
@@ -268,96 +268,185 @@ class ImStatistics(Task[ImStatParams]):
             if params.section:
                 spec = images.ImageSpec(spec.path, spec.extension, params.section)
             data, _ = images.read(spec)
-            values = data[np.isfinite(data)]
-            if params.lower is not None:
-                values = values[values >= params.lower]
-            if params.upper is not None:
-                values = values[values <= params.upper]
-            if values.size == 0:
+            row = imstat(data, wanted, params.lower, params.upper, params.nclip,
+                         params.lsigma, params.usigma, params.binwidth)
+            if row["npix"] == 0:
                 raise ValueError(f"'{spec}' has no pixels left after the limits")
-
-            for _ in range(params.nclip):
-                mean, sigma = values.mean(), values.std(ddof=1)
-                if sigma <= 0:
-                    break
-                keep = (values > mean - params.lsigma * sigma) & \
-                       (values < mean + params.hsigma * sigma)
-                if keep.all():
-                    break
-                values = values[keep]
-
-            rows.append(_measure(str(spec), values, wanted, params.binwidth))
+            row = {"image": str(spec), **row}
+            rows.append({field: row[field] for field in wanted})
         return TaskResult(data={"rows": rows}, steps=self.plan(params))
 
 
-def _measure(name, values, wanted, binwidth):
-    import numpy as np
-
-    mean = float(values.mean())
-    sigma = float(values.std(ddof=1)) if values.size > 1 else 0.0
-    row = {}
-    for field in wanted:
-        if field == "image":
-            row["image"] = name
-        elif field == "npix":
-            row["npix"] = int(values.size)
-        elif field == "mean":
-            row["mean"] = mean
-        elif field == "midpt":
-            row["midpt"] = float(np.median(values))
-        elif field == "mode":
-            row["mode"] = mode(values, binwidth * sigma if sigma > 0 else None)
-        elif field == "stddev":
-            row["stddev"] = sigma
-        elif field == "skew":
-            row["skew"] = (float(np.mean(((values - mean) / sigma) ** 3))
-                           if sigma > 0 else 0.0)
-        elif field == "kurtosis":
-            row["kurtosis"] = (float(np.mean(((values - mean) / sigma) ** 4)) - 3.0
-                               if sigma > 0 else 0.0)
-        elif field == "min":
-            row["min"] = float(values.min())
-        elif field == "max":
-            row["max"] = float(values.max())
-    return row
+MAX_REAL = 3.4028235e38
 
 
-def mode(values, width: float | None = None) -> float:
-    """The most common value, as IRAF's imstatistics computes it.
+def imstat(data, fields=("npix", "mean", "stddev", "min", "max"), lower=None,
+           upper=None, nclip=0, lsigma=3.0, usigma=3.0, binwidth=0.1) -> dict:
+    """IRAF's imstatistics (images.imutil, t_imstat.x), as a function.
 
-    A histogram, the fullest bin, then a parabolic refinement using the two
-    neighbours.
-
-    The bin width is the whole game, and it is why this takes a width rather
-    than a bin count. Bins a tenth of a sigma wide -- IRAF's default, and this
-    one -- smooth the histogram enough that the fullest bin is the real peak.
-    Make them much finer and the fullest bin is whichever one noise happened to
-    favour: on the KPNO flat field, 512 bins across the range gives 1330 where
-    a tenth of a sigma gives 1313, and 1313 is the answer.
-
-    Even so, on a broad distribution the mode is a noisy statistic. It is a
-    good normalisation constant and a poor thing to compare between programs.
+    The pixels are read as IRAF reads them, in single precision; the sums are
+    double, the results single, as IRAF stores them. Clipping recomputes the
+    statistics from the pixels within mean -/+ lsigma/usigma sigma of the
+    previous pass, and stops once a pass keeps as many as the one before.
+    midpt and mode come from a histogram -- of every pixel in the image, not
+    only the clipped ones, between the last pass's min and max, in bins of
+    binwidth sigma -- with the median interpolated in its integral and the
+    mode in a parabola through the peak bin. They are IRAF's numbers, which
+    is the point; a true median would not be.
     """
     import numpy as np
 
-    data = np.asarray(values, dtype=float).ravel()
-    low, high = float(data.min()), float(data.max())
-    if high <= low:
-        return low
-    if width is None:
-        sigma = float(data.std(ddof=1)) if data.size > 1 else 0.0
-        width = 0.1 * sigma if sigma > 0 else (high - low) / 512
-    bins = max(8, min(8192, int((high - low) / width)))
-    counts, edges = np.histogram(data, bins=bins, range=(low, high))
-    peak = int(counts.argmax())
-    step = (high - low) / bins
-    centre = low + (peak + 0.5) * step
-    if 0 < peak < bins - 1:
-        left = float(counts[peak] - counts[peak - 1])
-        right = float(counts[peak] - counts[peak + 1])
-        if left + right != 0:
-            centre += step / 2 * (left - right) / (left + right)
-    return float(centre)
+    f32 = np.float32
+    x = np.asarray(data, dtype=np.float32).ravel()
+    x = x[np.isfinite(x)]
+    fields = set(fields)
+    want_hist = "midpt" in fields or "mode" in fields
+
+    def accumulate(low, high):
+        if low is None and high is None:
+            values = x
+        else:
+            lo = -MAX_REAL if low is None else f32(low)
+            hi = MAX_REAL if high is None else f32(high)
+            values = x[(x >= lo) & (x <= hi)]
+        v = values.astype(np.float64)
+        stats = {"npix": int(v.size), "mean": float("nan"), "stddev": float("nan"),
+                 "skew": float("nan"), "kurtosis": float("nan"),
+                 "min": float(values.min()) if v.size else float("nan"),
+                 "max": float(values.max()) if v.size else float("nan"),
+                 "midpt": float("nan"), "mode": float("nan")}
+        n = v.size
+        if n <= 0:
+            return stats
+        v2 = v * v
+        sumx, sumx2, sumx3, sumx4 = v.sum(), v2.sum(), (v2 * v).sum(), (v2 * v2).sum()
+        mean = sumx / n
+        stats["mean"] = float(f32(mean))
+        if n < 2:
+            return stats
+        var = (sumx2 - sumx * mean) / (n - 1)
+        if var <= 0:
+            stats["stddev"] = 0.0
+            return stats
+        stdev = np.sqrt(var)
+        stats["stddev"] = float(f32(stdev))
+        # IRAF's skew uses its single-precision copy of the mean in one term
+        # and the double in the others; the cancellation that follows is in
+        # its numbers, so it is in these.
+        stats["skew"] = float(f32((sumx3 - 3.0 * float(f32(mean)) * sumx2
+                                   + 3.0 * mean * mean * sumx - n * mean ** 3)
+                                  / n / stdev / stdev / stdev))
+        stats["kurtosis"] = float(f32((sumx4 - 4.0 * mean * sumx3
+                                       + 6.0 * mean * mean * sumx2
+                                       - 4.0 * mean ** 3 * sumx + n * mean ** 4)
+                                      / n / stdev ** 4 - 3.0))
+        return stats
+
+    low, high = lower, upper
+    previous = None
+    for i in range(int(nclip) + 1):
+        stats = accumulate(low, high)
+        if i < nclip:
+            mean, sigma = stats["mean"], stats["stddev"]
+            defined = np.isfinite(mean) and np.isfinite(sigma)
+            low = mean - lsigma * sigma if defined and lsigma > 0 else -MAX_REAL
+            high = mean + usigma * sigma if defined and usigma > 0 else MAX_REAL
+            if lower is not None:
+                low = max(low, lower)
+            if upper is not None:
+                high = min(high, upper)
+            if i > 0 and stats["npix"] == previous:
+                break
+            previous = stats["npix"]
+
+    if want_hist and stats["npix"] > 0 and np.isfinite(stats["stddev"]):
+        hwidth = f32(f32(binwidth) * f32(stats["stddev"]))
+        if binwidth > 0 and hwidth > 0:
+            hmin, hmax = f32(stats["min"]), f32(stats["max"])
+            nbins = int(f32(hmax - hmin) / hwidth + f32(1.0))
+            if nbins >= 3:
+                hgm = _ahgm(x, nbins, hmin, hmax)
+                stats["midpt"] = _hmedian(hgm, nbins, hwidth, hmin)
+                stats["mode"] = _hmode(hgm, nbins, hwidth, hmin)
+    return stats
+
+
+def _ahgm(x, nbins, z1, z2):
+    """vops ahgm: bins of (z2 - z1) / (nbins - 1), whatever width was meant."""
+    import numpy as np
+
+    f32 = np.float32
+    dz = f32(f32(nbins - 1) / f32(z2 - z1))
+    inside = x[(x >= z1) & (x <= z2)]
+    if abs(dz - 1.0) < 2 * np.finfo(np.float32).eps:
+        bins = (inside - z1).astype(np.int64)
+    else:
+        bins = ((inside - z1) * dz).astype(np.int64)
+    return np.bincount(bins, minlength=nbins)[:nbins]
+
+
+def _hmedian(hgm, nbins, hwidth, hmin):
+    """ist_hmedian: where the integral of the histogram crosses one half."""
+    import numpy as np
+
+    f32 = np.float32
+    integral = np.cumsum(hgm).astype(np.float32)
+    integral = integral / integral[-1]
+    lo = 0
+    for i in range(1, nbins + 1):
+        if integral[i - 1] > 0.5:
+            break
+        lo = i
+    hi = lo + 1
+    h1 = f32(hmin + f32(lo) * hwidth)
+    hdiff = integral[hi - 1] if lo == 0 else f32(integral[hi - 1] - integral[lo - 1])
+    if hdiff == 0:
+        return float(h1)
+    if lo == 0:
+        return float(f32(h1 + f32(0.5) / hdiff * hwidth))
+    return float(f32(h1 + (f32(0.5) - integral[lo - 1]) / hdiff * hwidth))
+
+
+def _hmode(hgm, nbins, hwidth, hmin):
+    """ist_hmode: the peak bin, refined by a parabola through its neighbours."""
+    import numpy as np
+
+    f32 = np.float32
+    if nbins == 1:
+        return float(f32(hmin + f32(0.5) * hwidth))
+    if nbins == 2:
+        if hgm[0] > hgm[1]:
+            return float(f32(hmin + f32(0.5) * hwidth))
+        if hgm[1] > hgm[0]:
+            return float(f32(hmin + f32(1.5) * hwidth))
+        return float(f32(hmin + hwidth))
+    bpeak = int(np.argmax(hgm)) + 1          # the first highest, as IRAF's scan
+    if bpeak == 1:
+        return float(f32(hmin + f32(0.5) * hwidth))
+    if bpeak == nbins:
+        return float(f32(hmin + f32(nbins - 0.5) * hwidth))
+    bpeak -= 1
+    dh1 = f32(hgm[bpeak] - hgm[bpeak - 1])
+    dh2 = f32(hgm[bpeak] - hgm[bpeak + 1])
+    denom = f32(dh1 + dh2)
+    if denom == 0:
+        return float(f32(hmin + f32(bpeak + 0.5) * hwidth))
+    position = f32(bpeak + 1 + f32(0.5) * (dh1 - dh2) / denom)
+    return float(f32(hmin + (position - f32(0.5)) * hwidth))
+
+
+def mode(values, width: float | None = None) -> float:
+    """The mode as IRAF's imstatistics finds it: bins of `width` (a tenth of
+    the standard deviation by default, IRAF's binwidth), the peak bin, and a
+    parabola through it and its neighbours."""
+    import numpy as np
+
+    data = np.asarray(values, dtype=np.float32).ravel()
+    sigma = float(data.astype(np.float64).std(ddof=1)) if data.size > 1 else 0.0
+    if sigma <= 0:
+        return float(data[0]) if data.size else float("nan")
+    binwidth = 0.1 if width is None else width / sigma
+    return imstat(data, ("mode",), binwidth=binwidth)["mode"]
 
 
 class ImArithParams(TaskParams):

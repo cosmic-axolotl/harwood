@@ -250,7 +250,7 @@ def test_the_prompt_runs_the_same_commands_as_the_shell(tmp_path, monkeypatch):
     _qt.application()
     window = HarwoodWindow()
     try:
-        window.prompt.setText("imstatistics a.fits --fields image,midpt")
+        window.prompt.setText("imstatistics a.fits --fields image,mean")
         window._run_command()
         text = window.session.toPlainText()
         assert "hw> imstatistics" in text
