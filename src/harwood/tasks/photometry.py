@@ -7,8 +7,8 @@ the magnitude zero point is `zmag`. Section 3 is explicit that a different name
 costs little and the same name meaning something else ruins a result.
 
 Every coordinate that leaves this module is 1-based and (x, y) -- section 2.2.
-`photutils` works 0-based, so the conversion happens at the call, once, through
-`core.pixels`. The catalogue written here can be read by someone who has spent
+Both daofind and phot are IRAF's own arithmetic (core.daofind, core.apphot),
+which counts from 1 as well. The catalogue written here can be read by someone who has spent
 twenty years reading IRAF `.mag` files without a systematic pixel offset.
 """
 
@@ -29,9 +29,10 @@ WHY = {
             "unsigned ones wraps.",
     "background": "The detection threshold is set in units of the noise, not in "
                   "counts, so it means the same thing on a bright night and a dark "
-                  "one. The sky level and its scatter are measured with clipping, "
-                  "so the stars themselves do not inflate the estimate of the "
-                  "noise they are to be detected against.",
+                  "one. The scatter is measured with clipping, so the stars "
+                  "themselves do not inflate the estimate of the noise they are to "
+                  "be detected against. The sky level itself is not needed: the "
+                  "detection kernel sums to zero.",
     "detect": "DAOFIND convolves the image with a Gaussian of the given width and "
               "looks for maxima in the result. The width is the whole parameter: "
               "a filter matched to the stars suppresses everything that is not "
@@ -41,10 +42,10 @@ WHY = {
               "things a brightness cut cannot. A cosmic ray is too sharp to be a "
               "point source through this atmosphere; a galaxy is too broad; a bad "
               "column is too elongated.",
-    "border": "The convolution needs whole pixels around a source to judge it, so "
-              "anything closer to the edge than its own width is an artefact of "
-              "the truncated filter rather than a star. On real frames this is a "
-              "fifth of all detections.",
+    "border": "IRAF extends the image by its nearest pixel, so the filter is "
+              "defined to the edge and a star half off the frame is still found. "
+              "Its centre is less certain there, and phot loses its outer "
+              "apertures, which is the reason to drop them.",
     "sky": "The sky is measured in an annulus around each star rather than once "
            "for the frame, because it is not flat: there are gradients, scattered "
            "light, and the wings of neighbours. The annulus starts outside the "
@@ -76,30 +77,48 @@ class DaoFindParams(TaskParams):
         json_schema_extra={"positional": True},
     )
 
-    fwhm: float = Field(
+    fwhmpsf: float = Field(
         2.5, gt=0,
         description="FWHM of the point spread function, in pixels. The single most "
                     "important parameter: measure it with imexamine before guessing.",
     )
     sigma: float | None = Field(
         None, gt=0,
-        description="Standard deviation of the background. Measured from the image "
-                    "when not given.",
+        description="Standard deviation of the background, in counts. IRAF takes it "
+                    "from datapars and, left INDEF, detects at a threshold of zero; "
+                    "harwood measures it from the image instead (sigma-clipped "
+                    "standard deviation) and says what it measured.",
     )
     threshold: float = Field(
         4.0, gt=0, description="Detection threshold above background, in units of sigma."
     )
+    nsigma: float = Field(
+        1.5, gt=0, description="Width of the detection kernel, in sigmas of the gaussian."
+    )
+    ratio: float = Field(
+        1.0, ge=0, le=1,
+        description="Ratio of the kernel's minor to major sigma (1 for round stars).",
+    )
+    theta: float = Field(
+        0.0, ge=0, le=180,
+        description="Position angle of the kernel's major axis, degrees from +x.",
+    )
     sharplo: float = Field(0.2, description="Lower sharpness bound; rejects cosmic rays.")
     sharphi: float = Field(1.0, description="Upper sharpness bound; rejects galaxies.")
-    roundlo: float = Field(-1.0, description="Lower roundness bound.")
-    roundhi: float = Field(1.0, description="Upper roundness bound.")
-    border: float | None = Field(
-        None, ge=0,
-        description="Ignore detections within this many pixels of the edge. "
-                    "Defaults to twice the FWHM. The detection filter needs whole "
-                    "pixels around a source to judge it, so anything closer to the "
-                    "edge than its own width is an artefact of the truncated "
-                    "convolution, not a star. Set 0 to keep them.",
+    roundlo: float = Field(-1.0, description="Lower bound on both roundnesses.")
+    roundhi: float = Field(1.0, description="Upper bound on both roundnesses.")
+    epadu: float = Field(
+        1.0, gt=0,
+        description="Gain, electrons per count. With readnoise, it only enters the "
+                    "sky estimate that sharpness and the centres subtract.",
+    )
+    readnoise: float = Field(0.0, ge=0, description="Readout noise, in electrons.")
+    border: float = Field(
+        0.0, ge=0,
+        description="Drop detections within this many pixels of the edge. IRAF "
+                    "keeps them -- it extends the image by its nearest pixel, so "
+                    "the filter is defined right up to the edge -- and so does "
+                    "harwood by default.",
     )
 
 
@@ -111,108 +130,113 @@ class DaoFind(Task[DaoFindParams]):
     Params = DaoFindParams
 
     def plan(self, params: DaoFindParams) -> list[Step]:
-        return [
+        steps = [
             Step("read", params.image, why=WHY["read"]),
-            Step("background", "sigma-clipped statistics"
+            Step("background", "sigma-clipped standard deviation"
                  if params.sigma is None else f"sigma={params.sigma} as given",
                  why=WHY["background"]),
-            Step("detect", f"DAOFIND, fwhm={params.fwhm}, "
-                           f"threshold={params.threshold} sigma",
+            Step("detect", f"DAOFIND, fwhmpsf={params.fwhmpsf}, "
+                           f"threshold={params.threshold} sigma, "
+                           f"nsigma={params.nsigma}",
                  why=WHY["detect"]),
             Step("filter", f"sharpness {params.sharplo}..{params.sharphi}, "
                            f"roundness {params.roundlo}..{params.roundhi}",
                  why=WHY["filter"]),
-            Step("border", f"drop anything within "
-                           f"{_border(params):g} px of the edge",
-                 why=WHY["border"]),
-            Step("write", f"{params.output or 'obj.coo in this run''s directory'}, "
-                          "coordinates 1-based (x,y)", why=WHY["write"]),
         ]
+        if params.border > 0:
+            steps.append(Step("border", f"drop anything within {params.border:g} px "
+                                        "of the edge", why=WHY["border"]))
+        steps.append(Step("write", f"{params.output or 'obj.coo in this run''s directory'}, "
+                                   "coordinates 1-based (x,y), brightest first",
+                          why=WHY["write"]))
+        return steps
 
     def execute(self, params: DaoFindParams) -> TaskResult:
         import numpy as np
         from astropy.stats import sigma_clipped_stats
         from astropy.table import Table
-        from photutils.detection import DAOStarFinder
 
-        from ..core import catalog, images, output, pixels, provenance
+        from ..core import catalog, daofind, images, output, provenance
 
         data, header = images.read(params.image)
-        mean, median, sigma = sigma_clipped_stats(data, sigma=3.0)
         if params.sigma is not None:
-            sigma = params.sigma
-
-        finder = DAOStarFinder(fwhm=params.fwhm, threshold=params.threshold * sigma,
-                               **_shape_bounds(DAOStarFinder, params))
-        found = finder(data - median)
-        if found is None or len(found) == 0:
+            sigma, measured = float(params.sigma), False
+        else:
+            sigma, measured = float(sigma_clipped_stats(data, sigma=3.0)[2]), True
+        if not np.isfinite(sigma) or sigma <= 0:
             raise RuntimeError(
-                f"no sources found. The background sigma measured {sigma:.2f}; try a "
-                f"lower --threshold than {params.threshold}, or check --fwhm."
+                f"the background sigma measured {sigma}; the frame may be blank or "
+                "constant. Give it with --sigma."
             )
 
-        # The one conversion. photutils counts from 0; everything harwood
-        # writes counts from 1.
-        position = pixels.from_numpy(_column(found, "y_centroid", "ycentroid"),
-                                     _column(found, "x_centroid", "xcentroid"))
-        border = _border(params)
+        found = daofind.find(
+            data, params.fwhmpsf, sigma, threshold=params.threshold,
+            nsigma=params.nsigma, ratio=params.ratio, theta=params.theta,
+            sharplo=params.sharplo, sharphi=params.sharphi,
+            roundlo=params.roundlo, roundhi=params.roundhi,
+            epadu=params.epadu, readnoise=params.readnoise)
+        x, y = found["x"], found["y"]
+        if x.size == 0:
+            raise RuntimeError(
+                f"no sources found. The background sigma "
+                f"{'measured' if measured else 'given'} is {sigma:.2f}; try a lower "
+                f"--threshold than {params.threshold}, or check --fwhmpsf."
+            )
+
         ny, nx = data.shape
-        inside = ((position.x > border) & (position.x <= nx - border)
-                  & (position.y > border) & (position.y <= ny - border))
+        border = params.border
+        inside = ((x > border + 0.5) & (x < nx + 0.5 - border)
+                  & (y > border + 0.5) & (y < ny + 0.5 - border))
         dropped = int((~inside).sum())
         if not inside.any():
             raise RuntimeError(
-                f"every one of the {len(found)} detections was within {border:g} px "
+                f"every one of the {x.size} detections was within {border:g} px "
                 "of the edge. Lower --border if the field really does run to the edge."
             )
-        found, position = found[inside], pixels.Position(position.x[inside],
-                                                         position.y[inside])
-        # Brightest first. It is the one ordering two frames of the same field
-        # agree on, which is what xyxymatch's triangle search needs when it
-        # takes only the brightest nmatch stars from each list.
-        order = np.argsort(np.asarray(_column(found, "flux")))[::-1]
-        found, position = found[order], pixels.Position(position.x[order],
-                                                        position.y[order])
+        # Brightest first, where IRAF writes them line by line. It is the one
+        # ordering two frames of the same field agree on, which is what
+        # xyxymatch's triangle search needs when it takes only the brightest
+        # nmatch stars from each list.
+        keep = np.flatnonzero(inside)
+        keep = keep[np.argsort(found["mag"][keep], kind="stable")]
         catalogue = Table({
-            "id": range(1, len(found) + 1),
-            "x": position.x,
-            "y": position.y,
-            "sharpness": _column(found, "sharpness"),
-            "roundness": _column(found, "roundness1", "roundness"),
-            "peak": _column(found, "peak", "max_value"),
-            "flux": _column(found, "flux"),
+            "id": range(1, keep.size + 1),
+            **{name: found[name][keep]
+               for name in ("x", "y", "mag", "sharpness", "sround", "ground")},
         })
         destination = params.output or output.named_for(params.image, ".coo")
         catalog.write(catalogue, destination,
                       harwood_image=str(params.image),
-                      harwood_background=float(median),
-                      harwood_sigma=float(sigma),
+                      harwood_sigma=sigma,
+                      harwood_threshold=found["threshold"],
                       harwood_call=provenance.current_stamp() or "")
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
-        peaks = np.asarray(_column(found, "peak", "max_value"), dtype=float)
         by_action["background"].measured = {
-            "sky": round(float(median), 3), "sigma": round(float(sigma), 3),
-            "threshold": f"{params.threshold * sigma:.2f} counts above sky",
+            "sigma": round(sigma, 3),
+            "threshold": f"{params.threshold * sigma:.2f} counts of fitted peak",
         }
+        mags = np.asarray(catalogue["mag"])
         by_action["detect"].measured = {
-            "found": len(found) + dropped,
-            "peaks": f"{peaks.min():.1f} to {peaks.max():.1f} counts",
+            "found": int(x.size),
+            "mag": f"{mags.min():.2f} to {mags.max():.2f} (0 at the threshold)",
         }
-        by_action["border"].measured = {
-            "dropped": f"{dropped} of {len(found) + dropped}", "kept": len(found),
-        }
+        if "border" in by_action:
+            by_action["border"].measured = {
+                "dropped": f"{dropped} of {x.size}", "kept": int(keep.size),
+            }
 
         return TaskResult(
             outputs=[destination],
             steps=steps,
             data={"sources": len(catalogue), "dropped_at_border": dropped,
-                  "background": float(median), "sigma": float(sigma)},
-            history=[f"daofind: {len(catalogue)} sources, fwhm={params.fwhm}, "
-                     f"threshold={params.threshold} sigma (sky={median:.2f}, "
-                     f"sigma={sigma:.2f}), {dropped} dropped within "
-                     f"{border:g} px of the edge"],
+                  "sigma": sigma},
+            history=[f"daofind: {len(catalogue)} sources, fwhmpsf={params.fwhmpsf}, "
+                     f"threshold={params.threshold} sigma (sigma={sigma:.2f}"
+                     f"{', measured' if measured else ''})"
+                     + (f", {dropped} dropped within {border:g} px of the edge"
+                        if border > 0 else "")],
         )
 
 
@@ -618,42 +642,3 @@ _APERT_FIX = ("look at the flagged rows (pier); a star near the edge loses its "
 
 def _ids(table, n):
     return table["id"] if "id" in table.colnames else list(range(1, n + 1))
-
-
-def _border(params) -> float:
-    """How close to the edge a detection may sit.
-
-    IRAF's daofind skips the border because its convolution kernel does not
-    fit there; photutils will happily report the artefact. On the M92 frames
-    a fifth of all detections came from the truncated edge, so the default
-    matters more than it looks.
-    """
-    return float(params.border) if params.border is not None else 2.0 * params.fwhm
-
-
-def _shape_bounds(finder_class, params) -> dict:
-    """Pass the sharpness and roundness limits under whichever names apply.
-
-    photutils 3.0 replaced `sharplo`/`sharphi` with `sharpness_range`. harwood
-    keeps IRAF's four names on its own surface -- they are what a user types --
-    and adapts here, at the boundary, where the ecosystem's churn belongs.
-    """
-    import inspect
-
-    accepted = inspect.signature(finder_class).parameters
-    if "sharpness_range" in accepted:
-        return {"sharpness_range": (params.sharplo, params.sharphi),
-                "roundness_range": (params.roundlo, params.roundhi)}
-    return {"sharplo": params.sharplo, "sharphi": params.sharphi,
-            "roundlo": params.roundlo, "roundhi": params.roundhi}
-
-
-def _column(table, *names):
-    """First column that exists, so a photutils rename is not an outage."""
-    for name in names:
-        if name in table.colnames:
-            return table[name]
-    raise KeyError(
-        f"photutils returned none of {names}; it has {', '.join(table.colnames)}. "
-        "This is a photutils API change -- harwood needs updating."
-    )

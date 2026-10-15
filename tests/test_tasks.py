@@ -63,7 +63,7 @@ def test_the_whole_chain_recovers_the_truth(night):
                             zero=tmp / "Zero.fits")
 
     get_task("daofind").run(image=str(tmp / "obj_p.fits"), output=tmp / "stars.ecsv",
-                            fwhm=FWHM, threshold=5.0)
+                            fwhmpsf=FWHM, threshold=5.0)
     get_task("phot").run(image=str(tmp / "obj_p.fits"),
                                   coords=tmp / "stars.ecsv", output=tmp / "mags.ecsv",
                                   apertures=[6.0], annulus=12.0, dannulus=5.0,

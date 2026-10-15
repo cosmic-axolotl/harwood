@@ -437,8 +437,7 @@ def doctor_cmd() -> None:
         table.add_row("HARWOOD_BACKEND", f"[yellow]{forced}[/yellow]",
                       "forced by the environment")
 
-    for package, extra in (("astropy", ""), ("photutils", "harwood[phot]"),
-                           ("ccdproc", "harwood[ccd]"),
+    for package, extra in (("astropy", ""), ("ccdproc", "harwood[ccd]"),
                            ("astroscrappy", "harwood[ccd]"),
                            ("scipy", "harwood[phot]"),
                            ("PySide6", "harwood[gui]"),

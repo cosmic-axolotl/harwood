@@ -90,3 +90,32 @@ def combine_stack():
         image[rng.integers(0, ny, 2), rng.integers(0, nx, 2)] -= 400
         frames.append((image.astype(np.float32), exptime))
     return frames
+
+
+def crowded_field():
+    """A field for daofind: a hundred gaussian stars, pairs closer than a
+    FWHM and a few FWHM apart, stars on and over the edges, cosmic rays (too
+    sharp), a galaxy (too broad), a hot column and a sky gradient."""
+    rng = np.random.default_rng(31)
+    ny, nx = 160, 180
+    yy, xx = np.mgrid[1:ny + 1, 1:nx + 1].astype(float)
+    image = 200.0 + 0.3 * xx - 0.2 * yy
+
+    def star(x, y, peak, sigma=1.3):
+        return peak * np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (2 * sigma ** 2))
+
+    for _ in range(100):
+        image += star(rng.uniform(-2, nx + 3), rng.uniform(-2, ny + 3),
+                      10 ** rng.uniform(1.5, 4.0))
+    for x, y, dx, dy in ((40.2, 30.7, 2.1, 0.4), (90.6, 120.3, 4.3, -3.2),
+                         (140.1, 60.5, 0.0, 6.0)):          # pairs
+        image += star(x, y, 3000.0) + star(x + dx, y + dy, 1200.0)
+    for x, y in ((1.2, 80.4), (180.0, 20.6), (70.3, 1.0), (120.7, 159.6),
+                 (2.0, 2.0)):                                # on the edges
+        image += star(x, y, 2500.0)
+    image += star(100.4, 40.6, 600.0, sigma=6.0)             # a galaxy
+    image[rng.integers(5, ny - 5, 8), rng.integers(5, nx - 5, 8)] += \
+        rng.uniform(500, 4000, 8)                            # cosmic rays
+    image[:, 150] += 150.0                                   # a hot column
+    image += rng.normal(0, 6.0, image.shape)
+    return image.astype(np.float32)

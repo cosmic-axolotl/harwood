@@ -611,7 +611,8 @@ tasks:
     note: "absorbed into the task's Pydantic parameter model"}
   chkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   daoedit: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
-  daofind: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: daofind}
+  daofind: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: daofind,
+    note: "IRAF's kernel, density, detection, sharpness, sround, ground and centres, ported and checked against IRAF's output; sigma is measured from the image when not given, where IRAF would detect at zero"}
   daopars: {pkg: digiphot.daophot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   datapars: {pkg: digiphot.apphot, domain: photometry, status: replaced,

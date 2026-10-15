@@ -1,8 +1,8 @@
-"""Turning "No module named 'photutils'" into something you can act on.
+"""Turning "No module named 'scipy'" into something you can act on.
 
 harwood installs lean on purpose (section 4): the base is numpy, astropy and a
 command line, and everything heavy is an extra. The cost of that is a class of
-error message that is accurate and useless -- a task stops because photutils is
+error message that is accurate and useless -- a task stops because scipy is
 not there, and nothing says that `pip install harwood[phot]` is the answer.
 
 So the extras are written down once, here, and the command line turns any
@@ -13,7 +13,6 @@ from __future__ import annotations
 
 #: Which extra provides which module.
 PROVIDED_BY = {
-    "photutils": "phot",
     "scipy": "phot",
     "ccdproc": "ccd",
     "astroscrappy": "ccd",
@@ -24,7 +23,7 @@ PROVIDED_BY = {
 
 #: What each extra is for, in a few words.
 PURPOSE = {
-    "phot": "detection, photometry and curve fitting",
+    "phot": "curve fitting and resampling",
     "ccd": "CCD reduction and cosmic ray removal",
     "gui": "the viewer and the interactive panels",
     "fast": "the compiled numeric kernels",

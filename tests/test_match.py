@@ -63,6 +63,22 @@ def test_the_brightest_stars_are_the_ones_both_frames_agree_on():
     assert len(sighted) > len(blind)
 
 
+def test_a_star_with_no_flux_is_the_faintest_not_the_brightest():
+    """phot writes NaN for a star whose aperture sums to less than its sky.
+    A reversed argsort puts NaN first, and the pattern search then ran on the
+    unmeasurable stars -- on M92 that sank the whole match."""
+    rx, ry, flux, rng = field(n=40)
+    ix, iy = transform(rx, ry, 0.4, 1.0, (12.0, -7.0))
+    rflux, iflux = flux.copy(), flux.copy()
+    rflux[rng.permutation(40)[:5]] = np.nan
+    iflux[rng.permutation(40)[:5]] = np.nan
+    assert np.isfinite(rflux[match._brightest(rflux, 40, 35)]).all()   # 35 are finite
+
+    found = match.by_triangles(rx, ry, ix, iy, nmatch=15, rflux=rflux, iflux=iflux)
+    assert found, found.message
+    assert len(found) == 40
+
+
 def test_a_match_that_does_not_fit_a_transform_is_refused():
     """A set of voted pairs with no consistent transform behind it is a guess.
     Returning it would be a silent wrong answer, which is worse than nothing."""

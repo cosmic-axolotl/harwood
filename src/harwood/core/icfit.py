@@ -19,6 +19,11 @@ The parameter names and their meanings: `function`, `order`, `sample`,
 functions: `legendre`, `chebyshev`, `spline1`, `spline3`. For the splines,
 `order` is the number of polynomial pieces, as in IRAF -- not the polynomial
 degree, which is the mistake to make here.
+
+The fitting, the binning and the rejection (ic_fit, ic_reject, rg_wtbin) are
+translated from IRAF, Copyright (c) 1986 Association of Universities for
+Research in Astronomy Inc.; the notice it is distributed under is in
+LICENSES/IRAF-COPYRIGHT.
 """
 
 from __future__ import annotations

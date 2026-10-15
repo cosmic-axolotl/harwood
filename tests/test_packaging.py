@@ -233,7 +233,7 @@ def test_a_two_dimensional_array_is_required():
 def test_a_missing_extra_is_named_with_the_command_that_installs_it():
     from harwood.core import extras
 
-    assert "harwood[phot]" in extras.hint(ImportError(name="photutils"))
+    assert "harwood[phot]" in extras.hint(ImportError(name="scipy"))
     assert "harwood[gui]" in extras.hint(ImportError(name="PySide6"))
     assert "harwood[fast]" in extras.hint(ImportError(name="numba"))
     assert extras.hint(ImportError(name="a_real_bug")) is None, \

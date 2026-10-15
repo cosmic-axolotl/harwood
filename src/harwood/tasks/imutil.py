@@ -293,6 +293,9 @@ def imstat(data, fields=("npix", "mean", "stddev", "min", "max"), lower=None,
     binwidth sigma -- with the median interpolated in its integral and the
     mode in a parabola through the peak bin. They are IRAF's numbers, which
     is the point; a true median would not be.
+
+    Translated from IRAF, Copyright (c) 1986 Association of Universities for
+    Research in Astronomy Inc.; the notice is in LICENSES/IRAF-COPYRIGHT.
     """
     import numpy as np
 

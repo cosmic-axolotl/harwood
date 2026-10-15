@@ -158,7 +158,10 @@ def _brightest(flux, size: int, limit: int) -> np.ndarray:
     """Indices of the points that take part in the pattern search."""
     if flux is None:
         return np.arange(min(size, limit))
-    order = np.argsort(np.asarray(flux, dtype=float))[::-1]
+    # A star with no measurable flux (phot writes INDEF, NaN, for one) is the
+    # faintest, not -- as a reversed argsort would have it -- the brightest.
+    flux = np.asarray(flux, dtype=float)
+    order = np.argsort(np.where(np.isfinite(flux), -flux, np.inf), kind="stable")
     return order[:min(size, limit)]
 
 

@@ -160,7 +160,7 @@ def test_daofind_and_phot_default_to_the_run_directory(frames, tmp_path):
 
     token = output.begin("daofind", frames)
     try:
-        found = get_task("daofind").run(image="obj.fits", fwhm=3.0, threshold=4.0)
+        found = get_task("daofind").run(image="obj.fits", fwhmpsf=3.0, threshold=4.0)
     finally:
         output.end(token)
 

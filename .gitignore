@@ -24,3 +24,4 @@ venv/
 harwood.log
 harwood.log.jsonl
 harwood.yaml
+.coverage

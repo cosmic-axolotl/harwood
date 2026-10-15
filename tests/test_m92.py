@@ -73,7 +73,7 @@ def reduced(tmp_path_factory, raw):
 
 def measure(work, name):
     get_task("daofind").run(image=str(work / f"{name}p.fits"),
-                            output=work / f"{name}.coo", fwhm=FWHM, threshold=4.0)
+                            output=work / f"{name}.coo", fwhmpsf=FWHM, threshold=4.0)
     get_task("phot").run(image=str(work / f"{name}p.fits"), coords=work / f"{name}.coo",
                          output=work / f"{name}.mag", apertures=[10.0], annulus=15.0,
                          dannulus=10.0, epadu=EPADU, zmag=25.0, exposure="EXPTIME")
@@ -145,7 +145,17 @@ def test_the_two_v_frames_agree(reduced):
 
     assert abs(np.median(difference[finite])) < 0.05, "equal exposures, equal scale"
 
-    bright = finite & (magnitude < 19.0)
+    # Isolated ones: no other detection within the 10 px aperture plus two
+    # FWHM. daofind finds the faint companions a few pixels from bright stars,
+    # as IRAF's does, and a 10 px aperture over a pair measures how the light
+    # of one falls in the aperture of the other -- which moves with the centre,
+    # not with the photometry.
+    x, y = np.asarray(first["x"]), np.asarray(first["y"])
+    separation = np.hypot(x[:, None] - x[None, :], y[:, None] - y[None, :])
+    np.fill_diagonal(separation, np.inf)
+    isolated = separation.min(axis=1)[i] > 10.0 + 2 * FWHM
+
+    bright = finite & (magnitude < 19.0) & isolated
     assert bright.sum() >= 5
     assert np.std(difference[bright]) < 0.05, "bright stars must repeat to a few mmag"
 
@@ -274,7 +284,7 @@ def test_imalign_closes_the_loop(reduced):
     catalogues = []
     for name in ("m92010p", "m92011p"):
         finder.run(image=str(reduced / "aligned" / f"{name}.fits"),
-                   output=reduced / f"a_{name}.coo", fwhm=FWHM, threshold=4.0)
+                   output=reduced / f"a_{name}.coo", fwhmpsf=FWHM, threshold=4.0)
         catalogues.append(catalog.read(reduced / f"a_{name}.coo"))
 
     found = match.by_tolerance(np.asarray(catalogues[0]["x"]),

@@ -34,8 +34,8 @@ dependencies = [
 ccd = ["ccdproc>=2.4", "astroscrappy>=1.2"]
 # scipy is here rather than in the base because the core only needs it for
 # spline fits and for imalign's resampling, and both say so when it is absent.
-# Anyone doing photometry has it regardless: photutils requires it.
-phot = ["photutils>=1.13", "scipy>=1.10"]
+# daofind and phot are ports of IRAF's apphot and need only numpy.
+phot = ["scipy>=1.10"]
 gui = ["PySide6-Essentials>=6.6", "pyqtgraph>=0.13"]
 fast = ["numba>=0.59"]
 # Not on PyPI yet: the compiled kernels are built from the harwood-kernels
