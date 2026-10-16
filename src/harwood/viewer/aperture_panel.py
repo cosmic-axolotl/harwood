@@ -62,7 +62,7 @@ class AperturePanel(QtWidgets.QWidget):
     finished = QtCore.Signal()
 
     def __init__(self, profile, apertures: list[dict], background=None,
-                 ylevel: float = 0.05, parent=None) -> None:
+                 ylevel: float = 0.1, parent=None) -> None:
         super().__init__(parent)
         self.profile = np.asarray(profile, dtype=float)
         self.across = np.arange(1.0, self.profile.size + 1.0)
@@ -239,7 +239,8 @@ class AperturePanel(QtWidgets.QWidget):
     def _add(self) -> None:
         """A new aperture, centred on whatever the cursor is nearest."""
         centre = self._centre_on(self._cursor)
-        low, high = apextract.edges(self.profile, centre, self.ylevel)
+        low, high = apextract.ylevel(self.profile, centre, self.ylevel,
+                                     low=-self.profile.size, high=self.profile.size)
         self.apertures.append({"centre": centre, "low": low, "high": high})
         self.apertures.sort(key=lambda aperture: aperture["centre"])
         self.selected = next(index for index, aperture in enumerate(self.apertures)
@@ -271,8 +272,8 @@ class AperturePanel(QtWidgets.QWidget):
 
     def _resize_all(self) -> None:
         for aperture in self.apertures:
-            low, high = apextract.edges(self.profile, aperture["centre"],
-                                        self.ylevel)
+            low, high = apextract.ylevel(self.profile, aperture["centre"], self.ylevel,
+                                         low=-self.profile.size, high=self.profile.size)
             aperture["low"], aperture["high"] = low, high
         self.redraw()
 
@@ -399,7 +400,7 @@ class AperturePanel(QtWidgets.QWidget):
         return self.apertures, self.background
 
 
-def run(profile, apertures: list[dict], background=None, ylevel: float = 0.05,
+def run(profile, apertures: list[dict], background=None, ylevel: float = 0.1,
         title: str = "apedit") -> tuple[list[dict], list | None]:
     """Open the panel and hand back the apertures that were accepted."""
     from .dock import show

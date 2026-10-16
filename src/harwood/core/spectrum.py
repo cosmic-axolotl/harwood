@@ -42,9 +42,9 @@ MEANING = {
     "pixel": "position along the dispersion axis, 1-based",
     "wavelength": "wavelength, when a dispersion solution has been applied",
     "flux": "extracted flux, background subtracted",
-    "error": "uncertainty on the flux",
-    "sky": "background per pixel of the aperture, as subtracted",
-    "raw": "the aperture sum before the background was removed",
+    "error": "uncertainty on the flux (IRAF's sigma band; variance weights only)",
+    "sky": "background summed over the aperture, as subtracted (IRAF's background band)",
+    "raw": "unweighted, uncleaned aperture sum, background subtracted (IRAF's raw band)",
 }
 
 

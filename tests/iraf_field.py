@@ -151,3 +151,32 @@ def align_frames():
                round(stars[i][1] + rng.uniform(-1, 1), 1)) for i in picks]
     coords += [(70.0, 60.0), (3.0, 100.0), (25.0, 115.0)]    # pair, edge, sky
     return frames, coords
+
+
+def spectra_frame():
+    """A long-slit frame for apall: DISPAXIS=2, the dispersion along the
+    lines (y), 300 of them, and 100 columns across. Two spectra, one bright
+    and one faint, each wandering by a few pixels along the dispersion; a
+    sky with a slope across the slit and emission lines along it; absorption
+    lines in the brighter star; cosmic rays, some in the apertures; noise for
+    a gain of 2 e-/ADU and a read noise of 5 e-."""
+    rng = np.random.default_rng(61)
+    ny, nx = 300, 100
+    yy, xx = np.mgrid[1:ny + 1, 1:nx + 1].astype(float)
+    t = (yy - 150.0) / 150.0
+    image = 80.0 + 0.3 * (xx - 50.0)
+    for line, strength in ((40.0, 300.0), (122.5, 120.0), (233.0, 500.0)):
+        image += strength * np.exp(-((yy - line) ** 2) / (2 * 1.3 ** 2))
+    for centre, curve, tilt, flux, sigma in ((34.6, 2.5, 1.8, 6000.0, 1.7),
+                                             (68.3, -1.5, 1.2, 1500.0, 1.9)):
+        position = centre + tilt * t + curve * t ** 2
+        continuum = flux * (1.0 + 0.3 * t) * (1 - 0.6 * np.exp(-((yy - 180.0) / 2.0) ** 2))
+        image += continuum / (np.sqrt(2 * np.pi) * sigma) * \
+            np.exp(-((xx - position) ** 2) / (2 * sigma ** 2))
+    gain, rdnoise = 2.0, 5.0
+    electrons = rng.poisson(np.clip(image * gain, 0, None)).astype(float)
+    image = (electrons + rng.normal(0, rdnoise, image.shape)) / gain
+    for y, x, value in ((60, 35, 4000.0), (61, 35, 2500.0), (150, 70, 3000.0),
+                        (210, 33, 5000.0), (90, 10, 2000.0), (275, 69, 1800.0)):
+        image[y - 1, x - 1] += value
+    return image.astype(np.float32)

@@ -1,15 +1,16 @@
 """Finding spectra, following them, adding them up, and writing them down.
 
 Built on a synthetic frame where the trace, the width and the flux are known,
-so the answers can be checked rather than merely be plausible. The real KPNO
-spectra are exercised in test_m92.py's companion checks.
+so the answers can be checked rather than merely be plausible. That the
+arithmetic is IRAF's, number for number, is test_apall_iraf.py's job; this
+file checks it does what a spectrum needs.
 """
 
 import numpy as np
 import pytest
 from astropy.io import fits
 
-from harwood.core import apextract, spectrum
+from harwood.core import apextract, icfit, spectrum
 from harwood.core.registry import get_task
 
 NY, NX = 400, 60            # 400 along the dispersion, 60 across the slit
@@ -34,62 +35,73 @@ def synthetic(flux_per_pixel=2000.0, seed=5):
     return frame + rng.normal(0, 3.0, frame.shape), centres
 
 
+def band(inner, outer, low=-8.0, high=8.0):
+    """A background sample `inner` to `outer` pixels outside each edge."""
+    return icfit.FitSpec(function="chebyshev", order=1, naverage=-3,
+                         sample=f"{low - outer:g}:{low - inner:g},"
+                                f"{high + inner:g}:{high + outer:g}")
+
+
+def traced(frame, low=-8.0, high=8.0, background=None):
+    aperture = apextract.Aperture(1, CENTRE, low, high, NY // 2,
+                                  background=background or band(4.0, 14.0, low, high))
+    points = apextract.trace(frame, 2, [aperture], NY // 2)
+    return aperture, points[0]
+
+
 def test_the_profile_finds_the_spectrum():
     frame, _ = synthetic()
-    spatial = apextract.profile(frame, dispaxis=2)
-    found = apextract.find(spatial, nfind=1, threshold=5.0)
-    assert len(found) == 1
-    assert found[0]["centre"] == pytest.approx(CENTRE, abs=0.4)
+    profile, line = apextract.getdata(apextract.frame(frame, 2))
+    found = apextract.find(profile, nfind=1)
+    assert line == NY // 2
+    assert found == [pytest.approx(CENTRE, abs=0.1)]
 
 
 def test_two_spectra_closer_than_minsep_are_one():
     across = np.arange(1.0, 61.0)
-    blended = (np.exp(-0.5 * ((across - 30) / 2) ** 2)
-               + np.exp(-0.5 * ((across - 33) / 2) ** 2)) * 1000 + 10
-    assert len(apextract.find(blended, nfind=5, minsep=8.0, threshold=3.0)) == 1
-    assert len(apextract.find(blended, nfind=5, minsep=2.0, threshold=3.0)) >= 1
+    blended = ((np.exp(-0.5 * ((across - 30) / 2) ** 2)
+                + np.exp(-0.5 * ((across - 36) / 2) ** 2)) * 1000 + 10).astype(np.float32)
+    assert len(apextract.find(blended, nfind=5, minsep=8.0)) == 1
+    assert len(apextract.find(blended, nfind=5, minsep=2.0)) == 2
 
 
 def test_the_aperture_is_sized_from_the_profile():
     frame, _ = synthetic()
-    spatial = apextract.profile(frame, dispaxis=2)
-    low, high = apextract.edges(spatial, CENTRE, fraction=0.05)
-
+    profile, _ = apextract.getdata(apextract.frame(frame, 2))
+    low, high = apextract.ylevel(profile, CENTRE, 0.05, low=-NX, high=NX)
     # A Gaussian falls to 5% of its peak at 2.45 sigma either side.
-    expected = 2.45 * WIDTH
-    assert -low == pytest.approx(expected, abs=1.5)
-    assert high == pytest.approx(expected, abs=1.5)
+    assert -low == pytest.approx(2.45 * WIDTH, abs=0.5)
+    assert high == pytest.approx(2.45 * WIDTH, abs=0.5)
 
 
 def test_the_trace_follows_the_drift():
     """The point of tracing: the spectrum does not sit on one column."""
     frame, centres = synthetic()
-    fit = apextract.trace(frame, CENTRE, dispaxis=2, step=10, nsum=10)
-
-    assert fit.model is not None, fit.message
+    aperture, points = traced(frame)
+    fit = aperture.trace.fit
+    assert fit is not None and fit.model is not None
     assert fit.rms < 0.2, "a bright spectrum traces to a fraction of a pixel"
-
-    ends = fit(np.array([1.0, float(NY)]))
+    ends = aperture.centre_at(np.array([1.0, float(NY)]))
     assert ends[1] - ends[0] == pytest.approx(DRIFT, abs=0.3)
-    np.testing.assert_allclose(fit(np.arange(1.0, NY + 1.0)), centres, atol=0.3)
+    np.testing.assert_allclose(aperture.centre_at(points.positions), centres[
+        points.positions.astype(int) - 1], atol=0.3)
 
 
-def test_a_trace_that_cannot_be_followed_says_so_rather_than_returning_a_line():
+def test_a_trace_that_cannot_be_followed_leaves_no_points():
     blank = np.full((NY, NX), SKY)
-    fit = apextract.trace(blank, CENTRE, dispaxis=2, step=20, nsum=10)
-    assert fit.model is None
-    assert "dispersion axis" in fit.message
+    _, points = traced(blank)
+    assert points.positions.size < 2
+    assert points.lost, "where it was lost is recorded"
 
 
 def test_extraction_recovers_the_flux_that_was_put_in():
     frame, _ = synthetic(flux_per_pixel=2000.0)
-    fit = apextract.trace(frame, CENTRE, dispaxis=2, step=10, nsum=10)
-    out = apextract.extract(frame, fit, -8.0, 8.0, dispaxis=2,
-                            background=(4.0, 14.0), gain=2.0, rdnoise=5.0)
-
-    flux = out["flux"]
-    assert np.median(flux) == pytest.approx(2000.0, rel=0.03)
-    assert np.median(out["sky"]) == pytest.approx(SKY, abs=2.0)
+    aperture, _ = traced(frame)
+    out = apextract.extract(apextract.frame(frame, 2), [aperture], background="fit")[0]
+    assert np.median(out.spec) == pytest.approx(2000.0, rel=0.03)
+    assert np.median(out.sky) == pytest.approx(SKY * 16, rel=0.05), \
+        "the background is summed over the 16 px aperture"
+    assert out.sigma is None, "IRAF has a sigma only with variance weights"
 
 
 def _uniform_spectrum(peak, seed=0, length=600, across=60, centre=30.0,
@@ -111,16 +123,15 @@ def _uniform_spectrum(peak, seed=0, length=600, across=60, centre=30.0,
 
 
 def _both_ways(frame, gain=2.0, rdnoise=6.0):
-    def trace(position):
-        """A perfectly straight spectrum: the trace is not what is being tested."""
-        return np.full_like(np.asarray(position, dtype=float), 30.0)
-
-    return {
-        weights: apextract.extract(frame, trace, -8.0, 8.0, dispaxis=2,
-                                   background=(10.0, 25.0), gain=gain,
-                                   rdnoise=rdnoise, weights=weights)
-        for weights in ("none", "variance")
-    }
+    """A perfectly straight spectrum: the trace is not what is being tested."""
+    out = {}
+    for weights in ("none", "variance"):
+        aperture = apextract.Aperture(1, 30.0, -8.0, 8.0, 300,
+                                      background=band(10.0, 25.0))
+        out[weights] = apextract.extract(apextract.frame(frame, 2), [aperture],
+                                         background="fit", weights=weights,
+                                         gain=gain, readnoise=rdnoise)[0]
+    return out
 
 
 def test_a_profile_taken_from_the_data_is_not_a_profile():
@@ -128,20 +139,13 @@ def test_a_profile_taken_from_the_data_is_not_a_profile():
 
     Horne's weighting needs a *model* of the spatial profile. Take the profile
     from the data at that wavelength -- P = D / sum(D) -- and the algebra
-    collapses:
-
-        sum(P D / V) / sum(P^2 / V)  ==  sum(D)
-
-    exactly, for every input. The flux is the plain sum, bit for bit, while
-    the error shrinks because the "profile" has absorbed the noise it was
-    meant to weight against. It looks like free signal-to-noise and is a
-    mis-stated uncertainty, and no test comparing flux/error can see it --
-    which is why this one compares the fluxes themselves.
+    collapses to the plain sum, for every input, while the error shrinks
+    because the "profile" has absorbed the noise it was meant to weight
+    against. IRAF fits the profile along the dispersion; this checks the
+    fluxes differ, which no comparison of flux/error can.
     """
-    frame = _uniform_spectrum(1500.0, seed=5)
-    both = _both_ways(frame)
-
-    assert not np.allclose(both["none"]["flux"], both["variance"]["flux"]), \
+    both = _both_ways(_uniform_spectrum(1500.0, seed=5))
+    assert not np.allclose(both["none"].spec, both["variance"].spec), \
         "identical fluxes mean the profile came from the data"
 
 
@@ -149,10 +153,8 @@ def test_optimal_extraction_recovers_the_flux_that_was_put_in():
     """Weighting must not move the answer. A scheme that improves the
     signal-to-noise *and* shifts the flux has measured something else."""
     truth = 3000.0
-    both = _both_ways(_uniform_spectrum(truth, seed=7))
-
-    for weights, result in both.items():
-        assert np.median(result["flux"]) == pytest.approx(truth, rel=0.02), weights
+    for weights, result in _both_ways(_uniform_spectrum(truth, seed=7)).items():
+        assert np.median(result.spec) == pytest.approx(truth, rel=0.02), weights
 
 
 def test_optimal_extraction_earns_its_keep_on_a_faint_spectrum():
@@ -161,43 +163,36 @@ def test_optimal_extraction_earns_its_keep_on_a_faint_spectrum():
     Horne's method recovers what a plain sum throws away at the edges of the
     profile, where the signal is weak and the read noise is not. On a bright
     spectrum the noise is photons and there is nothing to recover; on a faint
-    one it is worth most of a magnitude. A claimed gain that is the same at
-    both ends is not this algorithm.
-
-    Measured scatter, not the reported error: a wrong error estimate cannot
-    flatter itself here.
+    one it is worth most of a magnitude. Measured scatter, not the reported
+    error: a wrong error estimate cannot flatter itself here.
     """
     def gain_at(peak, seed):
         both = _both_ways(_uniform_spectrum(peak, seed=seed))
-        scatter = {name: float(np.std(result["flux"]) / np.median(result["flux"]))
-                   for name, result in both.items()}
+        scatter = {name: float(np.std(r.spec) / np.median(r.spec))
+                   for name, r in both.items()}
         return scatter["none"] / scatter["variance"]
 
     assert gain_at(20000.0, 3) < 1.10, "nothing to recover from a bright spectrum"
     assert gain_at(400.0, 3) > 1.30, "and a real gain on a faint one"
 
 
-def test_the_reported_error_matches_the_scatter_it_claims_to_describe():
-    """The check the old test was missing. An uncertainty nobody has compared
-    with a repeat measurement is decoration."""
-    for weights in ("none", "variance"):
-        frame = _uniform_spectrum(2000.0, seed=13)
-        result = _both_ways(frame)[weights]
-        measured = float(np.std(result["flux"]))
-        claimed = float(np.median(result["error"]))
-        assert 0.7 < measured / claimed < 1.4, \
-            f"{weights}: scatter {measured:.1f} against claimed {claimed:.1f}"
+def test_the_reported_sigma_matches_the_scatter_it_claims_to_describe():
+    """An uncertainty nobody has compared with a repeat measurement is
+    decoration."""
+    result = _both_ways(_uniform_spectrum(2000.0, seed=13))["variance"]
+    measured = float(np.std(result.spec))
+    claimed = float(np.median(result.sigma))
+    assert 0.7 < measured / claimed < 1.4, f"scatter {measured:.1f}, sigma {claimed:.1f}"
 
 
 def test_the_background_is_taken_from_beside_the_aperture_not_under_it():
     frame, _ = synthetic()
-    fit = apextract.trace(frame, CENTRE, dispaxis=2, step=10, nsum=10)
-
-    fair = apextract.extract(frame, fit, -6.0, 6.0, dispaxis=2,
-                             background=(6.0, 18.0))
-    tight = apextract.extract(frame, fit, -6.0, 6.0, dispaxis=2,
-                              background=(0.0, 4.0))
-    assert np.median(tight["sky"]) > np.median(fair["sky"]), \
+    fair_ap, _ = traced(frame, -6.0, 6.0, band(6.0, 18.0, -6.0, 6.0))
+    tight_ap, _ = traced(frame, -6.0, 6.0, band(0.0, 4.0, -6.0, 6.0))
+    data = apextract.frame(frame, 2)
+    fair = apextract.extract(data, [fair_ap], background="fit")[0]
+    tight = apextract.extract(data, [tight_ap], background="fit")[0]
+    assert np.median(tight.sky) > np.median(fair.sky), \
         "sky measured on the wings of the profile is sky that includes the star"
 
 
@@ -273,7 +268,7 @@ def frame(tmp_path, monkeypatch):
 
 def test_apall_end_to_end(frame):
     result = get_task("apall").run(input="obj.fits", output="obj.ms.fits",
-                                   gain=2.0, rdnoise=5.0, t_step=10, nsum=10)
+                                   background="fit", t_step=10, nsum=10)
     assert result.data["apertures"] == 1
 
     back = spectrum.read(frame / "obj.ms.fits")[0]
@@ -286,12 +281,10 @@ def test_apall_says_what_to_check_when_it_finds_nothing(frame):
     fits.PrimaryHDU(np.full((100, 40), 5.0, dtype=np.float32)).writeto(
         frame / "blank.fits")
     with pytest.raises(RuntimeError) as raised:
-        get_task("apall").run(input="blank.fits", output="x.ms.fits",
-                              threshold=8.0)
-    # The two things actually worth checking, in the suggestion rather than
-    # buried in the sentence that says it failed.
+        get_task("apall").run(input="blank.fits", output="x.ms.fits")
+    # What is actually worth checking, in the suggestion rather than buried
+    # in the sentence that says it failed.
     assert "--dispaxis" in raised.value.fix
-    assert "--threshold" in raised.value.fix
 
 
 def test_apall_explains_every_step_that_touches_the_data(frame):
@@ -305,7 +298,8 @@ def test_apall_explains_every_step_that_touches_the_data(frame):
 
 def test_wspectext_writes_every_column_with_what_it_means(frame):
     get_task("apall").run(input="obj.fits", output="obj.ms.fits", t_step=10,
-                          nsum=10)
+                          nsum=10, background="fit", weights="variance", gain="2.",
+                          readnoise="5.")
     get_task("wspectext").run(input="obj.ms.fits", output="obj.csv")
 
     text = (frame / "obj.csv").read_text()
@@ -341,8 +335,8 @@ def panel():
 
     application()
     frame, _ = synthetic()
-    spatial = apextract.profile(frame, dispaxis=2)
-    low, high = apextract.edges(spatial, CENTRE, 0.05)
+    spatial, _ = apextract.getdata(apextract.frame(frame, 2))
+    low, high = apextract.ylevel(spatial, CENTRE, 0.05, low=-NX, high=NX)
     return AperturePanel(spatial, [{"centre": CENTRE, "low": low, "high": high}],
                          background=[3.0, 12.0])
 
@@ -438,6 +432,10 @@ def test_apall_uses_what_apedit_returned(frame, monkeypatch):
     assert back.low == pytest.approx(-9.0)
     assert back.high == pytest.approx(9.0)
     assert result.data["apertures"] == 1
+    # The band set by hand, 5 to 20 px outside each edge, is the sample.
+    from harwood.core import database
+    stored = database.read("obj.fits", frame, prefix="ap")
+    assert stored.extra["apertures"][0]["background"] == "-29:-14,14:29"
 
 
 def test_deleting_every_aperture_stops_rather_than_extracting_nothing(frame,

@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 19, partial: 28, planned: 308, replaced: 94, wontport: 161
+#   available: 19, partial: 29, planned: 307, replaced: 94, wontport: 161
 #   milestone mvp: 57 (31 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -684,23 +684,24 @@ tasks:
 
   # --- spec-2d (later, 30 tasks) --------------------------------
   apall: {pkg: twodspec.apextract, domain: spec-2d, status: partial, milestone: later, harwood: apall,
-    note: "finds, sizes, traces and extracts, with a plain or an optimal sum and a background either side; no apedit, no aperture reference from another frame, one background shape only"}
+    note: "IRAF's find, resize, trace, background (none, average, median, minimum, fit, skybox) and extraction (fractional edge pixels; variance weights with fit1d profiles and cleaning), ported and checked against IRAF's output; not ported: fit2d profiles, subapertures, reference apertures from another frame, recenter, output formats other than harwood's"}
   apdefault: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apedit: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apall,
     note: "part of apall: --edit opens it, and the finding and sizing happen there"}
   apfind: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apall,
-    note: "part of apall: --edit opens it, and the finding and sizing happen there"}
+    note: "part of apall (--find): IRAF's find_peaks and center1d, ported"}
   apfit: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apflatten: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apnoise: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apnormalize: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   aprecenter: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apresize: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apall,
-    note: "part of apall: --edit opens it, and the finding and sizing happen there"}
+    note: "part of apall (--resize): IRAF's ap_ylevel, ported"}
   apscatter: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apsum: {pkg: twodspec.apextract, domain: spec-2d, status: partial, milestone: later, harwood: apall,
     note: "extraction is done by apall; apsum as a separate task reusing a stored aperture is not built"}
-  aptrace: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
+  aptrace: {pkg: twodspec.apextract, domain: spec-2d, status: partial, milestone: later, harwood: apall,
+    note: "part of apall (--trace): IRAF's tracing in both dispersion directions, ported; not a task of its own"}
   extinction: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
   fceval: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
   findpeaks: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,

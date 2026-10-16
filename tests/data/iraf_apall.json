@@ -1,0 +1,518 @@
+{
+ "_comment": "IRAF 2.18.1 noao.twodspec.apextract.apall on tests/iraf_field.spectra_frame() (transposed, with DISPAXIS=1, for the d1 cases): interactive=no, find, resize (unless resize is false), trace, extract, nfind=2, format multispec; every other parameter IRAF's default unless in the case. 'apertures' is what IRAF wrote to database/ap<case>: center, low, high as (x, y). The spectra are in iraf_apall.npz as <case>__<band>.",
+ "cases": {
+  "d2_none": {
+   "dispaxis": 2
+  },
+  "d2_fit": {
+   "dispaxis": 2,
+   "background": "fit"
+  },
+  "d2_avg": {
+   "dispaxis": 2,
+   "background": "average"
+  },
+  "d2_med": {
+   "dispaxis": 2,
+   "background": "median"
+  },
+  "d2_min": {
+   "dispaxis": 2,
+   "background": "minimum"
+  },
+  "d2_fitbox": {
+   "dispaxis": 2,
+   "background": "fit",
+   "skybox": 3
+  },
+  "d2_avgbox": {
+   "dispaxis": 2,
+   "background": "average",
+   "skybox": 4
+  },
+  "d2_var": {
+   "dispaxis": 2,
+   "background": "fit",
+   "weights": "variance",
+   "gain": "2.",
+   "readnoise": "5."
+  },
+  "d2_clean": {
+   "dispaxis": 2,
+   "background": "fit",
+   "weights": "variance",
+   "clean": true,
+   "gain": "2.",
+   "readnoise": "5."
+  },
+  "d2_varnobg": {
+   "dispaxis": 2,
+   "weights": "variance",
+   "gain": "2.",
+   "readnoise": "5.",
+   "lsigma": 3.0,
+   "usigma": 3.0,
+   "clean": true
+  },
+  "d1_fit": {
+   "dispaxis": 1,
+   "background": "fit"
+  },
+  "d1_var": {
+   "dispaxis": 1,
+   "background": "average",
+   "weights": "variance",
+   "gain": "2.",
+   "readnoise": "5."
+  },
+  "d2_shape": {
+   "dispaxis": 2,
+   "background": "fit",
+   "ylevel": 0.05,
+   "t_function": "spline3",
+   "t_order": 2,
+   "t_step": 7,
+   "t_nsum": 5,
+   "nsum": -15,
+   "b_order": 2,
+   "b_sample": "-12:-7,7:12",
+   "b_naverage": 1,
+   "b_niterate": 2
+  },
+  "d2_fixed": {
+   "dispaxis": 2,
+   "background": "median",
+   "resize": false,
+   "lower": -4.3,
+   "upper": 3.7,
+   "t_order": 3,
+   "t_niterate": 2,
+   "t_low_reject": 2.0,
+   "t_high_reject": 2.0,
+   "line": 120,
+   "width": 7.0
+  }
+ },
+ "apertures": {
+  "d2_none": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_fit": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_avg": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_med": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_min": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_fitbox": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_avgbox": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_var": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_clean": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d2_varnobg": [
+   {
+    "center": [
+     34.59373,
+     150.0
+    ],
+    "low": [
+     -3.727915,
+     -149.0
+    ],
+    "high": [
+     3.779636,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     69.26266,
+     150.0
+    ],
+    "low": [
+     -5.099289,
+     -149.0
+    ],
+    "high": [
+     3.067406,
+     150.0
+    ]
+   }
+  ],
+  "d1_fit": [
+   {
+    "center": [
+     150.0,
+     34.59373
+    ],
+    "low": [
+     -149.0,
+     -3.727915
+    ],
+    "high": [
+     150.0,
+     3.779636
+    ]
+   },
+   {
+    "center": [
+     150.0,
+     69.26266
+    ],
+    "low": [
+     -149.0,
+     -5.099289
+    ],
+    "high": [
+     150.0,
+     3.067406
+    ]
+   }
+  ],
+  "d1_var": [
+   {
+    "center": [
+     150.0,
+     34.59373
+    ],
+    "low": [
+     -149.0,
+     -3.727915
+    ],
+    "high": [
+     150.0,
+     3.779636
+    ]
+   },
+   {
+    "center": [
+     150.0,
+     69.26266
+    ],
+    "low": [
+     -149.0,
+     -5.099289
+    ],
+    "high": [
+     150.0,
+     3.067406
+    ]
+   }
+  ],
+  "d2_shape": [
+   {
+    "center": [
+     34.57875,
+     150.0
+    ],
+    "low": [
+     -4.289589,
+     -149.0
+    ],
+    "high": [
+     4.312061,
+     150.0
+    ]
+   },
+   {
+    "center": [
+     68.29854,
+     150.0
+    ],
+    "low": [
+     -4.813282,
+     -149.0
+    ],
+    "high": [
+     4.570999,
+     150.0
+    ]
+   }
+  ],
+  "d2_fixed": [
+   {
+    "center": [
+     34.34016,
+     120.0
+    ],
+    "low": [
+     -4.3,
+     -119.0
+    ],
+    "high": [
+     3.7,
+     180.0
+    ]
+   },
+   {
+    "center": [
+     67.99103,
+     120.0
+    ],
+    "low": [
+     -4.3,
+     -119.0
+    ],
+    "high": [
+     3.7,
+     180.0
+    ]
+   }
+  ]
+ }
+}

@@ -268,7 +268,8 @@ def _build(x: np.ndarray, y: np.ndarray, spec: FitSpec, weights=None,
         ) from error
 
 
-def fit(x, y, spec: FitSpec | None = None, deleted=None, **overrides) -> Fit:
+def fit(x, y, spec: FitSpec | None = None, deleted=None,
+        xrange: tuple[float, float] | None = None, **overrides) -> Fit:
     """Fit, reject, refit -- IRAF's ic_fit, one call.
 
     In IRAF's order: the sample is cut into ranges, each range into groups of
@@ -280,6 +281,9 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None, **overrides) -> Fit:
     `deleted` marks points a human removed by hand; they never come back
     through rejection, which is the difference between "the algorithm dropped
     this" and "I decided this one is wrong".
+
+    `xrange` is ic's xmin and xmax, over which spline pieces are laid; left
+    out, the range of the data, as most tasks set it.
     """
     spec = replace(spec or FitSpec(), **overrides) if overrides else (spec or FitSpec())
     x = np.asarray(x, dtype=float)
@@ -299,7 +303,8 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None, **overrides) -> Fit:
     groups = _groups(_runs(in_sample), spec.naverage)
     xb, yb, wb = _binned(x, np.where(np.isfinite(y), y, 0.0), weights, groups,
                          spec.naverage)
-    xrange = (float(np.min(x)), float(np.max(x)))
+    if xrange is None:
+        xrange = (float(np.min(x)), float(np.max(x)))
     rejected = np.zeros(len(groups), dtype=bool)
 
     def model_from(active):
@@ -353,6 +358,26 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None, **overrides) -> Fit:
             return Fit(spec, x, y, used_points(), deleted, None, str(error))
 
     return Fit(spec, x, y, used_points(), deleted, model, _clamped(spec, wb, rejected))
+
+
+def cv_range(x, spec: FitSpec, xrange: tuple[float, float] | None = None
+             ) -> tuple[float, float]:
+    """The range IRAF's curve is defined over (ic_dosetup), which is where
+    ap_cveval clamps it: for a polynomial, the range of the points fitted --
+    after the sample and the averaging; for a spline, that and ic's xmin and
+    xmax together."""
+    x = np.asarray(x, dtype=float)
+    groups = _groups(_runs(parse_sample(spec.sample, x)), spec.naverage)
+    if len(groups) == x.size or len(groups) == 1:
+        lo, hi = float(x.min()), float(x.max())
+    else:
+        centres = [float(x[members].mean()) for members in groups]
+        lo, hi = min(centres), max(centres)
+    if spec.function in ("legendre", "chebyshev"):
+        return lo, hi
+    if xrange is not None:
+        lo, hi = min(lo, xrange[0]), max(hi, xrange[1])
+    return lo, hi
 
 
 def _clamped(spec: FitSpec, wb: np.ndarray, rejected: np.ndarray) -> str:

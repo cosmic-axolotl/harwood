@@ -190,7 +190,12 @@ def _read_harwood(path: Path, text: str) -> Solution:
         coordlist=document.get("coordlist", ""),
         aperture=int(document.get("aperture", 1)),
         created=document.get("created", ""),
+        extra={key: value for key, value in document.items() if key not in _OWN},
     )
+
+
+#: The keys a harwood database file always has; anything else a task added.
+_OWN = {"task", "image", "aperture", "units", "coordlist", "created", "fit", "features"}
 
 
 def read_iraf(path: Path) -> Solution:

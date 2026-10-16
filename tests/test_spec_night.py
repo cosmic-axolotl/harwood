@@ -57,8 +57,8 @@ def night(tmp_path_factory):
 
 def extract(work, name, **overrides):
     options = dict(input=str(work / f"p{name}.fits"),
-                   output=work / f"{name}.ms.fits", gain=GAIN, rdnoise=RDNOISE,
-                   nsum=20, t_step=20)
+                   output=work / f"{name}.ms.fits", gain=GAIN, readnoise=RDNOISE,
+                   nsum=20, t_step=20, background="fit")
     options.update(overrides)
     get_task("apall").run(**options)
     return spectrum.read(work / f"{name}.ms.fits")[0]
@@ -84,13 +84,14 @@ def test_the_trace_finds_a_real_drift(night):
     from harwood.core import apextract, images
 
     data, _ = images.read(night / "psp0019.fits")
-    profile = apextract.profile(data, dispaxis=2)
-    centre = apextract.find(profile, nfind=1, threshold=5.0)[0]["centre"]
-    fit = apextract.trace(data, centre, dispaxis=2, step=20, nsum=20)
+    profile, line = apextract.getdata(apextract.frame(data, 2), nsum=20)
+    aperture = apextract.Aperture(1, apextract.find(profile, nfind=1)[0], line=line)
+    apextract.trace(data, 2, [aperture], line, step=20, nsum=20)
+    fit = aperture.trace.fit
 
-    assert fit.model is not None, fit.message
+    assert fit is not None and fit.model is not None
     assert fit.rms < 0.1, "a bright spectrum traces to a fraction of a pixel"
-    ends = fit(np.array([1.0, 1024.0]))
+    ends = aperture.trace(np.array([1.0, 1024.0]))
     assert 0.5 < abs(ends[1] - ends[0]) < 5.0, \
         f"drift of {ends[1] - ends[0]:+.2f} px end to end"
 
@@ -153,12 +154,14 @@ def test_optimal_extraction_has_almost_nothing_to_recover_here(night):
     assert not np.allclose(optimal.flux, plain.flux), \
         "identical to the last bit would mean the profile came from the data"
 
-    plain_snr = float(np.median(plain.flux[good] / plain.error[good]))
-    optimal_snr = float(np.median(optimal.flux[good] / optimal.error[good]))
-    assert 0.98 < optimal_snr / plain_snr < 1.10, (
-        f"{plain_snr:.1f} against {optimal_snr:.1f}: a big gain on a spectrum "
-        "this bright would mean something is wrong with the errors"
-    )
+    # IRAF has no sigma for a plain sum. What the weighted one claims can be
+    # held against the photon limit instead: on a spectrum this bright it
+    # sits just above sqrt(counts), the sky and read noise adding little.
+    photon = np.sqrt(optimal.flux[good] / GAIN)
+    ratio = float(np.median(optimal.error[good] / photon))
+    assert 1.0 < ratio < 1.15, (
+        f"sigma {ratio:.3f} x the photon limit: well above it would mean the "
+        "error model was wrong; below it, impossible")
 
 
 def test_the_extracted_file_says_everything_about_itself(night):
@@ -182,7 +185,7 @@ def test_the_extracted_file_says_everything_about_itself(night):
 
 
 def test_wspectext_turns_it_into_something_anyone_can_read(night):
-    extract(night, "sp0019")
+    extract(night, "sp0019", weights="variance")
     get_task("wspectext").run(input=str(night / "sp0019.ms.fits"),
                               output=night / "sp0019.csv")
 
