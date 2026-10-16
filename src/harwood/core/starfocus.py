@@ -396,11 +396,24 @@ def _stf_dgauss(x, p):
     return z, (d1, f32(f32(f32(z * f32(2)) * r2) / p[1]), f32(0))
 
 
+def _pow(base: float, power: float) -> float:
+    """C's pow: an overflow is infinity, as in IRAF, not an exception."""
+    try:
+        return float(base) ** float(power)
+    except OverflowError:
+        return math.inf
+
+
+def _sqrt(value: float) -> float:
+    """C's sqrt: NaN for a negative argument, as IRAF would print INDEF."""
+    return math.sqrt(value) if value >= 0 else math.nan
+
+
 def moffat(x, p):
     """stf_moffat1 and ie_moffat: amplitude, alpha and a (negative) power."""
     r = f32(x / p[1])
     y = f32(f32(r * r) + f32(1))
-    return f32(0) if abs(y) > 20 else f32(float(p[0]) * float(y) ** float(p[2]))
+    return f32(0) if abs(y) > 20 else f32(float(p[0]) * _pow(y, p[2]))
 
 
 def dmoffat(x, p):
@@ -408,7 +421,7 @@ def dmoffat(x, p):
     y = f32(f32(r * r) + f32(1))
     if abs(y) > 20:
         return f32(0), (f32(0), f32(0), f32(0))
-    d1 = f32(float(y) ** float(p[2]))
+    d1 = f32(_pow(y, p[2]))
     z = f32(p[0] * d1)
     d2 = f32(f32(f32(f32(f32(z * f32(-2)) / y) * p[2]) / p[1]) * f32(r * r))
     return z, (d1, d2, f32(float(z) * math.log(float(y))))
@@ -454,8 +467,9 @@ def _fit(profile, npmax, beta):
     fitted = [1, 2] if beta is None else [1]
 
     def first_alpha(power):
-        level = float(yj) ** float(f32(f32(1) / power))
-        return f32(float(xs[j]) / math.sqrt(level - 1.0))
+        level = _pow(yj, f32(f32(1) / power))
+        root = _sqrt(level - 1.0)
+        return f32(float(xs[j]) / root) if root else f32(math.inf)
 
     power = f32(f32(1) - b)
     params = np.array([f32(1), first_alpha(power), power], dtype=f32)
@@ -468,5 +482,5 @@ def _fit(profile, npmax, beta):
             params[1] = first_alpha(params[2])
     alpha, fitted_beta = params[1], f32(f32(1) - params[2])
     mfwhm = float(f32(float(alpha) * 2
-                      * math.sqrt(2.0 ** float(f32(f32(1) / fitted_beta)) - 1.0)))
+                      * _sqrt(_pow(2.0, f32(f32(1) / fitted_beta)) - 1.0)))
     return gfwhm, mfwhm, float(fitted_beta)

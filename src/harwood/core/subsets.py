@@ -73,20 +73,23 @@ def read(workdir: Path | str = ".") -> dict[str, str]:
 
 
 def suggest(subset: str, taken: set[str]) -> str:
-    """A short name for a subset nobody has named yet.
-
-    Derived from the header value rather than a counter, so `6 0` becomes `s6`
-    and not `subset3`: a name with something of the original in it is one you
-    can check, and the point is that you then replace it with `V`.
-    """
-    cleaned = re.sub(r"[^A-Za-z0-9]+", "", subset) or "x"
-    candidate = f"s{cleaned}"[:8]
-    if candidate not in taken:
-        return candidate
-    index = 2
-    while f"{candidate}{index}" in taken:
+    """A short name for a subset nobody has named yet, as IRAF's ccdsubset
+    makes it: the first word of the header value -- `6 0` becomes `6` --
+    and, when another subset already has that name, the word followed by
+    1, 2, ... until one is free."""
+    words = shlex.split(subset) if subset.count("'") % 2 == 0 else subset.split()
+    first = words[0] if words else subset
+    candidate, index = first, 1
+    while candidate in taken:
+        candidate = f"{first}{index}"
         index += 1
-    return f"{candidate}{index}"
+    return candidate
+
+
+def identifier(name: str) -> str:
+    """The name as it goes into file names: anything but a letter, a digit or
+    a point becomes '_' (ccdsubset's last step)."""
+    return re.sub(r"[^A-Za-z0-9.]", "_", name)
 
 
 def name_for(subset: str, workdir: Path | str = ".", create: bool = True) -> str:
@@ -95,14 +98,14 @@ def name_for(subset: str, workdir: Path | str = ".", create: bool = True) -> str
         return ""
     known = read(workdir)
     if subset in known:
-        return known[subset]
+        return identifier(known[subset])
     if not create:
-        return suggest(subset, set(known.values()))
+        return identifier(suggest(subset, set(known.values())))
 
     name = suggest(subset, set(known.values()))
     known[subset] = name
     write(known, workdir)
-    return name
+    return identifier(name)
 
 
 def write(known: dict[str, str], workdir: Path | str = ".") -> Path:
@@ -117,7 +120,8 @@ def write(known: dict[str, str], workdir: Path | str = ".") -> Path:
 
 
 def record(subsets: list[str], workdir: Path | str = ".") -> dict[str, str]:
-    """Make sure every subset given has a name, and return the whole mapping."""
+    """Make sure every subset given has a name, and return the whole mapping,
+    with the names as they go into file names."""
     known = read(workdir)
     added = False
     for subset in subsets:
@@ -126,4 +130,4 @@ def record(subsets: list[str], workdir: Path | str = ".") -> dict[str, str]:
             added = True
     if added:
         write(known, workdir)
-    return known
+    return {subset: identifier(name) for subset, name in known.items()}

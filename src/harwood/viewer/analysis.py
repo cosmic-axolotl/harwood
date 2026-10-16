@@ -259,7 +259,8 @@ def _fit(profile: RadialProfile, radii: np.ndarray, values: np.ndarray, dfwhm: f
                                ":beta INDEF fits it")
             return
         power = f32(-3.0 if beta is None else -beta)
-        alpha0 = f32(dfwhm / 2.0 / math.sqrt(2.0 ** float(f32(f32(-1) / power)) - 1.0))
+        root = starfocus._sqrt(starfocus._pow(2.0, f32(f32(-1) / power)) - 1.0)
+        alpha0 = f32(dfwhm / 2.0 / root) if root else f32(math.inf)
         fit = nlfit.NLFit(starfocus.moffat, starfocus.dmoffat,
                           [f32(amplitude), alpha0, power],
                           [0, 1, 2] if beta is None else [0, 1], 0.001, 100)
@@ -285,7 +286,8 @@ def _fit(profile: RadialProfile, radii: np.ndarray, values: np.ndarray, dfwhm: f
             return
         profile.beta = float(-p[2])
         profile.fwhm = float(f32(abs(float(p[1])) * 2.0
-                                 * math.sqrt(2.0 ** float(f32(f32(-1) / p[2])) - 1.0)))
+                                 * starfocus._sqrt(starfocus._pow(2.0, f32(f32(-1) / p[2]))
+                                                   - 1.0)))
     else:
         profile.fwhm = float(f32(math.sqrt(8.0 * float(f32(math.log(2.0))) * float(p[1]))))
     profile.peak = float(p[0])

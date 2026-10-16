@@ -8,6 +8,7 @@ ecosystem, and it is how a night of observing gets sorted.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Literal
 
@@ -988,3 +989,225 @@ class ImGets(Task[ImGetsParams]):
             data={"value": str(value) if found else params.default,
                   "found": found},
             history=[])
+
+
+# ------------------------------------------------------------------ imhistogram
+
+
+def histogram(data, integer: bool, z1=None, z2=None, binwidth=None, nbins: int = 512,
+              autoscale: bool = True, top_closed: bool = False,
+              hist_type: str = "normal"):
+    """imhistogram.x: the histogram as IRAF builds it. Returns the bin
+    centres, the counts, and the final z1, z2, nbins and bin width -- or
+    None when the image has no data range."""
+    import numpy as np
+
+    f32 = np.float32
+    values = np.asarray(data, dtype=f32).ravel()
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return None
+    lo = f32(values.min() if z1 is None else z1)
+    hi = f32(values.max() if z2 is None else z2)
+    if lo > hi:
+        lo, hi = hi, lo
+    if binwidth is not None:
+        nbins = _nint(f32(f32(hi - lo) / f32(binwidth)))
+        hi = f32(lo + f32(f32(nbins) * f32(binwidth)))
+    if integer:
+        lo_i, hi_i = _nint(lo), _nint(hi)
+        if autoscale:
+            nlevels = hi_i - lo_i
+            nwide = max(1, _nint(f32(f32(nlevels) / f32(nbins))))
+            nbins = max(1, _nint(f32(f32(nlevels) / f32(nwide))))
+            hi_i = lo_i + nbins * nwide
+        if lo_i == hi_i:
+            return None
+        lo, hi = f32(lo_i), f32(hi_i)
+        ints = np.round(values).astype(np.int64)
+        inside = ints[(ints >= lo_i) & (ints <= hi_i)]
+        dz = f32(f32(nbins) / f32(hi_i - lo_i))
+        offsets = (inside - lo_i)
+        bins = (offsets if abs(dz - 1) < 2 * 1.192e-7
+                else (offsets.astype(f32) * dz).astype(np.int64))
+    else:
+        if lo == hi:
+            return None
+        inside = values[(values >= lo) & (values <= hi)]
+        dz = f32(f32(nbins) / f32(hi - lo))
+        bins = ((inside - lo).astype(f32) if abs(dz - 1) < 2 * 1.192e-7
+                else ((inside - lo).astype(f32) * dz).astype(f32)).astype(np.int64)
+    counts = np.bincount(bins, minlength=nbins + 1)[:nbins + 1].astype(np.int64)
+    if top_closed:
+        counts[nbins - 1] += counts[nbins]
+    counts = counts[:nbins]
+    width = f32(f32(hi - lo) / f32(nbins))
+    if hist_type == "cumulative":
+        counts = np.cumsum(counts)
+    elif hist_type in ("difference", "second_difference"):
+        for _ in range(1 if hist_type == "difference" else 2):
+            counts = np.append(counts[1:] - counts[:-1], 0)[:nbins]
+            lo, hi = f32(lo + f32(width / f32(2))), f32(hi - f32(width / f32(2)))
+            nbins -= 1
+        counts = counts[:nbins]
+    centres = np.empty(nbins, dtype=f32)
+    start = f32(lo + f32(width / f32(2)))
+    for i in range(nbins):
+        centres[i] = start
+        start = f32(start + width)
+    return centres, counts, float(lo), float(hi), nbins, float(width)
+
+
+def _nint(value) -> int:
+    v = float(value)
+    return int(math.floor(v + 0.5)) if v >= 0 else -int(math.floor(0.5 - v))
+
+
+class ImHistogramParams(TaskParams):
+    image: str = Field(..., description="Image, or image section, to histogram.")
+    z1: float | None = Field(None, description="Lowest value histogrammed. Empty is "
+                             "IRAF's INDEF: the image minimum.")
+    z2: float | None = Field(None, description="Highest value. Empty: the maximum.")
+    binwidth: float | None = Field(None, gt=0, description="Bin width in data units; "
+                                   "when given it sets the number of bins.")
+    nbins: int = Field(512, ge=1, description="Number of bins, when binwidth is empty.")
+    autoscale: bool = Field(True, description="For integer images, make each bin hold "
+                            "a whole number of values (no comb).")
+    top_closed: bool = Field(False, description="Count the pixels equal to z2 in the "
+                             "top bin (bins are otherwise half open).")
+    hist_type: Literal["normal", "cumulative", "difference", "second_difference"] = Field(
+        "normal", description="The histogram, its running sum, or its first or "
+                              "second difference.")
+
+
+@register
+class ImHistogram(Task[ImHistogramParams]):
+    """IRAF's imhistogram, listed (listout = yes): each bin's centre and count.
+
+    Integer images get IRAF's treatment -- limits rounded to integers and,
+    with autoscale, a bin width that is a whole number of values -- which is
+    decided by the image's pixel type, not by its values."""
+
+    name = "imhistogram"
+    package = "imutil"
+    description = "Histogram of an image's pixel values."
+    Params = ImHistogramParams
+
+    def plan(self, params: ImHistogramParams) -> list[Step]:
+        bins = (f"bins {params.binwidth:g} wide" if params.binwidth
+                else f"{params.nbins} bins")
+        return [Step("histogram", f"{params.image}: {params.hist_type}, {bins}",
+                     why="The histogram is how the sky level, the saturation and "
+                         "a bad bias show at a glance.")]
+
+    def execute(self, params: ImHistogramParams) -> TaskResult:
+        from ..core import examine, images
+
+        data, header = images.read(params.image)
+        integer = examine.native(data, header) is not data
+        made = histogram(data, integer, params.z1, params.z2, params.binwidth,
+                         params.nbins, params.autoscale, params.top_closed,
+                         params.hist_type)
+        if made is None:
+            advice.fail(f"image '{params.image}' has no data range",
+                        "give z1 and z2 around the values it does have")
+        centres, counts, z1, z2, nbins, width = made
+        rows = [{"value": float(c), "count": int(n)}
+                for c, n in zip(centres, counts, strict=True)]
+        return TaskResult(data={"rows": rows, "z1": z1, "z2": z2, "nbins": nbins,
+                                "width": width}, steps=self.plan(params))
+
+
+# ------------------------------------------------------------------- imrename
+
+#: Extensions a FITS image may carry, and those of IRAF's other image formats,
+#: which a rename cannot turn a FITS file into.
+_FITS_SUFFIXES = (".fits", ".fit", ".fts")
+_OTHER_IMAGE_SUFFIXES = (".imh", ".hhh", ".pl", ".qp")
+
+
+def _renamed(old: Path, new: str) -> Path:
+    """iki_rename's new name: the new root with the old image's extension,
+    unless the new name already carries an extension valid for it."""
+    path = Path(new)
+    suffix = path.suffix.lower()
+    if suffix in _FITS_SUFFIXES or path.name.lower().endswith(".fits.gz"):
+        return path
+    if suffix in _OTHER_IMAGE_SUFFIXES:
+        path = path.with_suffix("")
+    old_suffix = "".join(old.suffixes[-2:]) if old.name.endswith(".gz") else old.suffix
+    return path.with_name(path.name + old_suffix)
+
+
+class ImRenameParams(TaskParams):
+    oldnames: list[str] = Field(..., description="Images to rename. Globs and @lists.")
+    newnames: list[str] = Field(..., description="New names, one per image -- or one "
+                                "directory, to move them there keeping their names. A "
+                                "name without an extension keeps the old one's.")
+    verbose: bool = Field(False, description="Report each rename.")
+
+
+@register
+class ImRename(Task[ImRenameParams]):
+    """IRAF's imrename: rename images, or move them into a directory.
+
+    As in IRAF, an existing image is never overwritten (renaming an image to
+    itself is allowed). Unlike IRAF, which warns and goes on, harwood checks
+    every name first and renames nothing when one would clobber: a night half
+    renamed is harder to sort out than one not renamed at all."""
+
+    name = "imrename"
+    package = "imutil"
+    description = "Rename images, or move them into a directory."
+    Params = ImRenameParams
+
+    def _pairs(self, params: ImRenameParams) -> list[tuple[Path, Path]]:
+        from ..core import images
+
+        specs = images.expand(params.oldnames)
+        if not specs:
+            advice.fail(f"'{' '.join(params.oldnames)}' matches no image",
+                        "check the names, or run 'harwood sections' on the template",
+                        FileNotFoundError)
+        for spec in specs:
+            if spec.section or spec.extension is not None:
+                advice.fail(f"'{spec}' is part of a file; a rename moves whole files",
+                            "name the file itself, without the [...]")
+        if len(params.newnames) == 1 and Path(params.newnames[0]).is_dir():
+            directory = Path(params.newnames[0])
+            return [(spec.path, directory / spec.path.name) for spec in specs]
+        if len(params.newnames) != len(specs):
+            advice.fail(f"different number of old ({len(specs)}) and new "
+                        f"({len(params.newnames)}) image names",
+                        "give one new name per image, or a single directory")
+        pairs = [(spec.path, _renamed(spec.path, new))
+                 for spec, new in zip(specs, params.newnames, strict=True)]
+        targets = [new for _, new in pairs]
+        clashes = [str(new) for old, new in pairs
+                   if new.exists() and new.resolve() != old.resolve()]
+        clashes += sorted({str(t) for t in targets if targets.count(t) > 1})
+        if clashes:
+            advice.fail("renaming would overwrite " + ", ".join(clashes[:6])
+                        + (f" and {len(clashes) - 6} more" if len(clashes) > 6 else ""),
+                        "choose new names, or delete those images first (imdelete)")
+        return pairs
+
+    def plan(self, params: ImRenameParams) -> list[Step]:
+        pairs = self._pairs(params)
+        shown = ", ".join(f"{old.name} -> {new}" for old, new in pairs[:4])
+        return [Step("rename", shown + (f" and {len(pairs) - 4} more"
+                                        if len(pairs) > 4 else ""),
+                     why="Names are how a night is found again; IRAF's imrename never "
+                         "overwrites an image, and neither does this.")]
+
+    def execute(self, params: ImRenameParams) -> TaskResult:
+        pairs = self._pairs(params)
+        steps = self.plan(params)
+        for old, new in pairs:
+            if new.resolve() != old.resolve():
+                new.parent.mkdir(parents=True, exist_ok=True)
+                old.rename(new)
+        rows = [{"from": str(old), "to": str(new)} for old, new in pairs]
+        return TaskResult(outputs=[new for _, new in pairs], steps=steps,
+                          data={"rows": rows} if params.verbose
+                          else {"renamed": len(pairs)})

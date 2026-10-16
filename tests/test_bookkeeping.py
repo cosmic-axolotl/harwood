@@ -50,12 +50,21 @@ def night(tmp_path, monkeypatch):
 
 
 def test_a_subset_gets_a_short_name_derived_from_the_header(night):
-    assert subsets.suggest("6 0", set()) == "s60"
-    assert subsets.suggest("V", set()) == "sV"
+    """IRAF's ccdsubset: the first word of the header value."""
+    assert subsets.suggest("6 0", set()) == "6"
+    assert subsets.suggest("V", set()) == "V"
 
 
 def test_a_clashing_name_gets_a_number(night):
-    assert subsets.suggest("6 0", {"s60"}) == "s602"
+    """The first word again, then 1, 2... -- '6 0' and '6 1' are 6 and 61."""
+    assert subsets.suggest("6 1", {"6"}) == "61"
+    assert subsets.suggest("6 2", {"6", "61"}) == "62"
+
+
+def test_a_name_goes_into_file_names_with_only_safe_characters(night):
+    subsets.record(["B+V filter"])
+    assert subsets.read() == {"B+V filter": "B+V"}
+    assert subsets.name_for("B+V filter") == "B_V"
 
 
 def test_the_file_is_written_the_first_time_a_subset_is_seen(night):
@@ -63,7 +72,7 @@ def test_the_file_is_written_the_first_time_a_subset_is_seen(night):
     text = (night / "subsets").read_text()
     assert text.startswith("#"), "it explains what it is for"
     assert "'5 0'" in text and "'6 0'" in text
-    assert subsets.read() == {"5 0": "s50", "6 0": "s60"}
+    assert subsets.read() == {"5 0": "5", "6 0": "6"}
 
 
 def test_editing_the_name_is_the_whole_point(night):

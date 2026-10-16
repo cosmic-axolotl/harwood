@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 20, partial: 29, planned: 306, replaced: 94, wontport: 161
-#   milestone mvp: 57 (31 of them running), later: 298
+#   available: 22, partial: 30, planned: 303, replaced: 94, wontport: 161
+#   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -307,9 +307,11 @@ tasks:
   imdivide: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imexpr: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
   imfunction: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
-  imhistogram: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imhistogram: {pkg: images.imutil, domain: arithmetic, status: partial, milestone: mvp, harwood: imhistogram,
+    note: "IRAF's bins, integer autoscale and histogram types, checked against IRAF's listout; the list only, no plot"}
   imjoin: {pkg: [images.imutil, proto.vol], domain: arithmetic, status: planned, milestone: later}
-  imrename: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imrename: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imrename,
+    note: "IRAF's rules for the new name; refuses before renaming anything when one would clobber, where IRAF warns and goes on"}
   imreplace: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imscale: {pkg: proto, domain: arithmetic, status: planned, milestone: later}
   imslice: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
@@ -403,7 +405,8 @@ tasks:
 
   # --- ccd-reduction (core, 42 tasks) ---------------------------
   badpiximage: {pkg: [imred.ccdred, nobsolete], domain: ccd-reduction, status: planned, milestone: mvp}
-  ccdgroups: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: mvp}
+  ccdgroups: {pkg: imred.ccdred, domain: ccd-reduction, status: available, milestone: mvp, harwood: ccdgroups,
+    note: "every grouping, checked against IRAF's group files"}
   ccdmask: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: mvp}
   ccdproc: {pkg: imred.ccdred, domain: ccd-reduction, status: partial, milestone: mvp, harwood: ccdproc,
     note: "fixpix, overscan, trim, zero, dark and flat, with header marks, ccdtype selection and calibrations discovered from the input list by type and subset; no illum, fringe, readcor or scancor"}

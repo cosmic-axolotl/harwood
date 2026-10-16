@@ -890,3 +890,161 @@ class CcdList(Task[CcdListParams]):
                 "actually say."))
         return TaskResult(data={"rows": rows, "instrument": inst.name},
                           warnings=warnings, steps=self.plan(params))
+
+
+#: ccdred's image types (ccdtypes.h), in IRAF's order.
+CCDTYPES = ("object", "zero", "dark", "flat", "illum", "fringe", "other", "comp")
+
+
+def _ccdtype_name(inst, header) -> str:
+    """ccdtypes: the image type as ccdred names it -- 'none' when the header
+    has no type at all, 'unknown' when the translation does not know it."""
+    raw = inst.value(header, "imagetyp")
+    if raw in (None, "") or not str(raw).strip():
+        return "none"
+    text = str(raw).strip()
+    name = inst.types.get(text.upper(), text)
+    return name if name in CCDTYPES else "unknown"
+
+
+def _separation(ra, dec, ra0, dec0):
+    """position_group's distance in arcseconds, in IRAF's single precision:
+    RA in hours (wrapped at 12), declination in degrees."""
+    import math
+
+    import numpy as np
+
+    f32 = np.float32
+    dra, ddec = f32(ra - ra0), f32(dec - dec0)
+    if dra > 12:
+        dra = f32(dra - 24)
+    if dra < -12:
+        dra = f32(dra + 24)
+    dra = f32(f32(dra * f32(math.cos(math.radians(float(dec))))) * 15)
+    return f32(math.sqrt(float(f32(dra * dra + ddec * ddec))) * 3600)
+
+
+def _sexagesimal(value) -> float:
+    """A header number IRAF's way: '17:17:07.5' is 17.2854..., as ctod reads it."""
+    if isinstance(value, int | float):
+        return float(value)
+    text = str(value).strip()
+    sign = -1.0 if text.startswith("-") else 1.0
+    parts = [float(p) for p in text.lstrip("+-").replace(" ", ":").split(":") if p]
+    if not parts:
+        raise ValueError(f"'{value}' is not a number")
+    total = 0.0
+    for scale, part in zip((1.0, 60.0, 3600.0), parts, strict=False):
+        total += part / scale
+    return sign * total
+
+
+class CcdGroupsParams(TaskParams):
+    images: list[str] = Field(..., description="CCD images to group. Globs and @lists.")
+    output: str = Field(..., description="Root of the group files: the images of group "
+                        "1 go to <output>1, and so on, or <output>object, "
+                        "<output>flat... when grouping by ccdtype.")
+    group: Literal["position", "title", "date", "ccdtype", "subset"] = Field(
+        "ccdtype", description="What a group shares: the pointing (within radius), "
+                               "the title (OBJECT), the date (DATE-OBS without the "
+                               "time), the image type, or the subset (filter).")
+    radius: float = Field(60.0, gt=0, description="For group=position: images closer "
+                          "than this, in arcseconds, to a group's first image join it.")
+    ccdtype: str = Field("", description="Only images of this type: object, zero, "
+                         "dark, flat, illum, fringe, other, comp, none, unknown.")
+    instrument: str | None = Field(
+        None, description="Translation to use. Taken from the project file when not given.")
+
+
+@register
+class CcdGroups(Task[CcdGroupsParams]):
+    """Sort a night into lists, as IRAF's ccdgroups does: one file per group,
+    each holding the names of its images, ready for @list input.
+
+    A group is numbered in the order its first image is met. Group files are
+    appended to, as in IRAF: run it twice and every name is listed twice --
+    delete the files to start over (harwood warns when it finds them)."""
+
+    name = "ccdgroups"
+    package = "ccdred"
+    description = "Group CCD images into lists by position, title, date, type or subset."
+    Params = CcdGroupsParams
+
+    def plan(self, params: CcdGroupsParams) -> list[Step]:
+        what = {"position": f"pointing within {params.radius:g} arcsec",
+                "title": "title (OBJECT)", "date": "date of observation",
+                "ccdtype": "image type", "subset": "subset"}[params.group]
+        select = f", {params.ccdtype} images only" if params.ccdtype.strip() else ""
+        return [Step("group", f"by {what}{select}",
+                     why="A night is easier to reduce as lists: the flats of one "
+                         "filter, the frames of one field, one date at a time."),
+                Step("write", f"{params.output}<group>",
+                     why="Each file lists one group's images, one per line, for "
+                         "any task's @list input.")]
+
+    def execute(self, params: CcdGroupsParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import images
+        from ..core import instrument as instruments
+        from ..core import subsets as subset_file
+
+        f32 = np.float32
+        inst = (instruments.load(params.instrument) if params.instrument
+                else instruments.from_project())
+        wanted = params.ccdtype.strip()
+        groups: list = []
+        assignments: list[tuple[str, str]] = []
+        warnings = []
+        existing = set()
+        for spec in images.expand(params.images):
+            name = str(spec)
+            hdul, hdu = images.open_hdu(spec)
+            try:
+                header = hdu.header.copy()
+            finally:
+                hdul.close()
+            if wanted and _ccdtype_name(inst, header) != wanted:
+                continue
+            try:
+                if params.group == "position":
+                    ra = f32(_sexagesimal(header[inst.keyword("ra")]))
+                    dec = f32(_sexagesimal(header[inst.keyword("dec")]))
+                    number = next((n for n, (ra0, dec0) in enumerate(groups, 1)
+                                   if _separation(ra, dec, ra0, dec0) < params.radius),
+                                  None)
+                    if number is None:
+                        groups.append((ra, dec))
+                        number = len(groups)
+                    suffix = str(number)
+                elif params.group in ("title", "date"):
+                    if params.group == "title":
+                        key = str(header.get("OBJECT", "")).strip()
+                    else:
+                        key = str(header[inst.keyword("date-obs")]).strip().split("T")[0]
+                    if key not in groups:
+                        groups.append(key)
+                    suffix = str(groups.index(key) + 1)
+                elif params.group == "ccdtype":
+                    suffix = _ccdtype_name(inst, header)
+                else:
+                    suffix = subset_file.name_for(inst.subset(header))
+            except (KeyError, ValueError) as error:
+                warnings.append(advice.warn(
+                    f"{name}: {error} -- not grouped",
+                    "check the header with 'harwood imheader', or the keyword "
+                    "names in the instrument translation"))
+                continue
+            target = Path(f"{params.output}{suffix}")
+            if target.exists() and target not in existing:
+                warnings.append(advice.warn(
+                    f"{target} already exists; the names are added to it, as IRAF "
+                    "does", f"delete {target} first to start the list afresh"))
+            existing.add(target)
+            with target.open("a", encoding="utf-8") as handle:
+                handle.write(name + "\n")
+            assignments.append((name, str(target)))
+        rows = [{"image": image, "group": target} for image, target in assignments]
+        outputs = sorted({Path(target) for _, target in assignments})
+        return TaskResult(outputs=outputs, data={"rows": rows}, warnings=warnings,
+                          steps=self.plan(params))

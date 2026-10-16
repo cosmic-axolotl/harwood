@@ -1,0 +1,84 @@
+{
+ "_comment": "IRAF 2.18.1 ccdgroups on the headers of tests/test_ccdgroups_iraf.py: group file -> image names; subset with an instrument file mapping subset to FILTERS",
+ "files": {
+  "ccdtype_dark": [
+   "a7.fits"
+  ],
+  "ccdtype_flat": [
+   "a4.fits"
+  ],
+  "ccdtype_object": [
+   "a1.fits",
+   "a2.fits",
+   "a3.fits",
+   "a6.fits"
+  ],
+  "ccdtype_zero": [
+   "a5.fits"
+  ],
+  "date_1": [
+   "a1.fits",
+   "a2.fits",
+   "a3.fits"
+  ],
+  "date_2": [
+   "a4.fits",
+   "a5.fits",
+   "a6.fits",
+   "a7.fits"
+  ],
+  "position_1": [
+   "a1.fits",
+   "a2.fits",
+   "a4.fits"
+  ],
+  "position_2": [
+   "a3.fits"
+  ],
+  "position_3": [
+   "a5.fits",
+   "a7.fits"
+  ],
+  "position_4": [
+   "a6.fits"
+  ],
+  "sel_1": [
+   "a1.fits",
+   "a2.fits",
+   "a3.fits"
+  ],
+  "sel_2": [
+   "a6.fits"
+  ],
+  "subset_": [
+   "a5.fits",
+   "a7.fits"
+  ],
+  "subset_B": [
+   "a2.fits"
+  ],
+  "subset_V": [
+   "a1.fits",
+   "a3.fits",
+   "a4.fits",
+   "a6.fits"
+  ],
+  "title_1": [
+   "a1.fits",
+   "a2.fits",
+   "a6.fits"
+  ],
+  "title_2": [
+   "a3.fits"
+  ],
+  "title_3": [
+   "a4.fits"
+  ],
+  "title_4": [
+   "a5.fits"
+  ],
+  "title_5": [
+   "a7.fits"
+  ]
+ }
+}
