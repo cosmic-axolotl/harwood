@@ -41,10 +41,12 @@ LICENSES/IRAF-COPYRIGHT.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 
 import numpy as np
+
+from .jit import backend  # noqa: F401  (re-exported: tasks report it)
+from .jit import jit as _jit
 
 MAX_REAL = 3.4028235e38
 TOL = 0.001
@@ -57,27 +59,6 @@ REJECTS = {"none": NONE, "ccdclip": CCDCLIP, "crreject": CRREJECT, "minmax": MIN
            "pclip": PCLIP, "sigclip": SIGCLIP, "avsigclip": AVSIGCLIP}
 
 
-def _jit(function):
-    """numba.njit when numba is there and not overridden; the function itself
-    otherwise. One source, two speeds, the same numbers."""
-    if os.environ.get("HARWOOD_BACKEND", "").strip().lower() == "reference":
-        return function
-    try:
-        import numba
-    except ImportError:
-        return function
-    return numba.njit(cache=True)(function)
-
-
-def backend() -> str:
-    if os.environ.get("HARWOOD_BACKEND", "").strip().lower() == "reference":
-        return "reference"
-    try:
-        import numba
-
-        return f"numba {numba.__version__}"
-    except ImportError:
-        return "reference"
 
 
 # ------------------------------------------------------------- scaling

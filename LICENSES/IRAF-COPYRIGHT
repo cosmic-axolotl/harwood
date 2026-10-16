@@ -30,6 +30,7 @@ Applies to src/harwood/core/starfocus.py, src/harwood/core/apphot.py,
 src/harwood/core/daofind.py, src/harwood/core/fixpix.py,
 src/harwood/core/imcentroid.py, src/harwood/core/imshift.py,
 src/harwood/core/apextract.py, src/harwood/core/asi.py, src/harwood/core/center1d.py,
+src/harwood/core/identify.py,
 src/harwood/core/combine.py, src/harwood/core/icfit.py, the imstat port in
 src/harwood/tasks/imutil.py and the ie_rimexam port in
 src/harwood/viewer/analysis.py, all translated from iraf-community 2.18.

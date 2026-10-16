@@ -230,6 +230,11 @@ def _arc_flux(catalogue, crval, seed=7):
     for position, amplitude in zip(pixels, 10 ** rng.uniform(2.5, 4.3, pixels.size),
                                    strict=False):
         flux += amplitude * np.exp(-0.5 * ((grid - position) / sigma) ** 2)
+    # The rest of the lamp's lines, faint, as in a real lamp.
+    faint = lines[~np.isin(lines, strong)]
+    for position, amplitude in zip((faint - crval) / CDELT + CENTRE,
+                                   10 ** rng.uniform(1.3, 2.0, faint.size), strict=False):
+        flux += amplitude * np.exp(-0.5 * ((grid - position) / sigma) ** 2)
     return flux + rng.normal(0, 12, NPIXELS)
 
 
@@ -252,7 +257,9 @@ def flexing_night(tmp_path, monkeypatch):
                               "OBSERVAT": "KPNO", "IMAGETYP": "comp"})
         fits.PrimaryHDU(flux.astype(np.float32), header).writeto(tmp_path / f"{name}.fits")
         get_task("identify").run(image=f"{name}.fits", crval=crval, cdelt=CDELT,
-                                 order=3, niterate=3, database=tmp_path)
+                                 coordlist="linelists$thorium.dat",
+                                 function="chebyshev", order=3, niterate=3,
+                                 database=tmp_path)
 
     # The object: an hour after the first arc, two before the second, so
     # interp should weight them two to one.

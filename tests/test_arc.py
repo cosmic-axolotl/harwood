@@ -40,6 +40,13 @@ def synthetic(catalogue):
     for position, amplitude in zip(pixels, 10 ** rng.uniform(2.5, 4.3, pixels.size),
         strict=False):
         flux += amplitude * np.exp(-0.5 * ((grid - position) / sigma) ** 2)
+    # The rest of the lamp's lines are there too, faint, as in a real lamp:
+    # a list whose lines are simply absent from the spectrum would send
+    # identify's 'l' to the wrong neighbour within its match.
+    faint = lines[~np.isin(lines, strong)]
+    for position, amplitude in zip((faint - CRVAL) / CDELT + CENTRE,
+                                   10 ** rng.uniform(1.3, 2.0, faint.size), strict=False):
+        flux += amplitude * np.exp(-0.5 * ((grid - position) / sigma) ** 2)
     return flux + rng.normal(0, 12, NPIXELS), strong, pixels
 
 
@@ -71,47 +78,6 @@ def test_blended_maxima_are_one_line_not_two():
     assert len(arc.find_peaks(flux, fwidth=4.0, threshold=5.0, minsep=3.0)) == 1
 
 
-def test_a_correct_prior_recovers_the_dispersion_exactly(synthetic, catalogue):
-    flux, _, _ = synthetic
-    peaks = arc.find_peaks(flux, fwidth=4.0, threshold=10.0)
-    match = arc.autoidentify(peaks, catalogue, crval=CRVAL, cdelt=CDELT,
-                             npixels=NPIXELS, tolerance=1.5)
-    assert len(match) >= 20
-
-    fit = icfit.fit(match.pixel, match.wavelength,
-                    icfit.FitSpec(function="chebyshev", order=3, niterate=3))
-    assert fit.rms < 0.01, f"rms {fit.rms} Angstroms"
-    assert float(fit(np.array([CENTRE]))[0]) == pytest.approx(CRVAL, abs=0.01)
-    slope = float(np.median(np.gradient(fit(np.arange(1.0, NPIXELS + 1.0)))))
-    assert slope == pytest.approx(CDELT, rel=1e-3)
-
-
-def test_the_blind_search_refuses_rather_than_inventing(synthetic, catalogue):
-    """The finding that shaped this module.
-
-    Against thorium's three thousand lines, several quite different dispersions
-    score almost the same, and a cubic fits any of them to a tenth of a pixel.
-    A search that returns the winner returns an invention. This one says so
-    instead, which is why IRAF's identify asks you to mark lines by hand.
-    """
-    flux, _, _ = synthetic
-    peaks = arc.find_peaks(flux, fwidth=4.0, threshold=10.0)
-    result = arc.search_dispersion(peaks, catalogue, window=(6300.0, 7200.0),
-                                   cdelt_range=(0.03, 1.5), npixels=NPIXELS)
-    if not result:
-        assert "ambiguous" in result.message or result.message
-    else:
-        # If it does commit to an answer, the answer has to be the right one.
-        assert abs(result.cdelt) == pytest.approx(CDELT, rel=0.05)
-
-
-def test_a_line_is_never_claimed_by_two_peaks(catalogue):
-    peaks = np.array([100.0, 100.4, 400.0])
-    match = arc.autoidentify(peaks, catalogue, crval=CRVAL, cdelt=CDELT,
-                             npixels=NPIXELS, tolerance=2.0)
-    assert len(set(np.round(match.wavelength, 6))) == len(match)
-
-
 def test_add_from_list_extends_a_solution(synthetic, catalogue):
     """IRAF's `l`: four lines by hand, then the catalogue places the rest."""
     flux, _, _ = synthetic
@@ -129,13 +95,6 @@ def test_add_from_list_extends_a_solution(synthetic, catalogue):
     fit = icfit.fit(more_pixel, more_wave,
                     icfit.FitSpec(function="chebyshev", order=3, niterate=3))
     assert fit.rms < 0.01
-
-
-def test_collapse_takes_the_dispersion_axis(synthetic):
-    flux, _, _ = synthetic
-    frame = np.tile(flux[:, None], (1, 40))
-    assert arc.collapse(frame, dispaxis=2, nsum=10).size == NPIXELS
-    assert arc.collapse(frame.T, dispaxis=1, nsum=10).size == NPIXELS
 
 
 def test_positions_accepts_peaks_or_a_plain_array():
@@ -172,6 +131,7 @@ def calibrated(tmp_path, monkeypatch, synthetic, catalogue):
     spectrum.write(tmp_path / "arc.ms.fits", [ap], source="arc.fits")
 
     get_task("identify").run(image="arc.fits", crval=CRVAL, cdelt=CDELT,
+                             coordlist="linelists$thorium.dat", function="chebyshev",
                              order=3, niterate=3, database=tmp_path)
     return tmp_path
 

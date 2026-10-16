@@ -108,8 +108,8 @@ def write(solution: Solution, workdir: Path | str = ".",
     ]
     for index in range(len(solution)):
         lines.append(
-            f"  - [{solution.pixel[index]:10.4f}, {solution.wavelength[index]:12.5f}, "
-            f"{fitted[index]:12.5f}, {'true' if used[index] else 'false'}]"
+            f"  - [{solution.pixel[index]:12.6f}, {solution.wavelength[index]:16.8f}, "
+            f"{fitted[index]:16.8f}, {'true' if used[index] else 'false'}]"
         )
     destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return destination

@@ -33,6 +33,12 @@ WHY = {
             "evenly, so adding across it costs nothing and buys signal -- which "
             "is why identify does this itself rather than requiring an "
             "extraction first.",
+    "auto": "IRAF's autoidentify: the spacing ratios of every three neighbouring "
+            "lines in the spectrum are matched against those in the list, "
+            "patterns of up to five lines vote for which peak is which line, "
+            "straight dispersions are drawn through the best-voted pairs, and "
+            "each is tried -- fitted, more lines located from the list, and "
+            "scored on its rms and how much of both lists it accounts for.",
     "find": "An arc line is an image of the slit, so its width is the "
             "instrumental resolution and not the star's seeing. Peaks are "
             "centred by their flux centroid, which is good to about a tenth of "
@@ -57,9 +63,9 @@ WHY = {
               "score nearly the same and a cubic fits any of them to a tenth of "
               "a pixel, so the result is checked before it is believed.",
     "fit": "Wavelength against pixel is smooth but not linear: a grating "
-           "disperses as a sine, and the camera adds its own distortion. Three "
-           "or four terms of a Chebyshev polynomial follow that; more terms "
-           "start following the errors in the line centres instead.",
+           "disperses as a sine, and the camera adds its own distortion. IRAF's "
+           "default, a cubic spline of one piece, is a cubic; more freedom "
+           "starts following the errors in the line centres instead.",
     "write": "The solution goes to database/id<image>, where reidentify, "
              "refspectra and dispcor all look for it. Rejected and deleted "
              "features are kept in the file: knowing which lines were thrown "
@@ -67,91 +73,194 @@ WHY = {
 }
 
 
-class IdentifyParams(TaskParams):
-    image: str = Field(..., description="Arc spectrum. A 2-D frame is collapsed first.")
+FUNCTIONS = Literal["legendre", "chebyshev", "spline1", "spline3"]
 
+
+class _ArcParams(TaskParams):
+    """What identify and autoidentify share."""
+
+    image: str = Field(..., description="Arc spectrum: 1-D, or a 2-D frame and a section.")
     coordlist: str = Field(
-        "linelists$thorium.dat",
-        description="Line list of known wavelengths. IRAF's linelists$ prefix works "
-                    "when IRAF is installed; a path works anywhere.",
-    )
-    section: Literal["middle line", "middle column"] = Field(
+        "linelists$idhenear.dat",
+        description="Line list of known coordinates. IRAF's linelists$ prefix works "
+                    "when IRAF is installed; a path works anywhere.")
+    units: str = Field("", description="Coordinate units; left out, the list's.")
+    section: str = Field(
         "middle line",
-        description="Which way the dispersion runs, for a 2-D frame. 'middle line' "
-                    "means the dispersion is along the rows.",
-    )
-    nsum: int = Field(
-        10, ge=1,
-        description="How many lines or columns to add together before finding peaks.",
-    )
-
-    fwidth: float = Field(
-        4.0, gt=0, description="Expected full width of an arc line, in pixels."
-    )
+        description="Which image line or column of a 2-D frame: 'middle line' is the "
+                    "middle line, a spectrum along x; 'middle column' one along y; "
+                    "or 'line 120', 'first column', ...")
+    ftype: Literal["emission", "absorption"] = Field("emission", description="Feature type.")
+    fwidth: float = Field(4.0, gt=0, description="Feature width in pixels.")
+    cradius: float = Field(5.0, ge=0, description="Centring radius in pixels.")
     threshold: float = Field(
-        10.0, gt=0, description="Peak detection threshold, in units of the local noise."
-    )
-    minsep: float = Field(
-        2.0, gt=0, description="Two maxima closer than this are one blended line."
-    )
+        0.0, ge=0, description="Least range of data a feature must span to be centred.")
+    minsep: float = Field(2.0, ge=0, description="Least separation between features, px.")
     match: float = Field(
-        1.5, gt=0,
-        description="How close a peak must fall to a catalogue line to be called that "
-                    "line, in pixels.",
-    )
-    maxfeatures: int = Field(
-        100, ge=2, description="Most features to keep in the solution."
-    )
+        -3.0, description="How close a line list entry must be to be matched: in "
+                          "coordinate units, or in pixels if negative.")
+    function: FUNCTIONS = Field("spline3", description="Coordinate function.")
+    order: int = Field(1, ge=1, description="Order of the coordinate function.")
+    sample: str = Field("*", description="Pixel regions fitted.")
+    grow: float = Field(0.0, ge=0, description="Rejection growing radius.")
+    database: Path = Field(Path("."), description="Reduction directory holding database/.")
 
+    # aidpars, for the automatic identification
+    crpix: float | None = Field(None, description="Pixel crval refers to; the middle.")
+    crquad: float | None = Field(None, description="Quadratic distortion at crpix.")
+    cddir: Literal["sign", "increasing", "decreasing", "unknown"] = Field(
+        "sign", description="Dispersion direction: as cdelt's sign, or as stated.")
+    crsearch: float | None = Field(
+        None, description="Search radius for crval; negative, a fraction of the range.")
+    cdsearch: float | None = Field(
+        None, description="Search radius for cdelt; negative, a fraction of cdelt.")
+    ntarget: int = Field(100, ge=1, description="Number of target features.")
+    npattern: int = Field(5, ge=3, le=10, description="Lines in a pattern.")
+    nneighbors: int = Field(10, ge=2, description="Nearest neighbours in patterns.")
+    nbins: int = Field(6, ge=1, description="Most search bins.")
+    ndmax: int = Field(500, ge=1, description="Most dispersions to evaluate.")
+    aidord: int = Field(3, ge=2, description="Order of the search fits.")
+    maxnl: float = Field(0.02, ge=0, description="Most non-linearity allowed.")
+    nfound: int = Field(6, ge=3, description="Fewest lines in a solution.")
+    aidsigma: float = Field(0.05, ge=0, description="Line centring sigma, pixels "
+                                                    "(aidpars.sigma).")
+    minratio: float = Field(0.1, ge=0, le=1, description="Least spacing ratio used.")
+    rms: float = Field(0.1, ge=0, description="RMS goal, in fwidths.")
+    fmatch: float = Field(0.2, ge=0, le=1, description="Matching goal (fraction unmatched).")
+
+    def aidpars(self):
+        from ..core.identify import AidPars
+
+        return AidPars(crpix=self.crpix, crquad=self.crquad, cddir=self.cddir,
+                       crsearch=self.crsearch, cdsearch=self.cdsearch,
+                       ntarget=self.ntarget, npattern=self.npattern,
+                       nneighbors=self.nneighbors, nbins=self.nbins, ndmax=self.ndmax,
+                       aidord=self.aidord, maxnl=self.maxnl, nfound=self.nfound,
+                       sigma=self.aidsigma, minratio=self.minratio, rms=self.rms,
+                       fmatch=self.fmatch)
+
+
+class IdentifyParams(_ArcParams):
+    nsum: int = Field(10, ge=1, description="Lines or columns summed in a 2-D frame.")
+    maxfeatures: int = Field(50, ge=1, description="Most features for automatic "
+                                                   "identification ('l').")
+    niterate: int = Field(0, ge=0, description="Rejection iterations.")
+    low_reject: float = Field(3.0, ge=0, description="Lower rejection sigma.")
+    high_reject: float = Field(3.0, ge=0, description="Upper rejection sigma.")
     crval: float | None = Field(
-        None,
-        description="Approximate wavelength at the middle of the spectrum. Give this "
-                    "and --cdelt and the lines are matched automatically.",
-    )
-    cdelt: float | None = Field(
-        None,
-        description="Approximate dispersion, in wavelength units per pixel. Negative "
-                    "if wavelength decreases with pixel number.",
-    )
-    crval_search: float = Field(
-        0.0, ge=0, description="Widen the search around --crval by this much."
-    )
-    cdelt_search: float = Field(
-        0.0, ge=0, description="Widen the search around --cdelt by this fraction."
-    )
-
-    function: Literal["legendre", "chebyshev", "spline1", "spline3"] = Field(
-        "chebyshev", description="Function fitted to wavelength against pixel."
-    )
-    order: int = Field(3, ge=1, description="Number of terms in the fit, as in IRAF.")
-    sample: str = Field("*", description="Pixel ranges to fit over.")
-    niterate: int = Field(0, ge=0, description="Rejection passes over the solution.")
-    low_reject: float = Field(
-        3.0, ge=0, description="Rejection threshold below the fit, in sigma."
-    )
-    high_reject: float = Field(
-        3.0, ge=0, description="Rejection threshold above the fit, in sigma."
-    )
-    grow: float = Field(
-        0.0, ge=0,
-        description="Also reject features within this distance of a rejected one.",
-    )
-
+        None, description="Approximate coordinate at crpix. With cdelt, the lines are "
+                          "identified automatically, as identify's 'b' key does.")
+    cdelt: float | None = Field(None, description="Approximate dispersion per pixel.")
     interactive: bool = Field(
-        False,
-        description="Mark lines and fit by hand, with the icfit keys. The way to do "
-                    "this when no approximate dispersion is known.",
-    )
-    database: Path = Field(
-        Path("."), description="Reduction directory holding database/."
-    )
-    units: str = Field("Angstroms", description="Wavelength units, for the record.")
-    maxrms: float = Field(
-        0.5, gt=0,
-        description="Refuse to write a solution scattering by more than this many "
-                    "pixels. An arc line centre is good to about a tenth of a pixel, "
-                    "so anything near one means the lines are misidentified.",
-    )
+        False, description="Mark lines and fit by hand, in the identify panel.")
+
+
+class AutoIdentifyParams(_ArcParams):
+    crval: float | None = Field(..., description="Approximate coordinate at crpix "
+                                                 "(None to search).")
+    cdelt: float | None = Field(..., description="Approximate dispersion (None to "
+                                                 "search).")
+    nsum: int = Field(1, ge=1, description="Lines or columns summed in a 2-D frame.")
+    niterate: int = Field(10, ge=0, description="Rejection iterations.")
+    low_reject: float = Field(2.0, ge=0, description="Lower rejection sigma.")
+    high_reject: float = Field(2.0, ge=0, description="Upper rejection sigma.")
+
+
+def _solve(task, params, maxfeatures: int, automatic: bool):
+    """Read the arc, identify its lines (automatically or by hand), fit, and
+    write database/id<image>. Shared by identify and autoidentify."""
+    import numpy as np
+
+    from ..core import arc, database, icfit, images
+    from ..core import identify as idn
+
+    data, header = images.read(params.image)
+    vector, where = idn.arc_vector(data, params.section, params.nsum)
+    linelist = idn.read_linelist(arc.resolve_linelist(params.coordlist))
+    units = params.units or linelist.units
+    spec = icfit.FitSpec(function=params.function, order=params.order,
+                         sample=params.sample, naverage=1, niterate=params.niterate,
+                         low_reject=params.low_reject, high_reject=params.high_reject,
+                         grow=params.grow)
+    ident = idn.Identify(vector, linelist, spec, fwidth=params.fwidth,
+                         ftype=params.ftype, cradius=params.cradius,
+                         threshold=params.threshold, minsep=params.minsep,
+                         match=params.match, maxfeatures=maxfeatures)
+    steps = task.plan(params)
+    by_action = {step.action: step for step in steps}
+    by_action["read"].measured = {"pixels": vector.size,
+                                  "section": where or "1-D", "lines in list": len(linelist)}
+    warnings: list = []
+
+    if getattr(params, "interactive", False):
+        from ..viewer.identify_panel import run as run_identify
+
+        peaks = arc.find_peaks(vector, fwidth=params.fwidth, threshold=3.0,
+                               minsep=params.minsep)
+        fit, pixel, wavelength = run_identify(
+            vector, peaks, linelist.values, spec, title=f"identify · {params.image}",
+            match=abs(params.match), units=units)
+        ident.features = [idn.Feature(float(p), float(w), float(w))
+                          for p, w in zip(pixel, wavelength, strict=True)]
+        ident.dofit()
+        ident.update_fitdata()
+        ident.fit_features()
+    else:
+        result = idn.autoidentify(ident, params.crval, params.cdelt, params.aidpars())
+        by_action["auto"].measured = {
+            "merit": f"{result.best:.3f} (a solution is 1 or less)"
+            if result.best < 1e30 else "no candidate",
+            "rms": f"{result.rms:.3f} fwidths" if result.found else "-",
+            "unmatched": f"{result.fmatch:.0%} of the list, {result.ftmatch:.0%} of "
+                         "the lines" if result.found else "-"}
+        if not result.found:
+            advice.fail(
+                f"{params.image}{where}: No solution found.",
+                "check --crval and --cdelt against the lamp's range -- the "
+                "OBJECT name of an arc is the grating setting, not necessarily "
+                "the wavelengths it covers -- and that --coordlist is that lamp's "
+                "list; or mark a few lines by hand with identify --interactive.",
+                RuntimeError)
+
+    used = [f for f in ident.features if f.user is not None and f.wts != 0]
+    if len(used) < 2 or ident.fit is None:
+        advice.fail("fewer than two features are identified, so there is no "
+                    "solution.", "mark more lines, or loosen --match", RuntimeError)
+    rms = ident.rms()
+    scale = abs(float(ident.fitdata[-1] - ident.fitdata[0])) / (vector.size - 1)
+    by_action["fit"].measured = {
+        "features": f"{len(used)} used of {len(ident.features)}",
+        "rms": f"{rms:.4f} {units} ({rms / scale:.3f} px)" if scale else f"{rms:.4f}",
+        "dispersion": f"{scale:.5f} {units}/px",
+    }
+    if scale and rms / scale > 0.3:
+        warnings.append(advice.warn(
+            f"the solution scatters by {rms / scale:.2f} px, looser than an arc line "
+            "centre is measured. Something is matched to the wrong list entry.",
+            "look at the identifications with --interactive and delete the ones "
+            "far off the curve"))
+
+    pixel = np.array([f.pix for f in ident.features])
+    solution = database.Solution(
+        image=str(params.image), pixel=pixel,
+        wavelength=np.array([np.nan if f.user is None else f.user for f in ident.features]),
+        function=params.function, order=params.order, rms=float(rms), units=units,
+        coordlist=params.coordlist,
+        used=np.array([f.user is not None and f.wts != 0 for f in ident.features]),
+        fitted=np.array([f.fit for f in ident.features]),
+        extra={"section": where, "npts": int(vector.size),
+               "xrange": [1.0, float(vector.size)], "niterate": params.niterate,
+               "low_reject": params.low_reject, "high_reject": params.high_reject,
+               "sample": params.sample, "grow": params.grow})
+    destination = database.write(solution, params.database)
+    first, last = float(ident.fitdata[0]), float(ident.fitdata[-1])
+    return TaskResult(
+        outputs=[destination], steps=steps, warnings=warnings,
+        data={"features": len(ident.features), "used": len(used), "rms": round(rms, 5),
+              "dispersion": round(scale, 5),
+              "range": f"{min(first, last):.2f} to {max(first, last):.2f} {units}"},
+        history=[f"{task.name}: {len(used)} features, {params.function} order "
+                 f"{params.order}, rms {rms:.4f} {units}, from {params.coordlist}"])
 
 
 @register
@@ -162,189 +271,46 @@ class Identify(Task[IdentifyParams]):
     Params = IdentifyParams
 
     def plan(self, params: IdentifyParams) -> list[Step]:
-        steps = [
-            Step("read", f"{params.image}, {params.section}, nsum {params.nsum}",
-                 why=WHY["read"]),
-            Step("find", f"peaks wider than {params.minsep} px, above "
-                         f"{params.threshold} sigma, fwidth {params.fwidth}",
-                 why=WHY["find"]),
-            Step("catalogue", params.coordlist, why=WHY["catalogue"]),
-        ]
+        steps = [Step("read", f"{params.image}, {params.section}, nsum {params.nsum}",
+                      why=WHY["read"]),
+                 Step("catalogue", params.coordlist, why=WHY["catalogue"])]
         if params.interactive:
-            steps.append(Step("mark", "by hand, in the identify panel",
-                              why=WHY["mark"]))
-        elif params.crval is not None and params.cdelt is not None:
-            steps.append(Step("match", f"around crval {params.crval}, "
-                                       f"cdelt {params.cdelt}"
-                              + (f" +/- {params.cdelt_search:.0%}"
-                                 if params.cdelt_search else ""),
-                              why=WHY["match"]))
+            steps.append(Step("mark", "by hand, in the identify panel", why=WHY["mark"]))
         else:
-            steps.append(Step("match", "no crval/cdelt given -- searching blind, "
-                                       "which a dense line list may defeat",
-                              why=WHY["search"]))
+            steps.append(Step("auto", f"autoidentify, crval {params.crval}, cdelt "
+                                      f"{params.cdelt}", why=WHY["auto"]))
         steps.append(Step("fit", f"{params.function} order {params.order}"
                                  + (f", {params.niterate} rejection passes"
-                                    if params.niterate else ""),
-                          why=WHY["fit"]))
+                                    if params.niterate else ""), why=WHY["fit"]))
         steps.append(Step("write", str(_database_path(params)), why=WHY["write"]))
         return steps
 
     def execute(self, params: IdentifyParams) -> TaskResult:
-        import numpy as np
-
-        from ..core import arc, database, icfit, images
-
-        data, header = images.read(params.image)
-        dispaxis = 2 if params.section == "middle line" else 1
-        flux = (arc.collapse(data, dispaxis=dispaxis, nsum=params.nsum)
-                if data.ndim > 1 else data)
-        npixels = flux.size
-
-        peaks = arc.find_peaks(flux, fwidth=params.fwidth,
-                               threshold=params.threshold, minsep=params.minsep)
-        if len(peaks) < 4:
-            advice.fail(
-                f"only {len(peaks)} arc lines found, which is not enough to "
-                "fit a dispersion.",
-                f"lower --threshold (now {params.threshold}), or check --fwidth "
-                f"(now {params.fwidth}) against how wide the lines really are.",
-                RuntimeError)
-        catalogue, _ = arc.read_linelist(params.coordlist)
-
-        spec = icfit.FitSpec(function=params.function, order=params.order,
-                             sample=params.sample, niterate=params.niterate,
-                             low_reject=params.low_reject,
-                             high_reject=params.high_reject, grow=params.grow)
-        warnings: list[str] = []
-
-        if params.interactive:
-            from ..viewer.identify_panel import run as run_identify
-
-            fit, pixel, wavelength = run_identify(
-                flux, peaks, catalogue, spec, title=f"identify · {params.image}",
-                match=params.match, units=params.units)
-        else:
-            found = self._match(params, peaks, catalogue, npixels, warnings)
-            if not found:
-                advice.fail(
-                    "no dispersion solution could be found automatically.",
-                    "give --crval and --cdelt if you know roughly where the "
-                    "spectrum sits -- one per cent is close enough -- or use "
-                    "--interactive and mark four or five lines by hand, which "
-                    "is what IRAF's identify asks for and for this reason.",
-                    RuntimeError)
-            pixel, wavelength = found.pixel, found.wavelength
-            fit = icfit.fit(pixel, wavelength, spec)
-            # IRAF's `l`: once a solution exists, place the rest of the list.
-            if fit.model is not None:
-                more_pixel, more_wave = arc.add_from_list(
-                    peaks, fit, catalogue, tolerance=params.match)
-                if more_pixel.size > pixel.size:
-                    pixel, wavelength = more_pixel, more_wave
-                    fit = icfit.fit(pixel, wavelength, spec)
-
-        if fit.model is None:
-            advice.fail(f"the dispersion fit failed: {fit.message}",
-                        "lower --order, or raise --niterate so outliers are "
-                        "rejected before they bend the curve.", RuntimeError)
-
-        used = fit.mask & ~fit.deleted
-        scale = float(np.median(np.abs(np.gradient(fit(np.arange(1.0, npixels + 1.0))))))
-        rms_pixels = fit.rms / scale if scale else float("nan")
-
-        # A solution this loose is not a solution. An arc line centre is good to
-        # about a tenth of a pixel, so scatter near a whole pixel means the peaks
-        # were matched to the wrong catalogue entries -- and a cubic will fit
-        # wrong entries beautifully. Writing it to the database would hand
-        # dispcor a wavelength scale that is quietly wrong for every spectrum
-        # taken that night, which is the failure this project exists to prevent.
-        if rms_pixels > params.maxrms and not params.interactive:
-            advice.fail(
-                f"the solution scatters by {rms_pixels:.2f} px ({fit.rms:.4f} "
-                f"{params.units}), well beyond the {params.maxrms} px a line "
-                f"centre is uncertain by, so the {int(used.sum())} lines are "
-                "probably matched to the wrong catalogue entries. Nothing was "
-                "written.",
-                "sharpen --crval and --cdelt, or use --interactive and mark a "
-                "few lines by hand. --maxrms lifts this limit if you have a "
-                "reason to accept it.", RuntimeError)
-        if rms_pixels > 0.3:
-            warnings.append(advice.warn(
-                f"the solution scatters by {rms_pixels:.2f} px, which is looser "
-                "than an arc line centre can be measured. Something is matched "
-                "to the wrong catalogue entry.",
-                "look at the identifications with --interactive and delete the "
-                "ones far off the curve; a single line matched to its "
-                "neighbour will do this."))
-
-        steps = self.plan(params)
-        by_action = {step.action: step for step in steps}
-        by_action["read"].measured = {"pixels": npixels}
-        by_action["find"].measured = {
-            "peaks": len(peaks),
-            "typical width": f"{float(np.median([p.width for p in peaks])):.2f} px",
-        }
-        by_action["catalogue"].measured = {"lines in list": catalogue.size}
-        if "match" in by_action:
-            by_action["match"].measured = {"identified": len(pixel)}
-        by_action["fit"].measured = {
-            "used": f"{int(used.sum())} of {len(pixel)}",
-            "rms": f"{fit.rms:.4f} {params.units}",
-            "in pixels": f"{rms_pixels:.3f} px"
-                         + ("  -- about a line centre's precision"
-                            if rms_pixels < 0.2 else "  -- looser than a line centre"),
-            "dispersion": f"{scale:.5f} {params.units}/px",
-        }
-
-        solution = database.Solution(
-            image=str(params.image), pixel=pixel, wavelength=wavelength,
-            function=params.function, order=params.order, rms=float(fit.rms),
-            units=params.units, coordlist=params.coordlist,
-            used=used, fitted=fit.values,
-        )
-        destination = database.write(solution, params.database)
-
-        low, high = float(fit(np.array([1.0]))[0]), float(fit(np.array([float(npixels)]))[0])
-        return TaskResult(
-            outputs=[destination],
-            data={"peaks_found": len(peaks), "features": len(pixel),
-                  "used": int(used.sum()), "rms": round(float(fit.rms), 5),
-                  "rms_pixels": round(rms_pixels, 3),
-                  "dispersion": round(scale, 5),
-                  "range": f"{min(low, high):.2f} to {max(low, high):.2f} {params.units}"},
-            history=[f"identify: {int(used.sum())} features, {params.function} "
-                     f"order {params.order}, rms {fit.rms:.4f} {params.units}, "
-                     f"from {params.coordlist}"],
-            steps=steps,
-            warnings=warnings,
-        )
-
-    def _match(self, params, peaks, catalogue, npixels, warnings):
-
-        from ..core import arc
-
-        if params.crval is not None and params.cdelt is not None:
-            return arc.autoidentify(
-                peaks, catalogue, crval=params.crval, cdelt=params.cdelt,
-                npixels=npixels, crval_search=params.crval_search,
-                cdelt_search=params.cdelt_search, tolerance=params.match)
-
-        warnings.append(advice.warn(
-            "no --crval or --cdelt given, so the dispersion was searched for "
-            "blind. Against a dense line list that is not reliable: several "
-            "quite different dispersions can fit a few dozen lines equally "
-            "well.",
-            "give --crval and --cdelt if you know roughly where the spectrum "
-            "sits -- to about one per cent is enough -- or use --interactive "
-            "and mark four or five lines by hand, spread across the range."))
-        return arc.search_dispersion(
-            peaks, catalogue,
-            window=(float(catalogue.min()), float(catalogue.max())),
-            cdelt_range=(0.02, 5.0), npixels=npixels)
+        return _solve(self, params, params.maxfeatures, not params.interactive)
 
 
-def _database_path(params: IdentifyParams) -> Path:
+@register
+class AutoIdentify(Task[AutoIdentifyParams]):
+    name = "autoidentify"
+    package = "onedspec"
+    description = "Identify arc lines automatically from an approximate dispersion."
+    Params = AutoIdentifyParams
+
+    def plan(self, params: AutoIdentifyParams) -> list[Step]:
+        return [Step("read", f"{params.image}, {params.section}, nsum {params.nsum}",
+                     why=WHY["read"]),
+                Step("catalogue", params.coordlist, why=WHY["catalogue"]),
+                Step("auto", f"crval {params.crval}, cdelt {params.cdelt}",
+                     why=WHY["auto"]),
+                Step("fit", f"{params.function} order {params.order}, "
+                            f"{params.niterate} rejection passes", why=WHY["fit"]),
+                Step("write", str(_database_path(params)), why=WHY["write"])]
+
+    def execute(self, params: AutoIdentifyParams) -> TaskResult:
+        return _solve(self, params, params.ntarget, True)
+
+
+def _database_path(params) -> Path:
     from ..core import database
 
     return database.path_for(params.image, params.database)
@@ -459,9 +425,13 @@ class DispCor(Task[DispCorParams]):
             pixel = solution.pixel if used is None else solution.pixel[used]
             wavelength = (solution.wavelength if used is None
                           else solution.wavelength[used])
+            # The curve identify fitted: the points it kept, over the range
+            # its spline pieces were laid on.
+            xrange = solution.extra.get("xrange")
             fitted = icfit.fit(pixel, wavelength,
                                icfit.FitSpec(function=solution.function,
-                                             order=solution.order))
+                                             order=solution.order),
+                               xrange=tuple(xrange) if xrange else None)
             if fitted.model is None:
                 advice.fail(
                     f"the solution in database/id{Path(name).stem} could not be "

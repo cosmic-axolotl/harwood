@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 19, partial: 29, planned: 307, replaced: 94, wontport: 161
+#   available: 20, partial: 29, planned: 306, replaced: 94, wontport: 161
 #   milestone mvp: 57 (31 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -732,7 +732,8 @@ tasks:
 
   # --- spec-1d (later, 36 tasks) --------------------------------
   aidpars: {pkg: onedspec, domain: spec-1d, status: replaced, note: "absorbed into the task's Pydantic parameter model"}
-  autoidentify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  autoidentify: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: autoidentify,
+    note: "IRAF's aid algorithm with its centring, line list matching and fitting, ported and checked against IRAF's output (the same lines, fits and rejections); no reference spectrum (refspec)"}
   calibrate: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: calibrate,
     note: "applies extinction and the sensitivity function, writing flux in
            erg/cm2/s/angstrom with BUNIT to say so. No F_nu output and no per-aperture
@@ -747,9 +748,7 @@ tasks:
   ecreidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
   fitprofs: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   identify: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: identify,
-    note: "finds arc lines, matches them to a line list and fits the dispersion with
-    icfit, by hand or automatically from an approximate crval and cdelt; writes
-    database/id<image>. No reidentify yet, one aperture only, and no 2-D solution"}
+    note: "IRAF's identify arithmetic ported (center1d, the 'l' line list matching, the fit) with its automatic path being autoidentify's, checked against IRAF; the interactive panel is harwood's own. No reidentify yet, one aperture only, and no 2-D solution"}
   interp: {pkg: proto, domain: spec-1d, status: planned, milestone: later}
   lcalib: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   match: {pkg: system, domain: spec-1d, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}

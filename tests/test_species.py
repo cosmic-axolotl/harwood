@@ -387,6 +387,7 @@ def flexing_night_star(tmp_path, monkeypatch):
     fits.PrimaryHDU((flux + rng.normal(0, 12, npixels)).astype(np.float32)).writeto(
         tmp_path / "early.fits")
     get_task("identify").run(image="early.fits", crval=crval, cdelt=cdelt,
+                             coordlist="linelists$thorium.dat", function="chebyshev",
                              order=3, niterate=3, database=tmp_path)
 
     wave = crval + (grid - centre) * cdelt

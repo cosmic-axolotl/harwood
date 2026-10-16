@@ -180,3 +180,30 @@ def spectra_frame():
                         (210, 33, 5000.0), (90, 10, 2000.0), (275, 69, 1800.0)):
         image[y - 1, x - 1] += value
     return image.astype(np.float32)
+
+
+def arc_spectrum(flip=False):
+    """A 1-D thorium arc for identify: 1024 pixels over about 4010-4310 A
+    with a gently curved dispersion, a few hundred lines of
+    tests/data/arc_lines.dat at random strengths, ten lines that are not in
+    the list, a sloping continuum and noise. `flip` reverses it, as a
+    spectrograph with the red end on the left gives."""
+    from pathlib import Path
+
+    rng = np.random.default_rng(71)
+    text = (Path(__file__).parent / "data" / "arc_lines.dat").read_text()
+    lines = np.array([float(row.split()[0]) for row in text.splitlines()
+                      if row.strip() and not row.startswith("#")])
+    pix = np.arange(1, 1025, dtype=float)
+    t = (pix - 512.5) / 512.0
+    wave = 4160.0 + 147.0 * t + 2.2 * t ** 2 - 0.6 * t ** 3
+    image = 40.0 + 10.0 * t
+    for w in lines:
+        if wave[0] - 2 < w < wave[-1] + 2:
+            p = np.interp(w, wave, pix)
+            image += 10 ** rng.uniform(1.6, 3.8) * np.exp(-((pix - p) / 1.4) ** 2 / 2)
+    for p in rng.uniform(30, 1000, 10):
+        image += 10 ** rng.uniform(2.0, 3.0) * np.exp(-((pix - p) / 1.4) ** 2 / 2)
+    image += rng.normal(0, 3.0, pix.size)
+    image = image.astype(np.float32)
+    return image[::-1].copy() if flip else image
