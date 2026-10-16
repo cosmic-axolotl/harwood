@@ -364,16 +364,24 @@ class DispCorParams(TaskParams):
                     "was run on. Read from database/id<reference>.",
     )
     linearize: bool = Field(
-        False,
-        description="Resample onto an evenly spaced wavelength grid. Off by "
-                    "default: it interpolates, which correlates neighbouring "
-                    "pixels, and most analysis does not need it.",
+        True,
+        description="Resample onto an evenly spaced grid, as IRAF does by default. "
+                    "It interpolates, which correlates neighbouring pixels; with "
+                    "--no-linearize the wavelength column carries the solution and "
+                    "the pixels are untouched.",
     )
-    npoints: int | None = Field(
-        None, ge=2,
-        description="How many points when linearizing. As many as came in, by "
-                    "default.",
-    )
+    w1: float | None = Field(None, description="Starting wavelength of the grid.")
+    w2: float | None = Field(None, description="Ending wavelength of the grid.")
+    dw: float | None = Field(None, description="Wavelength interval per pixel.")
+    nw: int | None = Field(None, ge=2, description="Number of output pixels.")
+    log: bool = Field(False, description="Logarithmic wavelength grid (log10)?")
+    flux: bool = Field(
+        True, description="Conserve flux: each output pixel holds the counts that fall "
+                          "in it, not their mean.")
+    blank: float | None = Field(0.0, description="Value for output pixels outside the "
+                                                 "input.")
+    interp: Literal["nearest", "linear", "poly3", "poly5", "spline3"] = Field(
+        "poly5", description="Interpolant the resampling integrates (onedspec.interp).")
     database: Path = Field(
         Path("."), description="Reduction directory holding database/."
     )
@@ -411,22 +419,30 @@ class DispCor(Task[DispCorParams]):
         return steps
 
     def execute(self, params: DispCorParams) -> TaskResult:
+        import math
+
         import numpy as np
 
-        from ..core import database, icfit, output, spectrum
+        from ..core import database, dispcor, icfit, output, spectrum
 
         names, weights = _references(params)
         apertures = spectrum.read(params.input)
 
         solutions = [database.read(name, params.database) for name in names]
-        fits_ = []
+        curves, pixels = [], []
         for name, solution in zip(names, solutions, strict=True):
             used = solution.used if solution.used is not None else None
             pixel = solution.pixel if used is None else solution.pixel[used]
+            pixels.append(pixel)
+            saved = solution.extra.get("curve")
+            if saved:
+                # IRAF's own curve, coefficient for coefficient.
+                curves.append(dispcor.Curve.from_saved(saved))
+                continue
+            # A harwood solution: the curve identify fitted, refitted from the
+            # points it kept, over the range its spline pieces were laid on.
             wavelength = (solution.wavelength if used is None
                           else solution.wavelength[used])
-            # The curve identify fitted: the points it kept, over the range
-            # its spline pieces were laid on.
             xrange = solution.extra.get("xrange")
             fitted = icfit.fit(pixel, wavelength,
                                icfit.FitSpec(function=solution.function,
@@ -439,25 +455,10 @@ class DispCor(Task[DispCorParams]):
                     "open the file and look at how many features it kept; a "
                     "solution with too few surviving lines for its order cannot "
                     "be rebuilt. Re-run identify on that arc.", RuntimeError)
-            fits_.append((fitted, pixel))
+            curves.append(lambda x, model=fitted: float(model(np.array([x]))[0]))
 
         solution = solutions[0]
-        pixel = fits_[0][1]
-
-        def fit(values):
-            """One solution, or two combined in the proportion refspectra set.
-
-            Interpolating between two arcs is interpolating the flexure between
-            them, so the two wavelength scales are averaged -- not the two
-            sets of line positions, which belong to different exposures and
-            cannot be fitted together.
-            """
-            import numpy as np
-
-            total = np.zeros_like(values, dtype=float)
-            for (model, _), weight in zip(fits_, weights, strict=True):
-                total += weight * model(values)
-            return total
+        pixel = pixels[0]
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -466,18 +467,40 @@ class DispCor(Task[DispCorParams]):
                 f"{name} ({weight:.3f})" if len(names) > 1 else str(name)
                 for name, weight in zip(names, weights, strict=True)),
             "features": " and ".join(f"{len(used)} of {len(whole)}"
-                                     for (_, used), whole
-                                     in zip(fits_, solutions, strict=True)),
+                                     for used, whole in zip(pixels, solutions, strict=True)),
             "function": f"{solution.function} order {solution.order}",
             "rms": " and ".join(f"{item.rms:.4f} {item.units}"
                                 for item in solutions),
         }
 
         warnings = []
+        grid = None
         for aperture in apertures:
-            aperture.wavelength = fit(np.asarray(aperture.pixel, dtype=float))
-            if params.linearize:
-                _linearize(aperture, params.npoints)
+            npts = len(aperture.flux)
+            disp = dispcor.Dispersion([(w, 0.0, c) for w, c in
+                                       zip(weights, curves, strict=True)], npts)
+            if not params.linearize:
+                aperture.wavelength = disp(np.asarray(aperture.pixel, dtype=float))
+                continue
+            a, b = disp.eval(1.0), disp.eval(float(npts))
+            if params.log:
+                a, b = math.log10(a), math.log10(b)
+            w1, w2, dw, nw = dispcor.defaults(a, b, npts, params.w1, params.w2,
+                                              params.dw, params.nw)
+            grid = (w1, w2, dw, nw)
+            for column in ("flux", "error", "sky", "raw"):
+                values = getattr(aperture, column, None)
+                if values is None:
+                    continue
+                # Every band is resampled the same way, as IRAF does them.
+                disp = dispcor.Dispersion([(w, 0.0, c) for w, c in
+                                           zip(weights, curves, strict=True)], npts)
+                setattr(aperture, column, dispcor.resample(
+                    values, disp, w1, dw, nw, params.flux, params.blank, params.interp,
+                    params.log).astype(float))
+            wave = w1 + np.arange(nw) * dw
+            aperture.wavelength = 10 ** wave if params.log else wave
+            aperture.pixel = np.arange(1.0, nw + 1.0)
 
         first = apertures[0]
         low, high = float(first.wavelength.min()), float(first.wavelength.max())
@@ -488,17 +511,19 @@ class DispCor(Task[DispCorParams]):
             "spacing varies by":
                 f"{100 * float(np.ptp(spacing) / abs(np.median(spacing))):.2f}%",
         }
-        if params.linearize:
+        if params.linearize and grid is not None:
             by_action["resample"].measured = {
-                "points": len(first.wavelength),
-                "step": f"{float(spacing[0]):.5f} {solution.units}",
+                "grid": f"w1 {grid[0]:.4f}, w2 {grid[1]:.4f}, dw {grid[2]:.6g}, "
+                        f"nw {grid[3]}" + (" (log10)" if params.log else ""),
+                "interpolant": params.interp,
+                "flux": "conserved" if params.flux else "averaged",
             }
             warnings.append(advice.note(
                 "linearizing interpolates, so neighbouring pixels are now "
                 "correlated: a spectrum resampled twice is smoother than the "
                 "data, and errors estimated from its scatter are too small.",
-                "leave --linearize off unless something downstream needs an "
-                "even grid. The wavelength column works without it."))
+                "use --no-linearize when nothing downstream needs an even grid; "
+                "the wavelength column carries the solution without it."))
 
         # The solution was fitted over the arc's pixels; using it far outside
         # that range is extrapolation, and it is the quiet kind of wrong.
@@ -623,43 +648,6 @@ def _references(params: DispCorParams) -> tuple[list[str], list[float]]:
         + (f"This reduction has solutions for {', '.join(known)}."
            if known else "This reduction has none yet, so run identify on an "
                          "arc first."))
-
-
-def _linearize(aperture, npoints: int | None) -> None:
-    """Resample onto an even wavelength grid, conserving flux.
-
-    Each output bin gets the flux that actually falls in it, rather than the
-    value interpolated at its centre: a line's equivalent width survives, which
-    interpolating the flux density does not guarantee.
-    """
-    import numpy as np
-
-    wavelength = np.asarray(aperture.wavelength, dtype=float)
-    order = np.argsort(wavelength)
-    wavelength = wavelength[order]
-    count = npoints or wavelength.size
-    grid = np.linspace(wavelength[0], wavelength[-1], count)
-
-    edges = np.concatenate([[wavelength[0] - (wavelength[1] - wavelength[0]) / 2],
-                            (wavelength[1:] + wavelength[:-1]) / 2,
-                            [wavelength[-1] + (wavelength[-1] - wavelength[-2]) / 2]])
-    new_edges = np.concatenate([[grid[0] - (grid[1] - grid[0]) / 2],
-                                (grid[1:] + grid[:-1]) / 2,
-                                [grid[-1] + (grid[1] - grid[0]) / 2]])
-
-    for name in ("flux", "error", "sky", "raw"):
-        values = getattr(aperture, name, None)
-        if values is None:
-            continue
-        values = np.asarray(values, dtype=float)[order]
-        cumulative = np.concatenate([[0.0], np.cumsum(values * np.diff(edges))])
-        resampled = np.diff(np.interp(new_edges, edges, cumulative))
-        widths = np.diff(new_edges)
-        setattr(aperture, name, resampled / np.where(widths != 0, widths, 1.0))
-
-    aperture.wavelength = grid
-    aperture.pixel = np.interp(grid, wavelength,
-                               np.asarray(aperture.pixel, dtype=float)[order])
 
 
 REFWHY = {

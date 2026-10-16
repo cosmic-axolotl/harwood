@@ -1,0 +1,129 @@
+{
+ "_comment": "IRAF 2.18.1 noao.onedspec.dispcor on tests/iraf_field.star_spectrum() (flip=True for 'starflip'), REFSPEC1 'default' (or 'flip'; 'star2' has REFSPEC1 'default 0.7' and REFSPEC2 'cheb 0.3'), with the IRAF autoidentify databases in database/ here; onedspec.interp poly5 unless 'interp'. grids: CRVAL1, CDELT1, NAXIS1, DC-FLAG of IRAF's output.",
+ "cases": {
+  "lin": {
+   "input": "star"
+  },
+  "noflux": {
+   "input": "star",
+   "flux": false
+  },
+  "linear": {
+   "input": "star",
+   "interp": "linear"
+  },
+  "spline3": {
+   "input": "star",
+   "interp": "spline3"
+  },
+  "poly3": {
+   "input": "star",
+   "interp": "poly3"
+  },
+  "nearest": {
+   "input": "star",
+   "interp": "nearest"
+  },
+  "grid": {
+   "input": "star",
+   "w1": 4050.0,
+   "w2": 4250.0,
+   "dw": 0.2
+  },
+  "nwgiven": {
+   "input": "star",
+   "nw": 800
+  },
+  "log": {
+   "input": "star",
+   "log": true
+  },
+  "wide": {
+   "input": "star",
+   "w1": 4000.0,
+   "dw": 0.3,
+   "nw": 1200,
+   "blank": -1.0
+  },
+  "flip": {
+   "input": "starflip"
+  },
+  "two": {
+   "input": "star2"
+  }
+ },
+ "grids": {
+  "lin": [
+   4014.29852458081,
+   0.28769335609626,
+   1024,
+   0
+  ],
+  "noflux": [
+   4014.29852458081,
+   0.28769335609626,
+   1024,
+   0
+  ],
+  "linear": [
+   4014.29852458081,
+   0.28769335609626,
+   1024,
+   0
+  ],
+  "spline3": [
+   4014.29852458081,
+   0.28769335609626,
+   1024,
+   0
+  ],
+  "poly3": [
+   4014.29852458081,
+   0.28769335609626,
+   1024,
+   0
+  ],
+  "nearest": [
+   4014.29852458081,
+   0.28769335609626,
+   1024,
+   0
+  ],
+  "grid": [
+   4050.0,
+   0.2,
+   1001,
+   0
+  ],
+  "nwgiven": [
+   4014.29852458081,
+   0.368348314501221,
+   800,
+   0
+  ],
+  "log": [
+   3.603609665799,
+   3.0036560248751e-05,
+   1024,
+   1
+  ],
+  "wide": [
+   4000.0,
+   0.3,
+   1200,
+   0
+  ],
+  "flip": [
+   4015.2485277174,
+   0.28673814160103,
+   1024,
+   0
+  ],
+  "two": [
+   4014.3077448266,
+   0.28766977651507,
+   1024,
+   0
+  ]
+ }
+}

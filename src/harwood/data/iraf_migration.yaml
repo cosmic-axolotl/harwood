@@ -741,7 +741,7 @@ tasks:
   continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   deredden: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dispcor: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: dispcor,
-    note: "applies a solution from identify to an extracted spectrum, combining two arcs when refspectra assigned two, with optional flux-conserving linearization, and checks the result by naming the strongest features; no log scale and no per-aperture references"}
+    note: "IRAF's dispersion function (two arcs by their weights), its inverse, the output grid and the flux-conserving resampling with every interpolant but sinc, ported and checked against IRAF's output; IRAF databases are read coefficient for coefficient. Not ported: samedisp, global, ignoreaps, aperture tables, sinc"}
   disptrans: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dopcor: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   ecidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}

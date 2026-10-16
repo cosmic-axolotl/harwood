@@ -320,8 +320,9 @@ def test_the_interpolated_scale_lands_where_the_weights_say(flexing_night):
 
     scales = {}
     for label, reference in (("early", "early"), ("late", "late"), ("interp", "")):
+        # The scales themselves, on the pixels: not resampled.
         get_task("dispcor").run(input="star.ms.fits", output=f"{label}.fits",
-                                reference=reference, database=work)
+                                reference=reference, database=work, linearize=False)
         scales[label] = spectrum.read(work / f"{label}.fits")[0].wavelength
 
     separation = float(np.median(scales["late"] - scales["early"]))

@@ -37,6 +37,34 @@ class Interpolant:
             c[1:n + 1] = data
             c[n + 1] = f32(2) * data[n - 1] - data[n - 2]
             self.coeff = c
+            self.offset = 0
+        elif kind == "nearest":
+            c = np.zeros(n + 1, dtype=f32)
+            c[1:n + 1] = data
+            self.coeff = c
+            self.offset = 0
+        elif kind in ("poly3", "poly5"):
+            need = 4 if kind == "poly3" else 6
+            if n < need:
+                raise ValueError(f"ASIFIT: too few points for {kind.upper()}")
+            off = 1 if kind == "poly3" else 2
+            # COEFF[k] at index k; data[i] at COEFF[off + i].
+            c = np.zeros(n + 2 * off + 2, dtype=f32)
+            c[off + 1:off + n + 1] = data
+            d = lambda i: c[off + i]  # noqa: E731  (1-based data)
+            two = f32(2)
+            if kind == "poly3":
+                c[1] = two * d(1) - d(2)
+                c[off + n + 1] = two * d(n) - d(n - 1)
+                c[off + n + 2] = two * d(n) - d(n - 2)
+            else:
+                c[1] = two * d(1) - d(3)
+                c[2] = two * d(1) - d(2)
+                c[off + n + 1] = two * d(n) - d(n - 1)
+                c[off + n + 2] = two * d(n) - d(n - 2)
+                c[off + n + 3] = two * d(n) - d(n - 3)
+            self.coeff = c
+            self.offset = off
         elif kind == "spline3":
             if n < 4:
                 raise ValueError("ASIFIT: too few points for SPLINE3")
@@ -47,6 +75,7 @@ class Interpolant:
             c[2:n + 2] = data
             c[1:n + 3] = _spline(c[1:n + 3], n)
             self.coeff = c
+            self.offset = 1
         else:
             raise ValueError(f"interpolant '{kind}' is not ported")
 
@@ -55,6 +84,10 @@ class Interpolant:
         x = f32(x)  # type: ignore[assignment]
         nx = int(x)
         c = self.coeff
+        if self.kind == "nearest":
+            return float(c[int(x + f32(0.5))])
+        if self.kind in ("poly3", "poly5"):
+            return float(_poly_eval(c, self.offset, x, self.kind == "poly5"))
         if self.kind == "linear":
             return float(f32((x - f32(nx)) * c[nx + 1] + (f32(nx + 1) - x) * c[nx]))
         dx = f32(x - f32(nx))
@@ -68,6 +101,41 @@ class Interpolant:
         c = self.coeff
         accum = f32(0)
         da = f32(xa - f32(neara))
+        if self.kind == "nearest":
+            na, nb = int(xa + f32(0.5)), int(xb + f32(0.5))
+            da = f32(xa - f32(na))
+            if na == nb:
+                accum = f32((f32(xb - f32(nb)) - da) * c[na])
+            else:
+                accum = f32((f32(0.5) - da) * c[na])
+                for j in range(na + 1, nb):
+                    accum = f32(accum + c[j])
+                accum = f32(accum + (f32(xb - f32(nb)) + f32(0.5)) * c[nb])
+            return float(accum if a < b else -accum)
+        if self.kind in ("poly3", "poly5"):
+            nterms = 4 if self.kind == "poly3" else 6
+
+            def pc(near):
+                return _newton(c, self.offset + near, nterms)
+
+            if nearb == neara:
+                db = f32(xb - f32(nearb))
+                p = pc(neara)
+                for i in range(1, nterms + 1):
+                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * f32(db ** i - da ** i))
+            else:
+                p = pc(neara)
+                for i in range(1, nterms + 1):
+                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * f32(f32(1) - da ** i))
+                for j in range(neara + 1, nearb):
+                    p = pc(j)
+                    for i in range(1, nterms + 1):
+                        accum = f32(accum + f32(1.0 / i) * p[i - 1])
+                db = f32(xb - f32(nearb))
+                p = pc(nearb)
+                for i in range(1, nterms + 1):
+                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * f32(db ** i))
+            return float(accum if a < b else -accum)
         if self.kind == "linear":
             if nearb == neara:
                 db = f32(xb - f32(nearb))
@@ -109,6 +177,41 @@ def _poly(c, index):
             f32(f32(3) * (cc - a)),
             f32(f32(3) * (a - f32(2) * b + cc)),
             f32(-a + f32(3) * b - f32(3) * cc + d))
+
+
+def _poly_eval(c, off, x, five):
+    """ii_poly3 / ii_poly5: Everett's formula on the data around x."""
+    nx = int(x)
+    dx = f32(x - f32(nx))
+    dy = f32(f32(1) - dx)
+
+    def d(i):
+        return c[off + i]
+
+    cd20 = f32(f32(1.0 / 6.0) * (d(nx + 1) - f32(2) * d(nx) + d(nx - 1)))
+    cd21 = f32(f32(1.0 / 6.0) * (d(nx + 2) - f32(2) * d(nx + 1) + d(nx)))
+    if not five:
+        return f32(dx * (d(nx + 1) + (dx * dx - f32(1)) * cd21)
+                   + dy * (d(nx) + (dy * dy - f32(1)) * cd20))
+    cd40 = f32(f32(1.0 / 120.0) * (d(nx - 2) - f32(4) * d(nx - 1) + f32(6) * d(nx)
+                                   - f32(4) * d(nx + 1) + d(nx + 2)))
+    cd41 = f32(f32(1.0 / 120.0) * (d(nx - 1) - f32(4) * d(nx) + f32(6) * d(nx + 1)
+                                   - f32(4) * d(nx + 2) + d(nx + 3)))
+    return f32(dx * (d(nx + 1) + (dx * dx - f32(1)) * (cd21 + (dx * dx - f32(4)) * cd41))
+               + dy * (d(nx) + (dy * dy - f32(1)) * (cd20 + (dy * dy - f32(4)) * cd40)))
+
+
+def _newton(c, index, nterms):
+    """ii_getpcoeff for poly3/poly5: the polynomial through the nterms points
+    around COEFF[index], in powers of (x - index), lowest first."""
+    diff = [f32(c[index - nterms // 2 + i]) for i in range(1, nterms + 1)]
+    for k in range(1, nterms):
+        for i in range(nterms - k):
+            diff[i] = f32((diff[i + 1] - diff[i]) / f32(k))
+    for k in range(nterms, 1, -1):
+        for i in range(2, k + 1):
+            diff[i - 1] = f32(diff[i - 1] + diff[i - 2] * f32(k - i - nterms // 2))
+    return [diff[nterms - i] for i in range(1, nterms + 1)]
 
 
 def _spline(bcoeff, npts):

@@ -207,3 +207,19 @@ def arc_spectrum(flip=False):
     image += rng.normal(0, 3.0, pix.size)
     image = image.astype(np.float32)
     return image[::-1].copy() if flip else image
+
+
+def star_spectrum(flip=False):
+    """A 1-D stellar spectrum on arc_spectrum()'s pixels: a sloping
+    continuum, absorption lines of several widths, one emission line,
+    noise."""
+    rng = np.random.default_rng(83)
+    pix = np.arange(1, 1025, dtype=float)
+    image = 2000.0 + 0.8 * (pix - 512)
+    for p, depth, width in ((120.4, 900, 2.0), (300.7, 400, 1.2), (512.2, 1200, 3.5),
+                            (700.9, 300, 1.0), (888.3, 700, 2.4), (1000.6, 500, 1.6)):
+        image -= depth * np.exp(-((pix - p) / width) ** 2 / 2)
+    image += 1500 * np.exp(-((pix - 640.5) / 1.3) ** 2 / 2)
+    image += rng.normal(0, 15.0, pix.size)
+    image = image.astype(np.float32)
+    return image[::-1].copy() if flip else image

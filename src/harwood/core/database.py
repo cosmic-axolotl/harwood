@@ -202,18 +202,10 @@ def read_iraf(path: Path) -> Solution:
     """Read IRAF's own `database/id*` file.
 
     The format is a `begin` block with indented keywords, a `features` count
-    followed by that many rows, and a trailing list of fit coefficients. Only
-    the features and the fit description are taken: the coefficients describe
-    IRAF's own normalised polynomial basis, and harwood refits from the
-    features instead -- which gives the same answer and keeps one fitting code
-    rather than two.
-
-    **Unverified:** the feature columns are read as pixel, fitted, wavelength,
-    which is the documented order, but this has not been checked against a file
-    IRAF actually wrote -- none was to hand. If a solution read from IRAF comes
-    back with the fitted and catalogue wavelengths swapped, that is where to
-    look. The residuals would be identical in size and opposite in sign, which
-    is exactly the kind of error that hides.
+    followed by that many rows -- pixel, fit, user coordinate, width, type,
+    used (checked against files IRAF 2.18 wrote) -- and the curve's saved
+    coefficients, which go to extra["curve"] so dispcor evaluates IRAF's
+    own curve rather than a refit.
     """
     text = path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
@@ -222,17 +214,26 @@ def read_iraf(path: Path) -> Solution:
     header: dict[str, str] = {}
     features: list[tuple[float, float, float, bool]] = []
     reading = 0
+    coefficients: list[float] = []
+    ncoeff = 0
+
+    def number(text):
+        return float("nan") if text.upper() == "INDEF" else float(text)
 
     for line in lines:
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
+        if ncoeff > 0:
+            coefficients.append(float(stripped.split()[0]))
+            ncoeff -= 1
+            continue
         if reading > 0:
             parts = stripped.split()
             if len(parts) >= 3:
                 try:
-                    pixel, fitted, wavelength = (float(parts[0]), float(parts[1]),
-                                                 float(parts[2]))
+                    pixel, fitted, wavelength = (number(parts[0]), number(parts[1]),
+                                                 number(parts[2]))
                 except ValueError:
                     reading = 0
                     continue
@@ -257,6 +258,10 @@ def read_iraf(path: Path) -> Solution:
             except (ValueError, IndexError):
                 reading = 0
             continue
+        if keyword == "coefficients":
+            coefficients = []
+            ncoeff = int(value.split()[0]) if value else 0
+            continue
         header[keyword] = value
 
     if not features:
@@ -274,7 +279,8 @@ def read_iraf(path: Path) -> Solution:
         order=int(float(header.get("order", 3) or 3)),
         units=header.get("units", "Angstroms") or "Angstroms",
         coordlist=header.get("coordlist", ""),
-        extra={"from_iraf": str(path)},
+        extra={"from_iraf": str(path),
+               **({"curve": coefficients} if coefficients else {})},
     )
 
 
