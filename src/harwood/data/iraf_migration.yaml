@@ -735,9 +735,7 @@ tasks:
   autoidentify: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: autoidentify,
     note: "IRAF's aid algorithm with its centring, line list matching and fitting, ported and checked against IRAF's output (the same lines, fits and rejections); no reference spectrum (refspec)"}
   calibrate: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: calibrate,
-    note: "applies extinction and the sensitivity function, writing flux in
-           erg/cm2/s/angstrom with BUNIT to say so. No F_nu output and no per-aperture
-           sensitivity."}
+    note: "IRAF's per-pixel calibration (extinction by intrp, the interpolated sensitivity spectrum, the pixel width), ported and checked against IRAF's output; reads IRAF's sensitivity spectra too; no fnu"}
   continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   deredden: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dispcor: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: dispcor,
@@ -767,18 +765,14 @@ tasks:
   scoords: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   scopy: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sensfunc: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: sensfunc,
-    note: "removes the extinction band by band at that band's airmass, then fits the
-           response with icfit; the solution goes to database/sens<name>. No per-aperture
-           solutions and no fitting of a revised extinction curve."}
+    note: "IRAF's sensitivity per band, the fit (no rejection unless asked) and the sampled sensitivity spectrum, ported and checked against IRAF's output; no residual extinction fit, no composite or grey shift"}
   sfit: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sflip: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   skysub: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
   skytweak: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   specshift: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   standard: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: standard,
-    note: "integrates a calibrated standard over the bands of an onedstds$ table and
-           records counts, flux and airmass per band; appends, so several stars build one
-           fit. No beam switching, no interactive band editing, no blackbody standards."}
+    note: "IRAF's std_flux (whole pixels and end fractions, differential extinction) and its std file, which harwood also reads, ported and checked against IRAF's output; one aperture, no beam switching, no interactive bandpasses"}
   telluric: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
 
   # --- spec-pipelines (later, 20 tasks) -------------------------

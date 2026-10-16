@@ -1,0 +1,43 @@
+{
+ "_comment": "IRAF 2.18.1 noao.onedspec standard (std1, std2 of tests/iraf_field.standard_spectra(), caldir mycal/, star fakestar, extinction kpnoextinct.dat), sensfunc of that std (interactive=no, ignoreaps=yes) with spline3 6 / chebyshev 4 / legendre 3 / spline1 4, and calibrate of 'obj' with each (and with extinct=no, spline3). std is IRAF's file as written.",
+ "sensfunc": {
+  "s3": [
+   "spline3",
+   6
+  ],
+  "ch": [
+   "chebyshev",
+   4
+  ],
+  "le": [
+   "legendre",
+   3
+  ],
+  "s1": [
+   "spline1",
+   4
+  ]
+ },
+ "grids": {
+  "sens_s3": [
+   4014.29907226562,
+   0.287692874670029,
+   1024
+  ],
+  "sens_ch": [
+   4014.29907226562,
+   0.287692874670029,
+   1024
+  ],
+  "sens_le": [
+   4014.29907226562,
+   0.287692874670029,
+   1024
+  ],
+  "sens_s1": [
+   4014.29907226562,
+   0.287692874670029,
+   1024
+  ]
+ }
+}

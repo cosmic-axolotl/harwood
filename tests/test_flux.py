@@ -56,9 +56,12 @@ def true_flux(wavelength, bands):
 
 
 def observe(wavelength, real_flux, curve, airmass, exptime, seed=None):
-    """What the telescope would record, given the invented response."""
+    """What the telescope would record, given the invented response: the
+    response is IRAF's sensitivity, 2.5 log10 of counts per second per
+    Angstrom over the flux, so a pixel holds its width's worth."""
     losses = 10.0 ** (-0.4 * flux.extinction_at(wavelength, curve) * airmass)
-    counts = real_flux * 10.0 ** (0.4 * response(wavelength)) * exptime * losses
+    width = np.abs(np.gradient(np.asarray(wavelength, dtype=float)))
+    counts = real_flux * 10.0 ** (0.4 * response(wavelength)) * exptime * losses * width
     if seed is not None:
         counts = counts + np.random.default_rng(seed).normal(
             0, 0.004 * np.median(counts), counts.size)
@@ -103,12 +106,18 @@ def test_the_extinction_curve_is_steeper_in_the_blue(curve):
     assert blue[0] > 3 * red[0]
 
 
-def test_the_extinction_is_held_rather_than_extrapolated(curve):
-    """A curve continued past its last point rises without limit and goes
-    wrong quietly. Holding the end value is wrong too, but visibly so."""
+def test_the_extinction_is_interpolated_as_iraf_does(curve):
+    """IRAF's intrp: on the table's points the table's values, between them
+    a blend of the two neighbouring parabolas -- not a straight line -- and
+    past the ends the end parabola continued, which is why calibrate says
+    so when a spectrum leaves the table."""
     grid, values = curve
-    assert flux.extinction_at([grid[0] - 500.0], curve)[0] == values[0]
-    assert flux.extinction_at([grid[-1] + 2000.0], curve)[0] == values[-1]
+    assert flux.extinction_at([grid[3]], curve)[0] == pytest.approx(values[3], abs=1e-6)
+    middle = 0.5 * (grid[3] + grid[4])
+    assert flux.extinction_at([middle], curve)[0] != pytest.approx(
+        0.5 * (values[3] + values[4]), abs=1e-6)
+    beyond = flux.extinction_at([grid[0] - 500.0], curve)[0]
+    assert np.isfinite(beyond) and beyond != values[0]
 
 
 def test_a_band_is_integrated_over_its_whole_width():
@@ -121,8 +130,11 @@ def test_a_band_is_integrated_over_its_whole_width():
     response and a flat error in every calibrated flux, and invisible in the
     rms because every band is wrong by the same amount.
 
-    A spectrum of constant flux density must measure exactly that density,
-    whatever the sampling and wherever the band edges fall between samples.
+    A spectrum of constant counts must measure exactly that many counts per
+    Angstrom of band -- the counts per pixel over the pixel's width -- per
+    second, whatever the sampling and wherever the band edges fall between
+    samples. That is IRAF's std_flux: whole pixels and the fractions of the
+    two at the ends.
     """
     from harwood.core import spectrum
 
@@ -136,7 +148,8 @@ def test_a_band_is_integrated_over_its_whole_width():
         band = flux.Band(wavelength=5000.0, width=50.0, magnitude=10.0)
 
         measured, = flux.measure(ap, [band], exptime=2.0, airmass=1.0)
-        assert measured.counts == pytest.approx(250.0, rel=1e-9), \
+        # Single precision, as IRAF sums.
+        assert measured.counts == pytest.approx(500.0 / spacing / 2.0, rel=1e-5), \
             f"spacing {spacing}, offset {offset}"
 
 

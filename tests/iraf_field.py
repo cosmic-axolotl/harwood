@@ -223,3 +223,35 @@ def star_spectrum(flip=False):
     image += rng.normal(0, 15.0, pix.size)
     image = image.astype(np.float32)
     return image[::-1].copy() if flip else image
+
+
+#: A made-up flux standard for the calibration chain: band centre, AB-like
+#: magnitude and band width, every 20 A over the synthetic spectra's range.
+FAKE_STANDARD = [(4040.0 + 20 * k, 10.0 + 0.3 * np.sin(k / 3.0) + 0.002 * k, 16.0)
+                 for k in range(13)]
+
+
+def standard_spectra():
+    """Two exposures of FAKE_STANDARD and one object, on the grid IRAF's
+    dispcor gives the synthetic arc (4014.2985 A + 0.28769 A/px, 1024 px):
+    counts = flux x a smooth instrument response x extinction x time x dw.
+    Returns {name: (counts, airmass, exptime)}."""
+    from pathlib import Path
+
+    w1, dw, n = 4014.29852458081, 0.28769335609626, 1024
+    wave = w1 + dw * np.arange(n)
+    ext = np.loadtxt(Path(__file__).parent / "data" / "kpnoextinct.dat", comments="#")
+    k = np.interp(wave, ext[:, 0], ext[:, 1])
+    bands = np.array(FAKE_STANDARD)
+    mag = np.interp(wave, bands[:, 0], bands[:, 1])
+    flam = 3.68e-20 * 10 ** (-0.4 * mag) * 2.997925e18 / wave ** 2
+    response = 3e15 * (1 + 0.4 * np.sin((wave - 4000) / 90.0)) * (wave / 4100) ** 2
+    rng = np.random.default_rng(97)
+    out = {}
+    for name, airmass, exptime, scale in (("std1", 1.15, 300.0, 1.0),
+                                          ("std2", 1.85, 600.0, 1.0),
+                                          ("obj", 1.40, 900.0, 0.3)):
+        counts = scale * flam * response * 10 ** (-0.4 * k * airmass) * exptime * dw
+        counts = counts + rng.normal(0, 0.003 * counts.mean(), n)
+        out[name] = (counts.astype(np.float32), airmass, exptime)
+    return out

@@ -48,8 +48,9 @@ from . import advice
 #: Flux density of a zero-magnitude source, erg/cm^2/s/Hz. IRAF's `fnuzero`.
 FNUZERO = 3.68e-20
 
-#: Speed of light in Angstroms per second, for F_nu to F_lambda.
-LIGHT = 2.99792458e18
+#: Speed of light in Angstroms per second, for F_nu to F_lambda: IRAF's
+#: VLIGHT, which standard and calibrate both use.
+LIGHT = 2.997925e18
 
 #: What a calibrated flux is in. Written to the header as BUNIT.
 FLUX_UNIT = "erg/cm2/s/angstrom"
@@ -103,6 +104,9 @@ class Measurement:
     airmass: float = 1.0
     star: str = ""
     used: bool = True
+    wstart: float | None = None  #: the standard spectrum's first wavelength
+    wend: float | None = None    #: and its last
+    npts: int | None = None      #: and its length
 
     @property
     def flux(self) -> float:
@@ -206,9 +210,14 @@ def find_star(name: str, caldir: str = "") -> Path | None:
     and so are the usual ways of writing a name: `BD+28 4211`, `bd284211`.
     """
     key = _flatten(name)
-    for root in _roots():
-        folders = [root / caldir] if caldir else sorted(
-            child for child in root.iterdir() if child.is_dir())
+    # A directory of one's own, as IRAF's caldir="mydir/" allows, first.
+    roots = ([None] if caldir and Path(caldir).is_dir() else []) + list(_roots())
+    for root in roots:
+        if root is None:
+            folders = [Path(caldir)]
+        else:
+            folders = [root / caldir] if caldir else sorted(
+                child for child in root.iterdir() if child.is_dir())
         for folder in folders:
             if not folder.is_dir():
                 continue
@@ -317,77 +326,167 @@ def read_extinction(name: str | Path) -> tuple[np.ndarray, np.ndarray]:
 
 
 def extinction_at(wavelength, curve) -> np.ndarray:
-    """The extinction coefficient at each wavelength, interpolated.
-
-    Outside the tabulated range the end value is held rather than
-    extrapolated: an extinction curve rises steeply into the ultraviolet and a
-    straight line continued past its last point goes wrong fast and quietly.
-    """
+    """The extinction coefficient at each wavelength, as IRAF's onedspec
+    interpolates it (xtools intrp: a blend of the two parabolas through the
+    neighbouring points, which continues past the table's ends)."""
     grid, value = curve
-    return np.interp(np.asarray(wavelength, dtype=float), grid, value,
-                     left=value[0], right=value[-1])
+    xs = np.asarray(grid, dtype=f32)
+    ys = np.asarray(value, dtype=f32)
+    w = np.atleast_1d(np.asarray(wavelength, dtype=float))
+    out = np.array([intrp(xs, ys, f32(x)) for x in w], dtype=float)
+    return out if np.ndim(wavelength) else out[0]
+
+
+f32 = np.float32
+
+
+def intrp(xtab, ytab, x) -> float:
+    """xtools intrp.f: interpolation in a table of up to four points around
+    x, blending the two parabolas by how far apart their predictions are."""
+    ntab = len(xtab)
+    if ntab == 1:
+        return float(ytab[0])
+    idir = 1.0 if xtab[-1] - xtab[0] >= 0 else -1.0
+    # srch: the first i (1-based) with xtab(i) at or beyond x; 2 below the
+    # table, ntab above it.
+    if (x - xtab[0]) * idir < 0:
+        index = 2
+    elif (x - xtab[-1]) * idir > 0:
+        index = ntab
+    else:
+        index = ntab
+        for i in range(2, ntab + 1):
+            if not (x - xtab[i - 1]) * idir > 0:
+                index = i
+                break
+    i1, i2 = 2, 3
+    iload = max(index - 2, 1)
+    if ntab > 2:
+        if index == 2:
+            i2 = 4
+        if index == ntab:
+            i1 = 1
+    if 2 < index < ntab:
+        i1, i2 = 1, 4
+    t = [f32(0)] * 5
+    u = [f32(0)] * 5
+    for i in range(i1, i2 + 1):
+        j = iload + (i - i1)
+        t[i] = f32(xtab[j - 1])
+        u[i] = f32(ytab[j - 1])
+    return float(_codim1(f32(x), t, u, i1, i2))
+
+
+def _codim1(v, t, u, i1, i2):
+    one = f32(1)
+    a2 = f32(v - t[2])
+    al = f32(a2 / (t[3] - t[2]))
+    s = f32(al * u[3] + (one - al) * u[2])
+    if i1 > 1 and i2 < 4:
+        return s
+    a3 = f32(v - t[3])
+    p1 = p2 = f32(0)
+    if i1 <= 1:
+        a1 = f32(v - t[1])
+        c1 = f32(a2 / (t[1] - t[2]) * a3 / (t[1] - t[3]))
+        c2 = f32(a1 / (t[2] - t[1]) * a3 / (t[2] - t[3]))
+        c3 = f32(a1 / (t[3] - t[1]) * a2 / (t[3] - t[2]))
+        p1 = f32(c1 * u[1] + c2 * u[2] + c3 * u[3])
+        if i2 < 4:
+            slope1 = abs(f32((u[2] - u[1]) / (t[2] - t[1])))
+            slope2 = abs(f32((u[3] - u[2]) / (t[3] - t[2])))
+            xe = one
+            if slope1 + slope2 != 0:
+                xe = f32(one - abs(slope1 - slope2) / (slope1 + slope2))
+            p2 = f32(s + xe * (p1 - s))
+            return _blend(s, p1, p2, al)
+    a4 = f32(v - t[4])
+    c4 = f32(a3 / (t[2] - t[3]) * a4 / (t[2] - t[4]))
+    c5 = f32(a2 / (t[3] - t[2]) * a4 / (t[3] - t[4]))
+    c6 = f32(a2 / (t[4] - t[2]) * a3 / (t[4] - t[3]))
+    p2 = f32(c4 * u[2] + c5 * u[3] + c6 * u[4])
+    if i1 > 1:
+        slope1 = abs(f32((u[4] - u[3]) / (t[4] - t[3])))
+        slope2 = abs(f32((u[3] - u[2]) / (t[3] - t[2])))
+        xe = one
+        if slope1 + slope2 != 0:
+            xe = f32(one - abs(slope1 - slope2) / (slope1 + slope2))
+        p1 = f32(s + xe * (p2 - s))
+    return _blend(s, p1, p2, al)
+
+
+def _blend(s, p1, p2, al):
+    e1 = abs(f32(p1 - s))
+    e2 = abs(f32(p2 - s))
+    if not e1 + e2 > 0:
+        return s
+    bt = f32((e1 * al) / (e1 * al + (f32(1) - al) * e2))
+    return f32(bt * p2 + (f32(1) - bt) * p1)
 
 
 # --------------------------------------------------------- the measurement
 
 
 def measure(aperture, bands: list[Band], exptime: float, airmass: float,
-            star: str = "", edge: float = 0.0) -> list[Measurement]:
-    """Integrate the observed spectrum over each calibration band.
-
-    Counts come back per second per Angstrom, so the exposure time and the
-    width of the band are already out and what is left can be compared with a
-    flux density directly.
-
-    A band only partly covered by the spectrum is dropped rather than scaled:
-    a half-covered band looks like a star half as bright, and there is no way
-    to tell the two apart afterwards.
+            star: str = "", edge: float = 0.0, curve=None) -> list[Measurement]:
+    """IRAF's std_flux over each band: the counts in the pixels the band
+    covers, the end pixels by the fraction inside, each corrected for the
+    difference between the extinction at its wavelength and at the band's
+    centre. A band not wholly inside the spectrum is skipped. Stored per
+    second per Angstrom of band.
     """
     wave = np.asarray(aperture.wavelength, dtype=float)
-    flux = np.asarray(aperture.flux, dtype=float)
+    flux = np.asarray(aperture.flux, dtype=f32)
     if wave.size < 2:
         advice.fail("the spectrum has no wavelength scale.",
                     "run dispcor on it first; a band is a range of wavelengths "
                     "and there is no way to integrate over one without them.")
+    n = wave.size
+    lw, wl = _pixel_map(wave)
+    w3, w4 = lw(0.5), lw(n + 0.5)
+    low, high = min(w3, w4) + edge, max(w3, w4) - edge
+    am = f32(airmass)
 
-    low, high = float(wave.min()), float(wave.max())
+    def factor(i, ec):
+        if curve is None:
+            return f32(1)
+        e = f32(extinction_at(wave[i - 1], curve))
+        return f32(f32(10.0) ** f32(f32(0.4) * am * (e - ec)))
+
     out = []
     for band in bands:
-        first = band.wavelength - band.width / 2.0
-        last = band.wavelength + band.width / 2.0
-        if first < low + edge or last > high - edge:
+        wavec, dwave = f32(band.wavelength), f32(band.width)
+        w1 = float(wavec - dwave / f32(2))
+        w2 = float(wavec + dwave / f32(2))
+        if w1 < low or w2 > high:
             continue
-        inside = (wave > first) & (wave < last)
-        if inside.sum() < 2:
+        a = f32(wl(w1))
+        x2 = f32(wl(w2))
+        x1, x2 = min(a, x2), max(a, x2)
+        i1 = int(np.floor(x1 + f32(0.5)))
+        i2 = int(np.floor(x2 - f32(0.00001) + f32(0.5)))
+        if x1 == x2 or i1 < 1 or i2 > n:
             continue
-        # Integrate over the band and divide by its width: the mean flux
-        # density, which is what a magnitude in that band means.
-        #
-        # The edges have to be interpolated rather than rounded to the nearest
-        # sample. Integrating only over the samples that fall inside covers
-        # about one pixel less than the band, and dividing that by the *full*
-        # width then understates every band by the same fraction -- a pixel in
-        # fifty Angstroms is four per cent, which is a flat offset in the
-        # fitted response and a flat error in every calibrated flux. It is
-        # invisible in the rms, because it is the same for every band.
-        positions = np.concatenate(([first], wave[inside], [last]))
-        values = np.concatenate((
-            [np.interp(first, wave, flux)], flux[inside],
-            [np.interp(last, wave, flux)]))
-        total = float(np.trapezoid(values, positions))
-        counts = total / (band.width * exptime)
+        ec = f32(extinction_at(float(wavec), curve)) if curve is not None else f32(0)
+        if i1 == i2:
+            total = f32((x2 - x1) * flux[i1 - 1] * factor(i1, ec))
+        else:
+            total = f32((f32(i1) + f32(0.5) - x1) * flux[i1 - 1] * factor(i1, ec))
+            for i in range(i1 + 1, i2):
+                total = f32(total + flux[i - 1] * factor(i, ec))
+            total = f32(total + (x2 - f32(i2) + f32(0.5)) * flux[i2 - 1] * factor(i2, ec))
+        counts = float(total) / (band.width * exptime)
         out.append(Measurement(band.wavelength, band.width, band.magnitude,
-                               counts, airmass, star))
+                               counts, airmass, star,
+                               wstart=float(wave[0]), wend=float(wave[-1]), npts=n))
     return out
 
 
 def sensitivity(standard: Standard, curve, spec) -> tuple:
-    """Fit the instrument's response in magnitudes against wavelength.
-
-    The extinction is removed from each band first, using the airmass of the
-    exposure it came from, so what is fitted is a property of the instrument
-    rather than of the night. Bands from several stars and several airmasses
-    can therefore go into one fit, which is the point of doing it this way.
+    """Fit the instrument's response in magnitudes against wavelength:
+    IRAF's sensfunc, 2.5 log10(counts / (flux dw exptime)) + X k(lambda) per
+    band, fitted over the standards' wavelength range (sf_fit, which rejects
+    nothing on its own).
     """
     from . import icfit
 
@@ -406,39 +505,142 @@ def sensitivity(standard: Standard, curve, spec) -> tuple:
             "check the spectrum's wavelength range against the calibration "
             "table with 'harwood standards --star <name>', and that the "
             "extraction has positive counts across it.")
-    return icfit.fit(wavelength[good], values[good], spec), wavelength[good], values[good]
+    xrange = sens_range(standard.measurements)
+    return (icfit.fit(wavelength[good], values[good], spec,
+                      xrange=xrange[:2] if xrange else None),
+            wavelength[good], values[good])
 
 
-def calibrate(aperture, response, curve, airmass: float, exptime: float,
-              extinct: bool = True) -> tuple[np.ndarray, np.ndarray]:
-    """Counts to flux, returning the flux and its uncertainty.
+def sens_range(measurements):
+    """The standards' wavelength range and finest dispersion: (w1, w2, dw)
+    as sf_output takes them, in single precision; None if not recorded."""
+    spans = [(m.wstart, m.wend, m.npts) for m in measurements
+             if m.wstart is not None and m.wend is not None and m.npts]
+    if not spans:
+        return None
+    w1 = min(f32(min(a, b)) for a, b, _ in spans)
+    w2 = max(f32(max(a, b)) for a, b, _ in spans)
+    dw = min(abs(f32((f32(b) - f32(a)) / f32(n - 1))) for a, b, n in spans)
+    return float(w1), float(w2), float(dw)
 
-    The sensitivity is in magnitudes, so dividing is subtracting in
-    magnitudes:
 
-        F(lambda) = counts / (exptime * 10^(0.4 S(lambda)))
+@dataclass
+class SensSpectrum:
+    """The sensitivity function sampled as IRAF's sensfunc writes it: a 1-D
+    spectrum starting at w1 in steps of dw, in magnitudes."""
 
-    with the counts first corrected to above the atmosphere. The uncertainty
-    goes through the same multiplication: the calibration is treated as exact,
-    which it is not -- the scatter of the sensitivity fit is a real error and
-    it is reported separately rather than folded in, because it is
-    systematic across the whole spectrum and adding it in quadrature per
-    pixel would misrepresent it as noise.
+    w1: float
+    dw: float
+    values: np.ndarray
+
+    @classmethod
+    def from_fit(cls, fit, measurements) -> SensSpectrum:
+        """sf_output: from w1 to w2 at the finest dispersion of the standards."""
+        w1, w2, dw = sens_range(measurements)
+        nw = int((f32(w2) - f32(w1)) / f32(dw) + f32(1.5))
+        grid = np.array([f32(f32(w1) + f32(i) * f32(dw)) for i in range(nw)], dtype=float)
+        return cls(w1, dw, np.asarray(fit(grid), dtype=f32))
+
+    def write(self, path: Path | str, title: str = "Sensitivity function") -> Path:
+        from astropy.io import fits
+
+        header = fits.Header()
+        header["OBJECT"] = title
+        header["CTYPE1"] = "LINEAR"
+        header["CRVAL1"] = self.w1
+        header["CRPIX1"] = 1.0
+        header["CDELT1"] = self.dw
+        header["CD1_1"] = self.dw
+        header["DC-FLAG"] = 0
+        header["WAT0_001"] = "system=equispec"
+        header["WAT1_001"] = "wtype=linear label=Wavelength units=angstroms"
+        header["BUNIT"] = "mag"
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fits.PrimaryHDU(np.asarray(self.values, dtype=f32), header).writeto(
+            path, overwrite=True)
+        return path
+
+    @classmethod
+    def read(cls, path: Path | str) -> SensSpectrum:
+        """A sensitivity spectrum harwood or IRAF wrote."""
+        from astropy.io import fits
+
+        data = np.asarray(fits.getdata(path), dtype=f32).ravel()
+        header = fits.getheader(path)
+        dw = float(header.get("CDELT1", header.get("CD1_1", 1.0)))
+        w1 = float(header["CRVAL1"]) + (1 - float(header.get("CRPIX1", 1.0))) * dw
+        return cls(w1, dw, data)
+
+
+def _pixel_map(wave):
+    """lw and wl: wavelength at a pixel position and back, straight past
+    the ends -- shdr_lw and shdr_wl for a spectrum given by its wavelengths."""
+    wave = np.asarray(wave, dtype=float)
+    n = wave.size
+    pixel = np.arange(1.0, n + 1.0)
+    increasing = wave[-1] > wave[0]
+
+    def lw(p):
+        if p < 1:
+            return wave[0] + (p - 1) * (wave[1] - wave[0])
+        if p > n:
+            return wave[-1] + (p - n) * (wave[-1] - wave[-2])
+        return float(np.interp(p, pixel, wave))
+
+    def wl(w):
+        ws, ps = (wave, pixel) if increasing else (wave[::-1], pixel[::-1])
+        if w < ws[0]:
+            return ps[0] + (w - ws[0]) / (ws[1] - ws[0]) * (ps[1] - ps[0])
+        if w > ws[-1]:
+            return ps[-1] + (w - ws[-1]) / (ws[-1] - ws[-2]) * (ps[-1] - ps[-2])
+        return float(np.interp(w, ws, ps))
+
+    return lw, wl
+
+
+def calibrate(aperture, sens: SensSpectrum | None, curve, airmass: float, exptime: float,
+              extinct: bool = True, interp: str = "poly5"):
+    """IRAF's calibrate, pixel by pixel:
+
+        F = counts x 10^(0.4 X k(lambda)) x 10^(-0.4 S(lambda)) / dlambda / t
+
+    with S interpolated in the sampled sensitivity function (the
+    interpolant of 10^(-0.4 S), clamped to its ends) and dlambda the
+    width of the pixel in Angstroms. Returns (flux, error, pixels outside
+    the sensitivity function's range).
     """
+    from .asi import Interpolant
+
     wave = np.asarray(aperture.wavelength, dtype=float)
-    counts = np.asarray(aperture.flux, dtype=float) / max(exptime, 1e-12)
-    error = (np.asarray(aperture.error, dtype=float) / max(exptime, 1e-12)
-             if aperture.error is not None else None)
-
-    if extinct:
-        coefficient = extinction_at(wave, curve)
-        gain = 10.0 ** (0.4 * coefficient * airmass)
-        counts = counts * gain
-        if error is not None:
-            error = error * gain
-
-    scale = 10.0 ** (0.4 * response(wave))
-    with np.errstate(divide="ignore", invalid="ignore"):
-        calibrated = counts / scale
-        uncertainty = None if error is None else error / scale
-    return calibrated, uncertainty
+    counts = np.asarray(aperture.flux, dtype=f32)
+    error = None if aperture.error is None else np.asarray(aperture.error, dtype=f32)
+    lw, _ = _pixel_map(wave)
+    time = f32(exptime) if exptime and exptime > 0 else f32(1)
+    asi = None
+    if sens is not None:
+        linear = (f32(10.0) ** (f32(-0.4) * np.asarray(sens.values, dtype=f32))).astype(f32)
+        asi = Interpolant(interp, linear)
+        n = linear.size
+    am = f32(airmass)
+    out = np.zeros(wave.size, dtype=f32)
+    err = None if error is None else np.zeros(wave.size, dtype=f32)
+    nout = 0
+    for k in range(1, wave.size + 1):
+        w = wave[k - 1]
+        ext = f32(1)
+        if extinct and curve is not None:
+            ext = f32(f32(10.0) ** f32(f32(0.4) * am * f32(extinction_at(w, curve))))
+        fcor = f32(1)
+        if asi is not None and sens is not None:
+            ical = f32((w - sens.w1) / sens.dw + 1)
+            if ical < 1 or ical > n:
+                if ical < 0.5 or ical > n + 0.5:
+                    nout += 1
+                ical = f32(max(f32(1), min(f32(n), ical)))
+            dw = f32(abs(lw(k + 0.5) - lw(k - 0.5)))
+            fcor = f32(f32(asi(float(ical))) / dw / time)
+        out[k - 1] = f32(counts[k - 1] * ext * fcor)
+        if err is not None and error is not None:
+            err[k - 1] = f32(error[k - 1] * ext * fcor)
+    return out, err, nout
