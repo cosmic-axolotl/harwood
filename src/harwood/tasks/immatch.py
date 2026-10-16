@@ -32,25 +32,24 @@ WHY = {
     "read": "Two lists of positions of the same field, taken at different times "
             "or through different filters. Nothing about them says which entry "
             "is which star -- that is the whole problem.",
-    "match:tolerance": "Nearest neighbour within a radius, after estimating the "
-                       "shift from the histogram of all pairwise offsets. Fast, "
-                       "and right when the frames are already close; it cannot "
-                       "cope with rotation.",
+    "match:tolerance": "Each reference star takes the nearest input star within "
+                       "the tolerance, once the input list has been put through "
+                       "the transformation given (xin, xmag, xrotation, xref...) "
+                       "or solved from the refpoints. Right when the frames are "
+                       "already close, or that transformation is known.",
     "match:triangles": "Triangles of stars are described by quantities that "
                        "survive translation, rotation and scale -- the ratio of "
                        "the longest side to the shortest, and the angle between "
                        "them. So the same three stars give the same two numbers "
                        "in any frame however it moved, and matching triangles "
                        "vote for the pairs of stars that made them.",
-    "fit": "A linear transform: x' = a + bx + cy, y' = d + ex + fy. Six "
-           "coefficients hold translation, rotation, scale and shear, and the "
-           "shift, rotation and scale are read back out of them because "
-           "'rotated by 0.03 degrees' says more than six numbers. Outliers are "
-           "rejected against a robust sigma: least squares has no defence "
-           "against one wrong pair, which will bend the whole solution towards "
-           "itself while still returning an answer.",
-    "write": "The matched pairs, so a later fit can use them without matching "
-             "again, with the transform recorded in the metadata.",
+    "fit": "When either list has more stars than nmatch, the triangles only "
+           "matched the first nmatch; a linear transformation x' = a + bx + cy, "
+           "y' = d + ex + fy fitted to those pairs carries every input star "
+           "onto the reference, and the whole lists are then matched by "
+           "tolerance.",
+    "write": "The pairs as IRAF writes them -- reference x y, input x y and the "
+             "line numbers in both files -- ready for geomap or imalign.",
     "coarse": "Without initial shifts the first star in the list is found with "
               "the big box in every image, and where it lands gives the shift "
               "every other star is looked for with. Put a bright, isolated star "
@@ -83,141 +82,126 @@ WHY = {
 class XyxyMatchParams(TaskParams):
     input: Path = Field(..., description="Coordinate list to match.")
     reference: Path = Field(..., description="Coordinate list to match it against.")
-    output: Path = Field(..., description="Matched pairs to write.")
-
-    tolerance: float = Field(
-        2.0, gt=0,
-        description="How close two points must land to be called the same star, "
-                    "in pixels, after the transformation is applied.",
-    )
+    output: Path = Field(..., description="Matched pairs, as IRAF writes them.")
+    tolerance: float = Field(3.0, gt=0, description="Matching tolerance in pixels.")
+    refpoints: Path | None = Field(
+        None, description="Tie points: a line of up to three reference x y pairs, "
+                          "then a line of the same input stars. They give the "
+                          "initial transformation, and override the one below.")
+    xin: float | None = Field(None, description="X origin of the input list. With "
+                              "xmag..xref, the initial transformation; empty is 0.")
+    yin: float | None = Field(None, description="Y origin of the input list.")
+    xmag: float | None = Field(None, description="X magnification from input to "
+                               "reference; empty is 1.")
+    ymag: float | None = Field(None, description="Y magnification; empty is 1.")
+    xrotation: float | None = Field(None, description="X rotation, degrees; empty is 0.")
+    yrotation: float | None = Field(None, description="Y rotation, degrees; empty is 0.")
+    xref: float | None = Field(None, description="X origin of the reference list; "
+                               "empty is 0. A pure shift is xref - xin.")
+    yref: float | None = Field(None, description="Y origin of the reference list.")
+    xcolumn: int = Field(1, ge=1, description="Input list column with x.")
+    ycolumn: int = Field(2, ge=1, description="Input list column with y.")
+    xrcolumn: int = Field(1, ge=1, description="Reference list column with x.")
+    yrcolumn: int = Field(2, ge=1, description="Reference list column with y.")
+    separation: float = Field(9.0, ge=0, description="Points closer together than "
+                              "this, in pixels, are reduced to the first of them.")
     matching: Literal["tolerance", "triangles"] = Field(
-        "triangles",
-        description="'triangles' finds the transformation from the pattern of the "
-                    "stars themselves and needs no prior; 'tolerance' just pairs "
-                    "nearest neighbours and needs the frames to be close already.",
-    )
-    nmatch: int = Field(
-        30, ge=3,
-        description="How many of the brightest stars take part in the triangle "
-                    "search. More is slower and rarely better.",
-    )
-    xin: float | None = Field(
-        None, description="Initial shift in x, if you already know it.")
-    yin: float | None = Field(
-        None, description="Initial shift in y, if you already know it.")
-    ratio_tolerance: float = Field(
-        0.02, gt=0,
-        description="How closely two triangles must agree in shape to vote for "
-                    "the same stars.",
-    )
+        "triangles", description="triangles finds the transformation from the "
+                                 "pattern of the stars and needs no prior; tolerance "
+                                 "needs the initial transformation to be right "
+                                 "already.")
+    nmatch: int = Field(30, ge=3, description="Most points of each list the triangles "
+                        "are made from (the first ones after sorting in y).")
+    ratio: float = Field(10.0, ge=5.0, le=10.0, description="Longest to shortest side "
+                         "of the triangles used.")
+    nreject: int = Field(10, ge=0, description="Most rejection passes over the "
+                         "matched triangles.")
+    xformat: str = Field("%13.3f", description="Format of the x columns.")
+    yformat: str = Field("%13.3f", description="Format of the y columns.")
 
 
 @register
 class XyxyMatch(Task[XyxyMatchParams]):
+    """IRAF's xyxymatch: pair the stars of two coordinate lists, by tolerance
+    after a known transformation, or by Groth's triangles with none. The
+    output file is IRAF's, line for line."""
+
     name = "xyxymatch"
     package = "immatch"
-    description = "Match two coordinate lists and solve for the transformation."
+    description = "Match two coordinate lists, by tolerance or by triangles."
     Params = XyxyMatchParams
 
     def plan(self, params: XyxyMatchParams) -> list[Step]:
+        how = (f"triangles of up to {params.nmatch} stars, within {params.tolerance:g} px"
+               if params.matching == "triangles"
+               else f"nearest within {params.tolerance:g} px")
         return [
-            Step("read", f"{params.input} against {params.reference}",
-                 why=WHY["read"]),
-            Step("match", f"{params.matching}"
-                 + (f", {params.nmatch} brightest" if params.matching == "triangles"
-                    else f", within {params.tolerance} px"),
-                 why=WHY[f"match:{params.matching}"]),
-            Step("fit", "linear transform: shift, scale, rotation", why=WHY["fit"]),
+            Step("read", f"{params.input} against {params.reference}", why=WHY["read"]),
+            Step("match", how, why=WHY[f"match:{params.matching}"]),
             Step("write", str(params.output), why=WHY["write"]),
         ]
 
     def execute(self, params: XyxyMatchParams) -> TaskResult:
-        from astropy.table import Table
+        from ..core import xyxymatch as X
 
-        from ..core import catalog, match, provenance
+        xr, yr, rl = X.read_list(params.reference, params.xrcolumn, params.yrcolumn)
+        xi, yi, il = X.read_list(params.input, params.xcolumn, params.ycolumn)
+        coeff = X.make_coeff(
+            *(0.0 if v is None else v for v in (params.xin, params.yin)),
+            *(1.0 if v is None else v for v in (params.xmag, params.ymag)),
+            *(0.0 if v is None else v for v in (params.xrotation, params.yrotation,
+                                                 params.xref, params.yref)))
+        ties = _ties(params.refpoints) if params.refpoints else None
+        result = X.xyxymatch(xr, yr, xi, yi, tolerance=params.tolerance,
+                             matching=params.matching, separation=params.separation,
+                             nmatch=params.nmatch, ratio=params.ratio,
+                             nreject=params.nreject, coeff=coeff, ties=ties)
+        params.output.parent.mkdir(parents=True, exist_ok=True)
+        params.output.write_text(X.format_output(
+            result, xr, yr, rl, xi, yi, il, str(params.input), str(params.reference),
+            params.xformat, params.yformat))
 
-        reference = catalog.read(params.reference)
-        moving = catalog.read(params.input)
-        rx, ry = catalog.coordinates(reference, params.reference)
-        ix, iy = catalog.coordinates(moving, params.input)
-
-        if params.matching == "triangles":
-            found = match.by_triangles(
-                rx, ry, ix, iy, nmatch=params.nmatch, tolerance=params.tolerance,
-                ratio_tolerance=params.ratio_tolerance,
-                rflux=_flux(reference), iflux=_flux(moving),
-            )
-        else:
-            found = match.by_tolerance(rx, ry, ix, iy, tolerance=params.tolerance,
-                                       xin=params.xin, yin=params.yin)
-        if not found:
-            raise RuntimeError(
-                f"no usable match: {found.message or 'nothing paired up'}. "
-                f"{len(reference)} reference and {len(moving)} input positions. "
-                "Try --matching triangles, a larger --tolerance, or check that the "
-                "two lists are of the same field."
-            )
-
-        transform = match.fit_transform(rx[found.reference], ry[found.reference],
-                                        ix[found.input], iy[found.input],
-                                        niterate=3, reject=2.5)
-        pairs = Table({
-            "xref": rx[found.reference], "yref": ry[found.reference],
-            "xin": ix[found.input], "yin": iy[found.input],
-            "ref_id": found.reference + 1, "in_id": found.input + 1,
-        })
-        catalog.write(pairs, params.output,
-                      harwood_reference=str(params.reference),
-                      harwood_input=str(params.input),
-                      harwood_transform=list(transform["coefficients"]),
-                      harwood_call=provenance.current_stamp() or "")
-
+        final = result.matched if result.matched is not None else result.initial
+        xmag, ymag, xrot, yrot = X.geometry(final)
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
-        by_action["read"].measured = {"reference": len(reference),
-                                      "input": len(moving)}
-        by_action["match"].measured = {"pairs": len(found), "method": found.method}
-        by_action["fit"].measured = {
-            "shift": f"{transform['xshift']:+.3f}, {transform['yshift']:+.3f} px",
-            "rotation": f"{transform['rotation']:+.4f} deg",
-            "scale": f"{transform['xscale']:.6f}",
-            "rms": f"{transform['rms']:.3f} px"
-                   + ("  -- what centroids are good for"
-                      if transform["rms"] < 0.4 else "  -- looser than centroids"),
-            "rejected": transform["nrejected"],
-        }
-
+        by_action["read"].measured = {"reference": len(xr) - 1, "input": len(xi) - 1}
+        by_action["match"].measured = {"pairs": len(result.pairs)}
+        warnings = []
+        if not result.pairs:
+            warnings.append(advice.warn(
+                f"no star matched{': ' + result.message if result.message else ''}",
+                "check that the two lists are of the same field; with matching "
+                "triangles try a larger tolerance or nmatch, with tolerance give "
+                "the transformation (xin, xref...) or refpoints"))
         return TaskResult(
-            outputs=[params.output],
-            steps=steps,
-            data={"pairs": len(found), "xshift": round(transform["xshift"], 4),
-                  "yshift": round(transform["yshift"], 4),
-                  "rotation_deg": round(transform["rotation"], 5),
-                  "scale": round(transform["xscale"], 6),
-                  "rms": round(transform["rms"], 4),
-                  "rejected": transform["nrejected"]},
-            history=[f"xyxymatch: {len(found)} pairs by {found.method}, "
-                     f"shift {transform['xshift']:+.3f} {transform['yshift']:+.3f}, "
-                     f"rotation {transform['rotation']:+.4f} deg, "
-                     f"rms {transform['rms']:.3f}"],
-        )
+            outputs=[params.output], steps=steps, warnings=warnings,
+            data={"pairs": len(result.pairs), "xshift": round(float(final[3]), 4),
+                  "yshift": round(float(final[6]), 4), "xmag": round(xmag, 6),
+                  "ymag": round(ymag, 6), "xrotation": round(xrot, 4),
+                  "yrotation": round(yrot, 4)},
+            history=[f"xyxymatch: {len(result.pairs)} pairs by {params.matching}"])
 
 
-def _flux(table) -> object:
-    """Brightness column, if the catalogue has one.
+def _ties(path: Path):
+    """rg_getreftie: the first line's reference points, the second's input."""
+    lines = [line.split() for line in path.read_text().splitlines() if line.split()]
+    if len(lines) < 2:
+        advice.fail(f"{path} needs two lines: the reference points, then the input ones",
+                    "write 'x1 y1 [x2 y2 [x3 y3]]' for the reference stars on the first "
+                    "line and the same stars of the input list on the second")
 
-    The brightest stars are the ones both frames agree on, so they are the
-    ones the triangle search should use.
-    """
-    import numpy as np
+    def points(words):
+        values = []
+        for word in words[:6]:
+            try:
+                values.append(float(word))
+            except ValueError:
+                break
+        values = values[:len(values) // 2 * 2]
+        return values[0::2], values[1::2]
 
-    for name in ("flux", "peak", "amplitude"):
-        if name in table.colnames:
-            return np.asarray(table[name], dtype=float)
-    for name in ("mag", "magnitude"):
-        if name in table.colnames:
-            return -np.asarray(table[name], dtype=float)   # brighter is smaller
-    return None
+    return points(lines[0]), points(lines[1])
 
 
 class _CentringParams(TaskParams):

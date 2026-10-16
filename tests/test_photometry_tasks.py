@@ -107,14 +107,16 @@ def test_xyxymatch_recovers_a_known_shift(tmp_path):
     result = get_task("xyxymatch").run(input=tmp_path / "in.coo",
                                        reference=tmp_path / "ref.coo",
                                        output=tmp_path / "pairs.txt",
-                                       matching="triangles")
+                                       matching="triangles", separation=0.0)
+    # separation=0: IRAF's default of 9 px would merge two close pairs here.
     assert result.data["pairs"] == 40
-    assert abs(result.data["xshift"]) == pytest.approx(3.25, abs=1e-3)
-    assert abs(result.data["yshift"]) == pytest.approx(1.5, abs=1e-3)
-    assert result.data["rms"] < 1e-3
-    pairs = catalog.read(tmp_path / "pairs.txt")
-    assert len(pairs) == 40
-    assert np.allclose(pairs["xin"] - pairs["xref"], 3.25)
+    # IRAF's transformation runs from the input to the reference.
+    assert result.data["xshift"] == pytest.approx(-3.25, abs=1e-3)
+    assert result.data["yshift"] == pytest.approx(1.5, abs=1e-3)
+    rows = [line.split() for line in (tmp_path / "pairs.txt").read_text().splitlines()
+            if line.strip() and not line.startswith("#")]
+    assert len(rows) == 40
+    assert np.allclose([float(r[2]) - float(r[0]) for r in rows], 3.25, atol=1e-3)
 
 
 def test_ccdproc_fixpix_is_iraf_s_fixpix(tmp_path):

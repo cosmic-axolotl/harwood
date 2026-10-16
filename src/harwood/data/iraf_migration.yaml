@@ -385,7 +385,8 @@ tasks:
   wcsxymatch: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
   wregister: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
   xregister: {pkg: images.immatch, domain: geometry, status: planned, milestone: later}
-  xyxymatch: {pkg: images.immatch, domain: geometry, status: available, milestone: later, harwood: xyxymatch}
+  xyxymatch: {pkg: images.immatch, domain: geometry, status: available, milestone: later, harwood: xyxymatch,
+    note: "tolerance and triangles, refpoints, IRAF's parameters and output file, checked byte for byte against IRAF's; no interactive tie points"}
 
   # --- combine (core, 10 tasks) ---------------------------------
   average: {pkg: lists, domain: combine, status: planned, milestone: later}

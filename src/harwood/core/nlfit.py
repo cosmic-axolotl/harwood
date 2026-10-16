@@ -31,9 +31,12 @@ DONE, SINGULAR, NO_DEG_FREEDOM, NOT_DONE = 0, 1, 2, 3
 OK = 0
 
 
-def chfac(matrix: np.ndarray, nbands: int, nrows: int, matfac: np.ndarray) -> int:
+def chfac(matrix: np.ndarray, nbands: int, nrows: int, matfac: np.ndarray,
+          singular=EPSILONR) -> int:
     """nl_chfac: banded Cholesky factorisation (de Boor's bchfac), in place
-    into matfac; matrix[j, n] is element (n + j, n), 0-based."""
+    into matfac; matrix[j, n] is element (n + j, n), 0-based. A pivot at or
+    below `singular` makes the row singular (gsurfit's gs_chofac uses
+    1000 / MAX_REAL where nlfit uses EPSILONR)."""
     ier = OK
     if nrows == 1:
         if matrix[0, 0] > 0:
@@ -41,7 +44,7 @@ def chfac(matrix: np.ndarray, nbands: int, nrows: int, matfac: np.ndarray) -> in
         return ier
     matfac[:nbands, :nrows] = matrix[:nbands, :nrows]
     for n in range(nrows):
-        if (f32(matfac[0, n] + matrix[0, n]) - matrix[0, n]) <= EPSILONR:
+        if (f32(matfac[0, n] + matrix[0, n]) - matrix[0, n]) <= singular:
             matfac[:nbands, n] = 0
             ier = SINGULAR
             continue

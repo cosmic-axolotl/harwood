@@ -1,0 +1,64 @@
+{
+ "tol_given": {
+  "input": "shift25",
+  "reference": "ref25",
+  "matching": "tolerance",
+  "xin": 0,
+  "yin": 0,
+  "xref": -13.7,
+  "yref": 21.2,
+  "tolerance": 1.0
+ },
+ "tol_none": {
+  "input": "shift25",
+  "reference": "ref25",
+  "matching": "tolerance",
+  "tolerance": 3
+ },
+ "tri_shift": {
+  "input": "shift25",
+  "reference": "ref25",
+  "tolerance": 3.0
+ },
+ "tri_rot": {
+  "input": "rot25",
+  "reference": "ref25",
+  "tolerance": 3.0
+ },
+ "tri_flip": {
+  "input": "flip25",
+  "reference": "ref25",
+  "tolerance": 3.0
+ },
+ "tri_big": {
+  "input": "in120",
+  "reference": "ref120",
+  "tolerance": 3.0
+ },
+ "tri_big_n15": {
+  "input": "in120",
+  "reference": "ref120",
+  "nmatch": 15,
+  "tolerance": 2.0
+ },
+ "tri_coin": {
+  "input": "coin25",
+  "reference": "ref25",
+  "separation": 2.0,
+  "tolerance": 3.0
+ },
+ "refpts": {
+  "input": "rot25",
+  "reference": "ref25",
+  "matching": "tolerance",
+  "refpoints": "refpts",
+  "tolerance": 1.0
+ },
+ "tri_ratio": {
+  "input": "rot25",
+  "reference": "ref25",
+  "ratio": 5.0,
+  "nreject": 3,
+  "tolerance": 3.0
+ }
+}

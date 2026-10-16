@@ -1,0 +1,21 @@
+
+# Input: in120  Reference: ref120  Number of tie points: 0
+# Initial linear transformation
+#     xref[tie] =         0. +         1. * x[tie] +         0. * y[tie]
+#     yref[tie] =         0. +         0. * x[tie] +         1. * y[tie]
+# dx: 0.00 dy: 0.00 xmag: 1.000 ymag: 1.000 xrot: 0.0 yrot: 0.0
+#
+# Matched triangles transformation
+#     xref[tie] =         0. +         1. * x[tie] +         0. * y[tie]
+#     yref[tie] =         0. +         0. * x[tie] +         1. * y[tie]
+# dx: 0.00 dy: 0.00 xmag: 1.000 ymag: 1.000 xrot: 0.0 yrot: 0.0
+#
+# Column definitions
+#    Column 1: X reference coordinate
+#    Column 2: Y reference coordinate
+#    Column 3: X input coordinate
+#    Column 4: Y input coordinate
+#    Column 5: Reference line number
+#    Column 6: Input line number
+
+      379.595       319.321        381.008       317.983     69    64

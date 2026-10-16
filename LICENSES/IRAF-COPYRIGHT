@@ -28,6 +28,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 Applies to src/harwood/core/starfocus.py, src/harwood/core/apphot.py,
 src/harwood/core/fitsky.py, src/harwood/core/nlfit.py, src/harwood/core/llsq.py,
+src/harwood/core/xyxymatch.py,
 src/harwood/core/examine.py, the ccdgroups port in src/harwood/tasks/ccdred.py,
 the imhistogram and imrename ports in src/harwood/tasks/imutil.py,
 src/harwood/core/daofind.py, src/harwood/core/fixpix.py,

@@ -203,39 +203,61 @@ def test_the_overscan_of_a_real_frame_fits_and_the_gradient_is_removed(raw):
     assert np.ptp(sloped.values) > 0.5, "the gradient is about an ADU"
 
 
+def _xyxymatch(first, second, **params):
+    """IRAF's xyxymatch (core.xyxymatch) of two daofind catalogues: the
+    result and the transformation that carries the second onto the first."""
+    from harwood.core import xyxymatch
+
+    def padded(table, name):
+        return np.concatenate(([0.0], np.asarray(table[name]))).astype(np.float32)
+
+    rx, ry, ix, iy = (padded(first, "x"), padded(first, "y"), padded(second, "x"),
+                      padded(second, "y"))
+    result = xyxymatch.xyxymatch(rx, ry, ix, iy, **params)
+    coeff = result.matched if result.matched is not None else result.initial
+    pairs = np.array(result.pairs, dtype=int).reshape(-1, 2)
+    xt, yt = xyxymatch.apply(coeff, ix[pairs[:, 1]], iy[pairs[:, 1]])
+    rms = float(np.sqrt(np.mean((xt - rx[pairs[:, 0]]) ** 2 + (yt - ry[pairs[:, 0]]) ** 2)))
+    return result, coeff, rms
+
+
 def test_the_frames_are_matched_and_the_shift_is_recovered(reduced):
     """The shift that forced this whole domain into the MVP.
 
-    Two V frames minutes apart moved by about two pixels, and the B sequence
-    by nearly five. A fixed matching radius finds the stars near the pivot and
-    misses the rest, which looks like a successful match.
+    Two V frames minutes apart moved by about two pixels. IRAF's xyxymatch
+    pairs them -- and tests/data/iraf_xyxymatch_m92.out is what IRAF wrote
+    for these very lists: its triangles, made from the 30 lowest stars of
+    each list, find no transformation here (168 and 120 detections do not
+    share their lowest 30), so it falls back to the initial one and pairs
+    by tolerance, which a 2-pixel shift survives. harwood writes the same
+    file.
     """
-    from harwood.core import match
+    from harwood.core import xyxymatch
 
     first, second = measure(reduced, "m92010"), measure(reduced, "m92011")
-    rx, ry = np.asarray(first["x"]), np.asarray(first["y"])
-    ix, iy = np.asarray(second["x"]), np.asarray(second["y"])
+    for name, table in (("m92010", first), ("m92011", second)):
+        (reduced / f"{name}.xy").write_text(
+            "".join(f"{x:.3f} {y:.3f}\n" for x, y in zip(table["x"], table["y"],
+                                                          strict=True)))
+    xr, yr, rl = xyxymatch.read_list(reduced / "m92010.xy")
+    xi, yi, il = xyxymatch.read_list(reduced / "m92011.xy")
+    result = xyxymatch.xyxymatch(xr, yr, xi, yi)
+    written = xyxymatch.format_output(result, xr, yr, rl, xi, yi, il, "m92011.xy",
+                                      "m92010.xy")
+    iraf = (Path(__file__).parent / "data" / "iraf_xyxymatch_m92.out").read_text()
+    assert written == iraf
 
-    found = match.by_triangles(rx, ry, ix, iy, nmatch=30, tolerance=2.0,
-                               rflux=-np.asarray(first["mag"]),
-                               iflux=-np.asarray(second["mag"]))
-    assert found, found.message
-    assert len(found) > 60
-
-    model = match.fit_transform(rx[found.reference], ry[found.reference],
-                                ix[found.input], iy[found.input],
-                                niterate=3, reject=2.5)
-    assert 0.5 < np.hypot(model["xshift"], model["yshift"]) < 5.0
-    assert abs(model["rotation"]) < 0.1, "the field did not rotate between exposures"
-    assert model["xscale"] == pytest.approx(1.0, abs=0.001)
-    assert 0.05 < model["rms"] < 0.5, "real centroids scatter by a fraction of a pixel"
-    assert model["nrejected"] < 0.25 * len(found), "rejection must not cascade"
+    pairs = np.array(result.pairs)
+    assert len(pairs) > 60
+    dx, dy = xi[pairs[:, 1]] - xr[pairs[:, 0]], yi[pairs[:, 1]] - yr[pairs[:, 0]]
+    assert 0.5 < np.hypot(np.median(dx), np.median(dy)) < 5.0
+    assert np.std(dx) < 0.5 and np.std(dy) < 0.5, "a fraction of a pixel, as centroids"
 
 
 def test_imcentroid_and_xyxymatch_agree_on_the_same_frames(reduced):
     """Two independent routes to the same number: marginal centroids of chosen
     stars, and a transform fitted to every detection. They must agree."""
-    from harwood.core import catalog, match
+    from harwood.core import catalog
     from harwood.core.registry import get_task
 
     first = measure(reduced, "m92010")
@@ -250,25 +272,18 @@ def test_imcentroid_and_xyxymatch_agree_on_the_same_frames(reduced):
     assert row["xinternal"] < 0.1 and row["yinternal"] < 0.1
 
     second = measure(reduced, "m92011")
-    found = match.by_triangles(np.asarray(first["x"]), np.asarray(first["y"]),
-                               np.asarray(second["x"]), np.asarray(second["y"]),
-                               nmatch=30, tolerance=2.0,
-                               rflux=-np.asarray(first["mag"]),
-                               iflux=-np.asarray(second["mag"]))
-    model = match.fit_transform(np.asarray(first["x"])[found.reference],
-                                np.asarray(first["y"])[found.reference],
-                                np.asarray(second["x"])[found.input],
-                                np.asarray(second["y"])[found.input],
-                                niterate=3, reject=2.5)
-    # imcentroid reports reference minus image, the shift that moves the
-    # image onto the reference; the transform maps reference onto image.
-    assert row["xshift"] == pytest.approx(-model["xshift"], abs=0.3)
-    assert row["yshift"] == pytest.approx(-model["yshift"], abs=0.3)
+    result, _, _ = _xyxymatch(first, second)
+    pairs = np.array(result.pairs)
+    dx = np.asarray(second["x"])[pairs[:, 1] - 1] - np.asarray(first["x"])[pairs[:, 0] - 1]
+    dy = np.asarray(second["y"])[pairs[:, 1] - 1] - np.asarray(first["y"])[pairs[:, 0] - 1]
+    # imcentroid's shift is reference minus image.
+    assert row["xshift"] == pytest.approx(-np.median(dx), abs=0.3)
+    assert row["yshift"] == pytest.approx(-np.median(dy), abs=0.3)
 
 
 def test_imalign_closes_the_loop(reduced):
     """Align, detect again, match again: the residual shift must be near zero."""
-    from harwood.core import catalog, match
+    from harwood.core import catalog
     from harwood.core.registry import get_task
 
     first = measure(reduced, "m92010")
@@ -289,11 +304,14 @@ def test_imalign_closes_the_loop(reduced):
                    output=reduced / f"a_{name}.coo", fwhmpsf=FWHM, threshold=4.0)
         catalogues.append(catalog.read(reduced / f"a_{name}.coo"))
 
-    found = match.by_tolerance(np.asarray(catalogues[0]["x"]),
-                               np.asarray(catalogues[0]["y"]),
-                               np.asarray(catalogues[1]["x"]),
-                               np.asarray(catalogues[1]["y"]), tolerance=2.0)
-    assert abs(found.shift[0]) < 0.5 and abs(found.shift[1]) < 0.5
+    result, _, _ = _xyxymatch(catalogues[0], catalogues[1], matching="tolerance",
+                              tolerance=2.0)
+    pairs = np.array(result.pairs)
+    assert len(pairs) > 50, "aligned frames match without being told a shift"
+    ref, moved = catalogues
+    dx = np.asarray(moved["x"])[pairs[:, 1] - 1] - np.asarray(ref["x"])[pairs[:, 0] - 1]
+    dy = np.asarray(moved["y"])[pairs[:, 1] - 1] - np.asarray(ref["y"])[pairs[:, 0] - 1]
+    assert abs(np.median(dx)) < 0.5 and abs(np.median(dy)) < 0.5
 
 
 def test_exercise_two_reproduces_its_own_numbers(tmp_path, raw):
