@@ -608,7 +608,7 @@ tasks:
   allstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   apfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   center: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp,
-    note: "IRAF's centroid and none, ported and checked against IRAF's output; gauss, ofilter and the symmetry clean are not ported"}
+    note: "every algorithm -- centroid, gauss (through IRAF's nlfit), ofilter, none -- and the symmetry clean, ported and checked against IRAF's output; positive features only (emission = yes), and no interactive mode"}
   centerpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   chkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
@@ -625,7 +625,7 @@ tasks:
   fitparams: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   fitpsf: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
   fitsky: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp,
-    note: "centroid, mode, median, mean and constant, ported and checked against IRAF's output; gauss, ofilter, crosscor, histplot, radplot, file, region growing and the percentile clips are not ported"}
+    note: "centroid, mode, median, mean, gauss, ofilter, crosscor and constant, with region growing, the percentile clips and histogram smoothing, ported and checked against IRAF's output; not the interactive histplot and radplot, nor file"}
   fitskypars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   group: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}

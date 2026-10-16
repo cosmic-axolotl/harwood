@@ -72,6 +72,33 @@ def test_phot_columns_and_magnitudes_per_second_when_asked(frame):
     assert b["mag_3"][0] - a["mag_3"][0] == pytest.approx(2.5, abs=1e-6)
 
 
+def test_phot_takes_every_iraf_algorithm_by_name(tmp_path):
+    """The options reach the arithmetic: the dirty field with gauss centring
+    and a grown, clipped mode sky gives IRAF's own numbers (s_mode_clip in
+    iraf_apphot_algorithms.json is centroid centring; the sky is the sky)."""
+    import json
+    from pathlib import Path
+
+    from iraf_field import dirty_field
+
+    fits.writeto(tmp_path / "dirty.fits", dirty_field())
+    catalog.write(Table({"x": [c[0] for c in CURSOR], "y": [c[1] for c in CURSOR]}),
+                  tmp_path / "dirty.coo")
+    params = dict(image=str(tmp_path / "dirty.fits"), coords=tmp_path / "dirty.coo",
+                  epadu=2.0, apertures=[3, 5, 8], salgorithm="mode", sloclip=5.0,
+                  shiclip=10.0, rgrow=1.5)
+    task = get_task("phot")
+    plan = task.plan(task.Params(**params))
+    assert "clipping 5%/10%, growing rejections by 1.5" in plan[2].detail
+    task.run(output=tmp_path / "dirty.mag", **params)
+    table = catalog.read(tmp_path / "dirty.mag")
+    reference = json.loads((Path(__file__).parent / "data"
+                            / "iraf_apphot_algorithms.json").read_text())
+    rows = reference["cases"]["s_mode_clip"]["rows"]
+    assert list(table["msky"]) == pytest.approx([r[7] for r in rows], rel=6e-7)
+    assert list(table["nsrej"]) == [r[11] for r in rows]
+
+
 def test_xyxymatch_recovers_a_known_shift(tmp_path):
     rng = np.random.default_rng(4)
     x, y = rng.uniform(20, 480, 40), rng.uniform(20, 480, 40)

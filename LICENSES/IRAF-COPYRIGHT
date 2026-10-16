@@ -27,6 +27,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
 Applies to src/harwood/core/starfocus.py, src/harwood/core/apphot.py,
+src/harwood/core/fitsky.py, src/harwood/core/nlfit.py,
 src/harwood/core/daofind.py, src/harwood/core/fixpix.py,
 src/harwood/core/imcentroid.py, src/harwood/core/imshift.py,
 src/harwood/core/apextract.py, src/harwood/core/asi.py, src/harwood/core/center1d.py,

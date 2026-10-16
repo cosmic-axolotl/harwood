@@ -37,6 +37,29 @@ def field() -> np.ndarray:
     return image.astype(np.float32)
 
 
+def dirty_field() -> np.ndarray:
+    """field() with what the cleaning and the sky's rejection are for: a hot
+    pixel inside each centring box, two pixels from the star, and cosmic-ray
+    blobs and a faint neighbour in each sky annulus."""
+    image = field().astype(float)
+    ny, nx = image.shape
+    yy, xx = np.mgrid[1:ny + 1, 1:nx + 1].astype(float)
+    rng = np.random.default_rng(11)
+    for x, y, *_ in STARS:
+        ix, iy = int(round(x)), int(round(y))
+        image[iy + 2 - 1, ix + 1 - 1] += 700.0
+        for _ in range(3):
+            angle = rng.uniform(0, 2 * np.pi)
+            radius = rng.uniform(12.0, 18.0)
+            bx = int(round(x + radius * np.cos(angle)))
+            by = int(round(y + radius * np.sin(angle)))
+            image[by - 2:by + 1, bx - 2:bx + 1] += rng.uniform(30.0, 300.0, (3, 3))
+        angle = rng.uniform(0, 2 * np.pi)
+        fx, fy = x + 15.0 * np.cos(angle), y + 15.0 * np.sin(angle)
+        image += 150.0 * np.exp(-((xx - fx) ** 2 + (yy - fy) ** 2) / (2 * 1.3 ** 2))
+    return image.astype(np.float32)
+
+
 def make_reference(directory) -> None:
     """Write the field and the cursor file IRAF is run on."""
     from pathlib import Path

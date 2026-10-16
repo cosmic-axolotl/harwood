@@ -270,13 +270,19 @@ class _DataPars(TaskParams):
         "", description="Header keyword with the exposure time. Empty uses itime, "
                         "as IRAF does; name EXPTIME to put magnitudes per second.")
     itime: float = Field(1.0, gt=0, description="Exposure time when no keyword is named.")
+    noise: Literal["poisson", "constant"] = Field(
+        "poisson", description="Noise model for the centring S/N and the clean: the "
+                               "star's photons plus the sky's sigma (poisson), or the "
+                               "sky's sigma alone (constant).")
 
 
 class _CenterPars(TaskParams):
-    calgorithm: Literal["centroid", "none"] = Field(
-        "centroid", description="Centring: the marginal centroid, IRAF's default, or "
-                                "none to keep the coordinates as given. gauss and "
-                                "ofilter are not ported yet.")
+    calgorithm: Literal["centroid", "gauss", "ofilter", "none"] = Field(
+        "centroid", description="Centring: the marginal centroid (IRAF's default); "
+                                "gauss, a gaussian of width fwhmpsf fitted to each "
+                                "marginal; ofilter, optimal filtering of the marginals "
+                                "with a triangle of that width; or none to keep the "
+                                "coordinates as given.")
     cbox: float = Field(5.0, gt=0, description="Width of the centring box, in scale units.")
     cthreshold: float = Field(
         0.0, ge=0, description="Threshold above the box's lowest row median, in "
@@ -286,27 +292,53 @@ class _CenterPars(TaskParams):
     cmaxiter: int = Field(10, ge=1, description="Most centring iterations.")
     maxshift: float = Field(1.0, gt=0, description="A centre that moves further than "
                             "this, in scale units, is flagged -- and kept.")
+    clean: bool = Field(False, description="Symmetry-clean the centring box first: a "
+                        "pixel brighter than its mirror image through the peak by more "
+                        "than the noise allows takes the mirror's value. Needs sigma.")
+    rclean: float = Field(1.0, ge=0, description="Inside this radius, in scale units, "
+                                                  "nothing is cleaned.")
+    rclip: float = Field(2.0, ge=0, description="Beyond rclean and inside this radius the "
+                         "noise allowed includes the star's photons (noise=poisson); "
+                         "beyond it, only kclean sky sigmas.")
+    kclean: float = Field(3.0, gt=0, description="Cleaning limit, in sky sigmas.")
 
 
 class _SkyPars(TaskParams):
-    salgorithm: Literal["centroid", "mode", "median", "mean", "constant"] = Field(
+    salgorithm: Literal["centroid", "mode", "median", "mean", "gauss", "ofilter",
+                        "crosscor", "constant"] = Field(
         "centroid", description="Sky estimator. centroid, IRAF's default, is the "
                                 "centroid of the histogram of the annulus; mode is "
-                                "3 median - 2 mean.")
+                                "3 median - 2 mean; gauss fits a skewed gaussian to the "
+                                "histogram; ofilter filters it with a triangle; "
+                                "crosscor takes the peak of its correlation with a "
+                                "gaussian.")
     annulus: float = Field(10.0, gt=0, description="Inner radius of the sky annulus, "
                                                    "in scale units.")
     dannulus: float = Field(10.0, gt=0, description="Width of the sky annulus, in "
                                                     "scale units.")
     skyvalue: float = Field(0.0, description="The sky, when salgorithm is constant.")
-    smaxiter: int = Field(10, ge=0, description="Most rejection passes of the "
-                                                "centroid algorithm.")
+    smaxiter: int = Field(10, ge=0, description="Most rejection passes of centroid, "
+                                                "ofilter and crosscor, and most "
+                                                "iterations of each gauss fit.")
     snreject: int = Field(50, ge=0, description="Most rejection passes of mode, "
-                                                "median and mean.")
-    sloreject: float = Field(3.0, gt=0, description="Lower rejection limit, in sky sigma.")
-    shireject: float = Field(3.0, gt=0, description="Upper rejection limit, in sky sigma.")
-    khist: float = Field(3.0, gt=0, description="Half width of the centroid "
-                                                "algorithm's histogram, in sky sigma.")
+                                                "median, mean and gauss.")
+    sloclip: float = Field(0.0, ge=0, lt=100, description="Percent of the annulus' "
+                           "lowest pixels dropped before fitting.")
+    shiclip: float = Field(0.0, ge=0, lt=100, description="Percent of its highest "
+                           "pixels dropped before fitting.")
+    sloreject: float | None = Field(3.0, gt=0, description="Lower rejection limit, in "
+                                    "sky sigma. Empty is IRAF's INDEF: no lower cut.")
+    shireject: float | None = Field(3.0, gt=0, description="Upper rejection limit, in "
+                                    "sky sigma. Empty: no upper cut.")
+    khist: float = Field(3.0, gt=0, description="Half width of the histogram of the "
+                                                "histogram algorithms, in sky sigma.")
     binsize: float = Field(0.1, gt=0, description="Its bin size, in sky sigma.")
+    smooth: bool = Field(False, description="Boxcar-smooth the histogram before "
+                                            "centroid, gauss or ofilter read it.")
+    rgrow: float = Field(0.0, ge=0, description="Reject, with each rejected pixel, "
+                         "every pixel within this radius (scale units): a cosmic ray "
+                         "or a faint star goes whole, wings included. 0 rejects pixels "
+                         "one by one.")
 
 
 def _datapars(params, header):
@@ -322,14 +354,15 @@ def _datapars(params, header):
     return apphot.DataPars(scale=params.scale, fwhmpsf=params.fwhmpsf,
                            sigma=params.sigma, datamin=params.datamin,
                            datamax=params.datamax, epadu=params.epadu,
-                           readnoise=params.readnoise, itime=itime)
+                           readnoise=params.readnoise, itime=itime, noise=params.noise)
 
 
 def _centerpars(params):
     from ..core import apphot
 
     return apphot.CenterPars(params.calgorithm, params.cbox, params.cthreshold,
-                             params.minsnratio, params.cmaxiter, params.maxshift)
+                             params.minsnratio, params.cmaxiter, params.maxshift,
+                             params.clean, params.rclean, params.rclip, params.kclean)
 
 
 def _skypars(params):
@@ -338,7 +371,20 @@ def _skypars(params):
     return apphot.SkyPars(params.salgorithm, params.annulus, params.dannulus,
                           params.skyvalue, params.smaxiter, params.snreject,
                           params.sloreject, params.shireject, params.khist,
-                          params.binsize)
+                          params.binsize, params.smooth, params.sloclip,
+                          params.shiclip, params.rgrow)
+
+
+def _sky_extras(params) -> str:
+    """What the sky step does beyond the default, for the plan."""
+    extras = []
+    if params.sloclip or params.shiclip:
+        extras.append(f"clipping {params.sloclip:g}%/{params.shiclip:g}%")
+    if params.rgrow:
+        extras.append(f"growing rejections by {params.rgrow:g}")
+    if params.smooth and params.salgorithm in ("centroid", "gauss", "ofilter"):
+        extras.append("smoothed histogram")
+    return "".join(", " + e for e in extras)
 
 
 def _flags(codes, what: str, fix: str):
@@ -398,7 +444,9 @@ class CenterTask(Task[CenterParams]):
     def plan(self, params: CenterParams) -> list[Step]:
         return [Step("read", f"{params.image} and {params.coords}", why=WHY["read"]),
                 Step("center", f"{params.calgorithm} in a {params.cbox:g} px box, "
-                               f"maxshift {params.maxshift:g}", why=APWHY["center"]),
+                               f"maxshift {params.maxshift:g}"
+                               + (", symmetry-cleaned" if params.clean else ""),
+                     why=APWHY["center"]),
                 Step("write", str(params.output or "obj.ctr in this run's directory"),
                      why=WHY["write"])]
 
@@ -454,7 +502,8 @@ class FitskyTask(Task[FitskyParams]):
     def plan(self, params: FitskyParams) -> list[Step]:
         return [Step("read", f"{params.image} and {params.coords}", why=WHY["read"]),
                 Step("sky", f"{params.salgorithm} over {params.annulus:g}.."
-                            f"{params.annulus + params.dannulus:g} px", why=APWHY["sky"]),
+                            f"{params.annulus + params.dannulus:g} px" + _sky_extras(params),
+                     why=APWHY["sky"]),
                 Step("write", str(params.output or "obj.sky in this run's directory"),
                      why=WHY["write"])]
 
@@ -534,10 +583,13 @@ class Phot(Task[PhotParams]):
             Step("read", f"{params.image} and {params.coords}", why=WHY["read"]),
             Step("center", f"{params.calgorithm}"
                            + (f" in a {params.cbox:g} px box" if params.calgorithm != "none"
-                              else ": coordinates used as given"),
+                              else ": coordinates used as given")
+                           + (", symmetry-cleaned" if params.clean
+                              and params.calgorithm != "none" else ""),
                  why=APWHY["center"]),
             Step("sky", f"{params.salgorithm} over the annulus {params.annulus:g}.."
-                        f"{params.annulus + params.dannulus:g} px", why=APWHY["sky"]),
+                        f"{params.annulus + params.dannulus:g} px" + _sky_extras(params),
+                 why=APWHY["sky"]),
             Step("measure", f"apertures {radii} px", why=APWHY["measure"]),
             Step("calibrate", f"zmag={params.zmag:g}, epadu={params.epadu:g}, itime "
                               + (f"from {params.exposure}" if params.exposure
