@@ -207,10 +207,17 @@ class Imexamine(Task[ImexamineParams]):
         r   radial profile and FWHM          j   gaussian fit along the line
         a   aperture photometry and FWHM     k   gaussian fit along the column
         m   statistics of a box              h   histogram of a box
-        l   plot the line                    x   coordinates and value
-        c   plot the column                  z   the 10x10 pixels around it
+        l   plot the line                    e   contour plot of a box
+        c   plot the column                  s   surface plot of a box
+        x   coordinates and value            z   the 11x11 pixels around it
         n   next frame                       p   previous frame
         ?   list the keys                    q   end the task
+        :   a colon command -- `:radius 7` sets, `:radius` shows
+
+    Colon commands are IRAF's: a name shared by several of IRAF's psets
+    (width, rplot, naverage, ncolumns, floor...) changes the one of the last
+    graph drawn, and `:unlearn` resets it. In a cursor file they go after the
+    frame, `612 540 1 :radius 7`, and act on the lines that follow.
 
     Every star is recentred before it is measured, so the cursor only has to
     land near it. Without a screen, put the positions in a file -- one
@@ -223,9 +230,11 @@ class Imexamine(Task[ImexamineParams]):
     reads as IRAF's: radius, magnitude, flux, sky, peak, ellipticity, position
     angle, Moffat beta, and IRAF's three FWHMs -- of a fit to the enclosed
     flux, of a fit to the pixels (MFWHM or GFWHM), and the direct one,
-    measured without a model. The arithmetic is a port of IRAF's own
-    (ierimexam.x and the starfocus code under it), and a test holds it to
-    what IRAF 2.18 printed for the same pixels.
+    measured without a model. Every key's arithmetic is a port of IRAF's own
+    (ierimexam.x and the starfocus code under it, iejimexam.x with its
+    Marquardt steps, iestatistics.x, iehimexam.x, ieprint.x, conrec), and
+    tests hold r, a, m, j, k and z to what IRAF 2.18 printed for the same
+    pixels.
     """
 
     name = "imexamine"
@@ -262,7 +271,11 @@ class Imexamine(Task[ImexamineParams]):
                         "check the name, or run `harwood sections` on the template "
                         "to see what it matches", FileNotFoundError)
         settings = examine.Settings(**{
-            name: getattr(params, name) for name in examine.Settings.__dataclass_fields__})
+            name: getattr(params, name) for name in examine.Settings.__dataclass_fields__
+            if hasattr(params, name)})
+        # The task's naverage and sigma are for j and k alike; IRAF keeps a
+        # kimexam beside jimexam, which colon commands can tell apart.
+        settings.knaverage, settings.ksigma = params.naverage, params.sigma
 
         if params.imagecur:
             results = self._from_cursor(params, specs, settings)
@@ -305,9 +318,16 @@ class Imexamine(Task[ImexamineParams]):
                             "are loaded", "name more images, or correct the frame "
                             "column of the cursor file")
             if frame not in loaded:
-                data, _ = images.read(specs[index])
-                loaded[frame] = (str(specs[index]), data)
+                data, header = images.read(specs[index])
+                loaded[frame] = (str(specs[index]), examine.native(data, header))
             name, data = loaded[frame]
+            if key.startswith(":"):
+                answer = examine.colon(settings, key)
+                result = examine.Result(":", x, y, f"[{key}] {answer}",
+                                        ok=not answer.startswith("Parameter does not"))
+                results.append((name, result))
+                logfile.write(params.logfile, "imexamine", name, [result.line])
+                continue
             result = examine.examine(data, key, x, y, settings)
             results.append((name, result))
             logfile.write(params.logfile, "imexamine", name, result.line.splitlines())

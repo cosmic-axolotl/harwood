@@ -35,6 +35,7 @@ is distributed under is in LICENSES/IRAF-COPYRIGHT.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -123,6 +124,8 @@ def radial_profile(
     beta: float | None = None,
     iterations: int = 3,
     recentre: bool = True,
+    background: bool = True,
+    integer: bool = False,
 ) -> RadialProfile:
     """Everything IRAF's r and a keys report about the star near (x, y)."""
     from ..core import starfocus
@@ -136,7 +139,7 @@ def radial_profile(
 
     try:
         star = starfocus.measure(data, x, y, radius=radius, buffer=buffer, width=width,
-                                 iterations=iterations, beta=beta)
+                                 iterations=iterations, beta=beta, integer=integer)
         radius, dfwhm = star.radius, star.dfwhm
         enclosed = star.mfwhm if fittype == "moffat" else star.gfwhm
     except Exception as error:               # no star: say so below, with the sky
@@ -145,6 +148,9 @@ def radial_profile(
     else:
         reason = ""
 
+    if not background:
+        # rimexam background = no: nothing subtracted, no annulus read.
+        buffer = width = 0.0
     reach = max(rplot, radius + buffer + width)
     ny, nx = data.shape
     x1, x2 = max(1, int(x - reach)), min(nx, int(x + reach))
@@ -152,16 +158,25 @@ def radial_profile(
     box = data[y1 - 1:y2, x1 - 1:x2]
     j, i = np.mgrid[y1:y2 + 1, x1:x2 + 1]
     dx, dy = i - x, j - y
-    r = np.hypot(dx, dy)
+    # IRAF's radii are single precision: sqrt(dx^2 + dy^2) of REALs.
+    fx, fy = (i - np.float32(x)).astype(np.float32), (j - np.float32(y)).astype(np.float32)
+    r = np.sqrt((fx * fx + fy * fy).astype(np.float32)).astype(float)
 
+    # The sky: the median of the annulus -- or nothing subtracted, as in
+    # IRAF, when background is off or the annulus holds no pixel.
     ring = (r >= radius + buffer) & (r <= radius + buffer + width)
-    sky_pixels = box[ring] if ring.any() else box.ravel()
-    sky_pixels = sky_pixels[np.isfinite(sky_pixels)]
-    if sky_pixels.size == 0:
-        return RadialProfile(x, y, np.array([]), np.array([]), radius=float(radius),
-                             fittype=fittype, message="no usable sky pixels around here")
-    sky = float(np.median(sky_pixels))
-    noise = float(1.4826 * np.median(np.abs(sky_pixels - sky)))
+    sky = noise = 0.0
+    if background and width > 0 and ring.any():
+        sky_pixels = box[ring]
+        sky_pixels = sky_pixels[np.isfinite(sky_pixels)]
+        if sky_pixels.size == 0:
+            return RadialProfile(x, y, np.array([]), np.array([]), radius=float(radius),
+                                 fittype=fittype,
+                                 message="no usable sky pixels around here")
+        # amedr: the lower middle value, not the mean of the two middle ones.
+        sky = (float(sky_pixels[0]) if sky_pixels.size <= 2
+               else float(np.sort(sky_pixels)[(sky_pixels.size + 1) // 2 - 1]))
+        noise = float(1.4826 * np.median(np.abs(sky_pixels - sky)))
     signal = box - sky
 
     if not np.isfinite(signal[r <= radius]).all():
@@ -183,8 +198,8 @@ def radial_profile(
     if star is None:
         profile.message = reason or "no star here"
         return profile
-    fitted = inside & shown
-    _fit(profile, r[fitted], signal[fitted], dfwhm, rplot, beta)
+    # ie_rimexam fits every pixel inside the aperture, whatever rplot is.
+    _fit(profile, r[inside], signal[inside], dfwhm, rplot, beta)
     return profile
 
 
@@ -226,57 +241,76 @@ def _fit(profile: RadialProfile, radii: np.ndarray, values: np.ndarray, dfwhm: f
                            "point closer to a star")
         return
 
-    try:
-        from scipy.optimize import curve_fit
-    except ImportError:
-        profile.message = "scipy is not installed; showing the profile without a fit"
-        return
+    from ..core import nlfit, starfocus
 
+    f32 = np.float32
     if not np.isfinite(dfwhm) or dfwhm <= 0:
         dfwhm = 2.0
-    r3 = np.clip(2 * radii / dfwhm - 1, 0, 5)
-    sigma = 1.0 / np.sqrt(np.exp(-r3 ** 2) / np.maximum(0.1, radii ** 2))
+    xs = radii.astype(f32)
+    ys = values.astype(f32)
+    r3 = np.clip(f32(2) * xs / f32(dfwhm) - f32(1), 0, 5).astype(f32)
+    # exp(-r3^2) / max(.1, r^2): double from the exp on, as IRAF's C has it.
+    weights = np.array([math.exp(-float(f32(v * v))) / float(max(f32(0.1), f32(r * r)))
+                        for v, r in zip(r3, xs, strict=True)], dtype=f32)
 
     if profile.fittype == "moffat":
-        b0 = 3.0 if beta is None else beta
-        alpha0 = dfwhm / 2 / np.sqrt(2 ** (1 / b0) - 1)
-        if beta is None:
-            def model(r, a, alpha, b):
-                return a * (1 + (r / alpha) ** 2) ** (-b)
-            guess = (amplitude, alpha0, b0)
-        else:
-            def model(r, a, alpha):
-                return a * (1 + (r / alpha) ** 2) ** (-beta)
-            guess = (amplitude, alpha0)
+        if beta is not None and beta <= 0:
+            profile.message = (f"a Moffat needs a positive beta, not {beta:g} -- "
+                               ":beta INDEF fits it")
+            return
+        power = f32(-3.0 if beta is None else -beta)
+        alpha0 = f32(dfwhm / 2.0 / math.sqrt(2.0 ** float(f32(f32(-1) / power)) - 1.0))
+        fit = nlfit.NLFit(starfocus.moffat, starfocus.dmoffat,
+                          [f32(amplitude), alpha0, power],
+                          [0, 1, 2] if beta is None else [0, 1], 0.001, 100)
     else:
-        def model(r, a, s2):
-            return a * np.exp(-(r ** 2) / (2 * s2))
-        guess = (amplitude, dfwhm ** 2 / (8 * np.log(2)))
-
-    try:
-        popt, _ = curve_fit(model, radii, values, p0=guess, sigma=sigma, maxfev=4000)
-    except Exception:
-        profile.message = "the fit did not converge -- is there a star here?"
+        fit = nlfit.NLFit(_ie_gauss, _ie_dgauss,
+                          [f32(amplitude), f32(dfwhm ** 2 / (8 * math.log(2.0)))],
+                          [0, 1], 0.001, 100)
+    status = fit.fit(xs, ys, weights)
+    if status in (nlfit.SINGULAR, nlfit.NO_DEG_FREEDOM):
+        profile.message = (f"the {profile.fittype} fit did not converge -- "
+                           "is there a star here?")
         return
-
+    p = fit.param
+    if p[1] < 0:
+        profile.message = (f"the {profile.fittype} fit gave a negative width -- "
+                           "is there a star here?")
+        return
     if profile.fittype == "moffat":
-        alpha = abs(popt[1])
-        b = beta if beta is not None else float(popt[2])
-        if b <= 0:
-            profile.message = "the Moffat fit gave a negative beta -- is there a star here?"
+        if p[2] >= 0:
+            # A rising "Moffat": IRAF prints INDEF for its FWHM.
+            profile.message = ("the Moffat fit gave a non-physical beta -- is there a "
+                               "star here? :fittype gaussian may fit it")
             return
-        profile.beta = float(b)
-        profile.fwhm = float(2 * alpha * np.sqrt(2 ** (1 / b) - 1))
+        profile.beta = float(-p[2])
+        profile.fwhm = float(f32(abs(float(p[1])) * 2.0
+                                 * math.sqrt(2.0 ** float(f32(f32(-1) / p[2])) - 1.0)))
     else:
-        if popt[1] <= 0:
-            profile.message = "the gaussian fit gave a negative width -- is there a star here?"
-            return
-        profile.fwhm = float(np.sqrt(8 * np.log(2) * popt[1]))
-    profile.peak = float(popt[0])
-    grid = np.linspace(0, rplot, 51)
-    profile.fit_radii = grid
-    profile.fit = model(grid, *popt) + profile.sky
+        profile.fwhm = float(f32(math.sqrt(8.0 * float(f32(math.log(2.0))) * float(p[1]))))
+    profile.peak = float(p[0])
+    grid = np.linspace(0, rplot, 51).astype(f32)
+    profile.fit_radii = grid.astype(float)
+    profile.fit = fit.vector(grid).astype(float) + profile.sky
     profile.converged = True
+
+
+def _ie_gauss(x, p):
+    """ie_gauss: amplitude and sigma squared, of the radius."""
+    r2 = f32(f32(x * x) / f32(p[1] * f32(2)))
+    return f32(0) if abs(r2) > 20 else f32(float(p[0]) * math.exp(-float(r2)))
+
+
+def _ie_dgauss(x, p):
+    r2 = f32(f32(x * x) / f32(p[1] * f32(2)))
+    if abs(r2) > 20:
+        return f32(0), (f32(0), f32(0))
+    d1 = f32(math.exp(-float(r2)))
+    z = f32(p[0] * d1)
+    return z, (d1, f32(f32(z * r2) / p[1]))
+
+
+f32 = np.float32
 
 
 def quick_phot(

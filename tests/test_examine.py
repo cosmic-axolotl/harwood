@@ -64,8 +64,8 @@ def test_x_and_z_read_the_pixels_the_status_bar_would(star_image):
     assert x.values["value"] == pytest.approx(data[90, 120])
 
     z = examine.examine(data, "z", 121.0, 91.0)
-    assert z.values["columns"] == list(range(117, 127)), "IRAF's 10x10"
-    assert z.values["rows"] == list(range(96, 86, -1)), "top row first, as on screen"
+    assert z.values["columns"] == list(range(116, 127)), "IRAF's x - 5 .. x + 5"
+    assert z.values["rows"] == list(range(96, 85, -1)), "top row first, as on screen"
     centre_row = z.line.splitlines()[2 + z.values["rows"].index(91)]
     assert centre_row.split()[0] == "91"
     at = 1 + z.values["columns"].index(121)
@@ -160,11 +160,14 @@ def test_a_fixed_beta_is_kept_and_a_free_one_is_fitted(star_image):
 
 
 def test_integer_data_get_no_more_bins_than_values():
-    """himexam's autoscale: 512 bins over values spanning 30 is a comb."""
-    data = np.random.default_rng(3).integers(100, 130, (50, 50)).astype(float)
+    """himexam's autoscale: 512 bins over values spanning 30 is a comb. As in
+    IRAF it goes by the pixel type, not by the values."""
+    data = np.random.default_rng(3).integers(100, 130, (50, 50)).astype(np.int16)
     result = examine.examine(data, "h", 25.0, 25.0)
     assert result.values["nbins"] <= 30
     assert result.values["npix"] == 21 * 21
+    real = examine.examine(data.astype(np.float32), "h", 25.0, 25.0)
+    assert real.values["nbins"] == 512
 
 
 def test_empty_sky_is_not_given_a_fwhm(star_image):
@@ -201,12 +204,13 @@ def test_a_cursor_file_reads_like_iraf_s(tmp_path):
     ]
 
 
-def test_a_colon_command_in_a_cursor_file_is_refused_with_the_alternative(tmp_path):
+def test_a_colon_command_in_a_cursor_file_is_kept_in_order(tmp_path):
     path = tmp_path / "cur"
-    path.write_text("10 20 1 :radius\n")
-    with pytest.raises(ValueError) as raised:
-        examine.read_cursor(path)
-    assert "--radius" in raised.value.fix
+    path.write_text("10 20 1 :radius 7\n30 40 :defkey m\n50 60\n")
+    assert examine.read_cursor(path, defkey="r") == [
+        (10.0, 20.0, 1, ":radius 7"), (30.0, 40.0, 1, ":defkey m"),
+        (50.0, 60.0, 1, "m"),                         # :defkey moved the default
+    ]
 
 
 def test_imexamine_from_a_cursor_file_gives_the_numbers_and_a_log(star_image, tmp_path):
@@ -223,7 +227,7 @@ def test_imexamine_from_a_cursor_file_gives_the_numbers_and_a_log(star_image, tm
     assert [row["key"] for row in result.data["rows"]] == ["r", "j"]
 
     text = log.read_text()
-    assert "[r]" in text and "[j]" in text and "FWHM=3.4" in text
+    assert "[r]" in text and "[j]" in text and "fwhm=  3.398" in text
 
 
 def test_a_frame_that_was_not_loaded_is_named(star_image, tmp_path):
@@ -388,7 +392,7 @@ def _iraf_log(fittype):
 
     path = Path(__file__).parent / "data" / f"imexam_iraf_{fittype}.log"
     names = ["x", "y", "wx", "wy", "radius", "mag", "flux", "sky", "peak", "e", "pa"]
-    names += (["beta"] if fittype == "moffat" else []) + ["enclosed", "fwhm", "direct"]
+    names += (["beta"] if "moffat" in fittype else []) + ["enclosed", "fwhm", "direct"]
     rows = []
     for line in path.read_text().splitlines():
         if line.startswith("#") or not line.strip():
@@ -398,34 +402,141 @@ def _iraf_log(fittype):
     return rows
 
 
-@pytest.mark.parametrize("fittype", ["moffat", "gaussian"])
+@pytest.mark.parametrize("fittype", ["moffat", "gaussian", "int_moffat"])
 def test_the_a_key_prints_what_iraf_prints(fittype):
     """IRAF 2.18's own imexamine, run on the same pixels (tests/iraf_field.py
     builds them; tests/data holds what IRAF printed).
 
-    Everything the aperture and the magnitude depend on agrees to the
-    precision IRAF prints. The fit to the enclosed flux is the loose one: a
-    Moffat with a free beta is poorly constrained there, and IRAF's nlfit
-    stops at a 0.1% change in chi-squared where scipy goes on to the minimum
-    -- on the narrowest star the two settle 0.11 px apart. It is reported,
-    and decides nothing.
+    Every column agrees to the precision IRAF prints -- two decimals, or four
+    significant figures for FLUX, SKY and PEAK -- the profile fits and the
+    fits to the enclosed flux included, since both go through IRAF's own
+    nlfit (core/nlfit.py) rather than a general-purpose minimiser that would
+    go on past where IRAF stops.
     """
     from iraf_field import CURSOR, field
 
-    data = field().astype(float)
-    settings = examine.Settings(fittype=fittype)
+    # int_moffat: the same field rounded to a 16-bit integer image, which
+    # starfocus dithers with IRAF's own urand before it measures.
+    data = (np.round(field()).astype(np.int16) if fittype.startswith("int")
+            else field().astype(float))
+    settings = examine.Settings(fittype=fittype.removeprefix("int_"))
+    two = 0.0051                                      # half of 0.01, and a hair
     for (x, y), iraf in zip(CURSOR, _iraf_log(fittype), strict=True):
         ours = examine.examine(data, "a", x, y, settings).values
-        assert ours["x"] == pytest.approx(iraf["x"], abs=0.006)
-        assert ours["y"] == pytest.approx(iraf["y"], abs=0.006)
-        assert ours["radius"] == pytest.approx(iraf["radius"], abs=0.015)
-        assert ours["mag"] == pytest.approx(iraf["mag"], abs=0.006)
-        assert ours["flux"] == pytest.approx(iraf["flux"], rel=5e-4)
-        assert ours["peak"] == pytest.approx(iraf["peak"], rel=2e-3)
-        assert ours["e"] == pytest.approx(iraf["e"], abs=0.006)
-        assert ours["fwhm"] == pytest.approx(iraf["fwhm"], abs=0.015)
-        assert ours["direct"] == pytest.approx(iraf["direct"], abs=0.006)
-        assert ours["enclosed"] == pytest.approx(iraf["enclosed"], abs=0.12)
-        if fittype == "moffat" and iraf["e"] < 0.1:
-            # An elongated star is no Moffat at all, and its beta is anything.
-            assert ours["beta"] == pytest.approx(iraf["beta"], abs=0.006)
+        for name in ("x", "y", "radius", "mag", "e", "fwhm", "direct", "enclosed"):
+            assert ours[name] == pytest.approx(iraf[name], abs=two), name
+        for name in ("flux", "sky", "peak"):          # %7.4g
+            assert ours[name] == pytest.approx(iraf[name], rel=5.01e-4), name
+        if "moffat" in fittype:
+            assert ours["beta"] == pytest.approx(iraf["beta"], abs=two)
+
+
+def test_m_j_k_and_z_print_what_iraf_prints():
+    """tests/data/imexam_iraf_keys.log is IRAF 2.18's imexamine log for the
+    cursor file beside it: m, j, k and z on the six stars, boxes cut by the
+    image's edge, and colon commands (:ncstat 6, :nlstat 4) changing the m
+    box between keys. Everything agrees to the figures IRAF prints."""
+    import re
+    from pathlib import Path
+
+    from iraf_field import field
+
+    data = field()
+    settings = examine.Settings()
+    base = Path(__file__).parent / "data" / "imexam_iraf_keys"
+    log = iter(line for line in (base.with_suffix(".log")).read_text().splitlines()
+               if not line.startswith("#"))
+    for x, y, _, key in examine.read_cursor(base.with_suffix(".cur")):
+        if key.startswith(":"):
+            examine.colon(settings, key)
+            continue
+        ours = examine.examine(data, key, x, y, settings).values
+        if key == "m":
+            section, npix, *numbers = next(log).split()
+            assert (ours["section"], ours["npix"]) == (section, int(npix))
+            for name, value in zip(("mean", "median", "stddev", "min", "max"), numbers,
+                                   strict=True):
+                assert ours[name] == pytest.approx(float(value), rel=5.01e-4), name
+        elif key in "jk":
+            # SPP's %7g keeps seven characters, sign and point included.
+            iraf = dict(re.findall(r"(\w+)=\s*([-\d.e+]+)", next(log)))
+            for ours_name, name in (("centre", "center"), ("peak", "peak"),
+                                    ("background", "bkg")):
+                assert ours[ours_name] == pytest.approx(float(iraf[name]), rel=5.01e-5,
+                                                        abs=5.01e-4), name
+            for name in ("sigma", "fwhm"):                # the log's %5.3f
+                assert ours[name] == pytest.approx(float(iraf[name]), abs=5.01e-4)
+        else:
+            columns = [int(c) for c in next(log).split()]
+            assert columns == ours["columns"]
+            for row in ours["rows"]:
+                line, *values = next(log).split()
+                assert int(line) == row
+                assert [float(v) for v in values] == pytest.approx(
+                    [float(data[row - 1, c - 1]) for c in columns], rel=5.01e-4)
+
+
+def test_e_contours_at_the_levels_conrec_picks(star_image):
+    """ncontours 5 between the box's extremes: the step is the range over
+    five, cut to one significant figure, from the minimum up -- IRAF's
+    conrec (CLGEN)."""
+    _, data = star_image
+    result = examine.examine(data, "e", 121.0, 91.0)
+    box = data[80:101, 110:131].astype(np.float32)
+    step = float((box.max() - box.min()) / 5)
+    power = 10.0 ** np.floor(np.log10(step))
+    assert result.values["interval"] == pytest.approx(np.trunc(step / power) * power,
+                                                      rel=1e-6)
+    assert result.values["levels"][0] == pytest.approx(float(box.min()), rel=1e-6)
+    assert result.values["levels"][-1] <= box.max()
+    assert result.plot["kind"] == "contour" and result.plot["z"].shape == (21, 21)
+
+
+def test_s_draws_the_box_and_takes_its_angles(star_image):
+    _, data = star_image
+    settings = examine.Settings()
+    examine.colon(settings, ":angh 45")
+    result = examine.examine(data, "s", 121.0, 91.0, settings)
+    assert result.plot["kind"] == "surface" and result.plot["angh"] == 45.0
+    assert result.plot["z"].shape == (21, 21)
+
+
+def test_colon_commands_find_the_pset_of_the_last_graph(star_image):
+    """:naverage after j is jimexam's, after k kimexam's; :sigma is always
+    jimexam's (IRAF's k never sees it); after a, the shared names are
+    rimexam's; after m, which draws nothing, they do not apply."""
+    _, data = star_image
+    s = examine.Settings()
+    assert examine.colon(s, ":naverage 3") == "Parameter does not apply to current graph"
+    examine.examine(data, "k", 121.0, 91.0, s)
+    assert examine.colon(s, ":nav 3") == "naverage 3"
+    assert (s.knaverage, s.naverage) == (3, 5)
+    examine.colon(s, ":sigma 2")
+    assert (s.sigma, s.ksigma) == (2.0, 1.0)
+    examine.examine(data, "a", 121.0, 91.0, s)
+    examine.colon(s, ":width 7")
+    assert (s.width, s.kwidth) == (7.0, 10.0)
+    assert examine.colon(s, ":radius") == "radius 5"
+    examine.examine(data, "e", 121.0, 91.0, s)
+    examine.colon(s, ":ncol 31")
+    assert (s.encolumns, s.ncolumns) == (31, 21)
+    examine.colon(s, ":unlearn")
+    assert s.encolumns == 21
+    with pytest.raises(ValueError, match="ambiguous"):
+        examine.colon(s, ":n")
+    with pytest.raises(ValueError) as raised:
+        examine.colon(s, ":banner no")
+    assert "draws its own" in raised.value.fix
+
+
+def test_a_colon_command_typed_in_the_window_reaches_the_keys(star_image):
+    _, data = star_image
+    window = _window()
+    window.load(data, name="star")
+    window.prompt.setText(":ncstat 9")
+    window._run_command()
+    assert window.examine_settings.ncstat == 9
+    stats = window.examine_at("m", 121.0, 91.0)
+    assert stats.values["npix"] == 9 * 5                  # nlstat is still 5
+    for key in "es":
+        assert window.examine_at(key, 121.0, 91.0).ok

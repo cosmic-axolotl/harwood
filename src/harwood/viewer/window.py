@@ -124,6 +124,26 @@ KEYS = {
 }
 
 
+def _wireframe(plot: dict) -> list[tuple[np.ndarray, np.ndarray]]:
+    """The s key's surface seen from simexam's angles: every line and every
+    column of the box, projected -- angh turns the box about its vertical
+    axis, angv tilts the view down onto it."""
+    z = np.asarray(plot["z"], dtype=float)
+    ny, nx = z.shape
+    span = float(np.ptp(z)) or 1.0
+    height = (z - z.min()) / span * max(nx, ny) * 0.6
+    h, v = np.radians(plot["angh"]), np.radians(plot["angv"])
+    jj, ii = np.mgrid[0:ny, 0:nx].astype(float)
+    ii -= (nx - 1) / 2
+    jj -= (ny - 1) / 2
+    across = ii * np.cos(h) - jj * np.sin(h)
+    depth = ii * np.sin(h) + jj * np.cos(h)
+    up = height * np.cos(v) + depth * np.sin(v)
+    lines = [(across[j], up[j]) for j in range(ny)]
+    lines += [(across[:, i], up[:, i]) for i in range(nx)]
+    return lines
+
+
 class Frame:
     """One loaded image and how it is being shown."""
 
@@ -649,7 +669,12 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         if not key:
             return False
 
-        if key.isupper() or key == ":":
+        if key == ":":
+            # imexamine's colon commands: typed at the prompt, answered there.
+            self.prompt.setFocus()
+            self.prompt.setText(":")
+            return True
+        if key.isupper():
             if key == "Z":
                 self.view.autoRange(padding=0.02)
                 self.log("  [Z] view reset")
@@ -714,7 +739,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         for name in ("radius", "buffer", "width", "rplot", "fittype"):
             setattr(settings, name, params[name])
 
-        result = examine.examine(frame.data, key, x, y, settings)
+        result = examine.examine(examine.native(frame.data, frame.header), key, x, y,
+                                 settings)
         self.measurements.append((frame.name, result))
         for number, text in enumerate(result.line.splitlines()):
             self.log(("  " if number == 0 else "    ") + text)
@@ -731,6 +757,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
     def _plot(self, result: examine.Result) -> None:
         plot = result.plot
         self.plot.clear()
+        self.plot.setAspectLocked(False)
         self.plot.setTitle(f"imexamine · {result.key} ({plot['title']})", color=INK,
                            size="10pt")
         self.plot.setLabel("bottom", plot["xlabel"], color=MUTED)
@@ -742,6 +769,18 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         elif plot["kind"] == "histogram":
             self.plot.plot(plot["x"], plot["y"], stepMode="center", fillLevel=0,
                            brush=pg.mkBrush(79, 181, 155, 90), pen=pg.mkPen(SKY))
+        elif plot["kind"] == "contour":
+            z = plot["z"]
+            for number, level in enumerate(plot["levels"]):
+                curve = pg.IsocurveItem(data=z, level=level,
+                                        pen=pg.mkPen(SKY if number % 2 else ACCENT))
+                curve.setTransform(QtGui.QTransform.fromTranslate(
+                    float(plot["x"][0]), float(plot["y"][0])))
+                self.plot.addItem(curve)
+            self.plot.setAspectLocked(True)
+        elif plot["kind"] == "surface":
+            for xs, ys in _wireframe(plot):
+                self.plot.plot(xs, ys, pen=pg.mkPen(SKY, width=1))
         else:
             self.plot.plot(plot["x"], plot["y"], pen=pg.mkPen(SKY, width=1))
         if "fit_x" in plot:
@@ -858,6 +897,14 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         if line in ("exit", "quit", "bye"):
             self.close()
+            return
+
+        if line.startswith(":"):
+            try:
+                self.log("  " + examine.colon(self.examine_settings, line))
+            except ValueError as error:
+                fix = getattr(error, "fix", "")
+                self.log(f"  {error}" + (f" -- {fix}" if fix else ""))
             return
 
         try:

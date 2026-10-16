@@ -24,8 +24,8 @@ What it does, in IRAF's order:
 ``fit``       gaussian and Moffat fits to the enclosed flux: the ENCLOSED
               column of imexamine's output
 
-Two things are not carried over: the dither IRAF adds to integer pixel types
-(a pseudo-random sequence from its own urand), and the saturation warning.
+The dither IRAF adds to integer pixel types is carried over, from its own
+urand; the saturation warning is not.
 
 Positions are 1-based (x, y) image coordinates, as in IRAF.
 
@@ -36,9 +36,12 @@ LICENSES/IRAF-COPYRIGHT.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
+
+f32 = np.float32
 
 #: The surface IRAF uses to correct the width of a star narrower than two
 #: pixels for where its centre falls in the pixel (gsrestore format: type 1 =
@@ -97,12 +100,15 @@ def _nint(value: float) -> int:
 
 def measure(data: np.ndarray, x: float, y: float, radius: float = 5.0,
             buffer: float = 5.0, width: float = 5.0, iterations: int = 3,
-            beta: float | None = None, level: float = 0.5) -> Measurement:
+            beta: float | None = None, level: float = 0.5,
+            integer: bool | None = None) -> Measurement:
     """stf_measure: find, sky, profile and widths, `iterations` times.
 
     After the first pass the radius becomes three times the direct FWHM of
     the pass before, which is how imexamine's a key sizes its aperture.
     """
+    if integer is None:
+        integer = np.issubdtype(np.asarray(data).dtype, np.integer)
     data = np.asarray(data, dtype=float)
     current = radius
     result = None
@@ -111,6 +117,8 @@ def measure(data: np.ndarray, x: float, y: float, radius: float = 5.0,
             current = 3.0 * result.dfwhm
         npmax = int(r2i(current)) + 1
         raster, x1, y1, xc, yc = _find(data, x, y, current, buffer, width)
+        if integer:
+            raster = _dither(raster)
         background, miso = _background(raster, x1, y1, xc, yc, current, buffer, width)
         enclosed = _profile(raster, x1, y1, xc, yc, background, miso, current, npmax)
         derivative = _derivative(enclosed, npmax)
@@ -119,6 +127,44 @@ def measure(data: np.ndarray, x: float, y: float, radius: float = 5.0,
         result = Measurement(xc, yc, current, background, dfwhm, gfwhm, mfwhm,
                              fitted_beta, _radius(enclosed, npmax, level))
     return result
+
+
+class _Urand:
+    """IRAF's urand (sys/osb/urand.x; Forsythe, Malcolm and Moler), with
+    the 64-bit build's imul32: a 32-bit product, zero-extended."""
+
+    m = 2147483647 // 2 + 1
+    a = 8 * int(m * math.atan(1.0 / 8.0)) + 5
+    c = 2 * int(m * (0.5 - math.sqrt(3.0) / 6.0)) + 1
+    mic = (m - c) + m
+    scale = np.float32(0.5 / m)
+
+    def __init__(self, seed: int = 1):
+        self.seed = max(1, seed)
+
+    def __call__(self) -> np.float32:
+        m = self.m
+        n = ((self.seed & 0xFFFFFFFF) * (self.a & 0xFFFFFFFF)) & 0xFFFFFFFF
+        if n > self.mic:
+            n = (n - m) - m
+        n += self.c
+        if n // 2 > m:
+            n = (n - m) - m
+        if n < 0:
+            n = (n + m) + m
+        self.seed = n
+        return np.float32(np.float32(n) * self.scale)
+
+
+def _dither(raster: np.ndarray) -> np.ndarray:
+    """stf_find's dither for integer pixel types: urand - 0.5 added to every
+    pixel, in raster order, from seed 1 each time -- reproducible, and what
+    stops the profile from stepping with the integers."""
+    rand = _Urand(1)
+    out = raster.astype(np.float32).ravel()
+    for i in range(out.size):
+        out[i] = np.float32(np.float32(out[i] + rand()) - np.float32(0.5))
+    return out.reshape(raster.shape).astype(float)
 
 
 def _find(data, x, y, radius, buffer, width):
@@ -160,8 +206,12 @@ def _cut(data, x1, x2, y1, y2):
 
 
 def _background(raster, x1, y1, xc, yc, radius, buffer, width):
-    """stf_bkgd: the narrowest half of the sorted annulus, and its midpoint."""
+    """stf_bkgd: the narrowest half of the sorted annulus, and its midpoint.
+
+    stf_bkgd declares its centre INTEGER: the annulus is centred on the
+    pixel the centre falls in (truncated), not on the centre itself."""
     j, i = np.mgrid[y1:y1 + raster.shape[0], x1:x1 + raster.shape[1]]
+    xc, yc = int(xc), int(yc)
     r = (xc - i) ** 2 + (yc - j) ** 2
     ring = np.sort(raster[(r >= (radius + buffer) ** 2)
                           & (r <= (radius + buffer + width) ** 2)])
@@ -268,10 +318,18 @@ def _narrow_correction(measured: float, xc: float, yc: float) -> float:
 
 
 def _spline(values: np.ndarray):
-    """IRAF's asi spline3 over the sample index, which starts at 1."""
-    from scipy.interpolate import CubicSpline
+    """IRAF's asi spline3 over the sample index, which starts at 1 -- the
+    port in core/asi.py, evaluated in single precision as asieval is."""
+    from .asi import Interpolant
 
-    return CubicSpline(np.arange(1, values.size + 1), values, bc_type="natural")
+    asi = Interpolant("spline3", values)
+
+    def evaluate(x):
+        if np.ndim(x) == 0:
+            return np.float32(asi(float(x)))
+        return np.array([asi(float(v)) for v in np.ravel(x)], dtype=np.float32)
+
+    return evaluate
 
 
 def _radius(profile, npmax, level) -> float:
@@ -323,57 +381,92 @@ def _dfwhm(derivative, npmax) -> float:
     return float(2 * i2r(at))
 
 
+def _stf_gauss(x, p):
+    """stf_gauss1: amplitude and sigma, of the radius."""
+    r2 = f32(f32(x * x) / f32(f32(p[1] * p[1]) * f32(2)))
+    return f32(0) if abs(r2) > 20 else f32(float(p[0]) * math.exp(-float(r2)))
+
+
+def _stf_dgauss(x, p):
+    r2 = f32(f32(x * x) / f32(f32(p[1] * p[1]) * f32(2)))
+    if abs(r2) > 20:
+        return f32(0), (f32(0), f32(0), f32(0))
+    d1 = f32(math.exp(-float(r2)))
+    z = f32(p[0] * d1)
+    return z, (d1, f32(f32(f32(z * f32(2)) * r2) / p[1]), f32(0))
+
+
+def moffat(x, p):
+    """stf_moffat1 and ie_moffat: amplitude, alpha and a (negative) power."""
+    r = f32(x / p[1])
+    y = f32(f32(r * r) + f32(1))
+    return f32(0) if abs(y) > 20 else f32(float(p[0]) * float(y) ** float(p[2]))
+
+
+def dmoffat(x, p):
+    r = f32(x / p[1])
+    y = f32(f32(r * r) + f32(1))
+    if abs(y) > 20:
+        return f32(0), (f32(0), f32(0), f32(0))
+    d1 = f32(float(y) ** float(p[2]))
+    z = f32(p[0] * d1)
+    d2 = f32(f32(f32(f32(f32(z * f32(-2)) / y) * p[2]) / p[1]) * f32(r * r))
+    return z, (d1, d2, f32(float(z) * math.log(float(y))))
+
+
 def _fit(profile, npmax, beta):
-    """stf_fit: gaussian and Moffat fits to one minus the enclosed flux."""
-    from scipy.optimize import curve_fit
+    """stf_fit: gaussian and Moffat fits to one minus the enclosed flux, by
+    IRAF's own nlfit (core/nlfit.py), in its single precision."""
+    from . import nlfit
 
     spline = _spline(profile)
     x, y = [], []
     j = 0
     for i in range(1, npmax + 1):
-        z = 1.0 - max(0.0, float(spline(i)))
+        z = f32(1.0 - max(0.0, float(f32(spline(i)))))
         n = len(x)
         if n > npmax // 3 and z < 0.5:
             break
         if (n < npmax // 3 and z > 0.01) or z > 0.5:
             j = n
-        x.append(float(i2r(i)))
+        x.append(f32(i2r(i)))
         y.append(z)
-    x, y = np.array(x), np.array(y)
-    yj = min(0.99, y[j])
+    xs, ys = np.array(x, dtype=f32), np.array(y, dtype=f32)
+    yj = min(f32(0.99), ys[j])
+    weights = np.ones(xs.size, dtype=f32)
 
-    def gauss(r, s):
-        e = r ** 2 / (2 * s ** 2)
-        return np.where(np.abs(e) > 20, 0.0, np.exp(-np.minimum(np.abs(e), 20)))
+    def first_sigma():
+        return f32(float(xs[j]) / math.sqrt(math.log(float(f32(f32(1) / yj))) * 2.0))
 
-    sigma = x[j] / np.sqrt(2 * np.log(1 / yj))
-    try:
-        (fitted,), _ = curve_fit(gauss, x, y, p0=(sigma,), maxfev=200)
-        if fitted > 0:
-            sigma = fitted
-    except Exception:
-        pass
-    gfwhm = float(2 * sigma * np.sqrt(2 * np.log(2)))
+    params = np.array([f32(1), first_sigma(), f32(0)], dtype=f32)
+    fit = nlfit.NLFit(_stf_gauss, _stf_dgauss, params, [1], 0.001, 100)
+    status = fit.fit(xs, ys, weights)
+    if status not in (nlfit.SINGULAR, nlfit.NO_DEG_FREEDOM):
+        params = fit.param.copy()
+        if params[1] < 0:
+            params[1] = first_sigma()
+    sigma = params[1]
+    gfwhm = float(f32(float(sigma) * 2 * math.sqrt(float(f32(math.log(2.0))) * 2.0)))
 
-    b = 2.5 if beta is None else beta
-    p3 = 1 - b
-    alpha = x[j] / np.sqrt(yj ** (1 / p3) - 1)
+    if beta is not None and beta < 1.1:
+        raise ValueError("Cannot measure FWHM - Moffat beta too small")
+    b = f32(2.5 if beta is None else beta)
+    fitted = [1, 2] if beta is None else [1]
 
-    def moffat(r, a, power):
-        t = 1 + (r / a) ** 2
-        return np.where(np.abs(t) > 20, 0.0, np.minimum(t, 20) ** power)
+    def first_alpha(power):
+        level = float(yj) ** float(f32(f32(1) / power))
+        return f32(float(xs[j]) / math.sqrt(level - 1.0))
 
-    try:
-        if beta is None:
-            (a, power), _ = curve_fit(moffat, x, y, p0=(alpha, p3), maxfev=400)
-        else:
-            (a,), _ = curve_fit(lambda r, a: moffat(r, a, p3), x, y, p0=(alpha,),
-                                maxfev=400)
-            power = p3
-        if a > 0:
-            alpha, p3 = a, power
-    except Exception:
-        pass
-    fitted_beta = 1 - p3
-    mfwhm = float(2 * alpha * np.sqrt(2 ** (1 / fitted_beta) - 1))
+    power = f32(f32(1) - b)
+    params = np.array([f32(1), first_alpha(power), power], dtype=f32)
+    fit = nlfit.NLFit(moffat, dmoffat, params, fitted, 0.001, 100)
+    status = fit.fit(xs, ys, weights)
+    if status not in (nlfit.SINGULAR, nlfit.NO_DEG_FREEDOM):
+        params = fit.param.copy()
+        if params[1] < 0:
+            params[2] = f32(f32(1) - b)
+            params[1] = first_alpha(params[2])
+    alpha, fitted_beta = params[1], f32(f32(1) - params[2])
+    mfwhm = float(f32(float(alpha) * 2
+                      * math.sqrt(2.0 ** float(f32(f32(1) / fitted_beta)) - 1.0)))
     return gfwhm, mfwhm, float(fitted_beta)

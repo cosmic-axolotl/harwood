@@ -158,10 +158,13 @@ class NLFit:
                 break
         return ier
 
-    def fit(self, x, z) -> int:
-        """nlfitr with uniform weights: DONE, SINGULAR, NO_DEG_FREEDOM or NOT_DONE."""
+    def fit(self, x, z, w=None) -> int:
+        """nlfitr: DONE, SINGULAR, NO_DEG_FREEDOM or NOT_DONE. Without `w` the
+        weights are uniform (WTS_UNIFORM); with it they are the user's
+        (WTS_USER)."""
         z = np.asarray(z, dtype=f32)
-        self.w = np.ones(len(z), dtype=f32)
+        self.w = (np.ones(len(z), dtype=f32) if w is None
+                  else np.asarray(w, dtype=f32).copy())
         self.iter = 0
         self.lam = f32(0.001)
         self.refsq = f32(0.0)

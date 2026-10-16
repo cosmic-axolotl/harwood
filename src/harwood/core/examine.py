@@ -10,23 +10,27 @@ The keys are IRAF's, because section 3 rates muscle memory above names::
     r   radial profile and FWHM          j   gaussian fit along the line
     a   aperture photometry and FWHM     k   gaussian fit along the column
     m   statistics of a box              h   histogram of a box
-    l   plot the line                    x   coordinates and value
-    c   plot the column                  z   the 10x10 pixel values around it
+    l   plot the line                    e   contour plot of a box
+    c   plot the column                  s   surface plot of a box
+    x   coordinates and value            z   the 11x11 pixel values around it
+
+and the colon commands (`colon`) set the parameters between keys.
 
 The parameters keep IRAF's names, defaults and meanings: `radius` is the
 aperture (rimexam's radius = 5), the profile is drawn out to `rplot` = 8, the
 fit is a Moffat, `iterations` = 3 resizes the aperture of r and a to three
 times the direct FWHM, m measures `ncstat` x `nlstat` = 5x5, and h a 21x21 box in
-512 bins. IRAF keeps these in psets -- rimexam, jimexam, himexam -- and
-harwood in one flat set, so where two psets share a name (`rplot`, `width`)
-the rimexam meaning is the parameter and the j/k one is fixed at jimexam's
-default.
+512 bins. IRAF keeps these in psets -- rimexam, jimexam, kimexam, himexam,
+eimexam... -- and harwood in one set (see `Settings`), where a name two
+psets share keeps the rimexam (or jimexam) meaning and the others carry
+their pset's initial.
 
 Positions in and out are 1-based (x, y), as everywhere a user can see.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -44,19 +48,28 @@ KEYS: dict[str, str] = {
     "j": "fit a gaussian along the line through the cursor",
     "k": "fit a gaussian along the column through the cursor",
     "h": "histogram of a box around the cursor",
+    "e": "contour plot of a box around the cursor",
+    "s": "surface plot of a box around the cursor",
     "x": "print the cursor position and the pixel value there",
-    "z": "print the 10x10 pixel values around the cursor",
+    "z": "print the 11x11 pixel values around the cursor",
 }
 
-
-#: jimexam's rplot and width: how far either side of the cursor the j and k
-#: keys fit. Fixed, because the flat parameter set gives those names to rimexam.
-JK_RPLOT = 10.0
+#: The keys that draw a graph: a colon command that names a parameter
+#: several psets share (width, rplot, naverage, ncolumns...) changes the one
+#: of the last of these, as IRAF's does.
+GRAPH_KEYS = "cehjklrs"
 
 
 @dataclass
 class Settings:
     """The parameters behind the keys, with IRAF's names and defaults.
+
+    IRAF keeps them in psets -- rimexam, jimexam, kimexam, limexam,
+    cimexam, himexam, eimexam, simexam -- and some names live in several.
+    Here they are one set: the rimexam ones, the m key's and the j key's
+    keep IRAF's plain names (they are the task's parameters); the others
+    carry their pset's initial (k, l, c, e, s). A colon command uses the
+    plain name and finds the field the way IRAF finds the pset.
 
     `radius` is the aperture: summed for the flux, used for centring, and
     fitted. The sky annulus starts `buffer` beyond it and is `width` wide.
@@ -71,13 +84,50 @@ class Settings:
     beta: float | None = None      #: rimexam; None is IRAF's INDEF, fitted
     iterations: int = 3            #: rimexam; r and a
     magzero: float = 25.0          #: rimexam
+    center: bool = True            #: rimexam: recentre before measuring
+    background: bool = True        #: rimexam: subtract the annulus' median
     ncstat: int = 5                #: imexamine, the m key's box
     nlstat: int = 5
     ncolumns: int = 21             #: himexam, the h key's box
     nlines: int = 21
     nbins: int = 512               #: himexam
-    naverage: int = 5              #: jimexam, lines or columns averaged
-    sigma: float = 1.0             #: jimexam, the first guess of the j/k fit
+    z1: float | None = None        #: himexam; None is INDEF, the data's limits
+    z2: float | None = None
+    autoscale: bool = True         #: himexam, for integer pixel types
+    top_closed: bool = False       #: himexam
+    naverage: int = 5              #: jimexam, lines averaged
+    sigma: float = 1.0             #: jimexam, the first guess of the fit
+    jwidth: float = 10.0           #: jimexam width
+    jrplot: float = 10.0           #: jimexam rplot
+    jcenter: bool = True
+    jbackground: bool = True
+    jxorder: int = 0               #: 0 median, 1 constant, 2 linear background
+    knaverage: int = 5             #: kimexam, columns averaged
+    ksigma: float = 1.0
+    kwidth: float = 10.0
+    krplot: float = 10.0
+    kcenter: bool = True
+    kbackground: bool = True
+    kxorder: int = 0
+    lnaverage: int = 1             #: limexam
+    cnaverage: int = 1             #: cimexam
+    encolumns: int = 21            #: eimexam
+    enlines: int = 21
+    efloor: float | None = None
+    eceiling: float | None = None
+    zero: float = 0.0              #: eimexam
+    ncontours: int = 5             #: eimexam
+    interval: float = 0.0          #: eimexam
+    sncolumns: int = 21            #: simexam
+    snlines: int = 21
+    sfloor: float | None = None
+    sceiling: float | None = None
+    angh: float = -33.0            #: simexam
+    angv: float = 25.0             #: simexam
+    defkey: str = "a"              #: imexamine, for cursor lines without a key
+    #: The last key, and the last key that drew a graph (IRAF's gtype).
+    lastkey: str = ""
+    graph: str = ""
 
 
 @dataclass
@@ -94,12 +144,41 @@ class Result:
     ok: bool = True
 
 
+def native(data: np.ndarray, header) -> np.ndarray:
+    """The pixels with the type IRAF would see: an integer FITS image (BITPIX
+    > 0, unscaled) as integers, which is what himexam's autoscale goes by.
+    harwood reads every image as floating point; this undoes that for the
+    keys that care."""
+    try:
+        bitpix = int(header.get("BITPIX", -32))
+        bscale = float(header.get("BSCALE", 1.0))
+        bzero = float(header.get("BZERO", 0.0))
+    except (AttributeError, TypeError, ValueError):
+        return data
+    if bitpix > 0 and bscale == 1.0 and bzero == int(bzero) and np.isfinite(data).all():
+        return np.asarray(data).astype(np.int64)
+    return data
+
+
 def examine(data: np.ndarray, key: str, x: float, y: float,
             settings: Settings | None = None) -> Result:
-    """Answer one key at one 1-based position."""
+    """Answer one key at one 1-based position.
+
+    The settings remember the key, and the last key that drew a graph, for
+    the colon commands that follow (see `colon`)."""
+    s = settings if settings is not None else Settings()
+    result = _answer(data, key, x, y, s)
+    if key in KEYS:
+        s.lastkey = key
+        if key in GRAPH_KEYS:
+            s.graph = key
+    return result
+
+
+def _answer(data: np.ndarray, key: str, x: float, y: float, s: Settings) -> Result:
     from ..viewer import analysis
 
-    s = settings or Settings()
+    raw = np.asarray(data)
     data = np.asarray(data, dtype=float)
     if key not in KEYS:
         return Result(key, x, y, f"[{key}] is not an imexamine key; ? lists them",
@@ -113,7 +192,9 @@ def examine(data: np.ndarray, key: str, x: float, y: float,
         # the aperture; the manual says only a does, the code says otherwise.
         profile = analysis.radial_profile(
             data, x, y, radius=s.radius, buffer=s.buffer, width=s.width,
-            rplot=s.rplot, fittype=s.fittype, beta=s.beta, iterations=s.iterations)
+            rplot=s.rplot, fittype=s.fittype, beta=s.beta, iterations=s.iterations,
+            recentre=s.center, background=s.background,
+            integer=np.issubdtype(raw.dtype, np.integer))
         plot = {"kind": "profile", "title": "radial profile",
                 "x": profile.radii, "y": profile.values - profile.sky,
                 "xlabel": "radius (pixels)", "ylabel": "counts above sky"}
@@ -143,59 +224,171 @@ def examine(data: np.ndarray, key: str, x: float, y: float,
                       values, plot)
 
     if key == "m":
-        stats = analysis.statistics(data, x, y, ncols=s.ncstat, nlines=s.nlstat)
-        return Result(key, x, y, f"[m] x={x:.2f} y={y:.2f}  {s.ncstat}x{s.nlstat}  "
-                      + "  ".join(f"{k}={v:.4g}" for k, v in stats.items()), stats)
+        return _statistics(raw, x, y, s)
 
     if key in ("l", "c"):
-        values, number = _cut(data, x, y, key)
-        axis = np.arange(1, values.size + 1)
-        what = f"line {number}" if key == "l" else f"column {number}"
-        stats = {"min": float(values.min()), "max": float(values.max()),
-                 "median": float(np.median(values))}
-        return Result(key, x, y, f"[{key}] {what}  min={stats['min']:.1f}  "
-                      f"max={stats['max']:.1f}  median={stats['median']:.1f}", stats,
-                      {"kind": "cut", "title": what, "x": axis, "y": values,
-                       "xlabel": "x (pixels)" if key == "l" else "y (pixels)",
-                       "ylabel": "counts"})
+        return _plot_cut(raw, x, y, key, s)
 
     if key in ("j", "k"):
-        return _gaussian_cut(data, x, y, key, s)
+        return _gaussian_cut(raw, x, y, key, s)
 
     if key == "h":
-        box = _box(data, x, y, s.ncolumns, s.nlines)
-        finite = box[np.isfinite(box)]
-        bins = s.nbins
-        # himexam's autoscale: integer data never get more bins than values,
-        # or most bins are empty by construction and the plot is a comb.
-        span = float(finite.max() - finite.min()) if finite.size else 0.0
-        if finite.size and np.all(finite == np.round(finite)) and span + 1 < bins:
-            bins = int(span) + 1
-        counts, edges = np.histogram(finite, bins=bins)
-        centres = 0.5 * (edges[:-1] + edges[1:])
-        mode = float(centres[counts.argmax()])
-        size = f"{s.ncolumns}x{s.nlines}"
-        return Result(key, x, y, f"[h] x={x:.2f} y={y:.2f}  {size}  "
-                      f"{box.size} pixels  {bins} bins  mode={mode:.4g}  range "
-                      f"{edges[0]:.4g} to {edges[-1]:.4g}",
-                      {"mode": mode, "npix": int(box.size), "nbins": bins},
-                      {"kind": "histogram", "title": f"histogram {size}",
-                       "x": edges, "y": counts, "xlabel": "value", "ylabel": "pixels"})
+        return _histogram(raw, x, y, s)
+
+    if key == "e":
+        return _contours(raw, x, y, s)
+
+    if key == "s":
+        return _surface(raw, x, y, s)
 
     if key == "x":
         value = _value(data, x, y)
         return Result(key, x, y, f"[x] x={x:.2f} y={y:.2f}  value={value:.6g}",
                       {"value": value})
 
-    # z: IRAF's 10x10 grid, rows printed top down so they read as on screen.
-    col, row = int(round(x)), int(round(y))
-    columns = [c for c in range(col - 4, col + 6) if 1 <= c <= data.shape[1]]
-    rows = [r for r in range(row + 5, row - 5, -1) if 1 <= r <= data.shape[0]]
-    lines = ["      " + "".join(f"{c:>10d}" for c in columns)]
+    return _print_box(raw, x, y)
+
+
+def _gdata(data: np.ndarray, x1: int, x2: int, y1: int, y2: int):
+    """ie_gdata: the limits in order and clipped to the image, or None when
+    the box misses it altogether ("Pixels out of bounds")."""
+    ny, nx = data.shape
+    x1, x2 = min(x1, x2), max(x1, x2)
+    y1, y2 = min(y1, y2), max(y1, y2)
+    if x2 < 1 or x1 > nx or y2 < 1 or y1 > ny:
+        return None
+    x1, x2, y1, y2 = max(1, x1), min(nx, x2), max(1, y1), min(ny, y2)
+    return x1, x2, y1, y2, data[y1 - 1:y2, x1 - 1:x2]
+
+
+def _box_limits(x: float, y: float, ncols: int, nlines: int):
+    """x - (n - 1) / 2 + 0.5 .. x + n / 2 + 0.5, truncated: IRAF's box of
+    n pixels around a cursor, one more to the right when n is even."""
+    f32 = np.float32
+    return (int(f32(f32(f32(x) - f32((ncols - 1) // 2)) + f32(0.5))),
+            int(f32(f32(f32(x) + f32(ncols // 2)) + f32(0.5))),
+            int(f32(f32(f32(y) - f32((nlines - 1) // 2)) + f32(0.5))),
+            int(f32(f32(f32(y) + f32(nlines // 2)) + f32(0.5))))
+
+
+def _statistics(data: np.ndarray, x: float, y: float, s: Settings) -> Result:
+    """ie_statistics: the m key -- statistics of an ncstat x nlstat box."""
+    got = _gdata(data, *_box_limits(x, y, s.ncstat, s.nlstat))
+    if got is None:
+        return Result("m", x, y, "[m] pixels out of bounds", ok=False)
+    x1, x2, y1, y2, box = got
+    values = np.sort(box.astype(np.float32).astype(np.float64).ravel())
+    npts = values.size
+    total = float(np.cumsum(values)[-1])
+    mean = total / npts
+    if npts > 1:
+        spread = (float(np.cumsum(values ** 2)[-1]) - (total / npts) * total) / (npts - 1)
+        std = float(np.sqrt(spread)) if spread >= 0 else 0.0
+    else:
+        std = float("nan")
+    median = (float(values[npts // 2 - 1] + values[npts // 2]) / 2 if npts % 2 == 0
+              else float(values[npts // 2]))
+    section = f"[{x1}:{x2},{y1}:{y2}]"
+    stats = {"section": section, "npix": npts, "mean": mean, "median": median,
+             "stddev": std, "min": float(values[0]), "max": float(values[-1])}
+    return Result("m", x, y, f"[m] {section:>20s} {npts:8d} {mean:8.4g} {median:8.4g} "
+                  f"{std:8.4g} {values[0]:8.4g} {values[-1]:8.4g}", stats)
+
+
+def _plot_cut(data: np.ndarray, x: float, y: float, key: str, s: Settings) -> Result:
+    """ie_limexam and ie_cimexam: the l and c keys, a line or a column, the
+    mean of limexam's (cimexam's) naverage of them."""
+    f32 = np.float32
+    along_line = key == "l"
+    n = s.lnaverage if along_line else s.cnaverage
+    at = f32(y if along_line else x)
+    first = int(f32(f32(at - f32((n - 1) // 2)) + f32(0.5)))
+    last = int(f32(f32(at + f32(n // 2)) + f32(0.5)))
+    if along_line:
+        got = _gdata(data, 1, data.shape[1], first, last)
+    else:
+        got = _gdata(data, first, last, 1, data.shape[0])
+    if got is None:
+        return Result(key, x, y, f"[{key}] pixels out of bounds", ok=False)
+    x1, x2, y1, y2, block = got
+    block = block.astype(f32)
+    rows = block if along_line else block.T
+    total = rows[0].copy()
+    for row in rows[1:]:
+        total = (total + row).astype(f32)
+    values = (total / f32(rows.shape[0])).astype(float)
+    lo, hi = (y1, y2) if along_line else (x1, x2)
+    axis = np.arange(1, values.size + 1)
+    span = f"{lo}" if lo == hi else f"{lo}-{hi}"
+    what = f"line {span}" if along_line else f"column {span}"
+    stats = {"min": float(values.min()), "max": float(values.max()),
+             "median": float(np.median(values))}
+    return Result(key, x, y, f"[{key}] {what}  min={stats['min']:.1f}  "
+                  f"max={stats['max']:.1f}  median={stats['median']:.1f}", stats,
+                  {"kind": "cut", "title": what, "x": axis, "y": values,
+                   "xlabel": "x (pixels)" if along_line else "y (pixels)",
+                   "ylabel": "counts"})
+
+
+def _histogram(data: np.ndarray, x: float, y: float, s: Settings) -> Result:
+    """ie_himexam: the h key, with himexam's defaults (z1, z2 the data's
+    limits; autoscale for integer pixel types; top bin half open)."""
+    f32 = np.float32
+    got = _gdata(data, *_box_limits(x, y, s.ncolumns, s.nlines))
+    if got is None:
+        return Result("h", x, y, "[h] pixels out of bounds", ok=False)
+    x1, x2, y1, y2, box = got
+    values = box.astype(f32).ravel()
+    z1 = values.min() if s.z1 is None else f32(s.z1)
+    z2 = values.max() if s.z2 is None else f32(s.z2)
+    if z1 > z2:
+        z1, z2 = z2, z1
+    nbins = s.nbins
+    if s.autoscale and np.issubdtype(data.dtype, np.integer):
+        nlevels = _nint(z2) - _nint(z1)
+        nwide = max(1, _nint(f32(f32(nlevels) / f32(nbins))))
+        nbins = max(1, _nint(f32(f32(nlevels) / f32(nwide))))
+        z2 = f32(_nint(z1) + nbins * nwide)
+    section = f"[{x1}:{x2},{y1}:{y2}]"
+    if z1 == z2:
+        return Result("h", x, y, f"[h] {section} has no data range", ok=False)
+    # ahgmr into nbins + 1 bins: the extra one holds the pixels equal to z2.
+    dz = f32(f32(nbins) / f32(z2 - z1))
+    counts = np.zeros(nbins + 1, dtype=int)
+    for v in values:
+        if z1 <= v <= z2:
+            counts[int(f32(f32(v - z1) * dz)) if abs(dz - 1) >= 2 * 1.192e-7
+                   else int(f32(v - z1))] += 1
+    if s.top_closed:
+        counts[nbins - 1] += counts[nbins]
+    counts = counts[:nbins]
+    width = f32(f32(z2 - z1) / f32(nbins))
+    edges = (z1 + width * np.arange(nbins + 1, dtype=f32)).astype(float)
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    mode = float(centres[counts.argmax()])
+    return Result("h", x, y, f"[h] {section}  {values.size} pixels  {nbins} bins  "
+                  f"z1={float(z1):g}  z2={float(z2):g}  mode={mode:.4g}",
+                  {"mode": mode, "npix": int(values.size), "nbins": nbins,
+                   "z1": float(z1), "z2": float(z2), "counts": counts.tolist()},
+                  {"kind": "histogram", "title": f"histogram {section}",
+                   "x": edges, "y": counts, "xlabel": "value", "ylabel": "pixels"})
+
+
+def _print_box(data: np.ndarray, x: float, y: float) -> Result:
+    """ie_print: the z key -- the 11 x 11 pixel values around the cursor,
+    printed as IRAF prints them, top line first."""
+    f32 = np.float32
+    got = _gdata(data, int(f32(f32(x) - f32(4.5))), int(f32(f32(x) + f32(5.5))),
+                 int(f32(f32(y) - f32(4.5))), int(f32(f32(y) + f32(5.5))))
+    if got is None:
+        return Result("z", x, y, "[z] pixels out of bounds", ok=False)
+    x1, x2, y1, y2, box = got
+    columns, rows = list(range(x1, x2 + 1)), list(range(y2, y1 - 1, -1))
+    lines = ["    " + "".join(f" {c:4d} " for c in columns)]
     for r in rows:
-        lines.append(f"{r:>6d}" + "".join(f"{data[r - 1, c - 1]:>10.1f}" for c in columns))
-    return Result(key, x, y, f"[z] around x={col} y={row}  value={_value(data, x, y):.6g}\n"
-                  + "\n".join(lines),
+        lines.append(f"{r:4d}" + "".join(f" {float(f32(box[r - y1, c - x1])):5g}"
+                                          for c in columns))
+    return Result("z", x, y, f"[z] around x={x:.2f} y={y:.2f}\n" + "\n".join(lines),
                   {"columns": columns, "rows": rows})
 
 
@@ -205,8 +398,10 @@ def read_cursor(path, defkey: str = "a") -> list[tuple[float, float, int, str]]:
     The frame defaults to 1; IRAF writes it as the WCS number, which for a
     displayed image is the frame. With no key the line gets `defkey` -- as in
     IRAF, which is what makes a bare list of positions from another program a
-    valid cursor file. Blank lines and `#` comments are skipped, and a colon
-    command is refused by name rather than silently ignored.
+    valid cursor file. A colon command is the rest of the line from the
+    colon, `50 50 1 :radius 7`, and comes back as the key; `:defkey` changes
+    the key of the lines after it, as it does in IRAF. Blank lines and `#`
+    comments are skipped.
     """
     from pathlib import Path
 
@@ -217,13 +412,20 @@ def read_cursor(path, defkey: str = "a") -> list[tuple[float, float, int, str]]:
         text = text.split("#", 1)[0].strip()
         if not text:
             continue
+        command = ""
+        if ":" in text:
+            text, command = text.split(":", 1)
+            command = ":" + command.strip()
         parts = text.split()
-        if not 2 <= len(parts) <= 4:
+        if not 2 <= len(parts) <= (3 if command else 4):
             advice.fail(f"{path}:{number}: '{text}' is not 'x y [frame] [key]'",
-                        "write one position per line, e.g. '612.0 540.0 1 r'")
+                        "write one position per line, e.g. '612.0 540.0 1 r', or a "
+                        "colon command after the frame, e.g. '612 540 1 :radius 7'")
+        if command:
+            parts.append(command)
         # No key at all, or a third column that is a number (the frame): the
         # line gets defkey. A third column that is not a number is the key.
-        if len(parts) == 2 or (len(parts) == 3 and parts[2].lstrip("+-").isdigit()):
+        elif len(parts) == 2 or (len(parts) == 3 and parts[2].lstrip("+-").isdigit()):
             parts.append(defkey)
         try:
             x, y = float(parts[0]), float(parts[1])
@@ -232,10 +434,10 @@ def read_cursor(path, defkey: str = "a") -> list[tuple[float, float, int, str]]:
             advice.fail(f"{path}:{number}: '{text}' does not start with two numbers",
                         "the first two columns are the 1-based x and y")
         key = parts[-1]
-        if key.startswith(":"):
-            advice.fail(f"{path}:{number}: colon commands are not read from a "
-                        "cursor file", "set the parameter with --radius, --fittype "
-                        "and the like instead")
+        words = key.lstrip(":").split()
+        if key.startswith(":") and len(words) == 2 and "defkey".startswith(words[0]) \
+                and len(words[0]) >= 3:
+            defkey = words[1]
         entries.append((x, y, frame, key))
     return entries
 
@@ -272,42 +474,421 @@ def _box(data: np.ndarray, x: float, y: float, ncols: int, nlines: int) -> np.nd
     return data[r0:min(data.shape[0], r0 + nlines), c0:min(data.shape[1], c0 + ncols)]
 
 
+def _amedr(values: np.ndarray) -> float:
+    """amedr: the ((n + 1) / 2)th smallest; the first value for one or two."""
+    n = values.size
+    if n <= 2:
+        return float(values[0])
+    return float(np.sort(values)[(n + 1) // 2 - 1])
+
+
+class _Marquardt:
+    """iejimexam.x's mr_solve: one Levenberg-Marquardt step per call, with
+    its state between calls (f2c keeps SPP locals static)."""
+
+    def __init__(self, xs, ys, flags):
+        self.xs, self.ys, self.flags = xs, ys, flags
+
+    def _eval(self, params):
+        """mr_eval: curvature matrix, gradient and chi-squared."""
+        nfit = len(self.flags)
+        a = np.zeros((nfit, nfit), dtype=np.float32)
+        delta = np.zeros(nfit, dtype=np.float32)
+        chisq = np.float32(0)
+        for x, y in zip(self.xs, self.ys, strict=True):
+            ymod, dydp = _derivs(x, params)
+            dy = np.float32(y - ymod)
+            for j in range(nfit):
+                dj = dydp[self.flags[j]]
+                delta[j] = np.float32(delta[j] + np.float32(dy * dj))
+                for k in range(j + 1):
+                    a[j, k] = np.float32(a[j, k] + np.float32(dj * dydp[self.flags[k]]))
+            chisq = np.float32(chisq + np.float32(dy * dy))
+        for j in range(1, nfit):
+            for k in range(j):
+                a[k, j] = a[j, k]
+        return a, delta, chisq
+
+    def step(self, params, mr, chisq):
+        from . import llsq
+
+        f32 = np.float32
+        nfit = len(self.flags)
+        if mr < 0:
+            self.new = params.copy()
+            self.a2, self.delta2, chisq = self._eval(self.new)
+            mr = f32(0.001)
+        a1 = self.a2.copy()
+        for i in range(nfit):
+            a1[i, i] = f32(self.a2[i, i] * f32(f32(1) + mr))
+        flat = a1.flatten(order="F")
+        delta1 = self.delta2.copy()
+        llsq.hfti(flat, nfit, nfit, nfit, delta1, nfit, 1, 1e-10)
+        for i in range(nfit):
+            self.new[self.flags[i]] = f32(params[self.flags[i]] + delta1[i])
+        a1, delta1, chisq1 = self._eval(self.new)
+        if chisq1 < chisq:
+            mr = max(f32(1.192e-7), f32(f32(0.1) * mr))
+            chisq = chisq1
+            self.a2, self.delta2 = a1, delta1
+            params[:] = self.new
+        else:
+            mr = f32(f32(10) * mr)
+        return mr, chisq
+
+
+def _derivs(x, a):
+    """iejimexam.x's derivs: a1 + a2 x + a3 exp(-((x - a4) / a5)^2 / 2)."""
+    f32 = np.float32
+    arg = f32(f32(x - a[3]) / a[4])
+    ex = f32(np.exp(-float(f32(f32(arg * arg) / f32(2))))) if abs(arg) < 7 else f32(0)
+    fac = f32(f32(a[2] * ex) * arg)
+    y = f32(f32(a[0] + f32(a[1] * x)) + f32(a[2] * ex))
+    return y, (f32(1), f32(x), ex, f32(fac / a[4]), f32(f32(fac * arg) / a[4]))
+
+
+def _gfit(xs, ys, fit, flags):
+    """ie_gfit: Marquardt steps until chi-squared has stopped falling by
+    more than one three times running, then a last step without damping."""
+    f32 = np.float32
+    solver = _Marquardt(xs, ys, flags)
+    chi2 = f32(9.9e36)
+    chi1 = f32(0)
+    mr = f32(-1)
+    calm = 0
+    while calm != 3:
+        mr, chi1 = solver.step(fit, mr, chi1)
+        calm = 0 if f32(chi2 - chi1) > 1 else calm + 1
+        chi2 = chi1
+    solver.step(fit, f32(0), chi1)
+    fit[4] = abs(fit[4])
+
+
 def _gaussian_cut(data: np.ndarray, x: float, y: float, key: str, s: Settings) -> Result:
-    """The j and k keys: a gaussian plus a constant, across a slit or a star."""
-    values, number = _cut(data, x, y, key, s.naverage)
-    centre = x if key == "j" else y
-    reach = int(np.ceil(JK_RPLOT))
-    lo, hi = max(1, int(round(centre)) - reach), min(values.size, int(round(centre)) + reach)
-    axis = np.arange(lo, hi + 1, dtype=float)
-    segment = values[lo - 1:hi]
-    what = f"line {number}" if key == "j" else f"column {number}"
-    if s.naverage > 1:
-        what += f" ({s.naverage} averaged)"
-    plot = {"kind": "cut", "title": f"{what}, gaussian fit", "x": axis, "y": segment,
-            "xlabel": "x (pixels)" if key == "j" else "y (pixels)", "ylabel": "counts"}
+    """ie_jimexam: the j and k keys -- a gaussian plus a constant fitted
+    along the line (j) or column (k) through the cursor, averaged over
+    `naverage` of them, by IRAF's own Marquardt steps."""
+    f32 = np.float32
+    ny_image, nx_image = data.shape
+    along_line = key == "j"
+    xc, yc = (f32(x), f32(y)) if along_line else (f32(y), f32(x))
+    # jimexam for j, kimexam for k: two psets with the same names.
+    if along_line:
+        sigma, navg, rplot, width = f32(s.sigma), s.naverage, f32(s.jrplot), f32(s.jwidth)
+        centre_fit, background_fit, order = s.jcenter, s.jbackground, s.jxorder
+    else:
+        sigma, navg, rplot, width = f32(s.ksigma), s.knaverage, f32(s.krplot), f32(s.kwidth)
+        centre_fit, background_fit, order = s.kcenter, s.kbackground, s.kxorder
+    reach = max(rplot, f32(f32(f32(8) * sigma) + (width if background_fit else f32(0))))
+    x1, x2 = int(f32(xc - reach)), int(f32(xc + reach))
+    y1 = _nint(yc) - (navg - 1) // 2
+    y2 = _nint(yc) + navg // 2
+    length, across = (nx_image, ny_image) if along_line else (ny_image, nx_image)
+    if x2 < 1 or x1 > length or y2 < 1 or y1 > across:
+        return Result(key, x, y, f"[{key}] the cut is off the image", ok=False)
+    x1, x2 = max(1, x1), min(length, x2)
+    y1, y2 = max(1, y1), min(across, y2)
+    if along_line:
+        block = data[y1 - 1:y2, x1 - 1:x2].astype(f32)
+        total = block[0].copy()
+        for row in block[1:]:
+            total = (total + row).astype(f32)
+    else:
+        block = data[x1 - 1:x2, y1 - 1:y2].astype(f32)
+        total = np.array([np.cumsum(row, dtype=f32)[-1] for row in block], dtype=f32)
+    nx, nav = x2 - x1 + 1, y2 - y1 + 1
+    ys = (total / f32(nav)).astype(f32)
+    what = (f"Lines {y1}-{y2}" if along_line else f"Columns {y1}-{y2}")
 
-    background = float(np.median(np.concatenate([segment[:3], segment[-3:]])))
-    peak = float(segment.max() - background)
-    try:
-        from scipy.optimize import curve_fit
+    # The background: the median of the cut beyond four sigmas.
+    bkg = f32(0)
+    if background_fit:
+        offsets = np.abs(np.array([f32(f32(xc - x1) - i) for i in range(nx)], dtype=f32))
+        outside = ys[offsets > f32(4) * sigma]
+        bkg = f32(_amedr(outside)) if outside.size else f32(0)
 
-        def model(t, a, mu, sigma, b):
-            return a * np.exp(-((t - mu) ** 2) / (2 * sigma ** 2)) + b
+    xs = np.arange(x1, x2 + 1, dtype=f32)
+    k0 = max(0, _nint(f32(xc - x1)))
+    dr = f32(abs(f32(xc - f32(xc + sigma))))
+    fit = np.array([bkg, f32(0), f32(ys[k0] - bkg), xc, dr], dtype=f32)
+    flags = [2]                                 # the amplitude, then
+    if centre_fit:
+        flags.append(3)                         # the centre,
+        _gfit(xs, ys, fit, flags)
+    flags.append(4)                             # the width,
+    _gfit(xs, ys, fit, flags)
+    if background_fit and order in (1, 2):      # and the background terms
+        flags += [0] if order == 1 else [0, 1]
+        _gfit(xs, ys, fit, flags)
 
-        guess = (peak, axis[segment.argmax()], s.sigma, background)
-        popt, _ = curve_fit(model, axis, segment, p0=guess, maxfev=4000)
-    except Exception:
+    j0 = max(0, int(f32(f32(xc - x1) - rplot)))
+    j1 = min(nx - 1, _nint(f32(f32(xc - x1) + rplot)))
+    plot = {"kind": "cut", "title": f"{what}, gaussian fit",
+            "x": xs[j0:j1 + 1].astype(float), "y": ys[j0:j1 + 1].astype(float),
+            "xlabel": "x (pixels)" if along_line else "y (pixels)", "ylabel": "counts"}
+    background, centre, peak, spread = (float(fit[0] + fit[1] * fit[3]), float(fit[3]),
+                                        float(fit[2]), float(fit[4]))
+    fwhm = float(f32(f32(2.35482) * fit[4]))
+    if not np.isfinite(np.array([centre, peak, spread])).all():
         return Result(key, x, y, f"[{key}] {what}  the fit did not converge -- "
                       "is there a feature here?", plot=plot, ok=False)
+    grid = np.linspace(plot["x"][0], plot["x"][-1], 200)
+    arg = (grid - centre) / spread
+    plot.update(fit_x=grid, fit_y=np.where(np.abs(arg) < 7, fit[0] + fit[1] * grid
+                                           + peak * np.exp(-arg ** 2 / 2),
+                                           fit[0] + fit[1] * grid))
+    return Result(key, x, y, f"[{key}] {what}: center={centre:7g} peak={peak:7g} "
+                  f"sigma={spread:7.4g} fwhm={fwhm:7.4g} bkg={background:7g}",
+                  {"centre": centre, "peak": peak, "sigma": spread, "fwhm": fwhm,
+                   "background": background}, plot)
 
-    amplitude, mu, sigma, base = (float(v) for v in popt)
-    fwhm = 2.3548 * abs(sigma)
-    if not lo <= mu <= hi or amplitude <= 0:
-        return Result(key, x, y, f"[{key}] {what}  no peak inside +-{reach} px "
-                      "of the cursor", plot=plot, ok=False)
-    grid = np.linspace(axis[0], axis[-1], 200)
-    plot.update(fit_x=grid, fit_y=model(grid, *popt))
-    return Result(key, x, y, f"[{key}] {what}  centre={mu:.2f}  peak={amplitude:.1f}  "
-                  f"sigma={abs(sigma):.2f}  FWHM={fwhm:.2f}  background={base:.1f}",
-                  {"centre": mu, "peak": amplitude, "sigma": abs(sigma), "fwhm": fwhm,
-                   "background": base}, plot)
+
+def _nint(value) -> int:
+    """SPP's nint: round half away from zero."""
+    v = float(value)
+    return int(np.floor(v + 0.5)) if v >= 0 else -int(np.floor(0.5 - v))
+
+
+def _contour_levels(z: np.ndarray, floor, ceiling, finc):
+    """CLGEN, NCAR's conrec as IRAF ships it: the levels from floor up to
+    ceiling. finc < 0 asks for that many levels, each step cut to one
+    significant figure; finc > 0 is the step; 0 lets conrec aim for 16."""
+    f32 = np.float32
+    glo, ha = f32(floor), f32(ceiling)
+    if ha < glo:
+        glo, ha = ha, glo
+    if ha == glo:
+        return [float(glo)], 0.0
+    fanc = f32(finc)
+    if fanc <= 0:
+        crat = max(f32(1), -fanc) if fanc < 0 else f32(16)
+        fanc = f32((ha - glo) / crat)
+        power = f32(10.0 ** (int(math.log10(float(fanc)) + 5000.0) - 5000))
+        fanc = f32(f32(np.trunc(f32(fanc / power))) * power)
+    levels = []
+    for k in range(40):
+        level = f32(glo + f32(f32(k) * fanc))
+        if level > ha:
+            break
+        levels.append(float(level))
+    return levels, float(fanc)
+
+
+def _contours(data: np.ndarray, x: float, y: float, s: Settings) -> Result:
+    """ie_eimexam: the e key -- contours of an ncolumns x nlines box, at
+    the levels conrec picks between floor and ceiling (the box's extremes
+    when INDEF), shifted by zero."""
+    f32 = np.float32
+    got = _gdata(data, *_box_limits(x, y, s.encolumns, s.enlines))
+    if got is None:
+        return Result("e", x, y, "[e] pixels out of bounds", ok=False)
+    x1, x2, y1, y2, box = got
+    box = box.astype(f32)
+    if not np.isfinite(box).all():
+        return Result("e", x, y, f"[e] [{x1}:{x2},{y1}:{y2}] holds blank (NaN) pixels, "
+                      "which have no contour -- fix them first (fixpix), or look "
+                      "elsewhere", ok=False)
+    floor = box.min() if s.efloor is None else f32(s.efloor)
+    ceiling = box.max() if s.eceiling is None else f32(s.eceiling)
+    zero = f32(s.zero)
+    if abs(zero) > 1.192e-7:
+        box = (box - zero).astype(f32)
+        floor, ceiling = f32(floor - zero), f32(ceiling - zero)
+    # conrec scales automatically on a zero limit; IRAF steps around it.
+    floor = f32(1.192e-7) if floor == 0 else floor
+    ceiling = f32(1.192e-7) if ceiling == 0 else ceiling
+    finc = (-abs(s.ncontours) if s.ncontours > 0
+            else (s.interval if s.interval > 0 else 0.0))
+    levels, step = _contour_levels(box, floor, ceiling, finc)
+    section = f"[{x1}:{x2},{y1}:{y2}]"
+    return Result("e", x, y, f"[e] {section}  contoured from {levels[0]:g} to "
+                  f"{levels[-1]:g}, interval = {step:g}",
+                  {"section": section, "levels": levels, "interval": step},
+                  {"kind": "contour", "title": f"contours {section}",
+                   "x": np.arange(x1, x2 + 1), "y": np.arange(y1, y2 + 1),
+                   "z": box.astype(float), "levels": levels,
+                   "xlabel": "column", "ylabel": "line"})
+
+
+def _surface(data: np.ndarray, x: float, y: float, s: Settings) -> Result:
+    """ie_simexam: the s key -- the box seen from simexam's angh and angv,
+    clipped to floor and ceiling when they are given."""
+    got = _gdata(data, *_box_limits(x, y, s.sncolumns, s.snlines))
+    if got is None:
+        return Result("s", x, y, "[s] pixels out of bounds", ok=False)
+    x1, x2, y1, y2, box = got
+    box = box.astype(np.float32).astype(float)
+    if s.sfloor is not None:
+        box = np.maximum(box, s.sfloor)
+    if s.sceiling is not None:
+        box = np.minimum(box, s.sceiling)
+    section = f"[{x1}:{x2},{y1}:{y2}]"
+    return Result("s", x, y, f"[s] {section}  surface, angh={s.angh:g} angv={s.angv:g}",
+                  {"section": section},
+                  {"kind": "surface", "title": f"surface {section}",
+                   "x": np.arange(x1, x2 + 1), "y": np.arange(y1, y2 + 1), "z": box,
+                   "angh": s.angh, "angv": s.angv, "xlabel": "", "ylabel": ""})
+
+
+# ------------------------------------------------------------ colon commands
+
+#: Every colon command IRAF's imexamine knows (iecolon.x), for the prefix
+#: matching strdic does: an abbreviation works when it is unambiguous.
+COMMANDS = tuple(  # as IRAF's CMDS reads
+    "angh angv background banner boundary box buffer ceiling center constant "  # noqa: SIM905
+    "dashpat defkey eparam fill floor interval label logfile logx logy magzero "
+    "majrx majry marker minrx minry naverage ncolumns ncontours ncstat nhi nlines "
+    "nlstat pointmode radius round rplot select szmarker ticklabels title width x "
+    "xlabel xorder y ylabel yorder zero unlearn autoredraw nbins z1 z2 autoscale "
+    "top_closed allframes wcs xformat yformat fitplot sigma axes fittype beta "
+    "iterations output ncoutput nloutput".split())
+
+#: Only how IRAF draws its graphs: harwood's window draws its own.
+_STYLING = set(
+    "banner box dashpat fill label logx logy majrx majry marker minrx minry nhi "  # noqa: SIM905
+    "pointmode round szmarker ticklabels title xlabel ylabel x y axes fitplot "
+    "autoredraw".split())
+
+#: Not in harwood: what to do instead.
+_ELSEWHERE = {
+    "boundary": "the v key (vectors) is not in harwood",
+    "constant": "the v key (vectors) is not in harwood",
+    "eparam": "change the task's parameters with --editpar",
+    "logfile": "name the log with the task's --logfile",
+    "select": "use n and p to move between frames",
+    "allframes": "harwood loads each image into the frame it is given",
+    "wcs": "harwood's positions are logical pixels; the window shows the WCS",
+    "xformat": "harwood's positions are logical pixels",
+    "yformat": "harwood's positions are logical pixels",
+    "output": "the t key (image output) is not in harwood",
+    "ncoutput": "the t key (image output) is not in harwood",
+    "nloutput": "the t key (image output) is not in harwood",
+    "yorder": "a surface fit to the annulus is not in harwood; the median is used",
+}
+
+
+def _field(name: str, graph: str) -> tuple[str | None, str]:
+    """The Settings field a command sets, and the pset it lives in -- or None
+    when, as IRAF says, the parameter does not apply to the current graph."""
+    always = {
+        "angh": "simexam", "angv": "simexam", "buffer": "rimexam", "radius": "rimexam",
+        "magzero": "rimexam", "fittype": "rimexam", "beta": "rimexam",
+        "iterations": "rimexam", "sigma": "jimexam", "ncstat": "imexamine",
+        "nlstat": "imexamine", "nbins": "himexam", "z1": "himexam", "z2": "himexam",
+        "autoscale": "himexam", "top_closed": "himexam", "zero": "eimexam",
+        "ncontours": "eimexam", "interval": "eimexam", "defkey": "imexamine",
+    }
+    if name in always:
+        return name, always[name]
+    prefix = {"r": "", "j": "j", "k": "k", "l": "l", "c": "c", "e": "e", "s": "s",
+              "h": ""}
+    psets = {"r": "rimexam", "j": "jimexam", "k": "kimexam", "l": "limexam",
+             "c": "cimexam", "e": "eimexam", "s": "simexam", "h": "himexam"}
+    applies = {"width": "rjk", "rplot": "rjk", "center": "rjk", "background": "rjk",
+               "xorder": "jk", "naverage": "jklc", "ncolumns": "esh", "nlines": "esh",
+               "floor": "es", "ceiling": "es"}
+    if not graph or graph not in applies.get(name, ""):
+        return None, ""
+    if graph == "j" and name in ("naverage",):
+        return "naverage", "jimexam"
+    return prefix[graph] + name, psets[graph]
+
+
+def colon(settings: Settings, command: str) -> str:
+    """A colon command, as imexamine takes it at the cursor (iecolon.x):
+    `:radius 7` sets, `:radius` shows. The parameters several psets share
+    -- width, rplot, naverage, ncolumns, floor... -- belong to the pset of
+    the last graph drawn (after a, to rimexam's), and elsewhere IRAF says
+    the parameter does not apply to the current graph. Returns what IRAF
+    would print, or raises ValueError (with a fix) for what harwood refuses."""
+    from . import advice
+
+    words = command.strip().lstrip(":").split()
+    if not words:
+        advice.fail("an empty colon command", "type a parameter name after the colon, "
+                    "e.g. ':radius 7'")
+    word, args = words[0], words[1:]
+    matches = [c for c in COMMANDS if c.startswith(word)]
+    if word in COMMANDS:
+        matches = [word]
+    if len(matches) != 1:
+        advice.fail(f"':{word}' is an unrecognized or ambiguous command",
+                    "imexamine's colon commands are " + " ".join(COMMANDS))
+    name = matches[0]
+    if name in _STYLING:
+        advice.fail(f"':{name}' sets how IRAF draws its graphs",
+                    "harwood's window draws its own; nothing to set")
+    if name in _ELSEWHERE:
+        advice.fail(f"':{name}' is not available in harwood", _ELSEWHERE[name])
+
+    graph = settings.graph
+    if settings.lastkey == "a" and name in ("background", "center", "naverage", "rplot",
+                                            "xorder", "width"):
+        graph = "r"
+    if name == "unlearn":
+        pset = {"r": "rimexam", "j": "jimexam", "k": "kimexam", "l": "limexam",
+                "c": "cimexam", "e": "eimexam", "s": "simexam", "h": "himexam"}.get(graph)
+        if pset is None:
+            return "Parameter does not apply to current graph"
+        fresh = Settings()
+        for field_name in _PSET_FIELDS[pset]:
+            setattr(settings, field_name, getattr(fresh, field_name))
+        return f"{pset} unlearned"
+    if name == "xorder" and graph == "r":
+        advice.fail("':xorder' of rimexam fits a surface to the annulus, which "
+                    "harwood does not", "the annulus' median is used (xorder 0)")
+    found, _ = _field(name, graph)
+    if found is None:
+        return "Parameter does not apply to current graph"
+    field_name = found
+    current = getattr(settings, field_name)
+    if not args:
+        shown = ("INDEF" if current is None
+                 else ("yes" if current else "no") if isinstance(current, bool)
+                 else f"{current:g}" if isinstance(current, float) else current)
+        return f"{name} {shown}"
+    parsed = _parse(name, args[0], current)
+    setattr(settings, field_name, parsed)
+    return f"{name} {args[0]}"
+
+
+def _parse(name: str, text: str, current):
+    from . import advice
+
+    kinds = {"fittype": str, "defkey": str, "beta": "real?", "z1": "real?",
+             "z2": "real?", "floor": "real?", "ceiling": "real?"}
+    kind = kinds.get(name) or type(current)
+    try:
+        if kind is bool:
+            if text.lower() not in ("yes", "no", "y", "n"):
+                raise ValueError
+            return text.lower().startswith("y")
+        if kind == "real?":
+            return None if text.upper() == "INDEF" else float(text)
+        if kind is int:
+            return int(text)
+        if kind is float:
+            return float(text)
+    except ValueError:
+        advice.fail(f"':{name} {text}': '{text}' is not a value for {name}",
+                    f"give {name} a {'yes/no' if kind is bool else 'number'}")
+    if name == "fittype" and text not in ("gaussian", "moffat"):
+        advice.fail(f"':fittype {text}' is not a profile", "Profile fit types are "
+                    "|gaussian|moffat|")
+    return text
+
+
+#: Which fields each pset owns, for :unlearn.
+_PSET_FIELDS = {
+    "rimexam": ["radius", "buffer", "width", "rplot", "fittype", "beta", "iterations",
+                "magzero", "center", "background"],
+    "jimexam": ["naverage", "sigma", "jwidth", "jrplot", "jcenter", "jbackground",
+                "jxorder"],
+    "kimexam": ["knaverage", "ksigma", "kwidth", "krplot", "kcenter", "kbackground",
+                "kxorder"],
+    "limexam": ["lnaverage"], "cimexam": ["cnaverage"],
+    "himexam": ["ncolumns", "nlines", "nbins", "z1", "z2", "autoscale", "top_closed"],
+    "eimexam": ["encolumns", "enlines", "efloor", "eceiling", "zero", "ncontours",
+                "interval"],
+    "simexam": ["sncolumns", "snlines", "sfloor", "sceiling", "angh", "angv"],
+}

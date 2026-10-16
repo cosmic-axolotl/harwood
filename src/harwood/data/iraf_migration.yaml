@@ -554,7 +554,7 @@ tasks:
   imdkern: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   imexamine: {pkg: images.tv, domain: display, status: partial, milestone: mvp,
-    note: "keys r a m l c j k h x z, n and p, and imagecur for batch; no e (contour), s (surface), b, g, i, o, t, v or w keys, and no colon commands"}
+    note: "keys r a m l c j k h e s x z, n and p, IRAF's colon commands, and imagecur for batch; r a m j k z checked against IRAF's output; no b, g, i, o, t, u, v or w keys"}
   implot: {pkg: plot, domain: display, status: partial, milestone: mvp, harwood: implot,
     note: "plots lines and columns with the :l, :c, e, r, C and o keys; no contour, surface or overplot from a second image"}
   lumatch: {pkg: images.tv.iis, domain: display, status: wontport,
