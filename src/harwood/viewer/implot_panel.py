@@ -26,14 +26,8 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
-INK = "#d7dee5"
-MUTED = "#8b9aa8"
-GROUND = "#141a21"
-PANEL = "#1b222b"
-LINE = "#2a3541"
-ACCENT = "#e0a33e"
-SKY = "#4fb59b"
-OVER = ("#4fb59b", "#e0a33e", "#7db2d8", "#d2686a", "#a98fd0")
+from . import theme
+from .theme import palette as _c
 
 HELP = [
     ("l", "plot the line under the cursor"),
@@ -63,33 +57,20 @@ class ImplotPanel(QtWidgets.QWidget):
         self._cursor = (self.nx / 2, self.ny / 2)
         self._corner: tuple[float, float] | None = None
 
-        self.setStyleSheet(f"""
-            QWidget {{ background: {GROUND}; color: {INK};
-                font-family: "IBM Plex Sans", "DejaVu Sans", sans-serif;
-                font-size: 12px; }}
-            QLabel#status {{ background: {PANEL}; border-top: 1px solid {LINE};
-                padding: 5px 9px; font-family: "IBM Plex Mono", monospace;
-                font-size: 11px; }}
-            QLabel#keys {{ color: {MUTED}; font-family: "IBM Plex Mono", monospace;
-                font-size: 11px; padding: 4px 9px; }}
-            QLineEdit {{ background: {PANEL}; color: {INK}; border: 1px solid {LINE};
-                border-radius: 3px; padding: 4px 8px;
-                font-family: "IBM Plex Mono", monospace; }}
-            QLineEdit:focus {{ border-color: {ACCENT}; }}
-        """)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.plot = pg.PlotWidget()
-        self.plot.setBackground(GROUND)
+        self.plot.setBackground(_c().ground)
+        theme.follow(self, [self.plot])
         for axis in ("left", "bottom"):
             item = self.plot.getAxis(axis)
-            item.setPen(pg.mkPen(LINE))
-            item.setTextPen(pg.mkPen(MUTED))
+            item.setPen(pg.mkPen(_c().line))
+            item.setTextPen(pg.mkPen(_c().muted))
             item.enableAutoSIPrefix(False)
-        self.plot.setLabel("left", "counts", color=MUTED)
+        self.plot.setLabel("left", "counts", color=_c().muted)
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
         self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.plot.installEventFilter(self)
@@ -105,6 +86,7 @@ class ImplotPanel(QtWidgets.QWidget):
         layout.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()
+        self.command.setObjectName("command")
         self.command.setPlaceholderText(":l 250 260   ·   :c 335 350   ·   ? for the keys")
         self.command.returnPressed.connect(self._run_command)
         layout.addWidget(self.command)
@@ -138,11 +120,11 @@ class ImplotPanel(QtWidgets.QWidget):
         if not self.overplot:
             self.plot.clear()
             self.curves = 0
-        colour = OVER[self.curves % len(OVER)]
+        colour = _c().series[self.curves % len(_c().series)]
         self.plot.plot(x, y, pen=pg.mkPen(colour, width=1.2))
         self.curves += 1
-        self.plot.setLabel("bottom", xlabel, color=MUTED)
-        self.plot.setTitle(f"implot · {self.name} · {label}", color=INK, size="10pt")
+        self.plot.setLabel("bottom", xlabel, color=_c().muted)
+        self.plot.setTitle(f"implot · {self.name} · {label}", color=_c().ink, size="10pt")
         if not self.overplot:
             self.plot.autoRange(padding=0.02)
         self.last = (x, y, label)

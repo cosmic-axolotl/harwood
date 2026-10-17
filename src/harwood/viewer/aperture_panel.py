@@ -32,16 +32,9 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import apextract
+from . import theme
 from ._qt import application
-
-INK = "#d7dee5"
-MUTED = "#8b9aa8"
-GROUND = "#141a21"
-PANEL = "#1b222b"
-LINE = "#2a3541"
-ACCENT = "#e0a33e"
-SKY = "#4fb59b"
-BAND = "#7db2d8"
+from .theme import palette as _c
 
 HELP = [
     ("a", "add an aperture at the cursor"),
@@ -73,34 +66,21 @@ class AperturePanel(QtWidgets.QWidget):
         self._cursor = float(self.profile.size / 2)
         self._pending_band: float | None = None
 
-        self.setStyleSheet(f"""
-            QWidget {{ background: {GROUND}; color: {INK};
-                font-family: "IBM Plex Sans", "DejaVu Sans", sans-serif;
-                font-size: 12px; }}
-            QLabel#status {{ background: {PANEL}; border-top: 1px solid {LINE};
-                padding: 5px 9px; font-family: "IBM Plex Mono", monospace;
-                font-size: 11px; }}
-            QLabel#keys {{ color: {MUTED}; font-family: "IBM Plex Mono", monospace;
-                font-size: 11px; padding: 4px 9px; }}
-            QLineEdit {{ background: {PANEL}; color: {INK}; border: 1px solid {LINE};
-                border-radius: 3px; padding: 4px 8px;
-                font-family: "IBM Plex Mono", monospace; }}
-            QLineEdit:focus {{ border-color: {ACCENT}; }}
-        """)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.plot = pg.PlotWidget()
-        self.plot.setBackground(GROUND)
+        self.plot.setBackground(_c().ground)
+        theme.follow(self, [self.plot], lambda: self.redraw())
         for name in ("left", "bottom"):
             axis = self.plot.getAxis(name)
-            axis.setPen(pg.mkPen(LINE))
-            axis.setTextPen(pg.mkPen(MUTED))
+            axis.setPen(pg.mkPen(_c().line))
+            axis.setTextPen(pg.mkPen(_c().muted))
             axis.enableAutoSIPrefix(False)
-        self.plot.setLabel("bottom", "across the slit (pixels)", color=MUTED)
-        self.plot.setLabel("left", "summed counts", color=MUTED)
+        self.plot.setLabel("bottom", "across the slit (pixels)", color=_c().muted)
+        self.plot.setLabel("left", "summed counts", color=_c().muted)
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
         self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.plot.installEventFilter(self)
@@ -116,6 +96,7 @@ class AperturePanel(QtWidgets.QWidget):
         layout.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()
+        self.command.setObjectName("command")
         self.command.setPlaceholderText(
             ":lower -4   ·   :upper 4   ·   :centre 53.9   ·   ? for the keys")
         self.command.returnPressed.connect(self._run_command)
@@ -128,7 +109,7 @@ class AperturePanel(QtWidgets.QWidget):
 
     def redraw(self) -> None:
         self.plot.clear()
-        self.plot.plot(self.across, self.profile, pen=pg.mkPen(SKY, width=1.2))
+        self.plot.plot(self.across, self.profile, pen=pg.mkPen(_c().sky, width=1.2))
 
         span = float(np.ptp(self.profile)) or 1.0
         floor = float(self.profile.min())
@@ -136,8 +117,8 @@ class AperturePanel(QtWidgets.QWidget):
             chosen = index == self.selected
             width = 2.0 if chosen else 1.2
             centre = aperture["centre"]
-            for offset, colour in ((aperture["low"], ACCENT),
-                                   (aperture["high"], ACCENT)):
+            for offset, colour in ((aperture["low"], _c().accent),
+                                   (aperture["high"], _c().accent)):
                 self.plot.addItem(pg.InfiniteLine(
                     centre + offset, angle=90,
                     pen=pg.mkPen(colour, width=width,
@@ -145,10 +126,10 @@ class AperturePanel(QtWidgets.QWidget):
                                  else QtCore.Qt.PenStyle.DashLine)))
             self.plot.addItem(pg.InfiniteLine(
                 centre, angle=90,
-                pen=pg.mkPen(ACCENT if chosen else MUTED, width=width,
+                pen=pg.mkPen(_c().accent if chosen else _c().muted, width=width,
                              style=QtCore.Qt.PenStyle.DotLine)))
 
-            label = pg.TextItem(f"{index + 1}", color=ACCENT if chosen else MUTED,
+            label = pg.TextItem(f"{index + 1}", color=_c().accent if chosen else _c().muted,
                                 anchor=(0.5, 1.0))
             label.setPos(centre, floor + 0.95 * span)
             self.plot.addItem(label)
@@ -159,13 +140,13 @@ class AperturePanel(QtWidgets.QWidget):
                                    centre + aperture["low"] - inner),
                                   (centre + aperture["high"] + inner,
                                    centre + aperture["high"] + outer)):
-                    region = pg.LinearRegionItem([low, high], movable=False,
-                                                 brush=pg.mkBrush(125, 178, 216, 40))
+                    fill = pg.mkBrush(theme.translucent(_c().band, 40))
+                    region = pg.LinearRegionItem([low, high], movable=False, brush=fill)
                     region.setZValue(-10)
                     self.plot.addItem(region)
 
         self.plot.setTitle(f"apedit · {len(self.apertures)} aperture(s)",
-                           color=INK, size="10pt")
+                           color=_c().ink, size="10pt")
         self._update_status()
 
     def _update_status(self) -> None:

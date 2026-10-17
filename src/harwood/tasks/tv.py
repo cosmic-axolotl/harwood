@@ -14,15 +14,21 @@ numbers the window would have shown.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
 
 from ..core import advice
 from ..core.registry import register
-from ..core.task import Step, Task, TaskParams, TaskResult
+from ..core.task import Step, Task, TaskParams, TaskResult, Template
 
 WHY = {
+    "render": "The same arithmetic as the window: limits, then the transfer "
+              "function, then the colour map -- so the picture is what was on "
+              "screen, at the image's own resolution.",
+    "export": "A picture for a talk, a report or a message. It is not data: "
+              "the FITS file keeps the numbers.",
     "show": "The picture on the screen is scaled to the display limits and "
             "stretched; the pixels underneath are not touched. Every number the "
             "window reports -- the value under the cursor, a profile, a "
@@ -76,6 +82,79 @@ class DisplayParams(TaskParams):
         True, description="Keep the window open until it is closed. --no-wait "
                           "returns at once; inside harwood gui it never waits.",
     )
+
+
+class ImPictureParams(TaskParams):
+    input: list[str] = Field(..., description="Images to export. Globs, @lists, [SCI,1] "
+                             "and sections are accepted.")
+    output: Template = Field(..., description="The picture: a name ending in .png, .jpg, "
+                             ".tif or .webp, a list of them, a directory (each image's "
+                             "own name, as PNG), or a template like '%.fits%.png%'.")
+    scale: Literal["zscale", "minmax", "99.5%"] = Field(
+        "zscale", description="How the display limits are chosen, as in the window.")
+    stretch: Literal["linear", "sqrt", "log", "asinh"] = Field(
+        "linear", description="Transfer function from the limits to the colours.")
+    colormap: Literal["grey", "viridis", "cividis", "magma", "heat", "cool", "sepia"] = Field(
+        "grey", description="Colour map. viridis, cividis and magma read the same with "
+                            "colour-vision deficiencies; cividis was made for them.")
+    z1: float | None = Field(None, description="Lower display limit; with z2, overrides "
+                             "scale.")
+    z2: float | None = Field(None, description="Upper display limit.")
+
+
+@register
+class ImPicture(Task[ImPictureParams]):
+    """Write an image as a picture, as the window shows it: the same limits,
+    stretch and colours give the same pixels as File > Export image. The
+    whole frame at its own resolution, north as in the FITS file (row 1 at
+    the bottom). PNG needs nothing installed; JPEG, TIFF and WebP need the
+    window's extra, harwood[gui].
+
+    Not IRAF's export, which writes raw and old raster formats with its own
+    parameters: a different task, so a different name."""
+
+    name = "impicture"
+    package = "tv"
+    description = "Write images as PNG, JPEG, TIFF or WebP pictures, as displayed."
+    Params = ImPictureParams
+
+    def plan(self, params: ImPictureParams) -> list[Step]:
+        limits = (f"z1={params.z1:g} z2={params.z2:g}"
+                  if params.z1 is not None and params.z2 is not None else params.scale)
+        return [Step("render", f"{limits}, {params.stretch}, {params.colormap}",
+                     why=WHY["render"]),
+                Step("write", str(params.output), why=WHY["export"])]
+
+    def execute(self, params: ImPictureParams) -> TaskResult:
+        from ..core import images, render
+        from ..viewer.png import save_rgb
+
+        specs = images.expand(params.input)
+        if not specs:
+            advice.fail(f"'{' '.join(params.input)}' matches no image",
+                        "check the name, or run `harwood sections` on the template",
+                        FileNotFoundError)
+        output = params.output
+        if Path(output).is_dir():
+            targets = [Path(output) / (spec.path.stem + ".png") for spec in specs]
+        else:
+            targets = images.outputs_for(specs, output)
+        window = ((params.z1, params.z2)
+                  if params.z1 is not None and params.z2 is not None else None)
+        rows = []
+        for spec, target in zip(specs, targets, strict=True):
+            data, _ = images.read(spec)
+            if data.ndim != 2:
+                advice.fail(f"{spec} is {data.ndim}-dimensional; a picture is a plane",
+                            "name one plane, e.g. 'cube.fits[*,*,1]', or one extension")
+            low, high = window or render.limits(data, params.scale)
+            pixels = render.rgb(data, params.scale, params.stretch, params.colormap,
+                                window=(low, high))
+            save_rgb(pixels, target)
+            rows.append({"image": str(spec), "picture": str(target),
+                         "z1": round(low, 4), "z2": round(high, 4)})
+        return TaskResult(outputs=[Path(r["picture"]) for r in rows],
+                          data={"rows": rows}, steps=self.plan(params))
 
 
 @register

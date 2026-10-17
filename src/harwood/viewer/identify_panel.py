@@ -24,7 +24,9 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import arc, icfit
-from .icfit_panel import ACCENT, GROUND, INK, LINE, MUTED, PANEL, SKY, IcfitPanel
+from . import theme
+from .icfit_panel import IcfitPanel
+from .theme import palette as _c
 
 HELP = [
     ("m", "mark the line nearest the cursor, then type its wavelength"),
@@ -57,31 +59,19 @@ class IdentifyPanel(QtWidgets.QWidget):
         self._cursor = float(self.flux.size / 2)
         self._pending: float | None = None
 
-        self.setStyleSheet(f"""
-            QWidget {{ background: {GROUND}; color: {INK};
-                font-family: "IBM Plex Sans", "DejaVu Sans", sans-serif; font-size: 12px; }}
-            QLabel#status {{ background: {PANEL}; border-top: 1px solid {LINE};
-                padding: 5px 9px; font-family: "IBM Plex Mono", monospace;
-                font-size: 11px; }}
-            QLabel#keys {{ color: {MUTED}; font-family: "IBM Plex Mono", monospace;
-                font-size: 11px; padding: 4px 9px; }}
-            QLineEdit {{ background: {PANEL}; color: {INK}; border: 1px solid {LINE};
-                border-radius: 3px; padding: 4px 8px;
-                font-family: "IBM Plex Mono", monospace; }}
-            QLineEdit:focus {{ border-color: {ACCENT}; }}
-        """)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.arc_plot = pg.PlotWidget()
-        self.arc_plot.setBackground(GROUND)
+        self.arc_plot.setBackground(_c().ground)
+        theme.follow(self, [self.arc_plot], lambda: self.redraw_arc())
         for name in ("left", "bottom"):
-            self.arc_plot.getAxis(name).setPen(pg.mkPen(LINE))
-            self.arc_plot.getAxis(name).setTextPen(pg.mkPen(MUTED))
-        self.arc_plot.setLabel("bottom", "pixel", color=MUTED)
-        self.arc_plot.setLabel("left", "counts", color=MUTED)
+            self.arc_plot.getAxis(name).setPen(pg.mkPen(_c().line))
+            self.arc_plot.getAxis(name).setTextPen(pg.mkPen(_c().muted))
+        self.arc_plot.setLabel("bottom", "pixel", color=_c().muted)
+        self.arc_plot.setLabel("left", "counts", color=_c().muted)
         self.arc_plot.scene().sigMouseMoved.connect(self._mouse_moved)
         self.arc_plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.arc_plot.installEventFilter(self)
@@ -104,6 +94,7 @@ class IdentifyPanel(QtWidgets.QWidget):
         layout.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()
+        self.command.setObjectName("command")
         self.command.setPlaceholderText(
             "press m over a line, or type :order 3 / :function chebyshev")
         self.command.returnPressed.connect(self._run_command)
@@ -117,12 +108,12 @@ class IdentifyPanel(QtWidgets.QWidget):
 
     def redraw_arc(self) -> None:
         self.arc_plot.clear()
-        self.arc_plot.plot(self.pixels, self.flux, pen=pg.mkPen(SKY, width=1))
+        self.arc_plot.plot(self.pixels, self.flux, pen=pg.mkPen(_c().sky, width=1))
 
         span = float(self.flux.max() - self.flux.min()) or 1.0
         for peak in self.peaks:
             self.arc_plot.addItem(pg.InfiniteLine(
-                peak.pixel, angle=90, pen=pg.mkPen(LINE, width=1)))
+                peak.pixel, angle=90, pen=pg.mkPen(_c().line, width=1)))
         # Every identification gets its marker; only those with room get their
         # wavelength written. An arc is crowded, and labels printed on top of
         # one another are worse than no labels -- they read as one wrong number.
@@ -130,17 +121,17 @@ class IdentifyPanel(QtWidgets.QWidget):
         last_labelled = -1e9
         for pixel, wavelength in zip(self.marked_pixel, self.marked_wavelength, strict=False):
             self.arc_plot.addItem(pg.InfiniteLine(
-                pixel, angle=90, pen=pg.mkPen(ACCENT, width=1.4)))
+                pixel, angle=90, pen=pg.mkPen(_c().accent, width=1.4)))
             if pixel - last_labelled < spacing:
                 continue
             last_labelled = pixel
-            label = pg.TextItem(f"{wavelength:.2f}", color=ACCENT, anchor=(0.5, 1.1),
+            label = pg.TextItem(f"{wavelength:.2f}", color=_c().accent, anchor=(0.5, 1.1),
                                 angle=90)
             label.setPos(pixel, self.flux.min() + 0.82 * span)
             self.arc_plot.addItem(label)
         self.arc_plot.setTitle(
             f"identify · {len(self.marked_pixel)} lines marked of "
-            f"{len(self.peaks)} found", color=INK, size="10pt")
+            f"{len(self.peaks)} found", color=_c().ink, size="10pt")
 
     def refit(self) -> None:
         # Always from the lines marked now, however few. The panel starts from

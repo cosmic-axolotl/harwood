@@ -17,27 +17,17 @@ from pathlib import Path
 from PySide6 import QtGui, QtWidgets
 
 from ._qt import application
+from .theme import palette as _c
 
-INK = "#d7dee5"
-MUTED = "#8b9aa8"
-GROUND = "#141a21"
-PANEL = "#1b222b"
-LINE = "#2a3541"
-ACCENT = "#e0a33e"
-COMMENT = "#7f93a6"
 
-STYLE = f"""
-QWidget {{ background: {GROUND}; color: {INK};
-    font-family: "IBM Plex Sans", "DejaVu Sans", sans-serif; font-size: 12px; }}
-QPlainTextEdit {{ background: {GROUND}; color: {INK}; border: none;
-    font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace; font-size: 12px;
-    selection-background-color: {LINE}; }}
-QLabel#hint {{ color: {MUTED}; padding: 6px 10px; background: {PANEL};
-    border-top: 1px solid {LINE}; }}
-QPushButton {{ background: {PANEL}; color: {INK}; border: 1px solid {LINE};
-    border-radius: 3px; padding: 5px 14px; }}
-QPushButton:hover {{ border-color: {ACCENT}; }}
-QPushButton#save {{ color: {ACCENT}; font-weight: 600; }}
+def _style() -> str:
+    """What the editor adds to the window's look: the hint bar and the save
+    button. Sizes and fonts come from the theme, like everything else."""
+    c = _c()
+    return f"""
+QLabel#hint {{ color: {c.muted}; padding: 6px 10px; background: {c.panel};
+    border-top: 1px solid {c.line}; }}
+QPushButton#save {{ color: {c.accent}; font-weight: 600; }}
 """
 
 
@@ -48,11 +38,11 @@ class CommentHighlighter(QtGui.QSyntaxHighlighter):
         stripped = text.lstrip()
         if stripped.startswith("#"):
             comment = QtGui.QTextCharFormat()
-            comment.setForeground(QtGui.QColor(COMMENT))
+            comment.setForeground(QtGui.QColor(_c().comment))
             self.setFormat(0, len(text), comment)
         elif "=" in text:
             value = QtGui.QTextCharFormat()
-            value.setForeground(QtGui.QColor(ACCENT))
+            value.setForeground(QtGui.QColor(_c().accent))
             start = text.index("=") + 1
             self.setFormat(start, len(text) - start, value)
 
@@ -66,7 +56,10 @@ class Editor(QtWidgets.QDialog):
         self.saved = False
         self.setWindowTitle(title or f"harwood · {self.path.name}")
         self.resize(860, 720)
-        self.setStyleSheet(STYLE)
+        from . import theme
+
+        theme.apply()
+        self.setStyleSheet(_style())
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

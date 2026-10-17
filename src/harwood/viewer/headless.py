@@ -42,15 +42,13 @@ class HeadlessDisplay:
 
     def _render(self, frame: int) -> None:
         import numpy as np
-        from astropy.visualization import ZScaleInterval
 
+        from ..core import render
         from .png import write_grey
 
         data, _, scale = self._frames[frame]
-        if scale == "zscale":
-            low, high = ZScaleInterval().get_limits(data)
-        else:
-            low, high = float(np.nanmin(data)), float(np.nanmax(data))
-        scaled = np.clip((np.asarray(data) - low) / max(high - low, 1e-12), 0, 1)
+        # The window's limits, so the picture shows what the window would.
+        low, high = render.limits(data, scale if scale in render.SCALES else "minmax")
+        scaled = np.nan_to_num(render.stretch(data, low, high), nan=0.0)
         # FITS counts rows from the bottom and PNG from the top.
         write_grey(self.output, scaled[::-1] * 255)

@@ -30,15 +30,8 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import icfit
-
-ACCENT = "#e0a33e"
-SKY = "#4fb59b"
-DROP = "#d2686a"
-INK = "#d7dee5"
-MUTED = "#8b9aa8"
-GROUND = "#141a21"
-PANEL = "#1b222b"
-LINE = "#2a3541"
+from . import theme
+from .theme import palette as _c
 
 AXES = ("data", "residuals", "ratio")
 
@@ -71,37 +64,25 @@ class IcfitPanel(QtWidgets.QWidget):
         self.title = title
         self._cursor = (float(self.xdata.mean()), float(self.ydata.mean()))
 
-        self.setStyleSheet(f"""
-            QWidget {{ background: {GROUND}; color: {INK};
-                font-family: "IBM Plex Sans", "DejaVu Sans", sans-serif; font-size: 12px; }}
-            QLabel#status {{ background: {PANEL}; border-top: 1px solid {LINE};
-                padding: 5px 9px; font-family: "IBM Plex Mono", monospace;
-                font-size: 11px; }}
-            QLabel#keys {{ color: {MUTED}; font-family: "IBM Plex Mono", monospace;
-                font-size: 11px; padding: 4px 9px; }}
-            QLineEdit {{ background: {PANEL}; color: {INK}; border: 1px solid {LINE};
-                border-radius: 3px; padding: 4px 8px;
-                font-family: "IBM Plex Mono", monospace; }}
-            QLineEdit:focus {{ border-color: {ACCENT}; }}
-        """)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.plot = pg.PlotWidget()
-        self.plot.setBackground(GROUND)
+        self.plot.setBackground(_c().ground)
+        theme.follow(self, [self.plot], lambda: self.redraw())
         for name in ("left", "bottom"):
             axis = self.plot.getAxis(name)
-            axis.setPen(pg.mkPen(LINE))
-            axis.setTextPen(pg.mkPen(MUTED))
+            axis.setPen(pg.mkPen(_c().line))
+            axis.setTextPen(pg.mkPen(_c().muted))
             # Without this pyqtgraph factors a power of ten out of the tick
             # labels and appends it to the axis title, which then no longer
             # fits and is cut -- leaving a residual axis labelled "(x0.0".
             axis.enableAutoSIPrefix(False)
         self.ylabel = ylabel
-        self.plot.setLabel("bottom", xlabel, color=MUTED)
-        self.plot.setLabel("left", ylabel, color=MUTED)
+        self.plot.setLabel("bottom", xlabel, color=_c().muted)
+        self.plot.setLabel("left", ylabel, color=_c().muted)
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
         layout.addWidget(self.plot, stretch=1)
 
@@ -115,6 +96,7 @@ class IcfitPanel(QtWidgets.QWidget):
         layout.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()
+        self.command.setObjectName("command")
         self.command.setPlaceholderText(":order 3   ·   press a key over the plot, "
                                         "or type a colon command here")
         self.command.returnPressed.connect(self._run_command)
@@ -150,19 +132,20 @@ class IcfitPanel(QtWidgets.QWidget):
             values = self.ydata
             curve_y = None
             label = self.ylabel or "data"
-        self.plot.setLabel("left", label, color=MUTED)
+        self.plot.setLabel("left", label, color=_c().muted)
 
-        self._scatter(self.xdata[used], values[used], SKY, 5.0)
-        self._scatter(self.xdata[rejected], values[rejected], DROP, 6.5, symbol="x")
-        self._scatter(self.xdata[self.deleted], values[self.deleted], MUTED, 7.0, symbol="s")
+        self._scatter(self.xdata[used], values[used], _c().sky, 5.0)
+        self._scatter(self.xdata[rejected], values[rejected], _c().drop, 6.5, symbol="x")
+        self._scatter(self.xdata[self.deleted], values[self.deleted], _c().muted, 7.0,
+                      symbol="s")
 
         if self.fit.model is not None:
             grid = np.linspace(float(self.xdata.min()), float(self.xdata.max()), 400)
             curve = (np.interp(grid, self.xdata, curve_y) if curve_y is not None
                      else self.fit(grid))
-            self.plot.plot(grid, curve, pen=pg.mkPen(ACCENT, width=2))
+            self.plot.plot(grid, curve, pen=pg.mkPen(_c().accent, width=2))
 
-        self.plot.setTitle(self.title, color=INK, size="10pt")
+        self.plot.setTitle(self.title, color=_c().ink, size="10pt")
         self.status.setText(self._status_text())
 
     def _scatter(self, x, y, colour, size, symbol="o") -> None:

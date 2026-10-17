@@ -22,17 +22,19 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import arc, species
-from .icfit_panel import ACCENT, GROUND, INK, LINE, MUTED, PANEL, SKY
+from . import theme
+from .theme import palette as _c
 
 #: One colour per origin. Telluric is deliberately the odd one out -- it is
 #: the only category that is not in the object at all.
-COLOURS = {
-    "stellar": ACCENT,
-    "nebular": SKY,
-    "interstellar": "#b48ead",
-    "telluric": "#d16a6a",
-    "lamp": MUTED,
-}
+CATEGORIES = ("stellar", "nebular", "interstellar", "telluric", "lamp")
+
+
+def colours() -> dict[str, str]:
+    """The colour of each origin, from the theme in force."""
+    c = _c()
+    return {"stellar": c.accent, "nebular": c.sky, "interstellar": c.interstellar,
+            "telluric": c.telluric, "lamp": c.muted}
 
 HELP = [
     ("s / n / i / t", "show or hide stellar, nebular, interstellar, telluric"),
@@ -59,7 +61,7 @@ class SpeciesPanel(QtWidgets.QWidget):
         self.tolerance = float(tolerance)
         self.prominence = 2
         self.detected_only = False
-        self.showing = {name: True for name in COLOURS}
+        self.showing = {name: True for name in CATEGORIES}
         self._marks: list = []
 
         self.detected = self._detect()
@@ -68,23 +70,21 @@ class SpeciesPanel(QtWidgets.QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
-        self.plot = pg.PlotWidget(background=GROUND)
+        self.plot = pg.PlotWidget(background=_c().ground)
+        theme.follow(self, [self.plot], lambda: self._redraw())
         self.plot.showGrid(x=True, y=True, alpha=0.15)
         self.plot.setLabel("bottom", "wavelength", units="A")
         self.plot.setLabel("left", "flux")
-        self.plot.plot(self.wave, self.flux, pen=pg.mkPen(INK, width=1))
+        self.plot.plot(self.wave, self.flux, pen=pg.mkPen(_c().ink, width=1))
         layout.addWidget(self.plot, 1)
 
         self.status = QtWidgets.QLabel()
-        self.status.setStyleSheet(
-            f"background:{PANEL}; color:{MUTED}; padding:6px; "
-            f"border:1px solid {LINE}; font-family:monospace;")
+        self.status.setObjectName("status")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
 
         self.entry = QtWidgets.QLineEdit()
-        self.entry.setStyleSheet(
-            f"background:{PANEL}; color:{INK}; border:1px solid {LINE}; padding:4px;")
+        self.entry.setObjectName("command")
         self.entry.hide()
         self.entry.returnPressed.connect(self._took_velocity)
         layout.addWidget(self.entry)
@@ -125,7 +125,7 @@ class SpeciesPanel(QtWidgets.QWidget):
 
         top = float(np.nanmax(self.flux))
         for mark in self._wanted():
-            colour = COLOURS.get(mark.colour_key, MUTED)
+            colour = colours().get(mark.colour_key, _c().muted)
             rule = pg.InfiniteLine(
                 pos=mark.at, angle=90,
                 pen=pg.mkPen(colour, width=2 if mark.detected else 1,

@@ -28,89 +28,32 @@ the habit transfers.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from ..core import examine, logfile, pixels
+from ..core import examine, logfile, pixels, render
 from ..core.display import Marker
+from . import theme
+from .theme import palette as _c
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=False)
 
-#: Dark, low-saturation, and quiet: the image is the only thing that should
-#: pull the eye. Sized to sit beside a terminal at night without glare.
-INK = "#d7dee5"
-MUTED = "#8b9aa8"
-PANEL = "#1b222b"
-GROUND = "#141a21"
-LINE = "#2a3541"
-ACCENT = "#e0a33e"
-SKY = "#4fb59b"
-
-#: Text sizes in points at scale 1.0, and the range Ctrl+/Ctrl- moves through.
-#: Points rather than pixels: a pixel size ignores the display's own scaling,
-#: which is how text ends up unreadable on a high-density screen and enormous
-#: on a projector.
-BASE = {"body": 9.0, "mono": 8.5, "small": 8.0}
-SCALES = (0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.4, 1.6, 1.8, 2.0, 2.3)
+#: The look -- colours, fonts, text size -- lives in theme.py: dark or light,
+#: colour-blind safe or not, dyslexia friendly or not, all from one switch.
+SCALES = theme.SCALES
+COLORMAPS = render.COLORMAPS
 
 
 def stylesheet(scale: float = 1.0) -> str:
-    """The window's appearance at a given text scale.
+    """The window's appearance at a given text scale (in the theme in force)."""
+    current = theme.current()
+    prefs = replace(current.preferences, scale=scale, autoscale=False)
+    return replace(current, preferences=prefs).stylesheet()
 
-    Everything that sets a size does it through `BASE`, so one number moves
-    the whole interface together. Anything that hard-codes a width in pixels
-    -- a label column, a fixed field -- has to be scaled alongside it or the
-    text outgrows its box, which is the usual way a zoom feature half works.
-    """
-    body = BASE["body"] * scale
-    mono = BASE["mono"] * scale
-    small = BASE["small"] * scale
-    return f"""
-QMainWindow, QWidget {{ background: {GROUND}; color: {INK};
-    font-family: "IBM Plex Sans", "DejaVu Sans", sans-serif;
-    font-size: {body:.1f}pt; }}
-QDockWidget {{ color: {MUTED}; titlebar-close-icon: none;
-    font-size: {body:.1f}pt; }}
-QDockWidget::title {{ background: {PANEL}; padding: {5 * scale:.0f}px 9px;
-    border-bottom: 1px solid {LINE}; font-weight: 600; }}
-QToolBar {{ background: {PANEL}; border-bottom: 1px solid {LINE}; spacing: 7px;
-    padding: 4px 8px; }}
-QComboBox, QLineEdit {{ background: {GROUND}; color: {INK};
-    border: 1px solid {LINE}; border-radius: 3px; padding: 3px 7px;
-    font-size: {body:.1f}pt;
-    selection-background-color: {ACCENT}; }}
-QComboBox::drop-down {{ border: none; width: {16 * scale:.0f}px; }}
-QLineEdit:focus, QComboBox:focus {{ border-color: {ACCENT}; }}
-QToolButton {{ color: {INK}; padding: 3px 9px; border-radius: 3px;
-    font-size: {body:.1f}pt; }}
-QToolButton:hover {{ background: {LINE}; }}
-QPlainTextEdit {{ background: {GROUND}; color: {INK}; border: none;
-    font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace;
-    font-size: {mono:.1f}pt; }}
-QStatusBar {{ background: {PANEL}; border-top: 1px solid {LINE}; color: {INK};
-    font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace;
-    font-size: {mono:.1f}pt; }}
-QLabel#hint {{ color: {MUTED}; font-size: {small:.1f}pt; }}
-QLabel#readout {{ font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace;
-    font-size: {mono:.1f}pt; color: {INK}; }}
-QLabel#param {{ color: {MUTED}; font-weight: 600; font-size: {body:.1f}pt; }}
-QToolTip {{ background: {PANEL}; color: {INK}; border: 1px solid {LINE};
-    padding: 4px; font-size: {small:.1f}pt; }}
-"""
-
-
-#: Kept for anything that wants the default appearance without asking.
-STYLE = stylesheet()
-
-COLORMAPS = {
-    "grey": [(0, 0, 0), (255, 255, 255)],
-    "heat": [(0, 0, 0), (178, 34, 34), (255, 170, 0), (255, 255, 224)],
-    "cool": [(6, 12, 33), (32, 84, 140), (86, 176, 186), (238, 248, 230)],
-    "sepia": [(12, 9, 6), (120, 78, 46), (214, 170, 116), (255, 246, 232)],
-}
 
 #: What each key does, shown in the session log on `?`. The measuring keys
 #: come from `core.examine`, so the window cannot list a key it cannot answer.
@@ -166,17 +109,7 @@ class Frame:
             return None
 
     def limits(self, scale: str) -> tuple[float, float]:
-        finite = self.data[np.isfinite(self.data)]
-        if finite.size == 0:
-            return 0.0, 1.0
-        if scale == "minmax":
-            return float(finite.min()), float(finite.max())
-        if scale == "99.5%":
-            return tuple(float(v) for v in np.percentile(finite, [0.25, 99.75]))
-        from astropy.visualization import ZScaleInterval
-
-        low, high = ZScaleInterval().get_limits(finite)
-        return float(low), float(high)
+        return render.limits(self.data, scale)
 
 
 class HarwoodWindow(QtWidgets.QMainWindow):
@@ -195,11 +128,18 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         # is annoying about IRAF's.
         self.resize(1500, 900)
         self.setMinimumSize(640, 420)
-        self.text_scale = 1.0
         self._param_labels: list[QtWidgets.QLabel] = []
         self._fixed_widths: list[tuple[QtWidgets.QWidget, int]] = []
         self._hints: list[tuple[QtWidgets.QLabel, str]] = []
-        self.setStyleSheet(stylesheet(self.text_scale))
+        self._follow_system_scheme()
+        theme.apply()
+        theme.on_change(self._restyle)
+        # Text that follows the window's size: recomputed a moment after the
+        # last resize, so dragging a corner does not restyle on every pixel.
+        self._resize_timer = QtCore.QTimer(self)
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.setInterval(120)
+        self._resize_timer.timeout.connect(self._follow_window_size)
 
         self.frames: dict[int, Frame] = {}
         self.current = 1
@@ -216,6 +156,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._blink_timer = QtCore.QTimer(self)
         self._blink_timer.timeout.connect(self._blink_step)
 
+        self._build_menus()
         self._build_toolbar()
         self._build_image()
         self._build_examine()
@@ -260,6 +201,12 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         bind(("Ctrl+M",), self.toggle_maximised)
         bind(("Ctrl+Shift+R",), self.reset_layout)
 
+    @property
+    def text_scale(self) -> float:
+        """The person's own text size (Ctrl+/Ctrl-); the window's size, when
+        autoscale is on, multiplies it."""
+        return theme.current().preferences.scale
+
     def zoom_text(self, direction: int) -> None:
         """One step up or down the scale, stopping at the ends."""
         current = min(range(len(SCALES)),
@@ -272,30 +219,74 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                      f" ({self.text_scale:.2f}x).")
 
     def set_text_scale(self, scale: float) -> None:
-        """Resize every piece of text in the window together.
+        """Resize every piece of text in the window together."""
+        theme.update(scale=float(scale))
+        self.log(f"text scale {self.text_scale:.2f}x"
+                 + ("  (Ctrl+0 to reset)" if self.text_scale != 1.0 else ""))
 
-        The stylesheet carries the sizes, so most of this is one assignment.
-        The exception is anything that fixed a width in pixels to line a
-        column up: those have to move with the text or it outgrows its box --
-        which is the usual way a zoom feature half works.
-        """
-        self.text_scale = float(scale)
-        self.setStyleSheet(stylesheet(self.text_scale))
-
-        metrics = QtGui.QFontMetrics(self.font())
+    def _restyle(self) -> None:
+        """The theme changed: colours, fonts or size. Everything that is not
+        carried by the stylesheet is redone here -- plot colours, and any
+        width fixed in pixels to line a column up, which has to move with
+        the text or the text outgrows its box (the usual way a zoom feature
+        half works)."""
+        current = theme.current()
+        self.setStyleSheet("")                    # the application's applies
+        scale = current.scale
+        metrics = QtGui.QFontMetrics(QtWidgets.QApplication.font())
         width = max(62, int(metrics.horizontalAdvance("fittype") * 1.7))
         for label in self._param_labels:
             label.setFixedWidth(width)
             label.setContentsMargins(0, 0, 0, 0)
         for widget, original in self._fixed_widths:
-            widget.setFixedWidth(int(original * self.text_scale))
+            widget.setFixedWidth(int(original * scale))
         for label, text in self._hints:
             _size_hint(label, text, width + 6)
         if hasattr(self, "params_dock"):
-            self.params_dock.setMinimumWidth(int(220 * self.text_scale))
+            self.params_dock.setMinimumWidth(int(220 * scale))
+        if hasattr(self, "graphics"):
+            self.graphics.setBackground(_c().ground)
+        if hasattr(self, "plot"):
+            theme.style_plot(self.plot)
+            if self.measurements:
+                last = self.measurements[-1][1]
+                if last.plot is not None:
+                    self._plot(last)
+        if hasattr(self, "session"):
+            _line_height(self.session, current.line_height)
+        if self.frames:
+            self._draw_overlay(self.frames[self.current])
+        self._sync_menus()
 
-        self.log(f"text scale {self.text_scale:.2f}x"
-                 + ("  (Ctrl+0 to reset)" if self.text_scale != 1.0 else ""))
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_resize_timer"):
+            self._resize_timer.start()
+
+    def _follow_window_size(self) -> None:
+        """autoscale: text grows and shrinks with the window, from 1.0 at the
+        size it opens with, within 0.75x and 1.75x of the person's own."""
+        if not theme.current().preferences.autoscale:
+            return
+        factor = min(self.width() / 1500, self.height() / 900)
+        factor = round(max(0.75, min(1.75, factor)), 2)
+        if abs(factor - theme.current().window_factor) >= 0.03:
+            theme.update(window_factor=factor, save=False)
+
+    def _follow_system_scheme(self) -> None:
+        """theme=system: what the desktop says, now and when it changes."""
+        hints = QtGui.QGuiApplication.styleHints()
+        scheme = getattr(hints, "colorScheme", None)
+        if scheme is None:
+            return
+
+        def read(*_):
+            dark = hints.colorScheme() != QtCore.Qt.ColorScheme.Light
+            if dark != theme.current().system_dark:
+                theme.update(system_dark=dark, save=False)
+
+        read()
+        hints.colorSchemeChanged.connect(read)
 
     def toggle_full_screen(self) -> None:
         """F11. Leaves the window where it was, rather than maximised."""
@@ -324,6 +315,169 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.log("panels back where they started.")
 
     # ------------------------------------------------------------ building
+
+    def _build_menus(self) -> None:
+        """File (export) and View (the look). Every choice also has words and
+        a check mark, never colour alone."""
+        bar = self.menuBar()
+        files = bar.addMenu("&File")
+        for label, slot, shortcut in (
+            ("Export image...", self.export_image, "Ctrl+E"),
+            ("Export view (with marks)...", self.export_view, "Ctrl+Shift+E"),
+            ("Export plot...", self.export_plot, "Ctrl+Alt+E"),
+        ):
+            action = files.addAction(label)
+            action.setShortcut(QtGui.QKeySequence(shortcut))
+            action.triggered.connect(slot)
+        files.addSeparator()
+        files.addAction("Close window", self.close)
+
+        view = bar.addMenu("&View")
+        self._theme_actions = {}
+        group = QtGui.QActionGroup(self)
+        for name, label in (("dark", "Dark"), ("light", "Light"),
+                            ("system", "Follow the system")):
+            action = view.addAction(label)
+            action.setCheckable(True)
+            action.triggered.connect(lambda _=False, n=name: self.set_look(theme=n))
+            group.addAction(action)
+            self._theme_actions[name] = action
+        view.addSeparator()
+        self._look_actions = {}
+        for key, label, tip in (
+            ("colorblind", "Colour-blind safe colours",
+             "Okabe-Ito colours for data and warnings; colour is never the only sign"),
+            ("dyslexia", "Dyslexia-friendly text",
+             "Atkinson Hyperlegible, wider spacing, cream ground in the light theme"),
+            ("autoscale", "Text follows the window size",
+             "Text grows and shrinks with the window, on top of Ctrl+ and Ctrl-"),
+            ("reduce_motion", "Reduce motion", "No animations; blink steps slower"),
+        ):
+            action = view.addAction(label)
+            action.setCheckable(True)
+            action.setToolTip(tip)
+            action.triggered.connect(lambda checked, k=key: self.set_look(**{k: checked}))
+            self._look_actions[key] = action
+        fonts = view.addMenu("Dyslexia font")
+        self._font_actions = {}
+        group = QtGui.QActionGroup(self)
+        for name, label in (("atkinson", "Atkinson Hyperlegible"),
+                            ("opendyslexic", "OpenDyslexic")):
+            action = fonts.addAction(label)
+            action.setCheckable(True)
+            action.triggered.connect(lambda _=False, n=name: self.set_look(dyslexia_font=n))
+            group.addAction(action)
+            self._font_actions[name] = action
+        view.addSeparator()
+        view.addAction("Larger text  (Ctrl+)", lambda: self.zoom_text(+1))
+        view.addAction("Smaller text  (Ctrl-)", lambda: self.zoom_text(-1))
+        view.addAction("Normal text  (Ctrl+0)", lambda: self.set_text_scale(1.0))
+        view.addSeparator()
+        view.addAction("Where these choices are kept", self._show_preferences_file)
+        self._sync_menus()
+
+    def _sync_menus(self) -> None:
+        if not hasattr(self, "_theme_actions"):
+            return
+        prefs = theme.current().preferences
+        for name, action in self._theme_actions.items():
+            action.setChecked(prefs.theme == name)
+        for key, action in self._look_actions.items():
+            action.setChecked(bool(getattr(prefs, key)))
+        for name, action in self._font_actions.items():
+            action.setChecked(prefs.dyslexia_font == name)
+
+    def set_look(self, **changes) -> None:
+        """Change the look (theme, colorblind, dyslexia, ...) and say so."""
+        theme.update(**changes)
+        words = ", ".join(f"{k} {'on' if v is True else 'off' if v is False else v}"
+                          for k, v in changes.items())
+        self.log(f"view: {words}  (saved in {theme.Preferences.path()})")
+
+    def _show_preferences_file(self) -> None:
+        path = theme.Preferences.path()
+        self.log(f"view choices are kept in {path}"
+                 + ("" if path.exists() else " (written the first time one changes)"))
+
+    # ------------------------------------------------------------ export
+
+    def rendered(self, frame: Frame | None = None) -> np.ndarray:
+        """The current frame as shown -- scale, stretch, colours -- rows top
+        down: what the window draws and what `harwood impicture` writes."""
+        frame = frame or self.frames[self.current]
+        return render.rgb(frame.data, self.scale_box.currentText(),
+                          self.stretch_box.currentText(), self.cmap_box.currentText())
+
+    def _save_dialog(self, title: str, stem: str, formats: list[tuple[str, str]]):
+        filters = ";;".join(f"{label} (*.{ext})" for label, ext in formats)
+        path, chosen = QtWidgets.QFileDialog.getSaveFileName(
+            self, title, f"{stem}.{formats[0][1]}", filters)
+        if not path:
+            return None
+        from pathlib import Path
+
+        target = Path(path)
+        if not target.suffix:
+            ext = next((e for label, e in formats if chosen.startswith(label)),
+                       formats[0][1])
+            target = target.with_suffix(f".{ext}")
+        return target
+
+    IMAGE_FORMATS = [("PNG", "png"), ("JPEG", "jpg"), ("TIFF", "tif"), ("WebP", "webp")]
+
+    def export_image(self, path=None) -> object:
+        """The whole frame at its own resolution, as stretched -- no marks."""
+        frame = self.frames.get(self.current)
+        if frame is None:
+            self.log("  nothing to export: load an image first (display obj.fits)")
+            return None
+        from pathlib import Path
+
+        stem = Path(frame.name).stem.split("[")[0] or "image"
+        target = Path(path) if path else self._save_dialog("Export image", stem,
+                                                          self.IMAGE_FORMATS)
+        if target is None:
+            return None
+        from .png import save_rgb
+
+        saved = save_rgb(self.rendered(frame), target)
+        self.log(f"  exported {frame.name} -> {saved}  ({self.scale_box.currentText()}, "
+                 f"{self.stretch_box.currentText()}, {self.cmap_box.currentText()})"
+                 f"  -- the same as: harwood impicture '{frame.name}' {saved.name} "
+                 f"--scale {self.scale_box.currentText()} "
+                 f"--stretch {self.stretch_box.currentText()} "
+                 f"--colormap {self.cmap_box.currentText()}")
+        return saved
+
+    def export_view(self, path=None) -> object:
+        """What is on screen: the visible region, with apertures and marks."""
+        from pathlib import Path
+
+        target = Path(path) if path else self._save_dialog("Export view", "view",
+                                                          self.IMAGE_FORMATS)
+        if target is None:
+            return None
+        picture = self.graphics.grab()
+        if not picture.save(str(target)):
+            self.log(f"  could not write {target}: is the folder writable?")
+            return None
+        self.log(f"  exported the view -> {target}")
+        return target
+
+    PLOT_FORMATS = [("PNG", "png"), ("SVG", "svg"), ("PDF", "pdf"), ("CSV data", "csv")]
+
+    def export_plot(self, path=None, widget=None) -> object:
+        """The examine plot (or another), as a picture or as its numbers."""
+        from pathlib import Path
+
+        plot = widget or self.plot
+        target = Path(path) if path else self._save_dialog("Export plot", "plot",
+                                                          self.PLOT_FORMATS)
+        if target is None:
+            return None
+        save_plot(plot, target)
+        self.log(f"  exported the plot -> {target}")
+        return target
 
     def _build_toolbar(self) -> None:
         bar = QtWidgets.QToolBar()
@@ -368,7 +522,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _build_image(self) -> None:
         self.graphics = pg.GraphicsLayoutWidget()
-        self.graphics.setBackground(GROUND)
+        self.graphics.setBackground(_c().ground)
         self.view = self.graphics.addViewBox()
         self.view.setAspectLocked(True)
         self.view.setMenuEnabled(False)
@@ -391,12 +545,12 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         layout.setSpacing(6)
 
         self.plot = pg.PlotWidget()
-        self.plot.setBackground(GROUND)
+        self.plot.setBackground(_c().ground)
         self.plot.showGrid(x=False, y=False)
         for axis in ("left", "bottom"):
-            self.plot.getAxis(axis).setPen(pg.mkPen(LINE))
-            self.plot.getAxis(axis).setTextPen(pg.mkPen(MUTED))
-        self.plot.setTitle("nothing examined yet", color=MUTED, size="10pt")
+            self.plot.getAxis(axis).setPen(pg.mkPen(_c().line))
+            self.plot.getAxis(axis).setTextPen(pg.mkPen(_c().muted))
+        self.plot.setTitle("nothing examined yet", color=_c().muted, size="10pt")
         layout.addWidget(self.plot, stretch=1)
 
         self.readout = QtWidgets.QLabel("press r over a star")
@@ -604,13 +758,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         frame = self.frames.get(self.current)
         if frame is None:
             return
-        low, high = frame.limits(self.scale_box.currentText())
-        shown = _stretch(frame.data, low, high, self.stretch_box.currentText())
-
-        self.image_item.setImage(shown, levels=(0.0, 1.0), autoLevels=False)
-        stops = COLORMAPS[self.cmap_box.currentText()]
-        colours = pg.ColorMap(np.linspace(0, 1, len(stops)), stops)
-        self.image_item.setLookupTable(colours.getLookupTable(0.0, 1.0, 256))
+        # The pixels the export writes: render.rgb, turned back bottom up.
+        shown = self.rendered(frame)[::-1]
+        self.image_item.setImage(shown, autoLevels=False, levels=(0, 255))
 
         self._draw_overlay(frame)
         if reset_view:
@@ -621,7 +771,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self.view.scene().removeItem(item)
         for marker in frame.markers:
             sx, sy = pixels.to_scene(marker.x, marker.y)
-            pen = pg.mkPen(marker.colour, width=1.4)
+            # A theme token ("accent", "sky") follows the theme; anything
+            # else is a colour a task chose and is drawn as given.
+            colour = getattr(_c(), marker.colour, marker.colour)
+            pen = pg.mkPen(colour, width=1.4)
             if marker.shape == "circle":
                 item = QtWidgets.QGraphicsEllipseItem(
                     sx - marker.radius, sy - marker.radius,
@@ -633,7 +786,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             item.setPen(pen)
             item.setParentItem(self.overlay)
             if marker.label:
-                text = pg.TextItem(marker.label, color=marker.colour, anchor=(0, 1))
+                text = pg.TextItem(marker.label, color=colour, anchor=(0, 1))
                 text.setPos(sx + marker.radius, sy + marker.radius)
                 text.setParentItem(self.overlay)
 
@@ -758,33 +911,34 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         plot = result.plot
         self.plot.clear()
         self.plot.setAspectLocked(False)
-        self.plot.setTitle(f"imexamine · {result.key} ({plot['title']})", color=INK,
+        self.plot.setTitle(f"imexamine · {result.key} ({plot['title']})", color=_c().ink,
                            size="10pt")
-        self.plot.setLabel("bottom", plot["xlabel"], color=MUTED)
-        self.plot.setLabel("left", plot["ylabel"], color=MUTED)
+        self.plot.setLabel("bottom", plot["xlabel"], color=_c().muted)
+        self.plot.setLabel("left", plot["ylabel"], color=_c().muted)
         if plot["kind"] == "profile":
             self.plot.plot(plot["x"], plot["y"], pen=None, symbol="o", symbolSize=4.5,
-                           symbolBrush=pg.mkBrush(130, 165, 200, 190),
+                           symbolBrush=pg.mkBrush(_translucent(_c().sky, 200)),
                            symbolPen=pg.mkPen(None))
         elif plot["kind"] == "histogram":
             self.plot.plot(plot["x"], plot["y"], stepMode="center", fillLevel=0,
-                           brush=pg.mkBrush(79, 181, 155, 90), pen=pg.mkPen(SKY))
+                           brush=pg.mkBrush(_translucent(_c().sky, 90)),
+                           pen=pg.mkPen(_c().sky))
         elif plot["kind"] == "contour":
             z = plot["z"]
             for number, level in enumerate(plot["levels"]):
                 curve = pg.IsocurveItem(data=z, level=level,
-                                        pen=pg.mkPen(SKY if number % 2 else ACCENT))
+                                        pen=pg.mkPen(_c().sky if number % 2 else _c().accent))
                 curve.setTransform(QtGui.QTransform.fromTranslate(
                     float(plot["x"][0]), float(plot["y"][0])))
                 self.plot.addItem(curve)
             self.plot.setAspectLocked(True)
         elif plot["kind"] == "surface":
             for xs, ys in _wireframe(plot):
-                self.plot.plot(xs, ys, pen=pg.mkPen(SKY, width=1))
+                self.plot.plot(xs, ys, pen=pg.mkPen(_c().sky, width=1))
         else:
-            self.plot.plot(plot["x"], plot["y"], pen=pg.mkPen(SKY, width=1))
+            self.plot.plot(plot["x"], plot["y"], pen=pg.mkPen(_c().sky, width=1))
         if "fit_x" in plot:
-            self.plot.plot(plot["fit_x"], plot["fit_y"], pen=pg.mkPen(ACCENT, width=2))
+            self.plot.plot(plot["fit_x"], plot["fit_y"], pen=pg.mkPen(_c().accent, width=2))
 
     def _readout(self, frame: Frame, result: examine.Result) -> None:
         v = result.values
@@ -812,10 +966,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         sky annulus beyond it."""
         frame.markers = [m for m in frame.markers if m.tag != "examine"]
         frame.markers += [
-            Marker(x, y, radius=radius, colour=ACCENT, tag="examine"),
-            Marker(x, y, radius=radius + params["buffer"], colour=SKY, tag="examine"),
+            Marker(x, y, radius=radius, colour="accent", tag="examine"),
+            Marker(x, y, radius=radius + params["buffer"], colour="sky", tag="examine"),
             Marker(x, y, radius=radius + params["buffer"] + params["width"],
-                   colour=SKY, tag="examine"),
+                   colour="sky", tag="examine"),
         ]
         self._draw_overlay(frame)
 
@@ -964,6 +1118,13 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def log(self, text: str, prompt: bool = False) -> None:
         self.session.appendPlainText(("hw> " if prompt else "") + text)
+        height = theme.current().line_height
+        if height != 100.0:
+            cursor = QtGui.QTextCursor(self.session.document().lastBlock())
+            block = QtGui.QTextBlockFormat()
+            block.setLineHeight(
+                height, QtGui.QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
+            cursor.mergeBlockFormat(block)
         self.session.verticalScrollBar().setValue(
             self.session.verticalScrollBar().maximum())
 
@@ -1000,19 +1161,6 @@ def _size_hint(label, text: str, indent: int) -> None:
     label.setMinimumHeight(rectangle.height() + 10)
 
 
-def _stretch(data: np.ndarray, low: float, high: float, kind: str) -> np.ndarray:
-    """Normalise to 0..1 through the chosen transfer function."""
-    span = max(high - low, 1e-12)
-    norm = np.clip((data - low) / span, 0.0, 1.0)
-    if kind == "sqrt":
-        return np.sqrt(norm)
-    if kind == "log":
-        return np.log10(1 + 1000 * norm) / np.log10(1001)
-    if kind == "asinh":
-        return np.arcsinh(10 * norm) / np.arcsinh(10)
-    return norm
-
-
 def _arcsec_per_pixel(frame: Frame) -> float | None:
     if frame.wcs is None:
         return None
@@ -1022,3 +1170,63 @@ def _arcsec_per_pixel(frame: Frame) -> float | None:
         return float(np.mean(proj_plane_pixel_scales(frame.wcs.celestial)) * 3600)
     except Exception:
         return None
+
+
+def _line_height(edit, percent: float) -> None:
+    """Space between the lines of a text pane (wider for the dyslexia mode)."""
+    cursor = QtGui.QTextCursor(edit.document())
+    cursor.select(QtGui.QTextCursor.SelectionType.Document)
+    block = QtGui.QTextBlockFormat()
+    proportional = QtGui.QTextBlockFormat.LineHeightTypes.ProportionalHeight.value
+    block.setLineHeight(percent, proportional)
+    cursor.mergeBlockFormat(block)
+
+
+def _translucent(colour: str, alpha: int) -> QtGui.QColor:
+    value = QtGui.QColor(colour)
+    value.setAlpha(alpha)
+    return value
+
+
+def save_plot(plot, path) -> Any:
+    """A pyqtgraph plot widget to PNG (at twice its size on screen), SVG or
+    PDF (vectors, as drawn), or CSV (its numbers)."""
+    from pathlib import Path
+
+    import pyqtgraph.exporters as exporters
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    item = plot.getPlotItem() if hasattr(plot, "getPlotItem") else plot
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        exporters.CSVExporter(item).export(str(path))
+    elif suffix in (".svg", ".pdf"):
+        # The widget drawn onto Qt's own vector devices, at the screen's
+        # resolution: at any other one the axes (in points) and the data (in
+        # pixels) come apart. pyqtgraph's SVG exporter cannot parse the paths
+        # of the Qt it runs on.
+        size, dpi = plot.size(), plot.logicalDpiX()
+        if suffix == ".svg":
+            from PySide6 import QtSvg
+
+            device = QtSvg.QSvgGenerator()
+            device.setFileName(str(path))
+            device.setSize(size)
+            device.setViewBox(QtCore.QRect(QtCore.QPoint(0, 0), size))
+            device.setResolution(dpi)
+            device.setTitle(path.stem)
+        else:
+            device = QtGui.QPdfWriter(str(path))
+            device.setResolution(dpi)
+            inches = QtCore.QSizeF(size.width() / dpi, size.height() / dpi)
+            device.setPageSize(QtGui.QPageSize(inches, QtGui.QPageSize.Unit.Inch))
+            device.setPageMargins(QtCore.QMarginsF(0, 0, 0, 0))
+        painter = QtGui.QPainter(device)
+        plot.render(painter)
+        painter.end()
+    else:
+        exporter = exporters.ImageExporter(item)
+        exporter.parameters()["width"] = int(item.sceneBoundingRect().width() * 2)
+        exporter.export(str(path))
+    return path

@@ -443,7 +443,7 @@ def test_every_mark_has_a_colour_key_the_panel_knows():
     there, no origin may fall through to a default colour."""
     pytest.importorskip("PySide6")
     pytest.importorskip("pyqtgraph")
-    from harwood.viewer.species_panel import COLOURS
+    from harwood.viewer.species_panel import CATEGORIES
 
     for mark in species.marks(3500.0, 9000.0, minimum=1):
-        assert mark.colour_key in COLOURS, mark.line.species
+        assert mark.colour_key in CATEGORIES, mark.line.species
