@@ -51,6 +51,7 @@ def command(task: str, model: type, values: dict[str, Any],
     """
     positional: list[str] = []
     options: list[str] = []
+    variadic_taken = False
 
     for name, field in model.model_fields.items():
         if name not in values:
@@ -61,8 +62,16 @@ def command(task: str, model: type, values: dict[str, Any],
         # command written into the log is the one a person would type.
         extra = field.json_schema_extra or {}
         if field.is_required() or extra.get("positional"):
+            # Only the first list among the positionals takes a word per
+            # item (cli/build.py); a later one takes them joined by commas,
+            # or the first would swallow them.
+            is_list = _is_list(field)
             if value is not None:
-                positional.extend(_render_value(value))
+                if isinstance(value, (list, tuple)) and variadic_taken:
+                    positional.append(shlex.quote(",".join(str(v) for v in value)))
+                else:
+                    positional.extend(_render_value(value))
+            variadic_taken = variadic_taken or is_list
             continue
 
         default = field.get_default(call_default_factory=True)
@@ -84,6 +93,17 @@ def command(task: str, model: type, values: dict[str, Any],
             options.extend([option_name(name), *rendered])
 
     return " ".join([program, task, *positional, *options])
+
+
+def _is_list(field) -> bool:
+    import types
+    import typing
+    from typing import get_args, get_origin
+
+    annotation = field.annotation
+    if get_origin(annotation) in (typing.Union, types.UnionType):
+        annotation = next(a for a in get_args(annotation) if a is not type(None))
+    return get_origin(annotation) is list
 
 
 def _same(value: Any, default: Any) -> bool:

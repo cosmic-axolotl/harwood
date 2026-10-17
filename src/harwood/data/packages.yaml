@@ -1,0 +1,176 @@
+# The package tree as the click-only tab shows it: IRAF's own packages, in
+# IRAF's own nesting (noao > digiphot > apphot > daofind), with one or two
+# lines on each -- what is in it, said briefly. The long explanation belongs
+# to the documentation, never here.
+#
+# brief: at most two short lines. icon: one symbol, shown on the package's
+# button (a word goes with it too, so the icon is never the only label).
+
+"":
+  brief: "Every task, grouped as IRAF groups them. Pick a package to go in; the path above always takes you back."
+  icon: "✦"
+
+images:
+  brief: "Working with images in general: arithmetic, statistics, headers, matching frames, display."
+  icon: "▦"
+images.imutil:
+  brief: "Everyday image utilities: copy, delete, rename, arithmetic, statistics, headers."
+  icon: "⚒"
+images.immatch:
+  brief: "Putting frames of the same field on the same pixels, and combining them."
+  icon: "⊕"
+images.imgeom:
+  brief: "Geometry: shift, rotate, magnify, transpose."
+  icon: "⇲"
+images.imfilter:
+  brief: "Smoothing and filtering: boxcar, gaussian, median."
+  icon: "≋"
+images.imfit:
+  brief: "Fitting functions to images: lines, surfaces."
+  icon: "∿"
+images.imcoords:
+  brief: "World coordinates: computing, converting, attaching a WCS."
+  icon: "⌖"
+images.tv:
+  brief: "Looking at images: display, examine with the cursor, save as a picture."
+  icon: "◉"
+images.tv.iis:
+  brief: "Old image-display hardware (IIS). Not carried over."
+  icon: "·"
+
+noao:
+  brief: "The astronomy packages: CCD reduction, photometry, spectroscopy, astronomical utilities."
+  icon: "★"
+noao.imred:
+  brief: "Image reduction, instrument by instrument. ccdred is the one most nights need."
+  icon: "▤"
+noao.imred.ccdred:
+  brief: "CCD reduction: bias, dark and flat; overscan and trim; combining calibration frames."
+  icon: "◫"
+noao.imred.crutil:
+  brief: "Finding and removing cosmic rays."
+  icon: "⚡"
+noao.imred.bias:
+  brief: "Overscan bias subtraction on its own (ccdproc does it too)."
+  icon: "·"
+noao.imred.generic:
+  brief: "Generic reduction steps for data no other package knows."
+  icon: "·"
+noao.imred.quadred:
+  brief: "CCDs read out through four amplifiers."
+  icon: "·"
+noao.imred.echelle:
+  brief: "Echelle spectra: many orders on one detector."
+  icon: "·"
+noao.imred.specred:
+  brief: "Generic spectroscopic reduction."
+  icon: "·"
+noao.imred.argus:
+  brief: "Argus fibre spectrograph (CTIO)."
+  icon: "·"
+noao.imred.hydra:
+  brief: "Hydra fibre spectrograph (KPNO/WIYN)."
+  icon: "·"
+noao.imred.iids:
+  brief: "IIDS and IRS spectrographs (historical KPNO)."
+  icon: "·"
+noao.imred.irred:
+  brief: "Infrared array reduction."
+  icon: "·"
+noao.imred.kpnocoude:
+  brief: "KPNO coude spectrograph."
+  icon: "·"
+noao.imred.dtoi:
+  brief: "Photographic density to intensity. Not carried over."
+  icon: "·"
+noao.imred.vtel:
+  brief: "KPNO vacuum solar telescope. Not carried over."
+  icon: "·"
+noao.digiphot:
+  brief: "Digital photometry: finding stars and measuring their brightness."
+  icon: "✧"
+noao.digiphot.apphot:
+  brief: "Aperture photometry: find stars, centre them, fit the sky, sum the light."
+  icon: "◎"
+noao.digiphot.daophot:
+  brief: "PSF-fitting photometry for crowded fields."
+  icon: "⁂"
+noao.digiphot.photcal:
+  brief: "Photometric calibration: from instrumental to standard magnitudes."
+  icon: "⚖"
+noao.digiphot.ptools:
+  brief: "Tools for photometry catalogues: select, sort, dump, merge."
+  icon: "☰"
+noao.onedspec:
+  brief: "One-dimensional spectra: wavelength calibration, flux calibration, plotting."
+  icon: "∿"
+noao.twodspec:
+  brief: "Two-dimensional spectra: extracting spectra from the detector."
+  icon: "▥"
+noao.twodspec.apextract:
+  brief: "Aperture extraction: find, trace and extract each spectrum."
+  icon: "⫼"
+noao.twodspec.longslit:
+  brief: "Long-slit spectra: geometric and wavelength rectification."
+  icon: "·"
+noao.twodspec.multispec:
+  brief: "Multi-object fibre spectra (older tools)."
+  icon: "·"
+noao.astutil:
+  brief: "Astronomical utilities: airmass, Julian dates, observatories."
+  icon: "☉"
+noao.obsutil:
+  brief: "Observation planning and analysis: seeing, sky, exposure times."
+  icon: "⌚"
+noao.rv:
+  brief: "Radial velocities by cross-correlation."
+  icon: "⇄"
+noao.artdata:
+  brief: "Artificial data: make test images and spectra."
+  icon: "✎"
+noao.astcat:
+  brief: "Astronomical catalogue access."
+  icon: "☷"
+noao.nproto:
+  brief: "NOAO prototype tasks."
+  icon: "·"
+noao.mtlocal:
+  brief: "Local magnetic-tape formats. Not carried over."
+  icon: "·"
+noao.nobsolete:
+  brief: "Obsolete NOAO tasks."
+  icon: "·"
+
+plot:
+  brief: "Plotting images and spectra: lines, columns, contours, surfaces."
+  icon: "⌁"
+proto:
+  brief: "Prototype tasks: bad-pixel fixing, masks, and more."
+  icon: "⚙"
+proto.color:
+  brief: "Colour composites of images."
+  icon: "·"
+proto.vol:
+  brief: "Volume (3-D) image tools."
+  icon: "·"
+utilities:
+  brief: "General utilities: units, calculators, file tools."
+  icon: "⚒"
+utilities.nttools:
+  brief: "Table tools from STSDAS (tables are astropy's now)."
+  icon: "·"
+lists:
+  brief: "Working with text lists: columns, sorting, averaging."
+  icon: "☰"
+dataio:
+  brief: "Reading and writing data formats: FITS, tables, pictures."
+  icon: "⇅"
+system:
+  brief: "The IRAF system itself: directories, files, processes. The shell does this now."
+  icon: "·"
+softools:
+  brief: "IRAF programming tools. Python does this now."
+  icon: "·"
+obsolete:
+  brief: "Obsolete tasks kept for old scripts."
+  icon: "·"

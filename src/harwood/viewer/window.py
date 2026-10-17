@@ -159,11 +159,13 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._build_menus()
         self._build_toolbar()
         self._build_image()
+        self._build_tasks()
         self._build_examine()
         self._build_params()
         self._build_work()
         self._build_session()
         self._build_status()
+        self._build_panels_menu()
 
         self._build_shortcuts()
         self._default_state = self.saveState()
@@ -376,6 +378,19 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         view.addAction("Where these choices are kept", self._show_preferences_file)
         self._sync_menus()
 
+    def _build_panels_menu(self) -> None:
+        """Every panel by name, so a closed one can always be brought back,
+        and the way to put them all where they started."""
+        panels = self.menuBar().addMenu("&Panels")
+        for dock in self.findChildren(QtWidgets.QDockWidget):
+            action = dock.toggleViewAction()
+            if dock is getattr(self, "tasks_dock", None):
+                action.setText("Tasks (the package tree)")
+                action.setShortcut(QtGui.QKeySequence("Ctrl+T"))
+            panels.addAction(action)
+        panels.addSeparator()
+        panels.addAction("Put the panels back  (Ctrl+Shift+R)", self.reset_layout)
+
     def _sync_menus(self) -> None:
         if not hasattr(self, "_theme_actions"):
             return
@@ -535,6 +550,37 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.graphics.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.graphics.installEventFilter(self)
         self.setCentralWidget(self.graphics)
+
+    def _build_tasks(self) -> None:
+        """The click-only way in: IRAF's package tree and a form per task,
+        on the left. Everything it runs goes through run_line, like the
+        prompt, so the session shows it as if it had been typed."""
+        from .browser import TaskBrowser
+
+        self.browser = TaskBrowser(self.run_line, current_image=self._shown_file)
+        self.browser.to_prompt.connect(self._to_prompt)
+        self.tasks_dock = QtWidgets.QDockWidget("Tasks")
+        self.tasks_dock.setObjectName("tasks")
+        self.tasks_dock.setWidget(self.browser)
+        self.tasks_dock.setMinimumWidth(280)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.tasks_dock)
+        self.resizeDocks([self.tasks_dock], [360], QtCore.Qt.Orientation.Horizontal)
+
+    def _shown_file(self) -> str:
+        """The frame on display, when it came from a file that is still there."""
+        from pathlib import Path
+
+        frame = self.frames.get(self.current)
+        if frame is None or not frame.name:
+            return ""
+        return frame.name if Path(frame.name.split("[", 1)[0]).is_file() else ""
+
+    def _to_prompt(self, line: str) -> None:
+        """A form's command, put at the prompt to be changed by hand."""
+        if line.startswith("harwood "):
+            line = line[len("harwood "):]
+        self.prompt.setText(line)
+        self.prompt.setFocus()
 
     def _build_examine(self) -> None:
         dock = QtWidgets.QDockWidget("Examine")
@@ -1032,40 +1078,53 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._read_params()
 
     def _run_command(self) -> None:
-        """Run a harwood command typed at the prompt, in this process.
-
-        The same commands as the shell, because they are the same commands --
-        the CLI is invoked directly rather than through a subprocess, so a task
-        that opens a panel opens it *here*, and `display` loads into the frame
-        you are looking at.
-        """
-        import shlex
-
+        """Enter at the prompt."""
         line = self.prompt.text().strip()
         self.prompt.clear()
         if not line:
             return
         self._history.append(line)
         self._history_at = len(self._history)
+        self.run_line(line)
+
+    def run_line(self, line: str) -> tuple[bool, str]:
+        """Run one harwood command line in this process; (ok, what it printed).
+
+        The same commands as the shell, because they are the same commands --
+        the CLI is invoked directly rather than through a subprocess, so a task
+        that opens a panel opens it *here*, and `display` loads into the frame
+        you are looking at. The prompt and the task forms both come through
+        here, and both show up in the session the same way.
+        """
+        import shlex
+
+        line = line.strip()
+        if line.startswith("harwood "):
+            line = line[len("harwood "):].lstrip()
+        if not line:
+            return True, ""
         self.log(line, prompt=True)
 
         if line in ("exit", "quit", "bye"):
             self.close()
-            return
+            return True, ""
 
         if line.startswith(":"):
             try:
-                self.log("  " + examine.colon(self.examine_settings, line))
+                answer = examine.colon(self.examine_settings, line)
             except ValueError as error:
                 fix = getattr(error, "fix", "")
-                self.log(f"  {error}" + (f" -- {fix}" if fix else ""))
-            return
+                answer = f"{error}" + (f" -- {fix}" if fix else "")
+                self.log("  " + answer)
+                return False, answer
+            self.log("  " + answer)
+            return True, answer
 
         try:
             arguments = shlex.split(line)
         except ValueError as error:
             self.log(f"  {error} -- unbalanced quotes?")
-            return
+            return False, f"{error} -- unbalanced quotes?"
 
         import contextlib
         import io
@@ -1076,6 +1135,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         from ..cli.main import app
 
         captured = io.StringIO()
+        ok = True
         try:
             with contextlib.redirect_stdout(captured), \
                     contextlib.redirect_stderr(captured), \
@@ -1088,14 +1148,20 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 app.main(args=arguments, prog_name="harwood", standalone_mode=False)
         except click.ClickException as error:
             captured.write(f"{error.format_message()}\n")
-        except (click.exceptions.Exit, SystemExit):
-            pass
+            ok = False
+        except click.exceptions.Exit as error:
+            ok = not error.exit_code
+        except SystemExit as error:
+            ok = error.code in (None, 0)
         except Exception as error:               # a failure must not end the session
             captured.write(f"{type(error).__name__}: {error}\n")
+            ok = False
 
-        for line in captured.getvalue().splitlines():
-            if line.strip():
-                self.log(f"  {line}")
+        printed = captured.getvalue()
+        for each in printed.splitlines():
+            if each.strip():
+                self.log(f"  {each}")
+        return ok, printed
 
     def eventFilter(self, obj, event) -> bool:
         """Up and down walk the history at the prompt; keys over the image are
