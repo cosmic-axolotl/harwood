@@ -8,18 +8,22 @@ interactions that end up in the provenance log.
 
 Layout, from the design sketch in section 8.3:
 
-    +----------------------------------+---------------------------+
-    | frame  scale  stretch  colours   |  Examine                  |
-    |                                  |    radial profile + fit   |
-    |            the image             |    centre, FWHM, peak     |
-    |         apertures, marks         +---------------------------+
-    |                                  |  Parameters . rimexam     |
-    |                                  |    each one explained     |
-    +----------------------------------+---------------------------+
-    | Session   hw> display 'obj.fits[SCI,1]' --frame 1 --zscale    |
-    +--------------------------------------------------------------+
-    | x = 612.03  y = 539.91  (1-based)  value = 5561.3  a  d       |
-    +--------------------------------------------------------------+
+    +-----------+----------------------------------+---------------------------+
+    | Tasks     | frame  scale  stretch  colours   |  Examine                  |
+    |  all >    |                                  |    radial profile + fit   |
+    |  noao >   |            the image             |    centre, FWHM, peak     |
+    |  cards,   |         apertures, marks         +---------------------------+
+    |  or a     |                                  |  Parameters . rimexam     |
+    |  form     |                                  |    each one explained     |
+    +-----------+----------------------------------+---------------------------+
+    | Command line   what ran, and what it said                                |
+    | hw> imcombine @bias.lis Zero.fits && imstatistics Zero.fits  [History]   |
+    +--------------------------------------------------------------------------+
+    | x = 612.03  y = 539.91  (1-based)  value = 5561.3  a  d                   |
+    +--------------------------------------------------------------------------+
+
+Two ways in, by clicks (Tasks) and by typing (Command line), and one way
+through: both send a command line to run_line, and both show up below.
 
 Section 8.4's keyboard rule: **lower case belongs to the task, upper case and
 `:` commands belong to the window** -- the same split as IRAF's cursor mode, so
@@ -387,7 +391,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             if dock is getattr(self, "tasks_dock", None):
                 action.setText("Tasks (the package tree)")
                 action.setShortcut(QtGui.QKeySequence("Ctrl+T"))
+            if dock is getattr(self, "session_dock", None):
+                action.setText("Command line (the hw> prompt)")
             panels.addAction(action)
+        panels.addAction("Go to the prompt", self.go_to_prompt, QtGui.QKeySequence("Ctrl+L"))
         panels.addSeparator()
         panels.addAction("Put the panels back  (Ctrl+Shift+R)", self.reset_layout)
 
@@ -714,7 +721,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self.work_dock.hide()
 
     def _build_session(self) -> None:
-        dock = QtWidgets.QDockWidget("Session")
+        dock = QtWidgets.QDockWidget("Command line")
         dock.setObjectName("session")
         body = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(body)
@@ -726,15 +733,32 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.session.setMaximumBlockCount(4000)
         layout.addWidget(self.session, stretch=1)
 
-        self.prompt = QtWidgets.QLineEdit()
+        from .prompt import CommandLine
+
+        self.prompt = CommandLine()
         self.prompt.setPlaceholderText("hw>  display obj.fits · imexamine · "
                                        "ccdproc --plan · help phot")
         self.prompt.returnPressed.connect(self._run_command)
-        layout.addWidget(self.prompt)
-        self._history: list[str] = []
-        self._history_at = 0
-        self.prompt.installEventFilter(self)
+        self.prompt.said.connect(lambda text: self.statusBar().showMessage(text, 4000))
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(self.prompt, stretch=1)
+        recall = QtWidgets.QPushButton("🕘 History")
+        recall.setObjectName("history")
+        recall.setToolTip("Search what was typed before, here and in the terminal "
+                          "(Ctrl+R at the prompt)")
+        recall.clicked.connect(self._search_history)
+        row.addWidget(recall)
+        layout.addLayout(row)
+        keys = QtWidgets.QLabel("Tab completes · ↑ ↓ walk the history, Ctrl+R searches "
+                                "it · ; runs the next command anyway, && only if this "
+                                "one worked")
+        keys.setObjectName("hint")
+        keys.setWordWrap(True)
+        keys.setContentsMargins(4, 2, 4, 2)
+        layout.addWidget(keys)
 
+        self.session_dock = dock
         dock.setWidget(body)
         dock.setMinimumHeight(170)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
@@ -1079,23 +1103,71 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _run_command(self) -> None:
         """Enter at the prompt."""
-        line = self.prompt.text().strip()
-        self.prompt.clear()
-        if not line:
-            return
-        self._history.append(line)
-        self._history_at = len(self._history)
-        self.run_line(line)
+        line = self.prompt.take()
+        if line:
+            self.run_line(line)
+
+    def go_to_prompt(self) -> None:
+        """Ctrl+L: the command line, open and with the cursor in it."""
+        self.session_dock.show()
+        self.session_dock.raise_()
+        self.prompt.setFocus()
+
+    def _search_history(self) -> None:
+        self.prompt.setFocus()
+        self.prompt.search_history()
 
     def run_line(self, line: str) -> tuple[bool, str]:
-        """Run one harwood command line in this process; (ok, what it printed).
+        """Run a harwood command line in this process; (ok, what it printed).
 
         The same commands as the shell, because they are the same commands --
         the CLI is invoked directly rather than through a subprocess, so a task
         that opens a panel opens it *here*, and `display` loads into the frame
         you are looking at. The prompt and the task forms both come through
         here, and both show up in the session the same way.
+
+        Several commands on one line (`;`, `&&`, `||`; cli/line.py) run one
+        after the other, each shown as it starts, and a command skipped says
+        why. ok is the last one's that ran, as in the shell.
         """
+        from ..cli import line as command_line
+
+        line = line.strip()
+        try:
+            steps = command_line.split(line)
+        except ValueError as error:
+            self.log(line, prompt=True)
+            answer = f"{error} -- {error.fix}" if getattr(error, "fix", "") else str(error)
+            self.log("  " + answer)
+            return False, answer
+        if len(steps) <= 1:
+            return self._run_one(steps[0].command) if steps else (True, "")
+
+        self.log(line, prompt=True)
+        printed: list[str] = []
+
+        def one(command: str) -> bool:
+            if command in ("exit", "quit", "bye"):
+                raise _Leave
+            ok, text = self._run_one(command, echo="  ▸ ")
+            printed.append(text)
+            QtWidgets.QApplication.processEvents()   # show each as it finishes
+            return ok
+
+        def skipped(note: str) -> None:
+            self.log("  ▹ " + note)
+            printed.append(note + "\n")
+
+        try:
+            ok = command_line.run(line, one, skipped)
+        except _Leave:
+            self.close()
+            return True, "".join(printed)
+        return ok, "".join(printed)
+
+    def _run_one(self, line: str, echo: str = "") -> tuple[bool, str]:
+        """One command, shown in the session as typed (or after `echo`, when
+        it is one of several on a line)."""
         import shlex
 
         line = line.strip()
@@ -1103,7 +1175,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             line = line[len("harwood "):].lstrip()
         if not line:
             return True, ""
-        self.log(line, prompt=True)
+        if echo:
+            self.log(echo + line)
+        else:
+            self.log(line, prompt=True)
 
         if line in ("exit", "quit", "bye"):
             self.close()
@@ -1164,20 +1239,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         return ok, printed
 
     def eventFilter(self, obj, event) -> bool:
-        """Up and down walk the history at the prompt; keys over the image are
-        the examine keys."""
-        if obj is getattr(self, "prompt", None) and \
-                event.type() == QtCore.QEvent.Type.KeyPress:
-            if event.key() == QtCore.Qt.Key.Key_Up and self._history:
-                self._history_at = max(0, self._history_at - 1)
-                self.prompt.setText(self._history[self._history_at])
-                return True
-            if event.key() == QtCore.Qt.Key.Key_Down and self._history:
-                self._history_at = min(len(self._history), self._history_at + 1)
-                self.prompt.setText(self._history[self._history_at]
-                                    if self._history_at < len(self._history) else "")
-                return True
-            return False
+        """Keys over the image are the examine keys."""
         if event.type() == QtCore.QEvent.Type.KeyPress:
             return self._key(event.text())
         return super().eventFilter(obj, event)
@@ -1193,6 +1255,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             cursor.mergeBlockFormat(block)
         self.session.verticalScrollBar().setValue(
             self.session.verticalScrollBar().maximum())
+
+
+class _Leave(Exception):
+    """`exit` among several commands on a line."""
 
 
 def _hint(text: str) -> QtWidgets.QLabel:

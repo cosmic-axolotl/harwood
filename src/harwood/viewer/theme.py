@@ -259,6 +259,10 @@ QLabel#status {{ background: {c.panel}; border-top: 1px solid {c.line};
 QLabel#keys {{ color: {c.muted}; font-family: {monofam}; font-size: {small:.1f}pt;
     padding: 4px 9px; }}
 QLineEdit#command {{ font-family: {monofam}; background: {c.panel}; }}
+QTreeView#completions {{ background: {c.panel}; color: {c.ink};
+    border: 2px solid {c.accent}; font-family: {monofam}; font-size: {mono:.1f}pt;
+    selection-background-color: {c.accent}; selection-color: {c.ground}; }}
+QTreeView#completions::item {{ padding: {2 * s:.0f}px 8px; }}
 QScrollBar {{ background: {c.ground}; }}
 QScrollBar::handle {{ background: {c.line}; border-radius: 4px; }}
 """

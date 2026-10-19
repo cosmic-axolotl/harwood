@@ -33,7 +33,7 @@ from . import build
 console = Console()
 error_console = Console(stderr=True)
 
-BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "gui")
+BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "history", "gui")
 
 
 class Harwood(click.Group):
@@ -82,8 +82,27 @@ def app(ctx: click.Context, backend: str | None) -> None:
 # --------------------------------------------------------------- browsing
 
 
+def _task_names(ctx, param, incomplete: str) -> list:
+    """Tab after `help`, `lpar` or `log`: the tasks, with what each does."""
+    from click.shell_completion import CompletionItem
+
+    from ..core.registry import list_tasks
+
+    return [CompletionItem(name, help=cls.description)
+            for name, cls in sorted(list_tasks().items()) if name.startswith(incomplete)]
+
+
+def _package_names(ctx, param, incomplete: str) -> list:
+    from click.shell_completion import CompletionItem
+
+    from ..core.registry import packages
+
+    return [CompletionItem(name, help=", ".join(tasks))
+            for name, tasks in sorted(packages().items()) if name.startswith(incomplete)]
+
+
 @app.command("list")
-@click.argument("package", required=False)
+@click.argument("package", required=False, shell_complete=_package_names)
 @click.option("--iraf", is_flag=True,
               help="Show the IRAF inventory and the status of each task.")
 @click.option("--milestone", "-m", help="With --iraf: filter by milestone, mvp or later.")
@@ -151,7 +170,7 @@ def _list_iraf(domain: str | None, milestone: str | None) -> None:
 
 
 @app.command("help")
-@click.argument("task")
+@click.argument("task", shell_complete=_task_names)
 def help_cmd(task: str) -> None:
     """The manual for a task: what it does, and what each parameter means."""
     from ..core.registry import exists, get_class
@@ -193,7 +212,7 @@ def help_cmd(task: str) -> None:
 
 
 @app.command("lpar")
-@click.argument("task")
+@click.argument("task", shell_complete=_task_names)
 def lpar_cmd(task: str) -> None:
     """Show the values a task will actually use, and where each came from."""
     from ..core import params as store
@@ -479,7 +498,7 @@ def _probe(package: str, extra: str) -> tuple[str, str]:
 
 
 @app.command("log")
-@click.argument("task", required=False)
+@click.argument("task", required=False, shell_complete=_task_names)
 @click.option("--workdir", "-w", type=click.Path(path_type=Path), default=Path("."))
 @click.option("-n", "count", type=int, default=20, help="Show the last N entries.")
 @click.option("--full", is_flag=True,
@@ -561,6 +580,26 @@ def _print_full_log(entries: list[dict[str, Any]], offset: int) -> None:
             console.print(f"    [cyan]->[/cyan] {output}")
         if entry.get("command"):
             console.print(f"    [dim]repeat:[/dim] {entry['command']}")
+
+
+@app.command("history")
+@click.argument("count", type=int, default=20, required=False)
+@click.option("--find", "-f", "text", help="Only the lines that contain this.")
+def history_cmd(count: int, text: str | None) -> None:
+    """What was typed at hw>, here and in the window, numbered. Not the log:
+    `harwood log` is what the tasks did and how to repeat it exactly."""
+    from . import history
+
+    lines = list(enumerate(history.load(), start=1))
+    if text:
+        lines = [(number, line) for number, line in lines if text in line]
+    if not lines:
+        console.print(f"[dim]Nothing typed contains '{escape(text)}'.[/dim]" if text
+                      else "[dim]Nothing typed yet.[/dim]")
+        return
+    width = len(str(lines[-1][0]))
+    for number, line in lines[-count:] if count > 0 else lines:
+        console.print(f"[dim]{number:>{width}}[/dim]  {escape(line)}", highlight=False)
 
 
 # ------------------------------------------------------------- the display
