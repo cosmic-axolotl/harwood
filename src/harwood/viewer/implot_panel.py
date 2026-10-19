@@ -27,6 +27,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from . import theme
+from ._qt import on_main
 from .theme import palette as _c
 
 HELP = [
@@ -236,6 +237,7 @@ class ImplotPanel(QtWidgets.QWidget):
         (self.plot_lines if what == "l" else self.plot_columns)(first, last)
 
 
+@on_main
 def run(data, name: str = "image") -> None:
     """Open implot and wait for `q`."""
     from .dock import show

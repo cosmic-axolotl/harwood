@@ -145,6 +145,12 @@ class Task(ABC, Generic[P]):
     #: value that came from the preset never looks like something you chose.
     defaults: ClassVar[dict[str, Any]] = {}
 
+    #: The task works in the window itself (loads frames, waits for keys), so
+    #: the window runs it on its own thread rather than beside it. A task that
+    #: only opens a panel now and then does not need this: the panels hand
+    #: themselves to the window's thread (viewer/_qt.on_main).
+    needs_window: ClassVar[bool] = False
+
     @abstractmethod
     def execute(self, params: P) -> TaskResult:
         """The work. Do not call directly -- use `run()`."""

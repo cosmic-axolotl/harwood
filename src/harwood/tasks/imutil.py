@@ -728,6 +728,7 @@ class ImplotParams(TaskParams):
 @register
 class Implot(Task[ImplotParams]):
     name = "implot"
+    needs_window = True
     package = "plot"
     description = "Plot lines and columns of an image, interactively."
     Params = ImplotParams

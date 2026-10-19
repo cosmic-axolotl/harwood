@@ -16,7 +16,7 @@ from pathlib import Path
 
 from PySide6 import QtGui, QtWidgets
 
-from ._qt import application
+from ._qt import application, on_main
 from .theme import palette as _c
 
 
@@ -96,6 +96,7 @@ class Editor(QtWidgets.QDialog):
         self.accept()
 
 
+@on_main
 def edit(path: Path, title: str = "") -> bool:
     """Open the file in harwood's editor. True if it was saved."""
     application()

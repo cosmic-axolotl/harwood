@@ -23,6 +23,7 @@ from PySide6 import QtCore, QtWidgets
 
 from ..core import arc, species
 from . import theme
+from ._qt import on_main
 from .theme import palette as _c
 
 #: One colour per origin. Telluric is deliberately the odd one out -- it is
@@ -216,6 +217,7 @@ class SpeciesPanel(QtWidgets.QWidget):
         self._redraw()
 
 
+@on_main
 def run(aperture, velocity: float = 0.0, tolerance: float = 1.0,
         name: str = "spectrum") -> None:
     """Open the panel and wait for `q`."""

@@ -33,7 +33,7 @@ from PySide6 import QtCore, QtWidgets
 
 from ..core import apextract
 from . import theme
-from ._qt import application
+from ._qt import application, on_main
 from .theme import palette as _c
 
 HELP = [
@@ -381,6 +381,7 @@ class AperturePanel(QtWidgets.QWidget):
         return self.apertures, self.background
 
 
+@on_main
 def run(profile, apertures: list[dict], background=None, ylevel: float = 0.1,
         title: str = "apedit") -> tuple[list[dict], list | None]:
     """Open the panel and hand back the apertures that were accepted."""

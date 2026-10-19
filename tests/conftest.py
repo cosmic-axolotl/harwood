@@ -5,8 +5,9 @@ The interface preferences (theme, text size...) are saved to the user's
 write there -- nor read what the person running the tests chose, which
 would make a test pass or fail by somebody's taste -- so every test gets an
 empty config directory of its own and the default look. The same for the
-history of what was typed (~/.local/state/harwood/history): a test typing
-at the prompt must not end up in the up arrow of a real session.
+state harwood keeps (~/.local/state/harwood): a test typing at the prompt
+must not end up in the up arrow of a real session, and a test's runs must
+not become the timings a real estimate is made from.
 """
 
 import pytest

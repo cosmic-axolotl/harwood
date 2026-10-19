@@ -259,6 +259,9 @@ QLabel#status {{ background: {c.panel}; border-top: 1px solid {c.line};
 QLabel#keys {{ color: {c.muted}; font-family: {monofam}; font-size: {small:.1f}pt;
     padding: 4px 9px; }}
 QLineEdit#command {{ font-family: {monofam}; background: {c.panel}; }}
+QLabel#clock {{ color: {c.ink}; font-family: {monofam}; font-size: {mono:.1f}pt; }}
+QProgressBar {{ background: {c.panel}; border: 1px solid {c.line}; border-radius: 4px; }}
+QProgressBar::chunk {{ background: {c.accent}; border-radius: 3px; }}
 QTreeView#completions {{ background: {c.panel}; color: {c.ink};
     border: 2px solid {c.accent}; font-family: {monofam}; font-size: {mono:.1f}pt;
     selection-background-color: {c.accent}; selection-color: {c.ground}; }}

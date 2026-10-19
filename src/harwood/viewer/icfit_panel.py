@@ -31,6 +31,7 @@ from PySide6 import QtCore, QtWidgets
 
 from ..core import icfit
 from . import theme
+from ._qt import on_main
 from .theme import palette as _c
 
 AXES = ("data", "residuals", "ratio")
@@ -283,6 +284,7 @@ def apply_command(spec: icfit.FitSpec, text: str) -> icfit.FitSpec:
     raise ValueError(f"no parameter called '{name}'")
 
 
+@on_main
 def run(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit",
         xlabel: str = "x", ylabel: str = "y") -> icfit.Fit:
     """Open the panel, wait for `q`, and hand back the fit that was accepted."""

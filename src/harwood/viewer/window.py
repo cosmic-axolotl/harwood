@@ -145,6 +145,13 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._resize_timer.setInterval(120)
         self._resize_timer.timeout.connect(self._follow_window_size)
 
+        #: The command running beside the window, or "" -- one at a time.
+        self._busy = ""
+        self._beside_running = False
+        from ._qt import accept_calls
+
+        accept_calls()
+
         self.frames: dict[int, Frame] = {}
         self.current = 1
         # IRAF's rimexam defaults; the panel shows these five.
@@ -733,6 +740,20 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.session.setMaximumBlockCount(4000)
         layout.addWidget(self.session, stretch=1)
 
+        self.clock = QtWidgets.QWidget()
+        clock_row = QtWidgets.QHBoxLayout(self.clock)
+        clock_row.setContentsMargins(6, 3, 6, 3)
+        self.clock_label = QtWidgets.QLabel("")
+        self.clock_label.setObjectName("clock")
+        self.clock_bar = QtWidgets.QProgressBar()
+        self.clock_bar.setTextVisible(False)
+        self.clock_bar.setMaximumWidth(220)
+        self.clock_bar.setMaximumHeight(10)
+        clock_row.addWidget(self.clock_label, stretch=1)
+        clock_row.addWidget(self.clock_bar)
+        self.clock.hide()
+        layout.addWidget(self.clock)
+
         from .prompt import CommandLine
 
         self.prompt = CommandLine()
@@ -949,6 +970,12 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self.examine_done.disconnect(loop.quit)
 
     def closeEvent(self, event) -> None:
+        if self._beside_running:
+            # The task's thread would be cut off halfway through writing.
+            event.ignore()
+            self.statusBar().showMessage(f"{self._busy} is still running; close the "
+                                         "window when it has finished", 6000)
+            return
         self.examine_done.emit()
         super().closeEvent(event)
 
@@ -1103,6 +1130,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _run_command(self) -> None:
         """Enter at the prompt."""
+        if self._busy:
+            self.statusBar().showMessage(f"still running {self._busy}; the line "
+                                         "stays here until it finishes", 5000)
+            return
         line = self.prompt.take()
         if line:
             self.run_line(line)
@@ -1130,9 +1161,22 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         after the other, each shown as it starts, and a command skipped says
         why. ok is the last one's that ran, as in the shell.
         """
+        line = line.strip()
+        if self._busy:
+            # Only reachable from the window while a command runs beside it: a
+            # second Run, or Enter at the prompt. One at a time, said plainly.
+            self.statusBar().showMessage(f"still running {self._busy}; this waits "
+                                         "for it to finish", 5000)
+            return False, f"still running {self._busy}\n"
+        self._busy = line.split()[0] if line else "a command"
+        try:
+            return self._run_line(line)
+        finally:
+            self._busy = ""
+
+    def _run_line(self, line: str) -> tuple[bool, str]:
         from ..cli import line as command_line
 
-        line = line.strip()
         try:
             steps = command_line.split(line)
         except ValueError as error:
@@ -1201,42 +1245,100 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self.log(f"  {error} -- unbalanced quotes?")
             return False, f"{error} -- unbalanced quotes?"
 
-        import contextlib
-        import io
-        import warnings
+        stream = _Stream()
+        if _on_window_thread(arguments):
+            ok = _invoke(arguments, stream)
+        else:
+            ok = self._beside(arguments, stream)
+        self._flush(stream, final=True)
+        return ok, stream.everything()
 
-        import click
+    def _beside(self, arguments: list[str], stream: _Stream) -> bool:
+        """Run a command on a thread of its own and keep the window alive
+        meanwhile: drawing, showing what the task prints as it prints it, and
+        a clock. The caller still gets the answer only when it is done -- the
+        form and a chain of commands wait, exactly as before; the window does
+        not."""
+        import threading
+        import time
 
-        from ..cli.main import app
+        outcome: dict[str, bool] = {}
+        thread = threading.Thread(
+            target=lambda: outcome.update(ok=_invoke(arguments, stream)),
+            name=f"harwood {arguments[0]}", daemon=True)
+        loop = QtCore.QEventLoop()
+        tick = QtCore.QTimer()
+        tick.setInterval(200)
+        started = time.monotonic()
 
-        captured = io.StringIO()
-        ok = True
+        def check() -> None:
+            self._flush(stream)
+            self._show_clock(arguments, started)
+            if not thread.is_alive():
+                loop.quit()
+
+        tick.timeout.connect(check)
+        self._beside_running = True
+        thread.start()
+        tick.start()
         try:
-            with contextlib.redirect_stdout(captured), \
-                    contextlib.redirect_stderr(captured), \
-                    warnings.catch_warnings():
-                # A 1987 header writes its date as 01/09/87 and astropy says so
-                # every time it is read. It is true and it is not actionable, and
-                # a session log full of it is a session log nobody reads.
-                warnings.filterwarnings("ignore", message=".*datfix.*")
-                warnings.filterwarnings("ignore", message=".*FITSFixedWarning.*")
-                app.main(args=arguments, prog_name="harwood", standalone_mode=False)
-        except click.ClickException as error:
-            captured.write(f"{error.format_message()}\n")
-            ok = False
-        except click.exceptions.Exit as error:
-            ok = not error.exit_code
-        except SystemExit as error:
-            ok = error.code in (None, 0)
-        except Exception as error:               # a failure must not end the session
-            captured.write(f"{type(error).__name__}: {error}\n")
-            ok = False
+            loop.exec()
+        finally:
+            tick.stop()
+            thread.join()
+            self._beside_running = False
+            self.clock.hide()
+        return outcome.get("ok", False)
 
-        printed = captured.getvalue()
-        for each in printed.splitlines():
+    def _flush(self, stream: _Stream, final: bool = False) -> None:
+        for each in stream.take(final):
             if each.strip():
                 self.log(f"  {each}")
-        return ok, printed
+
+    def _show_clock(self, arguments: list[str], started: float) -> None:
+        """⏳ ccdproc · 0:12 · about 0:28 left (from 5 earlier runs on this computer)"""
+        import time
+
+        from ..core import timing
+
+        elapsed = time.monotonic() - started
+        if elapsed < 0.6:              # a quick command never flashes a clock
+            return
+        running = timing.current
+        name = running.task if running else arguments[0]
+        expected = running.estimate if running else None
+        bar = self.clock_bar
+        if self.work.count() and self.work_dock.isVisible():
+            # A panel is open and the task is waiting for a person: counting
+            # that as the task being slow would be the clock telling a lie.
+            panel = self.work.tabText(self.work.currentIndex())
+            self.clock_label.setText(f"⏸ {name} is waiting for you in {panel}; "
+                                     "press q there when you are done")
+            bar.hide()
+            self.clock.show()
+            return
+        still = theme.current().preferences.reduce_motion
+        if expected and elapsed <= expected.seconds * 1.25 + 2:
+            left = max(expected.seconds - elapsed, 0)
+            text = (f"⏳ {name} · {timing.clock(elapsed)} · about {timing.clock(left)} "
+                    f"left ({expected.basis()})")
+            bar.setRange(0, 1000)
+            bar.setValue(int(1000 * min(elapsed / max(expected.seconds, 1e-6), 0.99)))
+            bar.show()
+        else:
+            if expected:
+                text = (f"⏳ {name} · {timing.clock(elapsed)} · longer than the "
+                        f"{timing.about(expected.seconds).removeprefix('about ')} "
+                        "it usually takes here")
+            elif running:
+                text = (f"⏳ {name} · {timing.clock(elapsed)} · no estimate yet: "
+                        f"{name} has not finished a run on this computer before")
+            else:
+                text = f"⏳ {name} · {timing.clock(elapsed)}"
+            bar.setRange(0, 0)         # moving, because there is no fraction to show
+            bar.setVisible(not still)
+        self.clock_label.setText(text)
+        self.clock.show()
 
     def eventFilter(self, obj, event) -> bool:
         """Keys over the image are the examine keys."""
@@ -1259,6 +1361,86 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
 class _Leave(Exception):
     """`exit` among several commands on a line."""
+
+
+class _Stream:
+    """What a command prints, collected from whichever thread prints it and
+    handed to the session a line at a time."""
+
+    def __init__(self) -> None:
+        import threading
+
+        self._lock = threading.Lock()
+        self._pending = ""
+        self._all: list[str] = []
+
+    def write(self, text: str) -> int:
+        with self._lock:
+            self._pending += text
+            self._all.append(text)
+        return len(text)
+
+    def flush(self) -> None:
+        pass
+
+    def isatty(self) -> bool:
+        return False
+
+    def take(self, final: bool = False) -> list[str]:
+        """The complete lines so far; with `final`, the unfinished one too."""
+        with self._lock:
+            text, self._pending = self._pending, ""
+            if not final and "\n" in text:
+                text, self._pending = text.rsplit("\n", 1)
+            elif not final:
+                text, self._pending = "", text
+        return text.splitlines()
+
+    def everything(self) -> str:
+        with self._lock:
+            return "".join(self._all)
+
+
+def _on_window_thread(arguments: list[str]) -> bool:
+    """Whether a command has to run on the window's thread: one that works in
+    the window itself, rather than doing its sums and reporting."""
+    from ..core.registry import exists, get_class
+
+    name = next((word for word in arguments if not word.startswith("-")), "")
+    if name == "gui":
+        return True
+    return exists(name) and get_class(name).needs_window
+
+
+def _invoke(arguments: list[str], stream: _Stream) -> bool:
+    """One command through the CLI itself, its output into `stream`."""
+    import contextlib
+    import warnings
+
+    import click
+
+    from ..cli.main import app
+
+    try:
+        with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream), \
+                warnings.catch_warnings():
+            # A 1987 header writes its date as 01/09/87 and astropy says so
+            # every time it is read. It is true and it is not actionable, and
+            # a session log full of it is a session log nobody reads.
+            warnings.filterwarnings("ignore", message=".*datfix.*")
+            warnings.filterwarnings("ignore", message=".*FITSFixedWarning.*")
+            app.main(args=arguments, prog_name="harwood", standalone_mode=False)
+    except click.ClickException as error:
+        stream.write(f"{error.format_message()}\n")
+        return False
+    except click.exceptions.Exit as error:
+        return not error.exit_code
+    except SystemExit as error:
+        return error.code in (None, 0)
+    except Exception as error:               # a failure must not end the session
+        stream.write(f"{type(error).__name__}: {error}\n")
+        return False
+    return True
 
 
 def _hint(text: str) -> QtWidgets.QLabel:

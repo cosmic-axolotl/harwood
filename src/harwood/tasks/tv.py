@@ -168,6 +168,7 @@ class Display(Task[DisplayParams]):
     """
 
     name = "display"
+    needs_window = True
     package = "tv"
     description = "Load an image into the viewer, with marks from a coordinate list."
     Params = DisplayParams
@@ -317,6 +318,7 @@ class Imexamine(Task[ImexamineParams]):
     """
 
     name = "imexamine"
+    needs_window = True
     package = "tv"
     description = "Examine images with the cursor: profiles, photometry, statistics."
     Params = ImexamineParams

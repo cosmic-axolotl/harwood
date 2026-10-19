@@ -25,6 +25,7 @@ from PySide6 import QtCore, QtWidgets
 
 from ..core import arc, icfit
 from . import theme
+from ._qt import on_main
 from .icfit_panel import IcfitPanel
 from .theme import palette as _c
 
@@ -310,6 +311,7 @@ class IdentifyPanel(QtWidgets.QWidget):
                 np.array(self.marked_wavelength))
 
 
+@on_main
 def run(flux, peaks, catalogue, spec=None, title="identify", match: float = 1.5,
         units: str = "Angstroms"):
     """Open the panel and hand back the solution that was accepted."""

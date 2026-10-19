@@ -20,6 +20,7 @@ the parameter models, and built only when asked for, so that `list` and
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -708,9 +709,21 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
 
     task = get_task(name)
 
+    from ..core import timing
+
+    values = validated.model_dump()
+    # A person deciding at a panel is most of an interactive run's time, and
+    # says nothing about how long the next one will take.
+    timed = not (cls.needs_window or values.get("interactive"))
+    size = timing.size_of(values) if timed else timing.Size()
+    expected = timing.estimate(name, size) if timed else None
+
     if plan_only:
         console.print(f"\n[bold]{name}[/bold] would do this and nothing else:\n")
         _print_steps(task.plan(validated), explain)
+        if expected:
+            console.print(f"\n[dim]It should take {timing.about(expected.seconds)}, "
+                          f"{expected.basis()}.[/dim]")
         console.print()
         return
 
@@ -720,9 +733,11 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     # leave this run's directory set for whatever runs next in the same
     # process -- the session, a recipe, a test.
     token = output.begin(name, workdir)
+    timing.current = timing.Running(name, time.monotonic(), expected)
     try:
         try:
-            with console.status(f"{name}..."):
+            label = f"{name}... {timing.about(expected.seconds)}" if expected else f"{name}..."
+            with console.status(label):
                 result = task.run(validated)
         except KeyboardInterrupt:
             error_console.print(f"[yellow]{name} interrupted.[/yellow]")
@@ -764,8 +779,11 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         written = output.record(name, validated.model_dump(), result, command,
                                 store.origins(resolved))
         folder = output.current()
+        if timed:
+            timing.record(name, size, result.duration_s, result.backend)
     finally:
         output.end(token)
+        timing.current = None
 
     console.print(f"[green]ok[/green] {name} in {result.duration_s:.2f}s"
                   + (f" [dim]({result.backend})[/dim]" if result.backend else ""))
