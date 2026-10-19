@@ -174,6 +174,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._build_examine()
         self._build_params()
         self._build_work()
+        self._build_files()
         self._build_session()
         self._build_status()
         self._build_panels_menu()
@@ -343,6 +344,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             action.setShortcut(QtGui.QKeySequence(shortcut))
             action.triggered.connect(slot)
         files.addSeparator()
+        action = files.addAction("Open text files...")
+        action.setShortcut(QtGui.QKeySequence("Ctrl+O"))
+        action.triggered.connect(self.choose_files)
+        files.addSeparator()
         files.addAction("Close window", self.close)
 
         view = bar.addMenu("&View")
@@ -400,6 +405,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 action.setShortcut(QtGui.QKeySequence("Ctrl+T"))
             if dock is getattr(self, "session_dock", None):
                 action.setText("Command line (the hw> prompt)")
+            if dock is getattr(self, "files_dock", None):
+                action.setText("Files (the text editor)")
             panels.addAction(action)
         panels.addAction("Go to the prompt", self.go_to_prompt, QtGui.QKeySequence("Ctrl+L"))
         panels.addSeparator()
@@ -719,6 +726,33 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         panel.setFocus()
         self.log(f"  {title} opened; press q there when you are done")
 
+    def _build_files(self) -> None:
+        """The text editor: lists, coordinates, tables, several in tabs. Beside
+        the panels at the bottom, out of sight until a file is opened."""
+        from .files import FileEditor
+
+        self.files = FileEditor(open_shortcut=False)    # Ctrl+O is the File menu's
+        self.files.said.connect(self.log)
+        self.files_dock = QtWidgets.QDockWidget("Files")
+        self.files_dock.setObjectName("files")
+        self.files_dock.setWidget(self.files)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.files_dock)
+        self.tabifyDockWidget(self.work_dock, self.files_dock)
+        self.files_dock.hide()
+
+    def edit_files(self, paths: list[str]) -> None:
+        """`edit a.coo b.coo` at the prompt, or File > Open text files."""
+        self.files_dock.show()
+        self.files_dock.raise_()
+        self.resizeDocks([self.files_dock], [420], QtCore.Qt.Orientation.Vertical)
+        if paths:
+            self.files.open(paths)
+        self.files.setFocus()
+
+    def choose_files(self) -> None:
+        self.edit_files([])
+        self.files.choose()
+
     def close_panel(self, panel) -> None:
         index = self.work.indexOf(panel)
         if index >= 0:
@@ -975,6 +1009,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             event.ignore()
             self.statusBar().showMessage(f"{self._busy} is still running; close the "
                                          "window when it has finished", 6000)
+            return
+        if not self.files.close_all():          # it asked, and was told to wait
+            event.ignore()
             return
         self.examine_done.emit()
         super().closeEvent(event)
@@ -1407,7 +1444,7 @@ def _on_window_thread(arguments: list[str]) -> bool:
     from ..core.registry import exists, get_class
 
     name = next((word for word in arguments if not word.startswith("-")), "")
-    if name == "gui":
+    if name in ("gui", "edit"):
         return True
     return exists(name) and get_class(name).needs_window
 

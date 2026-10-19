@@ -34,7 +34,7 @@ from . import build
 console = Console()
 error_console = Console(stderr=True)
 
-BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "history", "gui")
+BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "history", "edit", "gui")
 
 
 class Harwood(click.Group):
@@ -601,6 +601,67 @@ def history_cmd(count: int, text: str | None) -> None:
     width = len(str(lines[-1][0]))
     for number, line in lines[-count:] if count > 0 else lines:
         console.print(f"[dim]{number:>{width}}[/dim]  {escape(line)}", highlight=False)
+
+
+@app.command("edit")
+@click.argument("files", nargs=-1, type=click.Path(path_type=Path))
+@click.option("--check", is_flag=True,
+              help="Compare the files' columns and say what differs, without "
+                   "opening anything: what Edit together checks before an edit.")
+def edit_cmd(files: tuple[Path, ...], check: bool) -> None:
+    """Open text files in tabs, to edit one or several at once."""
+    if check:
+        _check_columns(list(files))
+        return
+    from ..viewer import _qt
+
+    window = _qt.window()
+    if window is not None and hasattr(window, "edit_files"):
+        window.edit_files([str(f) for f in files])
+        return
+    from ..viewer.files import run
+
+    raise SystemExit(run([str(f) for f in files]))
+
+
+def _check_columns(files: list[Path]) -> None:
+    from ..core import columns
+
+    if not files:
+        error_console.print("[red]Name the files to compare:[/red] harwood edit --check "
+                            "a.coo b.coo")
+        raise SystemExit(2)
+    shapes = []
+    for path in files:
+        try:
+            raw = path.read_bytes()
+        except OSError as error:
+            shapes.append(columns.Layout(str(path), unreadable=str(error.strerror or error)))
+            continue
+        if raw[:6] == b"SIMPLE":
+            shapes.append(columns.Layout(str(path), unreadable="a FITS image, not a "
+                                                               "text table"))
+            continue
+        shapes.append(columns.layout(raw.decode("utf-8", errors="replace"), str(path)))
+    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2, 0, 0))
+    for heading in ("file", "format", "columns", "rows", "names"):
+        table.add_column(heading)
+    for shape in shapes:
+        if shape.unreadable:
+            table.add_row(escape(shape.name), "—", "", "", escape(shape.unreadable))
+        else:
+            table.add_row(escape(shape.name), shape.format, str(shape.width),
+                          str(shape.rows), escape(" ".join(shape.names)))
+    console.print(table)
+    # What any column edit would have to be told: the edit itself is chosen in
+    # the window, where the check is made again for that particular edit.
+    found = columns.check(shapes, columns.Operation("keep_columns"))
+    if found:
+        console.print()
+        _print_advice(found)
+    else:
+        console.print("\n[green]✔ alike[/green]: the same format, columns and names; "
+                      "a column edit means the same thing in each.")
 
 
 # ------------------------------------------------------------- the display
