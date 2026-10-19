@@ -345,6 +345,18 @@ def test_every_builtin_the_cli_lists_actually_runs(run):
         assert result.exit_code == 0, f"'{name}' is listed but does not run"
 
 
+def test_every_task_builds_a_command(run):
+    """imshift and imalign gained an optional positional output behind their
+    list of inputs, which build.py refuses -- and so for a day neither could
+    be run at all, from the shell or from a form, while every test of their
+    arithmetic passed. Each task has to come out of its model as a command."""
+    from harwood.core.registry import list_tasks
+
+    for name in list_tasks():
+        result = run(name, "--help")
+        assert result.exit_code == 0, f"'{name}' does not build: {result.exception}"
+
+
 def test_editpar_leaves_no_scratch_copy_behind_unless_it_says_so(run, tmp_path,
                                                                   monkeypatch):
     """Every --editpar made a temporary directory and none was removed. They

@@ -371,8 +371,7 @@ class ImShiftParams(TaskParams):
     input: list[str] = Field(..., description="Images to shift. Accepts globs and @lists.")
     output: str = Field(
         "", description="Output images: a name, a list, a %old%new% template or a "
-                        "directory. Left out, this run's own directory.",
-        json_schema_extra={"positional": True})
+                        "directory. Left out, this run's own directory.")
     xshift: float | None = Field(None, description="Shift in x, pixels; positive "
                                                    "moves the image to +x.")
     yshift: float | None = Field(None, description="Shift in y, pixels.")
@@ -476,8 +475,7 @@ class ImAlignParams(_CentringParams):
         ..., description="Positions of stars in the reference image, 1-based (x,y).")
     output: str = Field(
         "", description="Output images: a list, a %old%new% template or a "
-                        "directory. Left out, this run's own directory.",
-        json_schema_extra={"positional": True})
+                        "directory. Left out, this run's own directory.")
     shiftimages: bool = Field(True, description="Shift the images? Without it only "
                                                 "the shifts are measured.")
     interp_type: INTERP = Field("linear", description="Interpolant for the shift.")
