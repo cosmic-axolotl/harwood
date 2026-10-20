@@ -38,7 +38,12 @@ class Display(Protocol):
     """What every backend provides."""
 
     def show(self, data: Any, header: Any = None, frame: int = 1,
-             name: str = "", scale: str = "zscale") -> None: ...
+             name: str = "", scale: str = "zscale",
+             window: tuple[float, float] | None = None, stretch: str | None = None,
+             table: Any = None) -> None:
+        """`window` fixes z1 and z2 (overriding `scale`); `stretch` is the
+        transfer from them to grey, and `table` the lookup table of the
+        "user" one."""
 
     def mark(self, markers: list[Marker], frame: int = 1) -> None: ...
 

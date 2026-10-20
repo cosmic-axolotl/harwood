@@ -65,9 +65,41 @@ class DisplayParams(TaskParams):
     image: str = Field(..., description="Image to load. [SCI,1] and sections are accepted.",
                        json_schema_extra={"positional": True})
     frame: int = Field(1, ge=1, description="Frame to load the image into.")
-    scale: Literal["zscale", "minmax", "99.5%"] = Field(
-        "zscale", description="How the display limits are chosen. zscale is IRAF's "
-                              "default and the one that shows sky and stars at once.",
+    bpmask: str = Field(
+        "BPM", description="Bad pixel mask whose pixels are left out of the zscale "
+                           "sample. BPM is the file the image's BPM keyword names; "
+                           "!KEY any other keyword; empty for none.",
+    )
+    zscale: bool = Field(
+        True, description="Pick z1 and z2 from a sample of the pixels near the median, "
+                          "so sky and faint stars show at once -- IRAF's default.",
+    )
+    contrast: float = Field(
+        0.25, description="zscale's contrast: the fitted slope is divided by it, so "
+                          "smaller values widen the range. 0 gives the sample's "
+                          "extremes.",
+    )
+    zrange: bool = Field(
+        True, description="With --no-zscale: z1 and z2 from the extremes of the "
+                          "sample, instead of --z1 and --z2.",
+    )
+    zmask: str = Field(
+        "", description="Pixels to sample instead of a uniform grid: a mask image or "
+                        "a section such as [100:400,*]. Empty samples the whole image.",
+    )
+    nsample: int = Field(1000, ge=100, description="Most pixels sampled for zscale "
+                                                   "and zrange.")
+    z1: float | None = Field(None, description="Lowest value shown, with --no-zscale "
+                                               "--no-zrange.")
+    z2: float | None = Field(None, description="Highest value shown, with --no-zscale "
+                                               "--no-zrange.")
+    ztrans: Literal["linear", "log", "none", "user"] = Field(
+        "linear", description="From z1..z2 to grey: linear; log (onto 1..1000, then "
+                              "the logarithm); none (the values themselves, wrapping "
+                              "every 256); user (the table in --lutfile).",
+    )
+    lutfile: str = Field(
+        "", description="With --ztrans user: two columns, value and grey level 1-200.",
     )
     coords: str = Field(
         "", description="Coordinate list to mark over the image, as tvmark does: a "
@@ -92,8 +124,11 @@ class ImPictureParams(TaskParams):
                              "own name, as PNG), or a template like '%.fits%.png%'.")
     scale: Literal["zscale", "minmax", "99.5%"] = Field(
         "zscale", description="How the display limits are chosen, as in the window.")
-    stretch: Literal["linear", "sqrt", "log", "asinh"] = Field(
-        "linear", description="Transfer function from the limits to the colours.")
+    stretch: Literal["linear", "sqrt", "log", "asinh", "none", "user"] = Field(
+        "linear", description="Transfer function from the limits to the colours. log, "
+                              "none and user are display's ztrans of the same names.")
+    lutfile: str = Field("", description="With --stretch user: the table, as display's "
+                                         "--lutfile.")
     colormap: Literal["grey", "viridis", "cividis", "magma", "heat", "cool", "sepia"] = Field(
         "grey", description="Colour map. viridis, cividis and magma read the same with "
                             "colour-vision deficiencies; cividis was made for them.")
@@ -141,6 +176,11 @@ class ImPicture(Task[ImPictureParams]):
             targets = images.outputs_for(specs, output)
         window = ((params.z1, params.z2)
                   if params.z1 is not None and params.z2 is not None else None)
+        table = None
+        if params.stretch == "user":
+            if not params.lutfile:
+                advice.fail("--stretch user needs a table", "give it with --lutfile")
+            table = render.UserLut(params.lutfile)
         rows = []
         for spec, target in zip(specs, targets, strict=True):
             data, _ = images.read(spec)
@@ -149,7 +189,7 @@ class ImPicture(Task[ImPictureParams]):
                             "name one plane, e.g. 'cube.fits[*,*,1]', or one extension")
             low, high = window or render.limits(data, params.scale)
             pixels = render.rgb(data, params.scale, params.stretch, params.colormap,
-                                window=(low, high))
+                                window=(low, high), table=table)
             save_rgb(pixels, target)
             rows.append({"image": str(spec), "picture": str(target),
                          "z1": round(low, 4), "z2": round(high, 4)})
@@ -175,7 +215,7 @@ class Display(Task[DisplayParams]):
 
     def plan(self, params: DisplayParams) -> list[Step]:
         steps = [Step("show", f"{params.image} -> frame {params.frame}", why=WHY["show"]),
-                 Step("limits", params.scale, why=WHY["limits"])]
+                 Step("limits", _how_limits(params), why=WHY["limits"])]
         if params.coords:
             steps.append(Step("mark", f"{params.coords}, radius {params.radius:g}",
                               why=WHY["mark"]))
@@ -185,26 +225,80 @@ class Display(Task[DisplayParams]):
         from ..core import catalog, display, images
 
         data, header = images.read(params.image)
-        screen = display.get(params.backend or None)
-        screen.show(data, header, frame=params.frame, name=str(params.image),
-                    scale=params.scale)
+        z1, z2, table, notes = display_limits(params, data, header)
         steps = self.plan(params)
+        steps[1].measured = {"z1": z1, "z2": z2}
+        screen = display.get(params.backend or None)
+        stretch = {"linear": None, "log": "log", "none": "none", "user": "user"}[params.ztrans]
+        screen.show(data, header, frame=params.frame, name=str(params.image),
+                    window=(z1, z2), stretch=stretch, table=table)
 
         if params.coords:
-            table = catalog.read(params.coords)
-            x, y = catalog.coordinates(table, params.coords)
-            labels = (table["id"] if "id" in table.colnames else [""] * len(table))
+            table_xy = catalog.read(params.coords)
+            x, y = catalog.coordinates(table_xy, params.coords)
+            labels = (table_xy["id"] if "id" in table_xy.colnames else [""] * len(table_xy))
             screen.mark([display.Marker(float(a), float(b), radius=params.radius,
                                         label=str(label))
                          for a, b, label in zip(x, y, labels, strict=True)],
                         frame=params.frame)
-            steps[-1].measured = {"marked": len(table)}
+            steps[-1].measured = {"marked": len(table_xy)}
 
         outputs = [screen.output] if hasattr(screen, "output") else []
         if params.wait and hasattr(screen, "run") and getattr(screen, "owns", False):
             screen.run()
-        return TaskResult(outputs=outputs, steps=steps,
-                          data={"shape": "x".join(str(n) for n in reversed(data.shape))})
+        return TaskResult(outputs=outputs, steps=steps, warnings=notes,
+                          # as IRAF prints them, %g of a single-precision value
+                          data={"z1": float(f"{z1:.7g}"), "z2": float(f"{z2:.7g}"),
+                                "shape": "x".join(str(n) for n in reversed(data.shape))})
+
+
+def _how_limits(params: DisplayParams) -> str:
+    if params.ztrans in ("none", "user"):
+        return f"ztrans={params.ztrans}: z1=1 z2=200, the frame's own grey levels"
+    if params.zscale:
+        return f"zscale, contrast {params.contrast:g}, up to {params.nsample} pixels"
+    if params.zrange:
+        return f"zrange: the extremes of up to {params.nsample} pixels"
+    return f"z1={params.z1} z2={params.z2}"
+
+
+def display_limits(params: DisplayParams, data, header):
+    """z1, z2 (and the user table) as t_display.x works them out.
+
+    ztrans none and user switch zscale and zrange off and leave z1 and z2 at
+    the frame's grey range, 1 and 200 -- in IRAF the user table's own range
+    is read and then overwritten by these, so a table maps the values 1 to
+    200. zrange would use the header's min and max when IRAF knows them to
+    be current; a FITS file never says so, so it samples, as IRAF does."""
+    from ..core import pixmask, render
+
+    notes: list[str] = []
+    table = None
+    if params.ztrans == "user":
+        if not params.lutfile:
+            advice.fail("--ztrans user needs a table", "give it with --lutfile")
+        table = render.UserLut(params.lutfile)
+    if params.ztrans in ("none", "user"):
+        return *render.DEVICE_GREY, table, notes
+    if not params.zscale and not params.zrange:
+        if params.z1 is None or params.z2 is None:
+            advice.fail("with --no-zscale --no-zrange the limits are --z1 and --z2",
+                        "give both, or leave --zscale on")
+        return float(params.z1), float(params.z2), table, notes
+    try:
+        bpm = pixmask.read(params.bpmask, header, data.shape)
+    except FileNotFoundError as error:
+        # IRAF warns and goes on without the mask.
+        notes.append(f"{error}; sampling without a bad pixel mask")
+        bpm = None
+    zmask = pixmask.read(params.zmask, header, data.shape) if params.zmask else None
+    contrast = params.contrast if params.zscale else 0.0
+    try:
+        z1, z2 = render.zscale(data, contrast, params.nsample, zmask, bpm)
+    except ValueError as error:
+        advice.fail(str(error), "sample more of the image: a larger --nsample, or a "
+                                "wider --zmask")
+    return z1, z2, table, notes
 
 
 class ImexamineParams(TaskParams):

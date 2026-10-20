@@ -91,13 +91,22 @@ def _wireframe(plot: dict) -> list[tuple[np.ndarray, np.ndarray]]:
     return lines
 
 
+#: The scale-box entry for limits given by the display task (z1 and z2).
+FIXED = "z1 z2"
+
+
 class Frame:
     """One loaded image and how it is being shown."""
 
-    def __init__(self, data: np.ndarray, header: Any = None, name: str = "") -> None:
+    def __init__(self, data: np.ndarray, header: Any = None, name: str = "",
+                 window: tuple[float, float] | None = None, table: Any = None) -> None:
         self.data = np.asarray(data, dtype=float)
         self.header = header
         self.name = name or "image"
+        #: z1 and z2 as the display task worked them out, shown under "z1 z2"
+        self.window = window
+        #: the lookup table of ztrans=user, for the "user" stretch
+        self.table = table
         self.markers: list[Marker] = []
         self.wcs = self._read_wcs()
 
@@ -113,7 +122,15 @@ class Frame:
             return None
 
     def limits(self, scale: str) -> tuple[float, float]:
+        if scale == FIXED:
+            return self.window or render.limits(self.data, "zscale")
         return render.limits(self.data, scale)
+
+    def stretch(self, kind: str) -> tuple[str, Any]:
+        """The transfer to draw with: "user" needs this frame's table."""
+        if kind == "user" and self.table is None:
+            return "linear", None
+        return kind, self.table if kind == "user" else None
 
 
 class HarwoodWindow(QtWidgets.QMainWindow):
@@ -455,8 +472,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         """The current frame as shown -- scale, stretch, colours -- rows top
         down: what the window draws and what `harwood impicture` writes."""
         frame = frame or self.frames[self.current]
-        return render.rgb(frame.data, self.scale_box.currentText(),
-                          self.stretch_box.currentText(), self.cmap_box.currentText())
+        kind, table = frame.stretch(self.stretch_box.currentText())
+        return render.rgb(frame.data, kind=kind, colormap=self.cmap_box.currentText(),
+                          window=frame.limits(self.scale_box.currentText()), table=table)
 
     def _save_dialog(self, title: str, stem: str, formats: list[tuple[str, str]]):
         filters = ";;".join(f"{label} (*.{ext})" for label, ext in formats)
@@ -491,11 +509,15 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         from .png import save_rgb
 
         saved = save_rgb(self.rendered(frame), target)
-        self.log(f"  exported {frame.name} -> {saved}  ({self.scale_box.currentText()}, "
-                 f"{self.stretch_box.currentText()}, {self.cmap_box.currentText()})"
+        scale = self.scale_box.currentText()
+        kind, _ = frame.stretch(self.stretch_box.currentText())
+        low, high = frame.limits(scale)
+        limits = f"--z1 {low:g} --z2 {high:g}" if scale == FIXED else f"--scale {scale}"
+        lutfile = " --lutfile <the display's lutfile>" if kind == "user" else ""
+        self.log(f"  exported {frame.name} -> {saved}  ({scale}, "
+                 f"{kind}, {self.cmap_box.currentText()})"
                  f"  -- the same as: harwood impicture '{frame.name}' {saved.name} "
-                 f"--scale {self.scale_box.currentText()} "
-                 f"--stretch {self.stretch_box.currentText()} "
+                 f"{limits} --stretch {kind}{lutfile} "
                  f"--colormap {self.cmap_box.currentText()}")
         return saved
 
@@ -536,9 +558,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.addToolBar(bar)
 
         self.frame_box = self._combo(bar, "frame", [], self._frame_changed, width=230)
-        self.scale_box = self._combo(bar, "scale", ["zscale", "minmax", "99.5%"],
+        self.scale_box = self._combo(bar, "scale", ["zscale", "minmax", "99.5%", FIXED],
                                      self._redraw)
-        self.stretch_box = self._combo(bar, "stretch", ["linear", "sqrt", "log", "asinh"],
+        self.stretch_box = self._combo(bar, "stretch", list(render.STRETCHES),
                                        self._redraw)
         self.cmap_box = self._combo(bar, "colours", list(COLORMAPS), self._redraw)
 
@@ -880,8 +902,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
     # ------------------------------------------------------------- frames
 
     def load(self, data, header=None, frame: int = 1, name: str = "",
-             scale: str = "zscale") -> None:
-        self.frames[frame] = Frame(data, header, name)
+             scale: str = "zscale", window: tuple[float, float] | None = None,
+             stretch: str | None = None, table: Any = None) -> None:
+        """Show an image in a frame. With `window`, the limits are those z1
+        and z2 (the display task's), listed as "z1 z2" in the scale box."""
+        self.frames[frame] = Frame(data, header, name, window=window, table=table)
         self.current = frame
         labels = [f"{n}  {f.name}" for n, f in sorted(self.frames.items())]
         self.frame_box.blockSignals(True)
@@ -889,14 +914,18 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.frame_box.addItems(labels)
         self.frame_box.setCurrentText(f"{frame}  {self.frames[frame].name}")
         self.frame_box.blockSignals(False)
-        if scale != self.scale_box.currentText():
-            self.scale_box.blockSignals(True)
-            self.scale_box.setCurrentText(scale)
-            self.scale_box.blockSignals(False)
+        if window is not None:
+            scale = FIXED
+        for box, value in ((self.scale_box, scale), (self.stretch_box, stretch)):
+            if value and value != box.currentText():
+                box.blockSignals(True)
+                box.setCurrentText(value)
+                box.blockSignals(False)
 
         low, high = self.frames[frame].limits(scale)
-        self.log(f"display '{name}' --frame {frame} --{scale}", prompt=True)
-        self.log(f"  frame {frame} <- {name}   z1={low:.1f} z2={high:.1f}")
+        how = "" if window is not None else f" --{scale}"
+        self.log(f"display '{name}' --frame {frame}{how}", prompt=True)
+        self.log(f"  frame {frame} <- {name}   z1={low:g} z2={high:g}")
         self._redraw(reset_view=True)
 
     def add_markers(self, markers: list[Marker], frame: int | None = None) -> None:

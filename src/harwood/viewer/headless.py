@@ -20,8 +20,10 @@ class HeadlessDisplay:
         self._markers: dict[int, list[Marker]] = {}
 
     def show(self, data: Any, header: Any = None, frame: int = 1,
-             name: str = "", scale: str = "zscale") -> None:
-        self._frames[frame] = (data, name, scale)
+             name: str = "", scale: str = "zscale",
+             window: tuple[float, float] | None = None, stretch: str | None = None,
+             table: Any = None) -> None:
+        self._frames[frame] = (data, name, scale, window, stretch, table)
         self._render(frame)
 
     def mark(self, markers: list[Marker], frame: int = 1) -> None:
@@ -46,9 +48,11 @@ class HeadlessDisplay:
         from ..core import render
         from .png import write_grey
 
-        data, _, scale = self._frames[frame]
+        data, _, scale, window, stretch, table = self._frames[frame]
         # The window's limits, so the picture shows what the window would.
-        low, high = render.limits(data, scale if scale in render.SCALES else "minmax")
-        scaled = np.nan_to_num(render.stretch(data, low, high), nan=0.0)
+        low, high = window or render.limits(data, scale if scale in render.SCALES
+                                            else "minmax")
+        scaled = np.nan_to_num(render.stretch(data, low, high, stretch or "linear", table),
+                               nan=0.0)
         # FITS counts rows from the bottom and PNG from the top.
         write_grey(self.output, scaled[::-1] * 255)

@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 27, partial: 25, planned: 303, replaced: 94, wontport: 161
+#   available: 28, partial: 24, planned: 303, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -541,8 +541,8 @@ tasks:
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
   cvl: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
-  display: {pkg: images.tv, domain: display, status: partial, milestone: mvp,
-    note: "zscale, minmax and 99.5% limits, frames, and a coordinate list marked over the image; no z1/z2 or contrast, and the ds9 backend is not written"}
+  display: {pkg: images.tv, domain: display, status: available, milestone: mvp,
+    note: "zscale (contrast, nsample, zmask, bpmask), zrange, z1/z2 and ztrans linear|log|none|user ported from zscale.x and t_display.x: z1, z2 and every grey level identical to IRAF 2.18; masks as FITS, .pl, sections, keywords or regions. The window geometry parameters (xcenter, xmag, fill, order) are replaced by zoom and pan, overlay masks by --coords and tvmark"}
   erase: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
   frame: {pkg: images.tv.iis, domain: display, status: wontport,

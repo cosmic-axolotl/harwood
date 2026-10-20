@@ -15,7 +15,7 @@ output: |
 |---|---|
 | `--scale` | how the limits are chosen: `zscale` (IRAF's), `minmax`, `99.5%` |
 | `--z1`, `--z2` | the limits themselves, overriding the scale |
-| `--stretch` | `linear`, `sqrt`, `log`, `asinh` |
+| `--stretch` | `linear`, `sqrt`, `log`, `asinh`, and display's `none` and `user` (with `--lutfile`) |
 | `--colormap` | `grey`, `viridis`, `cividis`, `magma`, `heat`, `cool`, `sepia` |
 
 The format comes from the name: PNG needs nothing installed; JPEG, TIFF and
