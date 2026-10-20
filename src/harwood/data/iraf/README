@@ -6,10 +6,12 @@ installed -- or available anywhere -- to run.
   onedstds/    flux standards (spec50cal, spec16cal, oke1990...) and
                extinction curves (kpnoextinct.dat...), read as onedstds$...
   ccddb/       instrument header translations, read as ccddb$kpno/direct.dat
+  obsdb.dat    the observatories (noao/lib/obsdb.dat), ISO-8859-1 as IRAF has it
 
 Copied unchanged from IRAF 2.18.1 (iraf-community; the Ubuntu packages
 iraf 2.18.1-2build1 and iraf-noao 2.18.1-2build1) on 2026-10-20, from
-noao/lib/linelists, noao/lib/onedstds and noao/imred/ccdred/ccddb. The cl
+noao/lib/linelists, noao/lib/onedstds, noao/imred/ccdred/ccddb and
+noao/lib/obsdb.dat. The cl
 scripts that sat beside them (airvac.cl, mkbbcal.cl, the ccddb *.cl
 package settings) were left out: harwood reads the tables, not the scripts.
 

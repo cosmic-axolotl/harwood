@@ -41,4 +41,4 @@ src/harwood/tasks/imutil.py and the ie_rimexam port in
 src/harwood/viewer/analysis.py, all translated from iraf-community 2.18.
 
 Also applies to the data tables under src/harwood/data/iraf/ (linelists,
-onedstds, ccddb), copied unchanged from IRAF 2.18.1; see the README there.
+onedstds, ccddb, obsdb.dat), copied unchanged from IRAF 2.18.1; see the README there.

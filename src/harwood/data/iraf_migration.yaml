@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 22, partial: 30, planned: 303, replaced: 94, wontport: 161
+#   available: 27, partial: 25, planned: 303, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -281,13 +281,12 @@ tasks:
   partab: {pkg: utilities.nttools, domain: headers, status: replaced,
     note: "astropy.table plus ECSV replace the t* family"}
   sapertures: {pkg: onedspec, domain: headers, status: planned, milestone: later}
-  setairmass: {pkg: [astutil, onedspec], domain: headers, status: partial, milestone: mvp, harwood: setairmass,
-    note: "effective airmass by Simpson's rule over the exposure, plus UTMIDDLE and JD; a built-in observatory table rather than IRAF's obsdb.dat, and no separate intype/outtype coordinate conversions"}
+  setairmass: {pkg: [astutil, onedspec], domain: headers, status: available, milestone: mvp, harwood: setairmass,
+    note: "IRAF's t_setairmass ported and checked against IRAF's output: ST minus precessed RA, airmassx with the scale height, intype/outtype, every keyword renameable, AIRMASS in single precision and UTMIDDLE as IRAF writes it; ST worked out from the UT when the header has none"}
   setinstrument: {pkg: imred.ccdred, domain: headers, status: partial, milestone: mvp, harwood: setinstrument,
     note: "chooses a header translation and records it in the project, from IRAF's ccddb files, which ship with harwood; the ccdred package settings IRAF's *.cl files also made are not applied"}
-  setjd: {pkg: [astutil, onedspec], domain: headers, status: partial, milestone: mvp, harwood: setjd,
-    note: "julian, heliocentric (or barycentric) and local julian dates at mid-exposure,
-           written to the header with the correction recorded in HISTORY."}
+  setjd: {pkg: [astutil, onedspec], domain: headers, status: available, milestone: mvp, harwood: setjd,
+    note: "IRAF's t_setjd ported and checked against IRAF's output: JD, HJD by IRAF's Sun, LJD, utdate/uttime, every keyword renameable; --barycentric is harwood's own"}
   slist: {pkg: onedspec, domain: headers, status: planned, milestone: later}
   tabkey: {pkg: utilities.nttools, domain: headers, status: replaced,
     note: "astropy.table plus ECSV replace the t* family"}
@@ -816,18 +815,13 @@ tasks:
   rvreidlines: {pkg: rv, domain: radial-velocity, status: planned, milestone: later}
 
   # --- time-observatory (core, 6 tasks) ------------------------
-  airmass: {pkg: astutil, domain: time-observatory, status: partial, milestone: mvp, harwood: airmass,
-    note: "effective airmass over an exposure, from a header or from coordinates given on
-           the command line, with the refraction correction. Not interactive, and no
-           observing-plan table over a night."}
-  asttimes: {pkg: astutil, domain: time-observatory, status: partial, milestone: mvp, harwood: asttimes,
-    note: "UT to julian date, modified julian date, epoch and local sidereal time. No
-           conversion back from sidereal, and no epoch-to-date direction."}
+  airmass: {pkg: astutil, domain: time-observatory, status: available, milestone: mvp, harwood: airmass,
+    note: "IRAF's airmass at an elevation (--elevation, --scale, --radians), ported; and the airmass of an exposure from a header or coordinates, by setairmass's arithmetic"}
+  asttimes: {pkg: astutil, domain: time-observatory, status: available, milestone: mvp, harwood: asttimes,
+    note: "IRAF's zone time to UT, epoch, JD and LMST with the day of the week, from a date or files of dates, ported and checked against IRAF's output; plus a frame's header, and JD, epoch or LMST back to a time"}
   gratings: {pkg: astutil, domain: time-observatory, status: planned, milestone: later}
-  observatory: {pkg: noao, domain: time-observatory, status: partial, milestone: mvp, harwood: observatory,
-    note: "lists the built-in sites or looks one up, with longitude positive west as IRAF
-           stores it. The table is harwood's own rather than IRAF's obsdb.dat, and there is
-           no way yet to add a site permanently -- give --latitude and --longitude instead."}
+  observatory: {pkg: noao, domain: time-observatory, status: available, milestone: mvp, harwood: observatory,
+    note: "IRAF's obsdb.dat, shipped; list, set (this reduction's default, and sites of its own in an obsdb.dat beside harwood.yaml) and images"}
   pairmass: {pkg: obsutil, domain: time-observatory, status: planned, milestone: later}
   pdm: {pkg: astutil, domain: time-observatory, status: planned, milestone: later}
 

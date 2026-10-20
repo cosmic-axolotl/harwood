@@ -179,7 +179,7 @@ def test_observatory_lists_and_looks_up():
     every = get_task("observatory").run()
     assert len(every.data["rows"]) > 10
 
-    one = get_task("observatory").run(name="kitt peak")
+    one = get_task("observatory").run(obsid="kitt peak")
     row, = one.data["rows"]
     assert row["code"] == "kpno"
     # Positive west, as IRAF stores it. The column name has to say so, because
@@ -189,8 +189,37 @@ def test_observatory_lists_and_looks_up():
 
 def test_an_unknown_site_lists_the_ones_that_exist():
     with pytest.raises(ValueError) as raised:
-        get_task("observatory").run(name="narnia")
+        get_task("observatory").run(obsid="narnia")
     assert "kpno" in raised.value.fix and "--latitude" in raised.value.fix
+
+
+def test_the_sites_are_irafs_and_a_reduction_can_add_its_own(tmp_path, monkeypatch):
+    """IRAF's obsdb.dat ships with harwood; `observatory set` with
+    coordinates adds a site in the same format beside harwood.yaml, makes it
+    this reduction's default, and every task finds it."""
+    from harwood.core import observatory, sample
+
+    monkeypatch.chdir(tmp_path)
+    assert len(observatory.SITES) > 70, "IRAF's table, not a short list"
+    assert observatory.find("saao").east == pytest.approx(20.8107, abs=1e-3)
+    (tmp_path / "harwood.yaml").write_text("params: {}\n")
+    get_task("observatory").run(command="set", obsid="skinakas",
+                                name="Skinakas Observatory", latitude=35.212,
+                                longitude=-24.8989, altitude=1750, timezone=-2)
+    assert 'observatory = "skinakas"' in (tmp_path / "obsdb.dat").read_text()
+    assert "observatory: skinakas" in (tmp_path / "harwood.yaml").read_text()
+    assert observatory.find("skinakas").altitude == 1750
+    assert observatory.default().code == "skinakas"
+    get_task("observatory").run(command="set", obsid="kpno")
+    sample.write(tmp_path)
+    from astropy.io import fits
+
+    with fits.open("obj001.fits", mode="update") as hdus:
+        del hdus[0].header["OBSERVAT"]
+    rows = get_task("setairmass").run(images=["obj001.fits"], update=False).data["rows"]
+    assert rows[0]["airmass"] == pytest.approx(1.0343, abs=1e-4), "the default, kpno"
+    listed = get_task("observatory").run(command="images", images=["obj001.fits"])
+    assert listed.data["rows"][0]["from"] == "this reduction's default"
 
 
 # --------------------------------------------------------- hedit and imgets
@@ -313,4 +342,4 @@ def test_times_after_the_shipped_table_do_not_go_online(tmp_path, monkeypatch):
     assert 1.0 < result.data["rows"][0]["airmass"] < 1.1
     assert get_task("asttimes").run(image="obj001.fits").data["sidereal"]
     assert get_task("setjd").run(images=["obj001.fits"], observatory="kpno",
-                                 update=False).data["rows"][0]["hjd"] > 2461296
+                                 listonly=True).data["rows"][0]["hjd"] > 2461296

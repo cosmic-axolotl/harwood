@@ -389,8 +389,10 @@ def test_setairmass_replaces_the_shutter_opening_value_and_says_so(flexing_night
     assert any("shutter opened" in warning for warning in result.warnings)
 
     header = fits.getheader(work / "star.ms.fits")
-    assert header["AIRMASS"] == pytest.approx(row["airmass"])
-    assert header["UTMIDDLE"] == "02:00:00.0", "an hour's exposure from 01:30"
+    # Written in single precision, as IRAF writes it; the row is rounded.
+    assert header["AIRMASS"] == pytest.approx(row["airmass"], abs=1e-4)
+    assert header["UTMIDDLE"] == "1992-01-25T02:00:00.00", \
+        "an hour's exposure from 01:30, written as IRAF writes it"
     assert any("replacing AIRMASS 1.2" in line for line in header["HISTORY"])
 
 

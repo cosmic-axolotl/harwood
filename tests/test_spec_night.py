@@ -253,7 +253,7 @@ def test_the_effective_airmass_is_higher_than_the_one_the_observer_logged(stampe
     assert header["AMSTART"] == pytest.approx(1.52, abs=0.01)
     assert header["AIRMASS"] > header["AMSTART"] + 0.03
     assert header["AIRMASS"] < header["AMEND"]
-    assert header["UTMIDDLE"].startswith("02:18"), "02:08:22 plus half of 1200 s"
+    assert header["UTMIDDLE"].startswith("1992-01-25T02:18"), "02:08:22 plus half of 1200 s"
 
 
 def test_the_comparison_lamps_bracket_the_night(stamped):

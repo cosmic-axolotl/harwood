@@ -60,7 +60,10 @@ def hours(text: Any) -> float | None:
         return None
     if isinstance(text, (int, float)):
         return float(text)
-    parts = str(text).strip().split(":")
+    text = str(text).strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}T", text):
+        text = text.split("T", 1)[1]        # 1992-01-25T02:18:22.00, as IRAF writes it
+    parts = text.split(":")
     try:
         values = [float(part) for part in parts]
     except ValueError:
