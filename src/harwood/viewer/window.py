@@ -175,6 +175,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._build_params()
         self._build_work()
         self._build_files()
+        self._build_docs()
         self._build_session()
         self._build_status()
         self._build_panels_menu()
@@ -350,6 +351,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         files.addSeparator()
         files.addAction("Close window", self.close)
 
+
         view = bar.addMenu("&View")
         self._theme_actions = {}
         group = QtGui.QActionGroup(self)
@@ -407,10 +409,22 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 action.setText("Command line (the hw> prompt)")
             if dock is getattr(self, "files_dock", None):
                 action.setText("Files (the text editor)")
+            if dock is getattr(self, "docs_dock", None):
+                action.setText("Documentation (F1)")
             panels.addAction(action)
         panels.addAction("Go to the prompt", self.go_to_prompt, QtGui.QKeySequence("Ctrl+L"))
         panels.addSeparator()
         panels.addAction("Put the panels back  (Ctrl+Shift+R)", self.reset_layout)
+
+        # Help last, where every application keeps it.
+        helping = self.menuBar().addMenu("&Help")
+        action = helping.addAction("Documentation")
+        action.setShortcut(QtGui.QKeySequence("F1"))
+        action.triggered.connect(lambda: self.show_docs("index.html"))
+        helping.addAction("Documentation in the browser",
+                          lambda: self.docs.open_in_browser())
+        helping.addAction("The sample night (try the examples)",
+                          lambda: self.show_docs("start/sample.html"))
 
     def _sync_menus(self) -> None:
         if not hasattr(self, "_theme_actions"):
@@ -580,6 +594,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         self.browser = TaskBrowser(self.run_line, current_image=self._shown_file)
         self.browser.to_prompt.connect(self._to_prompt)
+        self.browser.manual.connect(self._docs_for_task)
         self.tasks_dock = QtWidgets.QDockWidget("Tasks")
         self.tasks_dock.setObjectName("tasks")
         self.tasks_dock.setWidget(self.browser)
@@ -739,6 +754,45 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.files_dock)
         self.tabifyDockWidget(self.work_dock, self.files_dock)
         self.files_dock.hide()
+
+    def _build_docs(self) -> None:
+        """The documentation: the built site, beside the panels at the bottom,
+        out of sight until asked for (F1, Help, `docs` at the prompt)."""
+        from .docs import DocsPanel
+
+        self.docs = DocsPanel()
+        self.docs_dock = QtWidgets.QDockWidget("Documentation")
+        self.docs_dock.setObjectName("docs")
+        self.docs_dock.setWidget(self.docs)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.docs_dock)
+        self.tabifyDockWidget(self.files_dock, self.docs_dock)
+        self.docs_dock.hide()
+        self._docs_placed = False
+
+    def show_docs(self, url: str = "index.html") -> None:
+        """A page of the documentation, in the window (or the browser, if this
+        installation cannot show web pages)."""
+        from .docs import available
+
+        if available():
+            if not self.docs_dock.isVisible() and not self._docs_placed:
+                # The first time, a window of its own beside this one, big enough
+                # to read: squeezed into a corner of the panels it is no use. It
+                # is still a panel -- drag it back in, or onto another to tab it.
+                self._docs_placed = True
+                self.docs_dock.setFloating(True)
+                frame = self.frameGeometry()
+                self.docs_dock.resize(int(frame.width() * 0.62), int(frame.height() * 0.85))
+                self.docs_dock.move(frame.x() + int(frame.width() * 0.34),
+                                    frame.y() + int(frame.height() * 0.08))
+            self.docs_dock.show()
+            self.docs_dock.raise_()
+        self.docs.show_page(url)
+
+    def _docs_for_task(self, name: str) -> None:
+        from ..docsite import url_for
+
+        self.show_docs(url_for(name))
 
     def edit_files(self, paths: list[str]) -> None:
         """`edit a.coo b.coo` at the prompt, or File > Open text files."""
@@ -1444,7 +1498,7 @@ def _on_window_thread(arguments: list[str]) -> bool:
     from ..core.registry import exists, get_class
 
     name = next((word for word in arguments if not word.startswith("-")), "")
-    if name in ("gui", "edit"):
+    if name in ("gui", "edit", "docs"):
         return True
     return exists(name) and get_class(name).needs_window
 

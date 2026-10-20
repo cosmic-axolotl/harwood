@@ -28,6 +28,10 @@ dependencies = [
   "click>=8.1",
   "rich>=13.0",
   "pyyaml>=6.0",
+  # The documentation (harwood docs, harwood help): rich already brings both,
+  # so naming them costs nothing and keeps the dependency from being an accident.
+  "markdown-it-py>=3.0",
+  "pygments>=2.13",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +41,9 @@ ccd = ["ccdproc>=2.4", "astroscrappy>=1.2"]
 # is absent. daofind, phot and imalign are ports of IRAF and need only numpy.
 phot = ["scipy>=1.10"]
 gui = ["PySide6-Essentials>=6.6", "pyqtgraph>=0.13"]
+# The documentation inside the window needs QtWebEngine, which is in PySide6's
+# Addons and not in the Essentials; without it the same pages open in a browser.
+docs = ["harwood[gui]", "PySide6-Addons>=6.6"]
 fast = ["numba>=0.59"]
 # Not on PyPI yet: the compiled kernels are built from the harwood-kernels
 # directory in this repository, and the dispatcher falls back without them.

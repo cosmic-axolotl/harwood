@@ -445,3 +445,38 @@ def test_the_session_ends_cleanly_on_ctrl_d(monkeypatch):
 
     monkeypatch.setattr(session.console, "input", eof)
     session.start()
+
+
+def test_a_section_with_a_comma_is_one_image(run, tmp_path, monkeypatch):
+    """`imstatistics 'obj.fits[10:40,60:90]'` was split at the comma into two
+    names, neither of them a file -- while imcopy's own help promised that
+    'obj.fits[1:100,*]' copies just that part."""
+    import numpy as np
+    from astropy.io import fits
+
+    monkeypatch.chdir(tmp_path)
+    fits.writeto("obj.fits", np.arange(100, dtype=np.float32).reshape(10, 10))
+    result = run("imstatistics", "obj.fits[2:4,1:2]", "--fields", "image,npix")
+    assert result.exit_code == 0, result.output
+    assert "6" in result.output
+    copied = run("imcopy", "obj.fits[1:5,*],obj.fits[6:10,*]", "a.fits,b.fits")
+    assert copied.exit_code == 0, copied.output
+    assert fits.getdata("a.fits").shape == (10, 5)
+
+
+def test_indef_is_irafs_no_value_on_the_command_line(run, tmp_path, monkeypatch):
+    """autoidentify's blind search is `autoidentify arc INDEF INDEF`, as in
+    IRAF; the command line refused INDEF for every number, so it could not be
+    asked for at all. And the log writes the run back the same way."""
+    from harwood.core import replay
+    from harwood.core.registry import get_class
+
+    monkeypatch.chdir(tmp_path)
+    planned = run("autoidentify", "arc.fits", "INDEF", "INDEF", "--plan")
+    assert planned.exit_code == 0, planned.output
+    assert "blind search" in planned.output
+    cls = get_class("autoidentify")
+    values = cls.Params(image="arc.fits", crval=None, cdelt=None).model_dump()
+    assert replay.command("autoidentify", cls.Params, values) == \
+        "harwood autoidentify arc.fits INDEF INDEF"
+    assert "FLOAT OR INDEF" in run("daofind", "--help").output

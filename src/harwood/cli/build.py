@@ -42,15 +42,37 @@ def _unwrap(annotation: Any) -> tuple[Any, bool]:
     return annotation, False
 
 
+#: IRAF's "no value", as typed: `harwood autoidentify arc.fits INDEF INDEF`.
+#: A marker rather than None, because None is what click passes for a value
+#: that was not typed at all, and collect() leaves those out.
+INDEF = type("Indef", (), {"__repr__": lambda self: "INDEF"})()
+
+
+class _IndefNumber(click.ParamType):
+    """A number, or INDEF -- for a parameter that may be left unset."""
+
+    def __init__(self, base) -> None:
+        self.base = base
+        self.name = f"{base.name} or INDEF"
+
+    def convert(self, value, param, ctx):
+        if value is INDEF or (isinstance(value, str) and value.strip().upper() == "INDEF"):
+            return INDEF
+        return self.base.convert(value, param, ctx)
+
+
 def _click_type(annotation: Any):
     """Map a Python annotation to a click type. Returns (type, is_multiple)."""
-    inner, _ = _unwrap(annotation)
+    inner, optional = _unwrap(annotation)
     origin = get_origin(inner)
 
     if origin is list:
         item, _ = _unwrap(get_args(inner)[0])
         return _scalar_type(item), True
-    return _scalar_type(inner), False
+    scalar = _scalar_type(inner)
+    if optional and scalar in (click.INT, click.FLOAT):
+        return _IndefNumber(scalar), False
+    return scalar, False
 
 
 def _scalar_type(annotation: Any):
@@ -161,17 +183,27 @@ def collect(model: type, kwargs: dict[str, Any]) -> dict[str, Any]:
         value = kwargs[name]
         if value is None:
             continue
+        if value is INDEF:
+            given[name] = None          # typed, and typed as "no value"
+            continue
         if isinstance(value, tuple):
             if not value:
                 continue
             # '--apertures 3,5,10' and '--apertures 3 --apertures 5' both,
-            # the first being how IRAF writes a list.
-            value = [part.strip() for item in value for part in str(item).split(",")
-                     if part.strip()] if _is_list_field(field) else list(value)
+            # the first being how IRAF writes a list. A comma inside brackets
+            # is a section's, 'obj.fits[1:100,*]', and not a separator.
+            value = [part for item in value for part in split_list(str(item))] \
+                if _is_list_field(field) else list(value)
         elif isinstance(value, str) and _is_list_field(field):
-            value = [part.strip() for part in value.split(",") if part.strip()]
+            value = split_list(value)
         given[name] = value
     return given
+
+
+def split_list(text: str) -> list[str]:
+    from ..core.images import split_list as split
+
+    return split(text)
 
 
 def _is_list_field(field) -> bool:

@@ -66,7 +66,9 @@ def command(task: str, model: type, values: dict[str, Any],
             # item (cli/build.py); a later one takes them joined by commas,
             # or the first would swallow them.
             is_list = _is_list(field)
-            if value is not None:
+            if value is None and field.is_required():
+                positional.append("INDEF")        # required, and given as no value
+            elif value is not None:
                 if isinstance(value, (list, tuple)) and variadic_taken:
                     positional.append(shlex.quote(",".join(str(v) for v in value)))
                 else:
@@ -83,6 +85,8 @@ def command(task: str, model: type, values: dict[str, Any],
             options.append(f"--{flag}" if value else f"--no-{flag}")
             continue
         if value is None:
+            if _numeric(field):
+                options.extend([option_name(name), "INDEF"])   # unset over a default
             continue
         rendered = _render_value(value)
         if isinstance(value, (list, tuple)) and len(rendered) > 1:
@@ -93,6 +97,18 @@ def command(task: str, model: type, values: dict[str, Any],
             options.extend([option_name(name), *rendered])
 
     return " ".join([program, task, *positional, *options])
+
+
+def _numeric(field) -> bool:
+    """An int or float that may be None: the command line reads INDEF for it."""
+    import types
+    import typing
+    from typing import get_args, get_origin
+
+    annotation = field.annotation
+    if get_origin(annotation) in (typing.Union, types.UnionType):
+        return any(a in (int, float) for a in get_args(annotation))
+    return False
 
 
 def _is_list(field) -> bool:

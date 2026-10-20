@@ -22,9 +22,31 @@ use the format are old ones.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass
 from typing import Any
+
+
+@contextlib.contextmanager
+def _offline():
+    """Astropy's times and positions without reaching for the internet.
+
+    For a date past the Earth-rotation table astropy ships, it downloads
+    IERS-A -- and on a machine without a connection, which an observatory's
+    often is, it waits half a minute for every call before giving up. What
+    the table adds is UT1-UTC (under 0.9 s) and polar motion (a fraction of
+    an arcsecond): nothing an airmass or a heliocentric date can see, and
+    IRAF, which takes UT as UT1, never had it. So it is not asked for.
+    """
+    from astropy.utils import iers
+
+    # auto_max_age too: a table left in astropy's cache by an earlier
+    # download is refused once it is a month old, download or not.
+    with iers.conf.set_temp("auto_download", False), \
+            iers.conf.set_temp("auto_max_age", None), \
+            iers.conf.set_temp("iers_degraded_accuracy", "ignore"):
+        yield
 
 #: Hour before which a time is taken to belong to the following day. An
 #: observing night crosses midnight and nothing is taken at five in the
@@ -188,7 +210,8 @@ def secant(header: Any, latitude: float, longitude: float, height: float,
     when = Time(f"{year:04d}-{month:02d}-{day:02d}T00:00:00", scale="utc") \
         + TimeDelta(hour * 3600.0, format="sec")
     where = EarthLocation(lat=latitude, lon=longitude, height=height)
-    altitude = position.transform_to(AltAz(obstime=when, location=where)).alt.deg
+    with _offline():
+        altitude = position.transform_to(AltAz(obstime=when, location=where)).alt.deg
     if altitude <= 3.0:
         # Below three degrees the plane-parallel picture has stopped being a
         # picture of anything, and no polynomial rescues it.
@@ -230,7 +253,8 @@ def sidereal(header: Any, longitude: float, ut_key: str = "UT",
 
     when = Time(jd, format="jd", scale="utc",
                 location=EarthLocation(lat=0.0 * u.deg, lon=longitude * u.deg))
-    return float(when.sidereal_time("mean").hour)
+    with _offline():
+        return float(when.sidereal_time("mean").hour)
 
 
 def heliocentric(header: Any, latitude: float, longitude: float,
@@ -239,7 +263,7 @@ def heliocentric(header: Any, latitude: float, longitude: float,
                  kind: str = "heliocentric") -> tuple[float, float] | None:
     """Heliocentric (or barycentric) Julian date, and the correction applied.
 
-    The Earth's orbit is 300 light-seconds across, so a photon arriving today
+    The Earth's orbit is 1000 light-seconds across, so a photon arriving today
     and the same photon arriving in six months differ by up to 16.6 minutes of
     travel time. For anything periodic -- an eclipsing binary, a Cepheid, a
     transit -- that is the difference between a coherent light curve and a
@@ -260,5 +284,6 @@ def heliocentric(header: Any, latitude: float, longitude: float,
     where = EarthLocation(lat=latitude * u.deg, lon=longitude * u.deg,
                           height=height * u.m)
     when = Time(jd, format="jd", scale="utc", location=where)
-    delay = when.light_travel_time(position, kind)
-    return float((when.utc + delay).jd), float(delay.sec)
+    with _offline():
+        delay = when.light_travel_time(position, kind)
+        return float((when.utc + delay).jd), float(delay.sec)

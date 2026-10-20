@@ -41,7 +41,14 @@ harwood does with each.
 harwood list                 # what runs today
 harwood list --iraf          # the full IRAF inventory and its status
 harwood help <task>          # the manual; answers for IRAF names too
+harwood docs                 # the documentation, in the window or --browser
+harwood docs --sample night  # the small night every example in it runs on
 ```
+
+The documentation -- guides, a page for every task, examples written three
+ways (terminal, Python, clicks) and tested on the sample night, and the
+recipes -- is built from `src/harwood/docsite/` and the tasks themselves.
+The window (Help, F1) and a browser show the same files.
 
 ## Install
 
@@ -50,7 +57,8 @@ uv tool install harwood        # or: pipx install harwood
 ```
 
 No compiler, no system configuration. Extras: `harwood[ccd]`, `harwood[phot]`,
-`harwood[gui]`, `harwood[fast]`.
+`harwood[gui]`, `harwood[docs]` (the documentation inside the window),
+`harwood[fast]`.
 
 ## License
 

@@ -283,8 +283,10 @@ class Field:
 
     @staticmethod
     def _split(text: str) -> list[str]:
-        return [part.strip() for part in text.replace("\n", ",").split(",")
-                if part.strip()]
+        # A comma inside brackets belongs to a section, 'obj.fits[1:100,*]'.
+        from ..core.images import split_list
+
+        return split_list(text.replace("\n", ","))
 
     def value(self) -> tuple[bool, Any]:
         """(given, value): given is False for an empty optional field, which
@@ -333,6 +335,8 @@ class TaskBrowser(QtWidgets.QWidget):
 
     #: A command was put at the prompt for editing.
     to_prompt = QtCore.Signal(str)
+    #: The task whose page of the documentation was asked for.
+    manual = QtCore.Signal(str)
 
     def __init__(self, runner: Runner, parent: QtWidgets.QWidget | None = None,
                  current_image: Callable[[], str] | None = None) -> None:
@@ -481,9 +485,11 @@ class TaskBrowser(QtWidgets.QWidget):
         layout.addWidget(self.problems)
 
         buttons = QtWidgets.QHBoxLayout()
-        manual = QtWidgets.QPushButton("?  Manual")
-        manual.setToolTip("The full explanation, in the session below.")
-        manual.clicked.connect(lambda: self._send(f"help {self.task}"))
+        manual = QtWidgets.QPushButton("📖 Manual")
+        manual.setToolTip("This task's page of the documentation: what it does, "
+                          "every parameter, examples three ways. `help <task>` at "
+                          "the prompt prints the same manual.")
+        manual.clicked.connect(lambda: self.manual.emit(self.task))
         buttons.addWidget(manual)
         buttons.addStretch(1)
         self.plan_button = QtWidgets.QPushButton("☰  Plan")

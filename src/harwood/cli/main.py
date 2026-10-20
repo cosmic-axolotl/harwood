@@ -20,7 +20,6 @@ the parameter models, and built only when asked for, so that `list` and
 from __future__ import annotations
 
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +33,8 @@ from . import build
 console = Console()
 error_console = Console(stderr=True)
 
-BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "history", "edit", "gui")
+BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "history", "edit", "docs",
+            "gui")
 
 
 class Harwood(click.Group):
@@ -190,7 +190,17 @@ def help_cmd(task: str) -> None:
     # Manuals and descriptions are plain text that quotes IRAF syntax --
     # `[SCI,1]`, `x y [frame] key` -- and rich would take `[frame]` for a
     # style tag and print nothing in its place.
-    if cls.__doc__:
+    from ..docsite.builder import PAGES
+
+    manual = PAGES / "tasks" / f"{task}.md"
+    if manual.exists():
+        # The manual is the task's page of the documentation, word for word.
+        from rich.markdown import Markdown
+
+        from ..docsite.examples import for_terminal
+
+        console.print(Markdown(for_terminal(manual.read_text(encoding="utf-8"))))
+    elif cls.__doc__:
         console.print(escape(_dedent(cls.__doc__)))
     if cls.defaults:
         values = ", ".join(f"{k}={v}" for k, v in cls.defaults.items())
@@ -209,7 +219,8 @@ def help_cmd(task: str) -> None:
                       escape(field.description or ""))
     console.print(table)
     console.print(f"[dim]Effective values and where they come from: "
-                  f"harwood lpar {task}[/dim]\n")
+                  f"harwood lpar {task}. The same manual, with examples three "
+                  f"ways: harwood docs {task}[/dim]\n")
 
 
 @app.command("lpar")
@@ -391,8 +402,9 @@ def standards_cmd(caldir: str | None, star: str) -> None:
     roots = [root for root in flux.IRAF_STANDARDS if root.is_dir()]
     if not roots:
         error_console.print(
-            "[red]No calibration data found.[/red] harwood reads IRAF's "
-            f"onedstds; looked in {', '.join(str(r) for r in flux.IRAF_STANDARDS)}.")
+            "[red]No calibration data found[/red], not even harwood's own copy of "
+            "IRAF's onedstds (data/iraf/onedstds): the installation is incomplete. "
+            "Reinstall harwood.")
         raise SystemExit(3)
 
     table = Table(title="flux standards", title_style="bold")
@@ -664,6 +676,73 @@ def _check_columns(files: list[Path]) -> None:
                       "a column edit means the same thing in each.")
 
 
+@app.command("docs")
+@click.argument("topic", required=False, shell_complete=_task_names)
+@click.option("--browser", is_flag=True,
+              help="Open it in the web browser rather than in the window.")
+@click.option("--build", "out", type=click.Path(path_type=Path),
+              help="Write the whole site into this directory and stop: to publish it, "
+                   "or to read it on a machine without harwood.")
+@click.option("--sample", type=click.Path(path_type=Path),
+              help="Write the sample night every example runs on into this directory.")
+def docs_cmd(topic: str | None, browser: bool, out: Path | None,
+             sample: Path | None) -> None:
+    """The documentation: guides, every task, and examples written three ways
+    (terminal, Python, clicks). The same pages in the window and a browser."""
+    if sample is not None:
+        from ..core import sample as night
+
+        written = night.write(sample)
+        console.print(f"[green]ok[/green] the sample night, {len(written)} files in "
+                      f"{escape(str(sample))}:")
+        console.print("  " + "  ".join(escape(p.name) for p in written), highlight=False)
+        console.print(f"[dim]cd {escape(str(sample))} and follow `harwood docs "
+                      "start/first-night`.[/dim]")
+        return
+    from .. import docsite
+
+    if out is not None:
+        try:
+            docsite.build(out)
+        except docsite.BuildError as error:
+            error_console.print(f"[red]{escape(str(error))}[/red]")
+            raise SystemExit(1) from None
+        console.print(f"[green]ok[/green] the documentation is in {escape(str(out))}; "
+                      f"open {escape(str(Path(out) / 'index.html'))}")
+        return
+    url = docsite.url_for(topic or "")
+    if not url:
+        error_console.print(f"[red]Nothing in the documentation is called "
+                            f"'{escape(topic or '')}'.[/red] Name a task (daofind), a "
+                            "package (noao.digiphot) or a page (concepts/outputs), or "
+                            "search from the first page: harwood docs")
+        raise SystemExit(2)
+    try:
+        where = docsite.ensure()
+    except docsite.BuildError as error:
+        error_console.print(f"[red]{escape(str(error))}[/red]")
+        raise SystemExit(1) from None
+    if not browser:
+        try:
+            from ..viewer import _qt
+            from ..viewer.docs import available
+        except ImportError:
+            available = None
+        window = _qt.window() if available else None
+        if window is not None and hasattr(window, "show_docs"):
+            window.show_docs(url)
+            return
+        if available and available():
+            from ..viewer.docs import run
+
+            raise SystemExit(run(url))
+    import webbrowser
+
+    page = where / url
+    webbrowser.open(page.as_uri())
+    console.print(f"[dim]opened {escape(page.as_uri())}[/dim]")
+
+
 # ------------------------------------------------------------- the display
 
 
@@ -731,9 +810,7 @@ def _task_command(name: str) -> click.Command:
 def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     from pydantic import ValidationError
 
-    from ..core import params as store
-    from ..core import provenance
-    from ..core.registry import get_class, get_task
+    from ..core.registry import get_class
 
     cls = get_class(name)
     plan_only = kwargs.pop("plan", False)
@@ -751,14 +828,10 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         _edit_parameters(name, cls)
         return
 
+    from ..core import runner, timing
+
     try:
-        given = build.collect(cls.Params, kwargs)
-        resolved = store.resolve(name, cls.Params, overrides=given,
-                                 preset=cls.defaults,
-                                 preset_name=name if cls.defaults else None)
-        validated = cls.Params(**store.values(resolved))
-        if owns_workdir:
-            workdir = Path(getattr(validated, "workdir", ".") or ".")
+        prepared = runner.prepare(name, build.collect(cls.Params, kwargs), workdir)
     except ValidationError as error:
         _report_validation(name, error)
         raise SystemExit(2) from None
@@ -767,84 +840,48 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
 
         error_console.print(f"[red]{name}:[/red] {escape(str(error))}")
         raise SystemExit(2) from None
-
-    task = get_task(name)
-
-    from ..core import timing
-
-    values = validated.model_dump()
-    # A person deciding at a panel is most of an interactive run's time, and
-    # says nothing about how long the next one will take.
-    timed = not (cls.needs_window or values.get("interactive"))
-    size = timing.size_of(values) if timed else timing.Size()
-    expected = timing.estimate(name, size) if timed else None
+    expected = prepared.expected
 
     if plan_only:
         console.print(f"\n[bold]{name}[/bold] would do this and nothing else:\n")
-        _print_steps(task.plan(validated), explain)
+        _print_steps(prepared.plan(), explain)
         if expected:
             console.print(f"\n[dim]It should take {timing.about(expected.seconds)}, "
                           f"{expected.basis()}.[/dim]")
         console.print()
         return
 
-    from ..core import output, replay
-
-    # try/finally, not a bare call at the end: a task that raises must not
-    # leave this run's directory set for whatever runs next in the same
-    # process -- the session, a recipe, a test.
-    token = output.begin(name, workdir)
-    timing.current = timing.Running(name, time.monotonic(), expected)
+    label = f"{name}... {timing.about(expected.seconds)}" if expected else f"{name}..."
     try:
-        try:
-            label = f"{name}... {timing.about(expected.seconds)}" if expected else f"{name}..."
-            with console.status(label):
-                result = task.run(validated)
-        except KeyboardInterrupt:
-            error_console.print(f"[yellow]{name} interrupted.[/yellow]")
-            raise SystemExit(130) from None
-        except Exception as error:
-            # A task failing is a normal event and deserves a sentence, not a
-            # traceback. HARWOOD_TRACEBACK=1 brings the traceback back for
-            # debugging -- hidden by default, never unavailable.
-            import os
+        finished = runner.execute(prepared, argv=sys.argv[1:], status=console.status(label))
+    except KeyboardInterrupt:
+        error_console.print(f"[yellow]{name} interrupted.[/yellow]")
+        raise SystemExit(130) from None
+    except Exception as error:
+        # A task failing is a normal event and deserves a sentence, not a
+        # traceback. HARWOOD_TRACEBACK=1 brings the traceback back for
+        # debugging -- hidden by default, never unavailable.
+        import os
 
-            from rich.markup import escape
+        from ..core import extras
 
-            from ..core import extras
+        # The same grammar as a warning: what happened, then what to do, on
+        # its own line. The suggestion may be carried by the error itself or
+        # supplied by the missing-package hint. (Advice text is plain: a task's
+        # message may well say "harwood[phot]", which rich would eat as markup.)
+        from ..core.advice import Advice
 
-            # A task's message is plain text and may well contain brackets --
-            # "harwood[phot]" is exactly the sort of thing it says -- and rich
-            # would read those as markup and eat them.
-            from ..core.advice import Advice
-
-            # The same grammar as a warning: what happened, then what to do,
-            # on its own line. The suggestion may be carried by the error
-            # itself or supplied by the missing-package hint.
-            fix = (getattr(error, "fix", "")
-                   or extras.hint(error) or extras.hint(error.__cause__ or error)
-                   or "")
-            _print_advice([Advice(str(error), fix, "problem")],
-                          where=error_console, label=f"{name} stopped")
-            if os.environ.get("HARWOOD_TRACEBACK"):
-                console.print_exception()
-            else:
-                error_console.print("[dim]HARWOOD_TRACEBACK=1 shows where.[/dim]")
-            raise SystemExit(1) from None
-
-        command = replay.command(name, cls.Params, validated.model_dump())
-        provenance.record(
-            name, validated.model_dump(), result, workdir,
-            origins=store.origins(resolved), command=command, argv=sys.argv[1:],
-        )
-        written = output.record(name, validated.model_dump(), result, command,
-                                store.origins(resolved))
-        folder = output.current()
-        if timed:
-            timing.record(name, size, result.duration_s, result.backend)
-    finally:
-        output.end(token)
-        timing.current = None
+        fix = (getattr(error, "fix", "")
+               or extras.hint(error) or extras.hint(error.__cause__ or error)
+               or "")
+        _print_advice([Advice(str(error), fix, "problem")],
+                      where=error_console, label=f"{name} stopped")
+        if os.environ.get("HARWOOD_TRACEBACK"):
+            console.print_exception()
+        else:
+            error_console.print("[dim]HARWOOD_TRACEBACK=1 shows where.[/dim]")
+        raise SystemExit(1) from None
+    result, folder, written = finished.result, finished.folder, finished.written
 
     console.print(f"[green]ok[/green] {name} in {result.duration_s:.2f}s"
                   + (f" [dim]({result.backend})[/dim]" if result.backend else ""))
@@ -1159,6 +1196,11 @@ def _show(value: Any) -> str:
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, float):
+        if abs(value) >= 1e5 and value == value and abs(value) != float("inf"):
+            # Six significant figures turn a Julian date into 2.4613e+06 -- a
+            # whole year in the last digit -- and a flux of 961592.4 into
+            # 961592. Large numbers are printed whole.
+            return f"{value:.6f}".rstrip("0").rstrip(".")
         return f"{value:g}"
     if isinstance(value, list):
         return ", ".join(_show(v) for v in value)

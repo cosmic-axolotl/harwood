@@ -1,0 +1,14 @@
+# The order of the written pages in the left-hand column. The task and
+# package pages are made from the tasks themselves and go after these, in
+# IRAF's tree (docsite/builder.py).
+- section: Start
+  pages: [index.md, start/install.md, start/sample.md, start/first-night.md]
+- section: The window
+  pages: [app/tour.md, app/clicks.md, app/command-line.md, app/files.md]
+- section: How harwood works
+  pages: [concepts/commands.md, concepts/parameters.md, concepts/outputs.md,
+          concepts/notices.md, concepts/python.md]
+- section: Coming from IRAF
+  pages: [iraf/migration.md]
+- section: Recipes
+  pages: [recipes/1992-spectroscopic-night.md]

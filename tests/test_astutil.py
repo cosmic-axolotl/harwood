@@ -290,3 +290,27 @@ def test_imgets_falls_back_and_says_it_did(frame):
     assert result.data["value"] == "unknown"
     assert result.data["found"] is False
     assert any("hselect" in warning for warning in result.warnings)
+
+
+def test_times_after_the_shipped_table_do_not_go_online(tmp_path, monkeypatch):
+    """For a date past astropy's bundled Earth-rotation table, the sidereal
+    time and the airmass downloaded IERS-A -- and without a connection each
+    call waited half a minute. UT1-UTC and polar motion are below anything an
+    airmass or an HJD can show, so they are no longer asked for."""
+    import astropy.utils.data
+
+    from harwood.core import sample
+    from harwood.core.registry import get_task
+
+    def no_network(*args, **kwargs):
+        raise AssertionError("tried to download " + str(args[:1]))
+
+    monkeypatch.setattr(astropy.utils.data, "download_file", no_network)
+    monkeypatch.chdir(tmp_path)
+    sample.write(tmp_path)                      # observed 2026-09-13 at KPNO
+    result = get_task("setairmass").run(images=["obj001.fits"], observatory="kpno",
+                                        update=False)
+    assert 1.0 < result.data["rows"][0]["airmass"] < 1.1
+    assert get_task("asttimes").run(image="obj001.fits").data["sidereal"]
+    assert get_task("setjd").run(images=["obj001.fits"], observatory="kpno",
+                                 update=False).data["rows"][0]["hjd"] > 2461296

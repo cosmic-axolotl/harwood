@@ -116,14 +116,15 @@ class HSelectParams(TaskParams):
     input: list[str] = Field(..., description="Images to consider. Accepts globs and @lists.")
     fields: list[str] = Field(
         ...,
-        description="Keywords to print for each image that matches, e.g. 'OBJECT,EXPTIME'.",
+        description="Keywords to print for each image that matches, e.g. "
+                    "'$I,OBJECT,EXPTIME'; $I is the image's name, as in IRAF.",
     )
     expr: str = Field(
         "yes",
         description=(
-            "Boolean expression over the header, e.g. \"IMAGETYP == 'zero'\" or "
-            "\"EXPTIME > 30 and FILTER == 'V'\". 'yes' selects everything. "
-            "Keywords are Python names here, and the comparison is Python's."
+            "Boolean expression over the header, as IRAF writes it: "
+            "\"imagetyp == 'zero'\", \"exptime > 30 && filters == 'V'\". "
+            "Keywords in any case; && || ! or and or not; 'yes' selects everything."
         ),
     )
     missing: str = Field(
@@ -146,20 +147,33 @@ class HSelect(Task[HSelectParams]):
     def execute(self, params: HSelectParams) -> TaskResult:
         from ..core import images
 
-        matched = []
+        matched, seen = [], set()
         for spec in images.expand(params.input):
             hdul, hdu = images.open_hdu(spec)
             try:
                 header = dict(hdu.header.items())
             finally:
                 hdul.close()
+            seen |= {str(key).upper() for key in header}
             if not _matches(params.expr, header):
                 continue
+            upper = {str(key).upper(): value for key, value in header.items()}
             matched.append(
                 {"image": str(spec),
-                 **{field: header.get(field, params.missing) for field in params.fields}}
-            )
-        return TaskResult(data={"rows": matched, "matched": len(matched)})
+                 **{field: str(spec) if field.upper() == "$I"
+                    else upper.get(field.upper(), params.missing)
+                    for field in params.fields}})
+        warnings = []
+        absent = sorted(name for name in _names(params.expr)
+                        if name.upper() not in seen and name.lower() not in ("yes", "no"))
+        if absent:
+            warnings.append(advice.warn(
+                f"no image has the keyword{'s' if len(absent) > 1 else ''} "
+                f"{', '.join(absent)}, so the expression is false wherever it is used",
+                "check the spelling against a header: harwood imheader IMAGE "
+                "--longheader lists every keyword"))
+        return TaskResult(data={"rows": matched, "matched": len(matched)},
+                          warnings=warnings)
 
 
 def _first(header, *keywords: str) -> str:
@@ -177,20 +191,67 @@ def _first(header, *keywords: str) -> str:
 
 
 def _matches(expr: str, header: dict) -> bool:
-    """Evaluate a header expression.
+    """Evaluate a header expression, written as IRAF writes it.
 
-    The namespace holds only the header's own keywords, and builtins are
-    removed: a header expression is a filter, not a place to run code.
+    Keywords are read in any case, as IRAF reads them (`imagetyp` is
+    IMAGETYP); `&&`, `||` and `!` are IRAF's and, or and not, and Python's
+    own words work too; `yes` and `no` are true and false. The namespace
+    holds only the header's own keywords, and builtins are removed: a header
+    expression is a filter, not a place to run code.
     """
     if expr.strip().lower() in ("yes", "true", "1", ""):
         return True
-    namespace = {str(key): value for key, value in header.items() if str(key).isidentifier()}
+    namespace: dict = {"yes": True, "no": False}
+    for key, value in header.items():
+        name = str(key)
+        if name.isidentifier():
+            namespace[name] = namespace[name.lower()] = namespace[name.upper()] = value
+    code = _python(expr)            # refuses what it cannot translate, with a fix
     try:
-        return bool(eval(expr, {"__builtins__": {}}, namespace))  # noqa: S307
+        return bool(eval(code, {"__builtins__": {}}, namespace))  # noqa: S307
     except NameError:
         return False           # a keyword this image does not have
     except Exception as error:
         raise ValueError(f"cannot evaluate expression {expr!r}: {error}") from None
+
+
+def _python(expr: str) -> str:
+    """IRAF's operators as Python's, outside quotes: && and, || or, ! not."""
+    if "?=" in expr:
+        advice.fail("IRAF's pattern match ?= is not in harwood's expressions",
+                    "for 'contains', write 'M92' in object; for 'equals', ==")
+    out, quote, i = [], None, 0
+    while i < len(expr):
+        ch = expr[i]
+        if quote:
+            out.append(ch)
+            quote = None if ch == quote else quote
+        elif ch in "'\"":
+            quote = ch
+            out.append(ch)
+        elif expr.startswith("&&", i):
+            out.append(" and ")
+            i += 1
+        elif expr.startswith("||", i):
+            out.append(" or ")
+            i += 1
+        elif ch == "!" and not expr.startswith("!=", i):
+            out.append(" not ")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _names(expr: str) -> set[str]:
+    """The keywords an expression reads."""
+    import ast
+
+    try:
+        tree = ast.parse(_python(expr), mode="eval")
+    except (SyntaxError, ValueError):
+        return set()
+    return {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
 
 
 class ImStatParams(TaskParams):

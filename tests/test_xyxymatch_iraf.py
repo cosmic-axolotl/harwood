@@ -43,3 +43,24 @@ def test_xyxymatch_writes_what_iraf_writes(lists, case):
             params[name] = float(params[name])
     get_task("xyxymatch").run(output=Path("ours.out"), **params)
     assert Path("ours.out").read_text() == (DATA / f"{case}.out").read_text()
+
+
+def test_a_harwood_catalogue_is_matched_by_its_x_and_y(tmp_path, monkeypatch):
+    """daofind's .coo puts its id first. Counting columns, as IRAF does,
+    matched the ids against the x's and reported a shift of zero; and with
+    both lists under nmatch, the summary printed the initial transformation
+    as though it had been found."""
+    from harwood.core import sample
+    from harwood.docsite import examples
+
+    monkeypatch.chdir(tmp_path)
+    examples.prepare("reduced", tmp_path)
+    for name in ("obj001", "obj002"):
+        get_task("daofind").run(image=f"red/{name}.fits", output=tmp_path / f"{name}.coo",
+                                fwhmpsf=3.0)
+    result = get_task("xyxymatch").run(input=tmp_path / "obj002.coo",
+                                       reference=tmp_path / "obj001.coo",
+                                       output=tmp_path / "pairs.txt", tolerance=2.0)
+    assert result.data["pairs"] >= 15
+    dx, dy = sample.DRIFT[1]
+    assert abs(result.data["xshift"] + dx) < 0.1 and abs(result.data["yshift"] + dy) < 0.1

@@ -109,3 +109,42 @@ def test_a_word_where_a_wavelength_belongs_is_refused(panel):
     panel._run_command()
     assert "not a wavelength" in panel.status.text()
     assert panel.result()[1].size == 0
+
+
+def test_a_section_across_the_slit_is_refused_at_once(tmp_path, monkeypatch):
+    """'middle line' on a frame whose spectrum runs along the columns gave
+    the search 101 pixels and two lines, and it spent minutes finding
+    nothing. Too few lines to solve is said at once, with the other axis."""
+    import numpy as np
+    from astropy.io import fits
+
+    from harwood.core.registry import get_task
+
+    monkeypatch.chdir(tmp_path)
+    frame = np.zeros((300, 40), np.float32)              # 40 across, 300 along
+    for row in range(20, 300, 25):
+        frame[row - 1:row + 2, :] = 1000.0               # arc lines along y
+    fits.writeto("arc.fits", frame)
+    with pytest.raises(RuntimeError) as raised:
+        get_task("identify").run(image="arc.fits", coordlist="linelists$thar.dat")
+    assert "fewer than the 6 a solution needs" in str(raised.value)
+    assert "--section 'middle column'" in raised.value.fix
+
+
+def test_identify_with_nothing_to_start_from_says_so_at_once(tmp_path, monkeypatch):
+    """The blind search ran past half an hour on the 1992 arc. identify now
+    asks for a starting point, and names the blind search for who wants it."""
+    import numpy as np
+    from astropy.io import fits
+
+    from harwood.core.registry import get_task
+
+    monkeypatch.chdir(tmp_path)
+    arc = np.zeros(1024, np.float32)
+    for pixel in range(40, 1000, 37):
+        arc[pixel - 1:pixel + 2] = 1000.0
+    fits.writeto("arc.fits", arc)
+    with pytest.raises(RuntimeError) as raised:
+        get_task("identify").run(image="arc.fits", coordlist="linelists$thar.dat")
+    assert "no approximate wavelength or dispersion" in str(raised.value)
+    assert "--interactive" in raised.value.fix and "autoidentify" in raised.value.fix

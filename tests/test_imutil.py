@@ -209,3 +209,34 @@ def test_implot_says_what_is_wrong_with_a_bad_command():
     panel.command.setText(":z 1 2")
     panel._run_command()
     assert ":l for lines" in panel.status.text()
+
+
+def test_hselect_reads_expressions_as_iraf_writes_them(tmp_path, monkeypatch):
+    """IRAF users write `imagetyp == 'zero' && exptime > 0`: keywords in
+    lower case, && and ||. Python's syntax alone refused the first and
+    silently matched nothing on the second."""
+    from astropy.io import fits
+
+    from harwood.core.registry import get_task
+
+    monkeypatch.chdir(tmp_path)
+    for name, kind, exptime in (("a", "zero", 0.0), ("b", "object", 60.0),
+                                ("c", "object", 5.0)):
+        header = fits.Header({"IMAGETYP": kind, "EXPTIME": exptime})
+        fits.PrimaryHDU(np.zeros((4, 4), np.float32), header).writeto(f"{name}.fits")
+    hselect = get_task("hselect")
+
+    def names(expr):
+        result = hselect.run(input=["*.fits"], fields=["$I"], expr=expr)
+        return [row["$I"] for row in result.data["rows"]], result.warnings
+
+    assert names("imagetyp == 'object' && exptime > 30")[0] == ["b.fits"]
+    assert names("imagetyp == 'zero' || exptime < 10")[0] == ["a.fits", "c.fits"]
+    assert names("!(imagetyp == 'object')")[0] == ["a.fits"]
+    assert names("IMAGETYP != 'zero' and EXPTIME > 30")[0] == ["b.fits"], "Python's too"
+    assert names("imagetyp == 'a && b'")[0] == [], "&& inside quotes is text"
+    rows, warnings = names("imagtyp == 'zero'")
+    assert rows == [] and "no image has the keyword imagtyp" in warnings[0]
+    with pytest.raises(ValueError) as raised:
+        names("object ?= 'M92'")
+    assert "in object" in raised.value.fix

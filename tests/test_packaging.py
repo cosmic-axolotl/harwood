@@ -28,6 +28,8 @@ DISTRIBUTION = {
     "PySide6": "pyside6-essentials",
     "numba": "numba",
     "harwood_kernels": "harwood-kernels",
+    "markdown_it": "markdown-it-py",
+    "pygments": "pygments",
 }
 
 #: Modules that nothing imports unless the feature is present -- the viewer is
@@ -257,3 +259,69 @@ def test_every_optional_module_the_code_reaches_for_is_in_the_table():
     }
     missing = optional_modules - set(extras.PROVIDED_BY)
     assert not missing, f"not in extras.PROVIDED_BY: {sorted(missing)}"
+
+
+# ------------------------------------------------- no IRAF anywhere
+
+
+@pytest.fixture
+def no_iraf(monkeypatch):
+    """A machine where IRAF is not installed and cannot be found -- as if it
+    had disappeared. Only harwood's own copy of its tables is left."""
+    from harwood.core import arc, flux, instrument
+
+    monkeypatch.setenv("iraf", "/nonexistent/iraf")
+    for module, name in ((arc, "IRAF_LINELISTS"), (flux, "IRAF_STANDARDS"),
+                         (instrument, "IRAF_CCDDB")):
+        own = getattr(module, name)[0]
+        assert "site-packages" in str(own) or "src/harwood/data/iraf" in str(own)
+        monkeypatch.setattr(module, name, (own,))
+
+
+def test_harwood_never_imports_iraf_or_pyraf():
+    """harwood is a reimplementation: IRAF is the reference it is checked
+    against, never a library it calls."""
+    import re
+
+    for path in PACKAGE.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        assert not re.search(r"^\s*(import|from)\s+(pyraf|iraf)\b", text, re.M), path
+
+
+def test_iraf_tables_work_without_iraf(no_iraf, tmp_path):
+    """linelists$, onedstds$ and ccddb$ are IRAF's names for its tables, and
+    harwood ships the tables: written the IRAF way, they resolve with no IRAF
+    on the machine."""
+    from harwood.core import arc, flux, identify, instrument
+
+    lines = identify.read_linelist(arc.resolve_linelist("linelists$thar.dat"))
+    assert len(lines) > 3000
+    assert flux.resolve("onedstds$kpnoextinct.dat").is_file()
+    assert flux.find_star("bd284211", "spec50cal") is not None
+    assert "spec50cal" in [c for c in flux.CALDIRS if flux.stars(c)]
+    direct = instrument.load("ccddb$kpno/direct.dat")
+    assert direct.keyword("subset") == "FILTERS" or direct.types
+    assert "direct" in instrument.installed()["kpno"]
+
+
+def test_the_iraf_tables_are_in_the_package(tmp_path):
+    """Shipped means in the wheel, not only in the source tree."""
+    import subprocess
+    import sys
+    import zipfile
+
+    built = subprocess.run([sys.executable, "-m", "pip", "wheel", "--no-deps", "-q",
+                            "-w", str(tmp_path), str(PYPROJECT.parent)],
+                           capture_output=True, text=True)
+    if built.returncode != 0:
+        pytest.skip(f"cannot build a wheel here: {built.stderr[-200:]}")
+    [wheel] = tmp_path.glob("harwood-*.whl")
+    names = zipfile.ZipFile(wheel).namelist()
+    for table in ("harwood/data/iraf/linelists/thar.dat",
+                  "harwood/data/iraf/onedstds/kpnoextinct.dat",
+                  "harwood/data/iraf/onedstds/spec50cal/bd284211.dat",
+                  "harwood/data/iraf/ccddb/kpno/direct.dat",
+                  "harwood/data/iraf/README",
+                  "harwood/docsite/pages/index.md",
+                  "harwood/docsite/assets/site.js"):
+        assert table in names, f"{table} is not in the wheel"

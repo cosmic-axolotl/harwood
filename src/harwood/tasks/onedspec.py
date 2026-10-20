@@ -206,6 +206,21 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
         ident.update_fitdata()
         ident.fit_features()
     else:
+        _enough_lines(arc, vector, where, data, params)
+        if task.name == "identify" and params.crval is None and params.cdelt is None:
+            # IRAF's identify asks a person; with nothing to start from, the
+            # automatic search covers every dispersion the list allows, and on
+            # the 1992 thorium arc it ran past half an hour without an answer.
+            # That is a search to ask for by name, not to fall into.
+            advice.fail(
+                f"{params.image}{where}: no approximate wavelength or dispersion "
+                "to start from",
+                "give --crval (the wavelength at the middle) and --cdelt (per "
+                "pixel), good to about one per cent -- from the observing log or "
+                "a previous night; or mark four or five lines with --interactive; "
+                f"or `autoidentify {params.image} INDEF INDEF` for the blind "
+                "search, which on a dense list takes tens of minutes",
+                RuntimeError)
         result = idn.autoidentify(ident, params.crval, params.cdelt, params.aidpars())
         by_action["auto"].measured = {
             "merit": f"{result.best:.3f} (a solution is 1 or less)"
@@ -300,7 +315,10 @@ class AutoIdentify(Task[AutoIdentifyParams]):
         return [Step("read", f"{params.image}, {params.section}, nsum {params.nsum}",
                      why=WHY["read"]),
                 Step("catalogue", params.coordlist, why=WHY["catalogue"]),
-                Step("auto", f"crval {params.crval}, cdelt {params.cdelt}",
+                Step("auto", f"crval {params.crval}, cdelt {params.cdelt}"
+                     + (" -- a blind search over every dispersion the list allows; "
+                        "on a dense list it takes tens of minutes"
+                        if params.crval is None and params.cdelt is None else ""),
                      why=WHY["auto"]),
                 Step("fit", f"{params.function} order {params.order}, "
                             f"{params.niterate} rejection passes", why=WHY["fit"]),
@@ -308,6 +326,28 @@ class AutoIdentify(Task[AutoIdentifyParams]):
 
     def execute(self, params: AutoIdentifyParams) -> TaskResult:
         return _solve(self, params, params.ntarget, True)
+
+
+def _enough_lines(arc, vector, where: str, data, params) -> None:
+    """Refuse at once a section with too few lines to solve: the search over
+    them finds nothing anyway, and takes minutes to do it. The usual cause is
+    the section running across the slit rather than along the spectrum --
+    'middle line' on a frame whose dispersion runs along the columns -- so
+    that is what the refusal suggests."""
+    peaks = arc.find_peaks(vector, fwidth=params.fwidth, threshold=3.0,
+                           minsep=params.minsep)
+    if len(peaks) >= params.nfound:
+        return
+    other = ""
+    if getattr(data, "ndim", 1) == 2 and vector.size < max(data.shape):
+        turned = "middle column" if "line" in params.section else "middle line"
+        other = (f"; the frame is {max(data.shape)} pixels the other way, so if the "
+                 f"spectrum runs along it, give --section '{turned}'")
+    advice.fail(
+        f"{params.image}{where} is {vector.size} pixels with {len(peaks)} line"
+        f"{'s' if len(peaks) != 1 else ''} in it, fewer than the {params.nfound} "
+        "a solution needs",
+        "check that the section runs along the dispersion" + other, RuntimeError)
 
 
 def _database_path(params) -> Path:

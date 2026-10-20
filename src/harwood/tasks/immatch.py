@@ -144,8 +144,12 @@ class XyxyMatch(Task[XyxyMatchParams]):
     def execute(self, params: XyxyMatchParams) -> TaskResult:
         from ..core import xyxymatch as X
 
-        xr, yr, rl = X.read_list(params.reference, params.xrcolumn, params.yrcolumn)
-        xi, yi, il = X.read_list(params.input, params.xcolumn, params.ycolumn)
+        xr, yr, rl = X.read_list(params.reference,
+                                 *_named_columns(params.reference, params.xrcolumn,
+                                                 params.yrcolumn))
+        xi, yi, il = X.read_list(params.input,
+                                 *_named_columns(params.input, params.xcolumn,
+                                                 params.ycolumn))
         coeff = X.make_coeff(
             *(0.0 if v is None else v for v in (params.xin, params.yin)),
             *(1.0 if v is None else v for v in (params.xmag, params.ymag)),
@@ -162,6 +166,15 @@ class XyxyMatch(Task[XyxyMatchParams]):
             params.xformat, params.yformat))
 
         final = result.matched if result.matched is not None else result.initial
+        if result.matched is None and len(result.pairs) >= 3:
+            # With both lists within nmatch, IRAF takes the pairs straight from
+            # the matched triangles and fits no transformation, and the file
+            # says none -- but a summary reporting the initial one, a shift of
+            # zero, would be wrong. So the one the pairs imply is reported.
+            r = [pair[0] for pair in result.pairs]
+            k = [pair[1] for pair in result.pairs]
+            fitted = X.tie_coeff(xr[r], yr[r], xi[k], yi[k])
+            final = fitted if fitted is not None else final
         xmag, ymag, xrot, yrot = X.geometry(final)
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -202,6 +215,29 @@ def _ties(path: Path):
         return values[0::2], values[1::2]
 
     return points(lines[0]), points(lines[1])
+
+
+def _named_columns(path, xcolumn: int, ycolumn: int) -> tuple[int, int]:
+    """Which columns hold x and y. IRAF counts them, 1 and 2 unless told; a
+    catalogue harwood wrote (ECSV) names them, and daofind's puts its id
+    first -- so counting there matched the ids against the x's, quietly. Left
+    at 1 and 2, a named file's own x and y are used."""
+    from ..core import columns
+
+    if (xcolumn, ycolumn) != (1, 2):
+        return xcolumn, ycolumn
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return xcolumn, ycolumn
+    shape = columns.layout(text, str(path))
+    names = [name.lower() for name in shape.names]
+    if shape.format != "ecsv":
+        return xcolumn, ycolumn
+    for x, y in (("x", "y"), ("xcenter", "ycenter"), ("xcentroid", "ycentroid")):
+        if x in names and y in names:
+            return names.index(x) + 1, names.index(y) + 1
+    return xcolumn, ycolumn
 
 
 class _CentringParams(TaskParams):
