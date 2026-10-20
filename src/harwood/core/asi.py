@@ -94,6 +94,19 @@ class Interpolant:
         c0, c1, c2, c3 = _poly(c, nx + 1)
         return float(f32(c0 + dx * (c1 + dx * (c2 + dx * c3))))
 
+    def derivative(self, x: float) -> float:
+        """asider's first derivative at one point (linear and spline3)."""
+        x = f32(x)  # type: ignore[assignment]
+        nx = int(x)
+        c = self.coeff
+        if self.kind == "linear":
+            return float(f32(c[nx + 1] - c[nx]))
+        if self.kind != "spline3":
+            raise ValueError(f"derivative of {self.kind} is not ported")
+        dx = f32(x - f32(nx))
+        _, c1, c2, c3 = _poly(c, nx + 1)
+        return float(f32(c1 + dx * (f32(2) * c2 + f32(3) * c3 * dx)))
+
     def integral(self, a: float, b: float) -> float:
         """asigrl from a to b."""
         xa, xb = (f32(a), f32(b)) if a <= b else (f32(b), f32(a))

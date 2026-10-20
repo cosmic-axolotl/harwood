@@ -16,7 +16,12 @@ the input extended past its edges by the boundary rule. Like IRAF:
 - spline3 is fitted on that buffer, sixteen output lines at a time with a
   sixteen-pixel margin, which is what makes its edges what they are.
 
-sinc, lsinc and drizzle are not ported.
+sinc and lsinc are, as imshift sets them up, one and the same: a tapered
+sinc 31 points wide (sinc21 for 21, the width after the name), tabulated
+once for the exact fractional shift (msisinit, ii_sinctable, ii_bilsinc).
+drizzle averages each output pixel's footprint over the input pixels it
+covers, the footprint shrunk by the pixel fraction of drizzle[0.5], as
+ii_grdriz does.
 
 Translated from IRAF, Copyright (c) 1986 Association of Universities for
 Research in Astronomy Inc.; the notice it is distributed under is in
@@ -27,7 +32,12 @@ from __future__ import annotations
 
 import numpy as np
 
-INTERPOLANTS = ("nearest", "linear", "poly3", "poly5", "spline3")
+INTERPOLANTS = ("nearest", "linear", "poly3", "poly5", "spline3", "sinc", "lsinc",
+                "drizzle")
+NSINC = 15              # half width of the default sinc (2 * NSINC + 1 = 31)
+PIXFRAC = 1.0
+MIN_PIXFRAC = 0.001
+HALFPI = np.float32(1.5707963267948966)
 BOUNDARIES = ("nearest", "constant", "reflect", "wrap")
 
 NYOUT = 16              # output lines per pass
@@ -45,7 +55,8 @@ def _fp_equal(a: float, b: float) -> bool:
 def shift(data: np.ndarray, xshift: float, yshift: float, interp: str = "linear",
           boundary: str = "nearest", constant: float = 0.0) -> np.ndarray:
     """Shift an image by (xshift, yshift) pixels; positive moves it to +x, +y."""
-    if interp not in INTERPOLANTS:
+    kind = parse_interp(interp)[0]
+    if kind not in INTERPOLANTS:
         raise ValueError(f"interp_type must be one of {', '.join(INTERPOLANTS)}; "
                          f"got '{interp}'")
     if boundary not in BOUNDARIES:
@@ -53,11 +64,36 @@ def shift(data: np.ndarray, xshift: float, yshift: float, interp: str = "linear"
                          f"got '{boundary}'")
     data = np.asarray(data, dtype=np.float32)
     ny, nx = data.shape
-    if interp == "nearest":
+    if kind == "nearest":
         return _integer(data, _nint(xshift), _nint(yshift), boundary, constant)
     if _fp_equal(xshift, float(int(xshift))) and _fp_equal(yshift, float(int(yshift))):
         return _integer(data, int(xshift), int(yshift), boundary, constant)
     return _fractional(data, float(xshift), float(yshift), interp, boundary, constant)
+
+
+def parse_interp(text: str) -> tuple[str, int, float]:
+    """msitype: an interpolant's name and its parameters -- sinc31 or lsinc31
+    (the full width; 31 by default) and drizzle[0.5] (the pixel fraction,
+    1 by default). Returns (name, half width, pixfrac)."""
+    import re
+
+    text = str(text).strip()
+    if text in INTERPOLANTS:
+        return text, NSINC if text in ("sinc", "lsinc") else 0, PIXFRAC
+    found = re.fullmatch(r"(l?sinc)(\d+)?(\[[^]]*\])?", text)
+    if found:
+        width = int(found.group(2)) if found.group(2) else 2 * NSINC + 1
+        return found.group(1), (width - 1) // 2, PIXFRAC
+    found = re.fullmatch(r"drizzle\[([^]]*)\]", text)
+    if found:
+        try:
+            pixfrac = float(found.group(1))
+        except ValueError:
+            pixfrac = PIXFRAC
+        if not 0.0 <= pixfrac <= 1.0:
+            pixfrac = PIXFRAC
+        return "drizzle", 0, pixfrac
+    return text, 0, PIXFRAC
 
 
 def _nint(value: float) -> int:
@@ -113,13 +149,29 @@ def _fractional(data, xshift, yshift, interp, boundary, constant):
     else:
         xs, ys = xshift, yshift
     dx, dy = abs(xs - int(xs)), abs(ys - int(ys))
-    margin = NMARGIN_SPLINE3 if interp == "spline3" else NMARGIN
+    interp, nsinc, pixfrac = parse_interp(interp)
+    margin = (NMARGIN_SPLINE3 if interp == "spline3" else
+              nsinc if interp in ("sinc", "lsinc") else NMARGIN)
+    table = None
+    if interp in ("sinc", "lsinc"):
+        fx, fy = _delta(dx, xs), _delta(dy, ys)
+        table = _sinc_table(2 * nsinc + 1, np.float32(fx - _nint(fx)),
+                            np.float32(fy - _nint(fy)))
     deltax = _delta(dx, xs) + margin
     deltay = _delta(dy, ys) + margin
 
-    # The buffer coordinates, single precision as IRAF stores them.
-    xb = (np.arange(1, nx + 1) + deltax).astype(np.float32)
-    yb = (np.arange(1, NYOUT + 1) + deltay).astype(np.float32)
+    # The buffer coordinates, single precision as IRAF stores them; drizzle
+    # takes each pixel's two edges.
+    if interp == "drizzle":
+        xb = np.ravel(np.column_stack((np.arange(1, nx + 1) + deltax - 0.5,
+                                       np.arange(1, nx + 1) + deltax + 0.5))
+                      ).astype(np.float32)
+        yb = np.ravel(np.column_stack((np.arange(1, NYOUT + 1) + deltay - 0.5,
+                                       np.arange(1, NYOUT + 1) + deltay + 0.5))
+                      ).astype(np.float32)
+    else:
+        xb = (np.arange(1, nx + 1) + deltax).astype(np.float32)
+        yb = (np.arange(1, NYOUT + 1) + deltay).astype(np.float32)
 
     cin1 = _start(1.0 - margin - xs, dx)
     cin2 = int(nx - xs + margin + 1)
@@ -138,7 +190,166 @@ def _fractional(data, xshift, yshift, interp, boundary, constant):
         lin1 = _start(lout1 - margin - ys, dy)
         lin2 = int(lout2 - ys + margin + 1)
         buf = window(cin1, cin2, lin1, lin2)
-        out[lout1 - 1:lout2] = _grid(buf, xb, yb[:nyout], interp)
+        if interp in ("sinc", "lsinc"):
+            out[lout1 - 1:lout2] = _lsinc(buf, xb, yb[:nyout], table, nsinc)
+        elif interp == "drizzle":
+            frac = max(MIN_PIXFRAC, min(pixfrac, 1.0))
+            out[lout1 - 1:lout2] = _drizzle(buf, xb, yb[:2 * nyout], frac, frac)
+        else:
+            out[lout1 - 1:lout2] = _grid(buf, xb, yb[:nyout], interp)
+    return out
+
+
+def _sinc_table(nconv: int, xshift, yshift) -> np.ndarray:
+    """ii_bisinctable for one shift: table[j, k] = fx[k] * fy[j]."""
+    fx, fy = _sinc_1d(nconv, xshift), _sinc_1d(nconv, yshift)
+    return (fy[:, None] * fx[None, :]).astype(np.float32)
+
+
+def _sinc_1d(nconv: int, dx) -> np.ndarray:
+    """ii_sinctable, one entry: the tapered sinc at offsets k - dx,
+    normalised to sum to one, in single precision."""
+    f32 = np.float32
+    nsinc = (nconv - 1) // 2
+    sconst = f32((HALFPI / f32(nsinc)) ** 2)
+    a2, a4 = f32(-0.49670), f32(0.03705)
+    sign = f32(1.0) if nsinc % 2 == 0 else f32(-1.0)
+    x = f32(f32(-nsinc) - f32(dx))
+    out = np.zeros(nconv, dtype=f32)
+    total = f32(0)
+    for j in range(1, nconv + 1):
+        if x == 0:
+            f = f32(1.0)
+        elif dx == 0:
+            f = f32(0.0)
+        else:
+            dx2 = f32(sconst * f32((j - nsinc - 1) ** 2))
+            taper = f32(f32(1.0) + a2 * dx2 + f32(a4 * dx2) * dx2)
+            f = f32(f32(sign / x) * f32(taper * taper))
+        out[j - 1] = f
+        total = f32(total + f)
+        x = f32(x + f32(1.0))
+        sign = f32(-sign)
+    return (out / total).astype(f32)
+
+
+def _lsinc(buf, x, y, table, nsinc):
+    """ii_grlsinc / ii_bilsinc on one buffer (buf[0, 0] is coeff[1, 1]):
+    each point the sum, row by row, of the table times the pixels around
+    its nearest one, past the edges the edge pixel."""
+    f32 = np.float32
+    buf = buf.astype(f32)
+    ny_c, nx_c = buf.shape
+    xc = np.floor(x + f32(0.5)).astype(np.int64)
+    yc = np.floor(y + f32(0.5)).astype(np.int64)
+    out = np.zeros((y.size, x.size), dtype=f32)
+    for j in range(-nsinc, nsinc + 1):
+        rows = np.clip(yc + j, 1, ny_c) - 1
+        line = buf[rows]                                  # (ny, nx_c)
+        total = np.zeros((y.size, x.size), dtype=f32)
+        for k in range(-nsinc, nsinc + 1):
+            cols = np.clip(xc + k, 1, nx_c) - 1
+            total = (total + table[j + nsinc, k + nsinc] * line[:, cols]).astype(f32)
+        out = (out + total).astype(f32)
+    outside = (xc[None, :] < 1) | (xc[None, :] > nx_c) | (yc[:, None] < 1) | \
+        (yc[:, None] > ny_c)
+    out[outside] = 0
+    return out
+
+
+def _drizzle_coefficients(buf):
+    """msifit for drizzle: one more column and row, projected linearly."""
+    f32 = np.float32
+    ny, nx = buf.shape
+    c = np.zeros((ny + 1, nx + 1), dtype=f32)
+    c[:ny, :nx] = buf
+    c[:ny, nx] = f32(2) * c[:ny, nx - 1] - c[:ny, nx - 2]
+    c[ny] = (f32(2) * c[ny - 1] - c[ny - 2]).astype(f32)
+    return c
+
+
+def _driz_row(edges, data, pixfrac, badval=0.0):
+    """ii_driz1 (pixfrac 1) and ii_driz: the mean of data over each
+    [a, b], 1-based data positions."""
+    f32 = np.float32
+    a, b = edges[0::2], edges[1::2]
+    xa, xb = np.minimum(a, b), np.maximum(a, b)
+    out = np.empty(xa.size, dtype=f32)
+    half = f32(f32(pixfrac) / f32(2.0))
+    for i in range(xa.size):
+        lo, hi = xa[i], xb[i]
+        na, nb = int(lo + f32(0.5)), int(hi + f32(0.5))
+        accum = waccum = f32(0.0)
+        if pixfrac >= 1.0:
+            da, db = f32(lo - f32(na)), f32(hi - f32(nb))
+            if na == nb:
+                w = f32(db - da)
+                accum, waccum = f32(w * data[na - 1]), w
+            else:
+                w = f32(f32(0.5) - da)
+                accum, waccum = f32(w * data[na - 1]), w
+                for j in range(na + 1, nb):
+                    accum = f32(accum + data[j - 1])
+                    waccum = f32(waccum + f32(1.0))
+                w = f32(db + f32(0.5))
+                accum = f32(accum + f32(w * data[nb - 1]))
+                waccum = f32(waccum + w)
+        else:
+            frac = f32(pixfrac)
+            if na == nb:
+                w = f32(min(hi, f32(f32(nb) + half)) - max(lo, f32(f32(na) - half)))
+                if w > 0:
+                    accum, waccum = f32(w * data[na - 1]), w
+            else:
+                w = f32(f32(f32(na) + half) - max(lo, f32(f32(na) - half)))
+                if w > 0:
+                    accum, waccum = f32(w * data[na - 1]), w
+                for j in range(na + 1, nb):
+                    accum = f32(accum + f32(frac * data[j - 1]))
+                    waccum = f32(waccum + frac)
+                w = f32(min(hi, f32(f32(nb) + half)) - f32(f32(nb) - half))
+                if w > 0:
+                    accum = f32(accum + f32(w * data[nb - 1]))
+                    waccum = f32(waccum + w)
+        out[i] = f32(badval) if waccum == 0 else f32(accum / waccum)
+    return out
+
+
+def _drizzle(buf, x, y, xfrac, yfrac):
+    """ii_grdriz: each line averaged across in x, then each column of that
+    averaged across in y, over the output pixel's footprint."""
+    f32 = np.float32
+    c = _drizzle_coefficients(buf.astype(f32))
+    lo, hi = min(y[0], y[1]), max(y[-2], y[-1])
+    nylmin, nylmax = int(lo + f32(0.5)), int(hi + f32(0.5))
+    work = np.array([_driz_row(x, c[j - 1], xfrac) for j in range(nylmin, nylmax + 1)],
+                    dtype=f32)
+    half = f32(f32(yfrac) / f32(2.0))
+    nypts = y.size // 2
+    out = np.zeros((nypts, work.shape[1]), dtype=f32)
+    for j in range(nypts):
+        ymin, ymax = min(y[2 * j], y[2 * j + 1]), max(y[2 * j], y[2 * j + 1])
+        na, nb = int(ymin + f32(0.5)), int(ymax + f32(0.5))
+        accum = np.zeros(work.shape[1], dtype=f32)
+        waccum = f32(0.0)
+        if na == nb:
+            w = f32(min(ymax, f32(f32(nb) + half)) - max(ymin, f32(f32(na) - half)))
+            if w > 0:
+                accum = (accum + w * work[na - nylmin]).astype(f32)
+                waccum = f32(waccum + w)
+        else:
+            w = f32(f32(f32(na) + half) - max(ymin, f32(f32(na) - half)))
+            if w > 0:
+                accum = (accum + w * work[na - nylmin]).astype(f32)
+                waccum = f32(waccum + w)
+            for jj in range(na + 1, nb):
+                accum = (accum + f32(yfrac) * work[jj - nylmin]).astype(f32)
+                waccum = f32(waccum + f32(yfrac))
+            w = f32(min(ymax, f32(f32(nb) + half)) - f32(f32(nb) - half))
+            if w > 0:
+                accum = (accum + w * work[nb - nylmin]).astype(f32)
+                waccum = f32(waccum + w)
+        out[j] = 0 if waccum <= 0 else (accum / waccum).astype(f32)
     return out
 
 

@@ -151,7 +151,10 @@ def sky_buffer(data: np.ndarray, x: float, y: float, annulus: float, dannulus: f
     values, coords = values[~bad], coords[~bad]
     if values.size == 0:
         return None, nbad, (SKY_NSKY_TOO_SMALL if nbad else apphot.SKY_OUTOFBOUNDS)
-    return _Annulus(values, coords, snx, sny), nbad, SKY_OK
+    annulus = _Annulus(values, coords, snx, sny)
+    # where the star is in the subraster, for radplot's radii
+    annulus.sxc, annulus.syc = float(wx) - c1 + 1, float(wy) - l1 + 1
+    return annulus, nbad, SKY_OK
 
 
 # ------------------------------------------------------------ helpers
@@ -829,15 +832,88 @@ def _crosscor(a, index, n, k1, binsize, lo, hi, rgrow, maxiter):
 # ------------------------------------------------------------ apfitsky
 
 ALGORITHMS = ("centroid", "mode", "median", "mean", "gauss", "ofilter", "crosscor",
-              "constant")
+              "histplot", "radplot", "constant", "file")
+
+SKY_NOGRAPHICS, SKY_NOSKYFILE, SKY_EOFSKYFILE, SKY_BADSKYSCAN = 208, 209, 210, 211
+
+
+class Cursor:
+    """The graphics cursor histplot and radplot read: IRAF's gcommands, a
+    file of 'x y [wcs] key' lines that every star reads on from where the
+    last stopped -- or, given `show`, the window, where the marks are made
+    by hand. Each star reads until q, or the end."""
+
+    def __init__(self, path=None, show=None) -> None:
+        self.lines: list[tuple[float, float, str]] = []
+        self.show = show
+        if path:
+            from pathlib import Path
+
+            for line in Path(path).read_text().splitlines():
+                words = line.split()
+                if not words or words[0].startswith("#"):
+                    continue
+                if len(words) == 1:
+                    self.lines.append((float("nan"), float("nan"), words[0]))
+                    continue
+                key = words[3] if len(words) > 3 else words[2] if len(words) > 2 else " "
+                self.lines.append((float(words[0]), float(words[1]), key))
+        self.at = 0
+
+    def events(self, graph, start):
+        if self.show is not None:
+            yield from self.show(graph, start)
+            return
+        while self.at < len(self.lines):
+            event = self.lines[self.at]
+            self.at += 1
+            yield event
+            if event[2] == "q":
+                return
+
+
+class SkyFile:
+    """phot's skyfile, for salgorithm=file: one 'x y msky stdev sskew nsky
+    nsrej' line per star, read in order (ap_readsky)."""
+
+    def __init__(self, path) -> None:
+        from pathlib import Path
+
+        self.lines = [line for line in Path(path).read_text().splitlines()
+                      if line.strip() and not line.lstrip().startswith("#")]
+        self.at = 0
+
+    def read(self) -> Sky:
+        if self.at >= len(self.lines):
+            return Sky(ier=SKY_EOFSKYFILE)
+        words = self.lines[self.at].split()
+        self.at += 1
+        values: list[float] = []
+        for k, word in enumerate(words[:7]):
+            try:
+                values.append(int(word) if k >= 5 else float(f32(float(word))))
+            except ValueError:
+                break
+        if len(values) != 7:
+            return Sky(ier=SKY_BADSKYSCAN)
+        _, _, mode, sigma, skew, nsky, nreject = values
+        if nsky <= 0:
+            return Sky(float(mode), float(sigma), float(skew), int(nsky), int(nreject),
+                       SKY_NOSKYAREA)
+        return Sky(float(mode), float(sigma), float(skew), int(nsky), int(nreject), SKY_OK)
 
 
 def fitsky(data: np.ndarray, x: float, y: float, pars: SkyPars,
-           dpars: DataPars) -> Sky:
+           dpars: DataPars, cursor: Cursor | None = None,
+           skyfile: SkyFile | None = None) -> Sky:
     """apfitsky."""
     if pars.salgorithm == "constant":
         return Sky(pars.skyvalue, dpars.sigma if dpars.sigma is not None
                    else float("nan"), float("nan"), 0, 0, SKY_OK)
+    if pars.salgorithm == "file":
+        return skyfile.read() if skyfile is not None else Sky(ier=SKY_NOSKYFILE)
+    if pars.salgorithm in ("histplot", "radplot") and cursor is None:
+        return Sky(ier=SKY_NOGRAPHICS)
     a, nbad, ier = sky_buffer(data, x, y, pars.annulus, pars.dannulus, dpars)
     if a is None:
         return Sky(nreject=nbad, ier=ier)
@@ -854,6 +930,8 @@ def fitsky(data: np.ndarray, x: float, y: float, pars: SkyPars,
         index = np.concatenate(([0], sorted_order[loindex:hiindex + 1]))
     elif pars.salgorithm in ("median", "mode"):
         index = sorted_order
+    elif pars.salgorithm in ("histplot", "radplot"):
+        index = np.arange(a.n + 1)
     else:
         index = np.arange(a.n + 1)
     n = a.n - nclip
@@ -870,6 +948,10 @@ def fitsky(data: np.ndarray, x: float, y: float, pars: SkyPars,
     elif algorithm == "gauss":
         sky = _gauss(a, index, n, pars.smaxiter, pars.khist, pars.binsize, pars.smooth,
                      lo, hi, rgrow, pars.snreject)
+    elif algorithm == "histplot":
+        sky = _histplot(a, index, n, pars.khist, pars.binsize, pars.smooth, cursor, x, y)
+    elif algorithm == "radplot":
+        sky = _radplot(a, index, n, cursor, x, y, dpars.scale)
     elif algorithm == "ofilter":
         sky = _ofilter(a, index, n, pars.khist, pars.binsize, pars.smooth, lo, hi,
                        rgrow, pars.smaxiter)
@@ -878,3 +960,62 @@ def fitsky(data: np.ndarray, x: float, y: float, pars: SkyPars,
                         pars.smaxiter)
     sky.nreject += nbad + nclip
     return sky
+
+
+# ------------------------------------------------------ marked by hand
+
+
+def _histplot(a, index, n, k1, binsize, smooth, cursor, x, y):
+    """ap_histplot: the histogram drawn, its peak marked with the cursor --
+    every key but q moves the mark there, clamped to the histogram. Sigma
+    and skew are the moments of the pixels on the histogram."""
+    from .graph import Graph
+
+    if n <= 0:
+        return Sky(nsky=0, ier=apphot.SKY_OUTOFBOUNDS)
+    h = _Histogram(a, index, n, k1, binsize, "centroid")
+    mode = h.median
+    if h.dh <= 0 or h.k1 <= 0 or h.sigma <= 0 or h.sigma <= h.dh or h.nbins < 2:
+        return Sky(float(mode), 0.0, 0.0, n, 0, SKY_NOHISTOGRAM)
+    nreject = h.accumulate(a, index, n)
+    nsky = n - nreject
+    _, sigma, skew = h.initial_rejection(a, index, n, nreject)
+    graph = Graph([f"Sky histogram at {x:.2f} {y:.2f}",
+                   f"Mark histogram peak ({float(mode):g}) [space=mark, q=quit]"],
+                  xlabel="sky value", ylabel="number of pixels")
+    centres = h.x()
+    graph.steps(np.append(centres - h.dh / 2, centres[-1] + h.dh / 2), h.hgm)
+    if smooth:
+        nker = max(1, _nint(f32(sigma / h.dh)))
+        graph.line(centres, _bsmooth(h.hgm, nker))
+    for wx, _wy, key in cursor.events(graph, float(mode)):
+        if key == "q":
+            break
+        mode = max(h.hmin, min(f32(wx), h.hmax))
+    return Sky(float(mode), float(sigma), float(skew), nsky, nreject, SKY_OK)
+
+
+def _radplot(a, index, n, cursor, x, y, scale):
+    """ap_radplot: the sky pixels against their distance from the star,
+    the sky level marked with the cursor's y; sigma and skew of them all."""
+    from .graph import Graph
+
+    if n <= 0:
+        return Sky(nsky=0, ier=apphot.SKY_OUTOFBOUNDS)
+    zero = _zero(a, index, n)
+    mean, sigma, skew = _Sums(a.pix[index[1:n + 1]], zero).moments(n)
+    mode = mean
+    coords = a.coords[index[1:n + 1]] - 1
+    col = coords % a.snx + 1
+    row = coords // a.snx + 1
+    r = np.hypot(col - a.sxc, row - a.syc) / scale
+    graph = Graph([f"Sky radial profile at {x:.2f} {y:.2f}",
+                   f"Mark sky level ({float(mode):g}) [space=mark, q=quit]"],
+                  xlabel="radius (scale units)", ylabel="sky value")
+    order = np.argsort(r)
+    graph.line(r[order], a.pix[index[1:n + 1]][order])
+    for _wx, wy, key in cursor.events(graph, float(mode)):
+        if key == "q":
+            break
+        mode = f32(wy)
+    return Sky(float(mode), float(sigma), float(skew), n, 0, SKY_OK)

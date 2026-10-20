@@ -22,7 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from ..core import advice
 from ..core.registry import register
@@ -413,9 +413,22 @@ class ImShiftParams(TaskParams):
     yshift: float | None = Field(None, description="Shift in y, pixels.")
     shifts_file: Path | None = Field(
         None, description="One 'x y' line per input image, instead of xshift/yshift.")
-    interp_type: INTERP = Field(
-        "linear", description="Interpolant for a fractional shift. A whole-pixel "
-                              "shift copies the pixels whatever this is.")
+    interp_type: str = Field(
+        "linear", description="Interpolant for a fractional shift: nearest, linear, "
+                              "poly3, poly5, spline3, sinc (31 points; sinc21 for 21), "
+                              "lsinc, or drizzle (drizzle[0.5] for a pixel fraction). A "
+                              "whole-pixel shift copies the pixels whatever this is.")
+
+    @field_validator("interp_type")
+    @classmethod
+    def _known_interpolant(cls, value: str) -> str:
+        from ..core import imshift
+
+        if imshift.parse_interp(value)[0] not in imshift.INTERPOLANTS:
+            raise ValueError(f"'{value}' is not an interpolant: use one of "
+                             + ", ".join(imshift.INTERPOLANTS)
+                             + ", or sinc21, lsinc21, drizzle[0.5]")
+        return value
     boundary_type: BOUNDARY = Field(
         "nearest", description="How the image is extended past its edges.")
     constant: float = Field(0.0, description="Value for boundary_type=constant.")

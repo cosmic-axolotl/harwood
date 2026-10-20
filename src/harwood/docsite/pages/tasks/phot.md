@@ -45,3 +45,40 @@ an undefined magnitude, as in IRAF.
 
 The table is ECSV, with the 1-based convention recorded in it; it opens in
 the window's [Files](page:app/files) panel, in astropy, or in a spreadsheet.
+
+## The sky from a file
+
+`--salgorithm file --skyfile skies` takes each star's sky from a text file
+instead of measuring it, as IRAF does: one `x y msky stdev sskew nsky
+nsrej` line per star, in the order of the coordinates -- the columns a
+[fitsky](task:fitsky) table has. A line that is not complete flags the star
+`211`; a star with no line left, `210`. `histplot` and `radplot` work here
+as in fitsky, with `--gcommands`.
+
+## With the cursor
+
+`--interactive` hands the window's keys to the task, as IRAF's
+`interactive+` does, and `--icommands file` reads them from a file of
+`x y 1 key` lines instead -- IRAF's icommands, `\040` for the space bar --
+which is how they were checked: on IRAF 2.18's own runs, the same rows,
+numbered the same way.
+
+| key | |
+|---|---|
+| space | measure at the cursor and write the row |
+| `f` | measure at the cursor without writing |
+| `c` | centre at the cursor |
+| `t` / `s` | the sky at the cursor / around the current centre (phot) |
+| `a` | the sky averaged over several positions: `t` at each, `q` to finish (phot) |
+| `p` / `o` | magnitudes with the sky as it is; `o` writes them (phot) |
+| `m` / `n` | move to / measure the next star of `--coords` |
+| `l` | measure every star left in the list |
+| `r` | back to the start of the list |
+| `e` | the last error messages |
+| `q` | done |
+
+`:m 5` and `:n 5` move to or measure star 5; `:annulus 12`, `:cbox 7`,
+`:apertures 3,5` and the other parameters are set by name for what follows.
+A cursor within a FWHM of the star just fetched from the list measures that
+star, as in IRAF. Each row carries `id`, its place in the output, and `lid`,
+its place in the list -- 0 for one the cursor chose.

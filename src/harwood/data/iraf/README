@@ -11,9 +11,10 @@ installed -- or available anywhere -- to run.
 Copied unchanged from IRAF 2.18.1 (iraf-community; the Ubuntu packages
 iraf 2.18.1-2build1 and iraf-noao 2.18.1-2build1) on 2026-10-20, from
 noao/lib/linelists, noao/lib/onedstds, noao/imred/ccdred/ccddb and
-noao/lib/obsdb.dat. The cl
-scripts that sat beside them (airvac.cl, mkbbcal.cl, the ccddb *.cl
-package settings) were left out: harwood reads the tables, not the scripts.
+noao/lib/obsdb.dat. The ccddb *.cl files are kept too: they are lists of
+parameter settings (ccdproc.trim = yes), which setinstrument reads and puts
+in the project file -- harwood reads them, it does not run them. The other
+cl scripts (airvac.cl, mkbbcal.cl) were left out.
 
 The tables are measurements made by others and distributed with IRAF -- the
 standards are Oke's, Hayes', Massey's and the rest, as the files themselves

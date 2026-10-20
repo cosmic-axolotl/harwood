@@ -6,18 +6,9 @@ where the illuminated pixels stop and the overscan begins. `implot` is the
 instrument for that, and the keys matter because they are the ones the
 tutorials tell you to press.
 
-    l          plot the line under the cursor
-    c          plot the column under the cursor
-    :l n1 n2   plot the average of lines n1 to n2
-    :c n1 n2   plot the average of columns n1 to n2
-    e          expand: press once at one corner, again at the other
-    r  or  a   redraw the whole plot
-    C          read off the coordinate and value under the cursor
-    o          keep the current plot and overplot the next one
-    ?          the keys
-    q          leave
-
-Positions are 1-based, as everywhere a user can see.
+The keys and colon commands are IRAF's, answered by core.implot (the same
+engine a cursor file drives); this panel draws what it says and hands it
+the cursor. Positions are 1-based, as everywhere a user can see.
 """
 
 from __future__ import annotations
@@ -26,20 +17,18 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
+from ..core import implot
 from . import theme
 from ._qt import on_main
 from .theme import palette as _c
 
 HELP = [
-    ("l", "plot the line under the cursor"),
-    ("c", "plot the column under the cursor"),
-    (":l n1 n2", "average of lines n1 to n2"),
-    (":c n1 n2", "average of columns n1 to n2"),
-    ("e", "expand: press at one corner, then the other"),
-    ("r", "redraw the whole plot"),
-    ("C", "read the coordinate and value under the cursor"),
-    ("o", "overplot the next cut instead of replacing"),
-    ("q", "leave"),
+    ("l", "plot the line under the cursor"), ("c", "plot the column under the cursor"),
+    ("a", "average: press at both ends of a range"), ("e", "expand: two corners"),
+    ("j k", "step down, up"), ("m n", "previous, next image"),
+    ("o", "overplot the next"), ("p", "profile: two points, region and background"),
+    ("s", "statistics: two points"), ("space", "the pixel and its value"),
+    ("r", "redraw"), ("q", "leave"),
 ]
 
 
@@ -48,16 +37,17 @@ class ImplotPanel(QtWidgets.QWidget):
 
     finished = QtCore.Signal()
 
-    def __init__(self, data, name: str = "image", parent=None) -> None:
+    def __init__(self, data, name: str = "image", parent=None, images=None, line=None,
+                 wcs: str = "logical", step: int = 0) -> None:
         super().__init__(parent)
-        self.data = np.asarray(data, dtype=float)
+        if images is None:
+            frozen = np.asarray(data, dtype=float)
+            self.engine = implot.Implot([name], line=line, wcs=wcs, step=step,
+                                        reader=lambda _: (frozen, None))
+        else:
+            self.engine = implot.Implot(images, line=line, wcs=wcs, step=step)
         self.name = name
-        self.ny, self.nx = self.data.shape
-        self.overplot = False
-        self.curves = 0
-        self._cursor = (self.nx / 2, self.ny / 2)
-        self._corner: tuple[float, float] | None = None
-
+        self._cursor = (1.0, 1.0)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -88,56 +78,55 @@ class ImplotPanel(QtWidgets.QWidget):
 
         self.command = QtWidgets.QLineEdit()
         self.command.setObjectName("command")
-        self.command.setPlaceholderText(":l 250 260   ·   :c 335 350   ·   ? for the keys")
+        self.command.setPlaceholderText(":l 250 260   ·   :c 335 350   ·   :a 5   ·   "
+                                        "? for the keys")
         self.command.returnPressed.connect(self._run_command)
         layout.addWidget(self.command)
 
         self.setFocusProxy(self.plot)
-        self.plot_lines(self.ny // 2, self.ny // 2)
+        self._render()
 
     # --------------------------------------------------------------- plots
 
+    @property
+    def last(self):
+        x, y, label = self.engine.plot.curves[-1]
+        return np.asarray(x, dtype=float), np.asarray(y, dtype=float), label
+
     def plot_lines(self, first: int, last: int) -> None:
         """Average of image lines `first` to `last`, both 1-based and inclusive."""
-        first, last = sorted((int(first), int(last)))
-        first = max(1, min(first, self.ny))
-        last = max(1, min(last, self.ny))
-        cut = self.data[first - 1:last, :].mean(axis=0)
-        label = (f"line {first}" if first == last
-                 else f"lines {first} to {last}, averaged")
-        self._draw(np.arange(1.0, self.nx + 1.0), cut, "column (x)", label)
+        self.engine.colon(f":l {int(first)} {int(last)}")
+        self._render()
 
     def plot_columns(self, first: int, last: int) -> None:
-        """Average of image columns `first` to `last`, both 1-based and inclusive."""
-        first, last = sorted((int(first), int(last)))
-        first = max(1, min(first, self.nx))
-        last = max(1, min(last, self.nx))
-        cut = self.data[:, first - 1:last].mean(axis=1)
-        label = (f"column {first}" if first == last
-                 else f"columns {first} to {last}, averaged")
-        self._draw(np.arange(1.0, self.ny + 1.0), cut, "line (y)", label)
+        self.engine.colon(f":c {int(first)} {int(last)}")
+        self._render()
 
-    def _draw(self, x, y, xlabel: str, label: str) -> None:
-        if not self.overplot:
-            self.plot.clear()
-            self.curves = 0
-        colour = _c().series[self.curves % len(_c().series)]
-        self.plot.plot(x, y, pen=pg.mkPen(colour, width=1.2))
-        self.curves += 1
-        self.plot.setLabel("bottom", xlabel, color=_c().muted)
-        self.plot.setTitle(f"implot · {self.name} · {label}", color=_c().ink, size="10pt")
-        if not self.overplot:
-            self.plot.autoRange(padding=0.02)
-        self.last = (x, y, label)
-        self.status.setText(
-            f"{label}   min {y.min():.1f}   max {y.max():.1f}   "
-            f"mean {y.mean():.1f}   median {np.median(y):.1f}\n"
-            + ("overplotting; press o again to stop" if self.overplot
-               else "press ? for the keys"))
+    def _render(self) -> None:
+        state = self.engine.plot
+        self.plot.clear()
+        for k, (x, y, _label) in enumerate(state.curves):
+            colour = _c().series[k % len(_c().series)]
+            values = np.asarray(y, dtype=float)
+            if state.logy:
+                values = np.where(values > 0, values, np.nan)
+            self.plot.plot(np.asarray(x, dtype=float), values,
+                           pen=pg.mkPen(colour, width=1.2), connect="finite")
+        self.plot.setLogMode(y=state.logy)
+        self.plot.setLabel("bottom", state.xlabel, color=_c().muted)
+        self.plot.setTitle(f"implot · {state.title}", color=_c().ink, size="10pt")
+        x1, x2, y1, y2 = self.engine.window()
+        self.plot.setRange(xRange=sorted((x1, x2)), yRange=sorted((y1, y2)), padding=0.02)
+        y = self.engine.y
+        lines = self.engine.status or [
+            f"{state.title}   min {y.min():.1f}   max {y.max():.1f}   "
+            f"mean {y.mean():.1f}   median {np.median(y):.1f}"]
+        self.status.setText("\n".join(line for line in lines if line != "\a")
+                            or "that key does nothing here; ? lists them")
 
     # -------------------------------------------------------------- input
 
-    def eventFilter(self, obj, event) -> bool:
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802 (Qt's name)
         if event.type() == QtCore.QEvent.Type.KeyPress and self.key(event.text()):
             return True
         return super().eventFilter(obj, event)
@@ -149,97 +138,40 @@ class ImplotPanel(QtWidgets.QWidget):
             self._cursor = (point.x(), point.y())
 
     def key(self, key: str) -> bool:
-        x, y = self._cursor
-        if key == "l":
-            self.plot_lines(round(y), round(y)) if self.last[2].startswith("column") \
-                else self.plot_lines(round(self._row_hint()), round(self._row_hint()))
-        elif key == "c":
-            self.plot_columns(round(x), round(x))
-        elif key == "e":
-            self._expand()
-        elif key in ("r", "a"):
-            self.plot.autoRange(padding=0.02)
-            self._corner = None
-            self.status.setText(f"{self.last[2]}\nredrawn whole")
-        elif key == "C":
-            self._read_off()
-        elif key == "o":
-            self.overplot = not self.overplot
-            self.status.setText(
-                f"{self.last[2]}\n"
-                + ("overplotting: the next cut is added, not replaced"
-                   if self.overplot else "replacing again"))
-        elif key == "?":
-            self.keys.setText("   ".join(f"[{k}] {w}" for k, w in HELP))
-        elif key == "q":
-            self.finished.emit()
-        elif key == ":":
+        if not key:
+            return False
+        if key == ":":
             self.command.setFocus()
             self.command.setText(":")
-        else:
-            return False
+            return True
+        if key == "?":
+            self.keys.setText("   ".join(f"[{k}] {w}" for k, w in HELP))
+            return True
+        self.engine.status = []
+        self.engine.key(key, *self._cursor)
+        if self.engine.done:
+            self.finished.emit()
+            return True
+        self._render()
         return True
 
-    def _row_hint(self) -> float:
-        """Which image line the cursor is over, when a line is being plotted."""
-        return self._cursor[0] if self.last[2].startswith("column") else self.ny / 2
-
-    def _expand(self) -> None:
-        """Two presses mark opposite corners of the region to magnify."""
-        if self._corner is None:
-            self._corner = self._cursor
-            self.status.setText(f"{self.last[2]}\n"
-                                f"corner at x={self._corner[0]:.1f} "
-                                f"y={self._corner[1]:.1f} -- press e again at the "
-                                f"opposite corner")
-            return
-        (x0, y0), (x1, y1) = self._corner, self._cursor
-        self._corner = None
-        self.plot.setRange(xRange=sorted((x0, x1)), yRange=sorted((y0, y1)),
-                           padding=0)
-        self.status.setText(f"{self.last[2]}\n"
-                            f"expanded to x {min(x0, x1):.1f}..{max(x0, x1):.1f}, "
-                            f"y {min(y0, y1):.1f}..{max(y0, y1):.1f}")
-
-    def _read_off(self) -> None:
-        """What the plotted curve is at the cursor -- IRAF's C."""
-        x, y = self.last[0], self.last[1]
-        index = int(np.abs(x - self._cursor[0]).argmin())
-        self.status.setText(
-            f"{self.last[2]}\n"
-            f"at {x[index]:.0f}  value {y[index]:.2f}   "
-            f"(cursor y = {self._cursor[1]:.2f})")
-
     def _run_command(self) -> None:
-        text = self.command.text().strip().lstrip(":")
+        text = self.command.text().strip()
         self.command.clear()
         self.plot.setFocus()
         if not text:
             return
-        parts = text.split()
-        what = parts[0].lower()
-        try:
-            numbers = [int(float(p)) for p in parts[1:]]
-        except ValueError:
-            self.status.setText(f"{self.last[2]}\n'{text}' -- expected numbers, "
-                                f"as in ':l 250 260'")
-            return
-        if what not in ("l", "c"):
-            self.status.setText(f"{self.last[2]}\nno command ':{what}'. "
-                                f"Use :l for lines or :c for columns.")
-            return
-        if not numbers:
-            self.status.setText(f"{self.last[2]}\n':{what}' needs one or two "
-                                f"numbers, as in ':{what} 250 260'")
-            return
-        first = numbers[0]
-        last = numbers[1] if len(numbers) > 1 else first
-        (self.plot_lines if what == "l" else self.plot_columns)(first, last)
+        self.engine.status = []
+        self.engine.colon(text)
+        self._render()
 
 
 @on_main
-def run(data, name: str = "image") -> None:
-    """Open implot and wait for `q`."""
+def run(data, name: str = "image", images=None, line=None, wcs="logical",
+        step: int = 0) -> list[str]:
+    """Open implot and wait for `q`; the lines it printed."""
     from .dock import show
 
-    show(ImplotPanel(data, name), f"implot · {name}", size=(1080, 640))
+    panel = show(ImplotPanel(data, name, images=images, line=line, wcs=wcs, step=step),
+                 f"implot · {name}", size=(1080, 640))
+    return panel.engine.messages

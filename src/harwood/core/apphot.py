@@ -19,8 +19,8 @@ sky            every algorithm (core/fitsky.py): centroid (the default),
                percentile clips and histogram smoothing. Not the
                interactive histplot and radplot, nor file.
 apertures      the sums with IRAF's fractional edge pixels, the
-               three-term error, the itime correction; positive
-               features only (datapars emission = yes).
+               three-term error, the itime correction; absorption
+               features too (datapars emission = no).
 =============  ========================================================
 
 Positions are 1-based (x, y) image coordinates, as in IRAF.
@@ -69,6 +69,10 @@ MESSAGES = {
     SKY_SINGULAR: "the fit to the sky histogram is singular",
     SKY_NOCONVERGE: "the fit to the sky histogram did not converge",
     SKY_BADPARAMS: "the fit to the sky histogram gave a non-physical answer",
+    208: "histplot and radplot need the graphics cursor: the window, or --gcommands",
+    209: "salgorithm file needs a sky file (phot --skyfile)",
+    210: "the sky file has no line left for this star",
+    211: "the sky file's line for this star is not x y msky stdev sskew nsky nsrej",
     APERT_NOAPERT: "the aperture is off the image",
     APERT_OUTOFBOUNDS: "the largest apertures are partly off the image",
     APERT_NOSKYMODE: "no sky value, so no magnitude",
@@ -92,6 +96,7 @@ class DataPars:
     readnoise: float = 0.0
     itime: float = 1.0
     noise: str = "poisson"            #: poisson or constant
+    emission: bool = True             #: no: the features are below the sky
 
 
 @dataclass
@@ -226,8 +231,13 @@ def center(data: np.ndarray, x: float, y: float, pars: CenterPars | None = None,
 
         # The threshold: the box minimum, or the lowest row median when a
         # cthreshold is set; everything at or below it counts for nothing.
-        floor = box.min() if cthreshold <= 0 else float(np.min(np.median(box, axis=1)))
-        box = np.maximum(box - (floor + cthreshold), 0.0)
+        if dpars.emission:
+            floor = box.min() if cthreshold <= 0 else float(np.min(np.median(box, axis=1)))
+            box = np.maximum(box - (floor + cthreshold), 0.0)
+        else:
+            # Absorption: turned over about the top, which becomes zero.
+            top = box.max() if cthreshold <= 0 else float(np.max(np.median(box, axis=1)))
+            box = np.maximum(-box + (top - cthreshold), 0.0)
 
         lowsnr = _snratio(box, dpars) < pars.minsnratio
 
@@ -591,18 +601,18 @@ def _cmarg(a: np.ndarray, norm: float) -> tuple[float, float]:
 
 
 def fitsky(data: np.ndarray, x: float, y: float, pars: SkyPars | None = None,
-           dpars: DataPars | None = None) -> Sky:
-    """apfitsky: every algorithm of IRAF's fitskypars but the interactive
-    ones (histplot, radplot) and file. See core/fitsky.py."""
+           dpars: DataPars | None = None, cursor=None, skyfile=None) -> Sky:
+    """apfitsky: every algorithm of IRAF's fitskypars. histplot and radplot
+    read the graphics cursor (`cursor`, a core.fitsky.Cursor) and file reads
+    `skyfile`; without them they fail as IRAF does, with the star flagged.
+    See core/fitsky.py."""
     from . import advice, fitsky
 
     pars, dpars = pars or SkyPars(), dpars or DataPars()
     if pars.salgorithm not in fitsky.ALGORITHMS:
         advice.fail(f"salgorithm '{pars.salgorithm}' is not available",
-                    "use " + ", ".join(fitsky.ALGORITHMS[:-1]) + " or constant; "
-                    "histplot and radplot are IRAF's interactive markers, and file "
-                    "reads the sky from a list -- give it as constant per star")
-    return fitsky.fitsky(data, x, y, pars, dpars)
+                    "use one of " + ", ".join(fitsky.ALGORITHMS))
+    return fitsky.fitsky(data, x, y, pars, dpars, cursor, skyfile)
 
 
 # --------------------------------------------------------------- apertures

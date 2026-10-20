@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 33, partial: 19, planned: 303, replaced: 94, wontport: 161
+#   available: 41, partial: 11, planned: 303, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -280,8 +280,8 @@ tasks:
   sapertures: {pkg: onedspec, domain: headers, status: planned, milestone: later}
   setairmass: {pkg: [astutil, onedspec], domain: headers, status: available, milestone: mvp, harwood: setairmass,
     note: "IRAF's t_setairmass ported and checked against IRAF's output: ST minus precessed RA, airmassx with the scale height, intype/outtype, every keyword renameable, AIRMASS in single precision and UTMIDDLE as IRAF writes it; ST worked out from the UT when the header has none"}
-  setinstrument: {pkg: imred.ccdred, domain: headers, status: partial, milestone: mvp, harwood: setinstrument,
-    note: "chooses a header translation and records it in the project, from IRAF's ccddb files, which ship with harwood; the ccdred package settings IRAF's *.cl files also made are not applied"}
+  setinstrument: {pkg: imred.ccdred, domain: headers, status: available, milestone: mvp, harwood: setinstrument,
+    note: "chooses a header translation and records it in the project, and applies the instrument's ccddb *.cl settings (includes followed) to the project's params, from IRAF's ccddb files, which ship with harwood; settings with no harwood counterpart are listed with the reason"}
   setjd: {pkg: [astutil, onedspec], domain: headers, status: available, milestone: mvp, harwood: setjd,
     note: "IRAF's t_setjd ported and checked against IRAF's output: JD, HJD by IRAF's Sun, LJD, utdate/uttime, every keyword renameable; --barycentric is harwood's own"}
   slist: {pkg: onedspec, domain: headers, status: planned, milestone: later}
@@ -363,8 +363,8 @@ tasks:
     note: "IRAF's centring, rejection, shifts, errors and trim section, ported and checked against IRAF's output"}
   imcntr: {pkg: proto, domain: geometry, status: planned, milestone: later}
   imlintran: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
-  imshift: {pkg: images.imgeom, domain: geometry, status: partial, milestone: later, harwood: imshift,
-    note: "nearest, linear, poly3, poly5 and spline3 with every boundary, ported and checked against IRAF's output; sinc, lsinc and drizzle are not ported"}
+  imshift: {pkg: images.imgeom, domain: geometry, status: available, milestone: later, harwood: imshift,
+    note: "every interpolant (nearest, linear, poly3, poly5, spline3, sinc, lsinc, drizzle with its pixfrac) and boundary, ported and checked against IRAF's output; IRAF 2.18's sinc builds its kernel from a double read as a real (wrong values) -- harwood's sinc is the correct one, and reproduces IRAF's exactly when that mistake is put back in the tests"}
   imtranspose: {pkg: images.imgeom, domain: geometry, status: planned, milestone: later}
   iralign: {pkg: nproto, domain: geometry, status: planned, milestone: later}
   irmatch1d: {pkg: nproto, domain: geometry, status: planned, milestone: later}
@@ -559,8 +559,8 @@ tasks:
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   imexamine: {pkg: images.tv, domain: display, status: partial, milestone: mvp,
     note: "keys r a m l c j k h e s x z, n and p, IRAF's colon commands, and imagecur for batch; r a m j k z checked against IRAF's output; no b, g, i, o, t, u, v or w keys"}
-  implot: {pkg: plot, domain: display, status: partial, milestone: mvp, harwood: implot,
-    note: "plots lines and columns with the :l, :c, e, r, C and o keys; no contour, surface or overplot from a second image"}
+  implot: {pkg: plot, domain: display, status: available, milestone: mvp, harwood: implot,
+    note: "t_implot.x ported: every key (l c a e j k m n o p r s space q) and colon command (:a :c :l :i :o :log :step :w :x :y), image lists, the right-axis mapping, the profile and statistics -- identical to IRAF 2.18 through a cursor file, which --coords also takes"}
   lumatch: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
   monochrome: {pkg: images.tv.iis, domain: display, status: wontport,
@@ -611,8 +611,8 @@ tasks:
   addstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   allstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   apfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
-  center: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp,
-    note: "every algorithm -- centroid, gauss (through IRAF's nlfit), ofilter, none -- and the symmetry clean, ported and checked against IRAF's output; positive features only (emission = yes), and no interactive mode"}
+  center: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp,
+    note: "every algorithm -- centroid, gauss (through IRAF's nlfit), ofilter, none -- the symmetry clean and absorption features (emission = no), ported and checked against IRAF's output; interactive mode in the window or from icommands, its rows identical to IRAF's"}
   centerpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   chkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
@@ -628,8 +628,8 @@ tasks:
     note: "absorbed into the task's Pydantic parameter model"}
   fitparams: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   fitpsf: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
-  fitsky: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp,
-    note: "centroid, mode, median, mean, gauss, ofilter, crosscor and constant, with region growing, the percentile clips and histogram smoothing, ported and checked against IRAF's output; not the interactive histplot and radplot, nor file"}
+  fitsky: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp,
+    note: "centroid, mode, median, mean, gauss, ofilter, crosscor and constant, with region growing, the percentile clips and histogram smoothing, ported and checked against IRAF's output; histplot and radplot marked in the window or from gcommands (not compared: IRAF needs a graphics terminal), file through phot's skyfile, with IRAF's error codes"}
   fitskypars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   group: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
@@ -652,8 +652,8 @@ tasks:
   peak: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   pexamine: {pkg: digiphot.ptools, domain: photometry, status: planned, milestone: later}
   pfmerge: {pkg: digiphot.daophot, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
-  phot: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp, harwood: phot,
-    note: "IRAF's arithmetic, ported and checked against IRAF's output, with center's and fitsky's algorithms as listed there; positive features only, and no interactive mode"}
+  phot: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: phot,
+    note: "IRAF's arithmetic, ported and checked against IRAF's output, with center's and fitsky's algorithms as listed there; absorption features, skyfile, and the interactive mode (every key of apphot.x, colon parameters) in the window or from icommands -- the same rows as IRAF's"}
   photpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   polymark: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
@@ -738,8 +738,8 @@ tasks:
   aidpars: {pkg: onedspec, domain: spec-1d, status: replaced, note: "absorbed into the task's Pydantic parameter model"}
   autoidentify: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: autoidentify,
     note: "IRAF's aid algorithm with its centring, line list matching and fitting, ported and checked against IRAF's output (the same lines, fits and rejections); no reference spectrum (refspec)"}
-  calibrate: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: calibrate,
-    note: "IRAF's per-pixel calibration (extinction by intrp, the interpolated sensitivity spectrum, the pixel width), ported and checked against IRAF's output; reads IRAF's sensitivity spectra too; no fnu"}
+  calibrate: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: calibrate,
+    note: "IRAF's per-pixel calibration (extinction by intrp, the interpolated sensitivity spectrum, the pixel width), fnu and per-aperture sensitivities (ignoreaps), ported and checked against IRAF's output; reads IRAF's sensitivity spectra too"}
   continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   deredden: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   dispcor: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: dispcor,
@@ -761,8 +761,8 @@ tasks:
   msresp1d: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
   names: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   ndprep: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  refspectra: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: refspectra,
-    note: "assigns arcs by time with select = interp/nearest/preceding/following/average, writing REFSPEC1 and REFSPEC2 as IRAF does; no grouping by aperture and no interactive confirmation"}
+  refspectra: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: refspectra,
+    note: "ref*.x ported: every selection, sort/group (JD/LJD, worked out as setjd when absent), apertures/refaps/ignoreaps, override, confirm, logfiles, verbose; identical to IRAF 2.18 on 15 runs, including its preceding that never falls back. Reads header numbers with IRAF's ctod, and reference tables (reftable)"}
   reidentify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sarith: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sbands: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}

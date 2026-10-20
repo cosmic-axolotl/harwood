@@ -138,3 +138,75 @@ def test_ccdproc_fixpix_is_iraf_s_fixpix(tmp_path):
     assert "FIXPIX" in fits.getheader(tmp_path / "fixed.fits")
     step, = [s for s in result.steps if s.action == "fixpix"]
     assert step.measured["along columns"] == 40
+
+
+def test_histplot_and_radplot_read_the_graphics_cursor(frame, monkeypatch):
+    """IRAF's histplot and radplot: the sky marked by hand -- here from a
+    gcommands file, each star reading until q, the end of the file leaving
+    the first guess (the median for histplot, the mean for radplot). Without
+    a cursor every star is flagged 208, as IRAF flags it in batch."""
+    monkeypatch.setenv("HARWOOD_DISPLAY", "headless")
+    run = get_task("fitsky").run
+    common = dict(image=str(frame / "field.fits"), coords=frame / "field.coo")
+    none = catalog.read(run(salgorithm="histplot", output=frame / "a.sky",
+                            **common).outputs[0])
+    assert set(none["sier"]) == {208}
+    (frame / "hcur").write_text("0 0 1 m\n105.25 5 1 m\n0 0 1 q\n0 0 1 q\n")
+    marked = catalog.read(run(salgorithm="histplot", gcommands=str(frame / "hcur"),
+                              output=frame / "h.sky", **common).outputs[0])
+    assert set(marked["sier"]) == {0}
+    histogram_edge = marked["msky"][0]
+    assert histogram_edge != 0, "a mark below the histogram is clamped to it"
+    from harwood.core import apphot, fitsky
+
+    a, _, _ = fitsky.sky_buffer(fits.getdata(frame / "field.fits"), CURSOR[1][0],
+                                CURSOR[1][1], 10.0, 10.0, apphot.DataPars())
+    middle = fitsky._medr(a, np.arange(a.n + 1), a.n)        # apmedr, the first guess
+    assert marked["msky"][1] == pytest.approx(float(middle)), "q at once keeps it"
+    (frame / "rcur").write_text("3 101.5 1 m\n0 0 1 q\n")
+    radial = catalog.read(run(salgorithm="radplot", gcommands=str(frame / "rcur"),
+                              output=frame / "r.sky", **common).outputs[0])
+    assert radial["msky"][0] == pytest.approx(101.5)
+
+
+def test_phot_reads_the_sky_from_a_file(frame):
+    """salgorithm=file: phot's skyfile, one 'x y msky stdev sskew nsky nsrej'
+    line per star; fitsky has no sky file and flags 209, as in IRAF."""
+    lines = [f"{c[0]} {c[1]} 100.0 2.5 0.1 300 4" for c in CURSOR]
+    (frame / "skies").write_text("\n".join(lines[:-1]) + "\n")
+    result = get_task("phot").run(image=str(frame / "field.fits"),
+                                  coords=frame / "field.coo", salgorithm="file",
+                                  skyfile=str(frame / "skies"), output=frame / "f.mag")
+    table = catalog.read(result.outputs[0])
+    assert table["msky"][0] == pytest.approx(100.0) and table["nsky"][0] == 300
+    assert table["sier"][-1] == 210, "no line left for the last star"
+    fitsky = catalog.read(get_task("fitsky").run(
+        image=str(frame / "field.fits"), coords=frame / "field.coo", salgorithm="file",
+        output=frame / "f.sky").outputs[0])
+    assert set(fitsky["sier"]) == {209}
+
+
+def test_absorption_features_centre_as_iraf_centres_them():
+    """emission=no: the box is turned over about its top before centring,
+    as apfitcen does; every algorithm, with and without a cthreshold, lands
+    where IRAF's center does."""
+    import json
+    from pathlib import Path
+
+    from harwood.core import apphot
+
+    ref = json.loads((Path(__file__).parent / "data" / "iraf_center_absorption.json")
+                     .read_text())
+    yy, xx = np.indices((80, 90))
+    data = 1000 + ((xx * 7 + yy * 13) % 11).astype(float)
+    for cx, cy, depth in ((20.3, 30.6, 300), (55.8, 40.2, 150), (70.1, 65.4, 400)):
+        data -= depth * np.exp(-((xx + 1 - cx) ** 2 + (yy + 1 - cy) ** 2) / (2 * 1.6 ** 2))
+    data = data.astype(np.float32)
+    for key, centres in ref["centres"].items():
+        algorithm, threshold = key.split("/")
+        for (x0, y0), (ix, iy) in zip(ref["starts"], centres, strict=True):
+            c = apphot.center(data, x0, y0,
+                              apphot.CenterPars(calgorithm=algorithm, cbox=7,
+                                                cthreshold=float(threshold)),
+                              apphot.DataPars(fwhmpsf=3.0, sigma=3.0, emission=False))
+            assert (round(c.x, 3), round(c.y, 3)) == (ix, iy), key

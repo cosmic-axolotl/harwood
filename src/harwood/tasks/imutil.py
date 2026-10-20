@@ -752,7 +752,9 @@ class Sections(Task[SectionsParams]):
 
 
 class ImplotParams(TaskParams):
-    image: str = Field(..., description="Image to plot. Sections are honoured.")
+    image: list[str] = Field(..., description="Images to plot; n and m step through "
+                                              "them. Sections are honoured.",
+                             json_schema_extra={"positional": True})
     line: int | None = Field(
         None, description="Image line to plot first. The middle one by default."
     )
@@ -760,12 +762,24 @@ class ImplotParams(TaskParams):
         None, description="Image column to plot first, instead of a line."
     )
     nsum: int = Field(
-        1, ge=1, description="How many lines or columns to average for the first plot."
+        1, ge=1, description="How many lines or columns l and c average, as :a sets it."
     )
+    wcs: Literal["logical", "physical", "world"] = Field(
+        "logical", description="Coordinates along the plot: pixels, physical pixels "
+                               "(through LTV/LTM), or world (CRVAL/CD).")
+    step: int = Field(0, ge=0, description="Lines or columns j and k move by. 0: a tenth "
+                                           "of the image.")
+    coords: str = Field(
+        "", description="Graphics cursor commands instead of the keyboard: 'x y 1 key' "
+                        "or 'x y 1 :command' per line, IRAF's form. Runs without a window "
+                        "and prints what the keys would have.")
 
 
 @register
 class Implot(Task[ImplotParams]):
+    """IRAF's implot, pkg/plot/t_implot.x: its keys and colon commands
+    through one engine (core.implot), in the window or from a cursor file."""
+
     name = "implot"
     needs_window = True
     package = "plot"
@@ -775,26 +789,59 @@ class Implot(Task[ImplotParams]):
     def plan(self, params: ImplotParams) -> list[Step]:
         what = (f"column {params.column}" if params.column
                 else f"line {params.line}" if params.line else "the middle line")
-        return [Step("read", params.image, why=WHY["read headers"]),
+        return [Step("read", ", ".join(params.image), why=WHY["read headers"]),
                 Step("plot", what + (f", {params.nsum} averaged"
                                      if params.nsum > 1 else ""),
                      why=WHY["plot"]),
-                Step("wait", "keys: l c :l :c e r C o q",
+                Step("wait", f"commands from {params.coords}" if params.coords else
+                     "keys: l c a e j k m n o p r s space, : commands, q",
                      why="Lower case picks what to plot, a colon command takes a "
                          "range, and e expands a corner at a time -- the keys the "
                          "tutorials tell you to press.")]
 
     def execute(self, params: ImplotParams) -> TaskResult:
         from ..core import images
-        from ..viewer.implot_panel import run
+        from ..core import implot as engine_module
 
-        data, _ = images.read(params.image)
-        if data.ndim != 2:
-            raise ValueError(f"'{params.image}' is {data.ndim}-dimensional; "
-                             "implot plots cuts through a 2-D image")
-        run(data, name=str(params.image))
-        return TaskResult(data={"shape": "x".join(str(n) for n in reversed(data.shape))},
-                          steps=self.plan(params))
+        names = [str(spec) for spec in images.expand(params.image)]
+        if not names:
+            advice.fail(f"'{' '.join(params.image)}' matches no image",
+                        "check the name, or run `harwood sections` on the template",
+                        FileNotFoundError)
+        engine = engine_module.Implot(names, line=params.line, wcs=params.wcs,
+                                      step=params.step)
+        engine.p_navg = engine.navg = params.nsum
+        if params.column is not None:
+            engine.colon(f":c {params.column}")
+        elif params.nsum > 1:
+            engine.colon(f":l {engine.line}")
+        if params.coords:
+            if not Path(params.coords).exists():
+                advice.fail(f"cursor file '{params.coords}' does not exist",
+                            "write 'x y 1 key' lines, or leave --coords empty for the "
+                            "window", FileNotFoundError)
+            for line in Path(params.coords).read_text().splitlines():
+                words = line.split(None, 3)
+                if len(words) < 4 or line.lstrip().startswith("#"):
+                    continue
+                x, y, key = float(words[0]), float(words[1]), words[3].strip()
+                if key.startswith(":"):
+                    engine.colon(key)
+                else:
+                    engine.key({"\\040": " ", "\\40": " "}.get(key, key[:1]), x, y)
+                if engine.done:
+                    break
+            messages = engine.messages
+        else:
+            from ..viewer.implot_panel import run
+
+            first = engine.data
+            messages = run(first, name=names[0], images=names, line=engine.line,
+                           wcs=params.wcs, step=params.step)
+        data: dict = {"shape": f"{engine.ncols}x{engine.nlines}"}
+        if messages:
+            data["text"] = list(messages)
+        return TaskResult(data=data, steps=self.plan(params))
 
 
 HEDWHY = {

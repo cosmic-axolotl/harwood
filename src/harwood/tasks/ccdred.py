@@ -722,6 +722,11 @@ class SetInstrumentParams(TaskParams):
                     "Leave it out to see what is installed.",
         json_schema_extra={"positional": True},
     )
+    site: str = Field("kpno", description="Observatory directory of ccddb$ an "
+                                          "instrument name without one is looked for in.")
+    review: bool = Field(
+        True, description="Show every setting made, as IRAF opens ccdred and ccdproc "
+                          "for review.")
     list_available: bool = Field(
         False, description="Show what translations are installed and stop."
     )
@@ -772,7 +777,11 @@ class SetInstrument(Task[SetInstrumentParams]):
                                   steps=self.plan(params))
             return TaskResult(data={"rows": rows}, steps=self.plan(params))
 
-        chosen = instruments.load(params.instrument)
+        name = str(params.instrument)
+        if "/" not in name and "$" not in name and params.site and \
+                not Path(name).exists():
+            name = f"{params.site}/{name}"
+        chosen = instruments.load(name)
 
         import yaml
 
@@ -783,19 +792,101 @@ class SetInstrument(Task[SetInstrumentParams]):
         document = {}
         if project.exists():
             document = yaml.safe_load(project.read_text(encoding="utf-8")) or {}
-        document["instrument"] = str(params.instrument)
+        document["instrument"] = name
+        applied, skipped = _apply_settings(instruments.settings(name), document)
         header = _project_header(project)
         project.write_text(header + yaml.safe_dump(document, sort_keys=False,
                                                    allow_unicode=False),
                            encoding="utf-8")
 
+        data: dict = {"instrument": chosen.name, "source": chosen.source,
+                      "keywords": len(chosen.keywords), "types": len(chosen.types),
+                      "settings": len(applied)}
+        if params.review and (applied or skipped):
+            data["rows"] = applied + skipped
+        warnings = []
+        if skipped:
+            warnings.append(advice.note(
+                f"{len(skipped)} of the instrument's settings have no harwood "
+                "counterpart and were not applied; the table says why",
+                "nothing, usually: they are IRAF's package and display settings"))
         return TaskResult(
             outputs=[project],
-            data={"instrument": chosen.name, "source": chosen.source,
-                  "keywords": len(chosen.keywords), "types": len(chosen.types)},
-            history=[f"setinstrument: {params.instrument}"],
+            data=data, warnings=warnings,
+            history=[f"setinstrument: {name}"],
             steps=self.plan(params),
         )
+
+
+#: ccdred's own tasks under harwood's names.
+_TASKS = {"combine": "imcombine"}
+#: ccdred package settings harwood keeps elsewhere, and where.
+_PACKAGE = {
+    "pixeltype": "harwood computes in double and writes the input's type",
+    "verbose": "harwood always reports what it did",
+    "logfile": "harwood.log.jsonl is the log",
+    "plotfile": "plots are saved from the window",
+    "backup": "harwood writes new files and keeps the input",
+    "ssfile": "subsets are read from the instrument translation",
+    "graphics": "the window is harwood's own",
+    "cursor": "the cursor is the window's",
+}
+
+
+def _apply_settings(found, document) -> tuple[list[dict], list[dict]]:
+    """Each 'task.param = value' of the .cl file into the project's params,
+    when harwood has that task and parameter and the value is one it takes."""
+    from pydantic import TypeAdapter, ValidationError
+
+    from ..core.registry import exists, get_class
+
+    params = document.setdefault("params", {}) or {}
+    document["params"] = params
+    applied, skipped = [], []
+    for task, parameter, text in found:
+        if task == "ccdred" and parameter == "instrument":
+            continue
+        row = {"setting": f"{task}.{parameter}", "value": text}
+        if task == "ccdred":
+            skipped.append({**row, "applied": "no -- " + _PACKAGE.get(
+                parameter, "a package setting harwood does not have")})
+            continue
+        target = _TASKS.get(task, task)
+        if not exists(target):
+            skipped.append({**row, "applied": f"no -- harwood has no {task}"})
+            continue
+        field = get_class(target).Params.model_fields.get(parameter)
+        if field is None:
+            skipped.append({**row, "applied": f"no -- {target} has no {parameter} "
+                                              "(not ported)"})
+            continue
+        if parameter in ("biassec", "trimsec") and text in ("image", ""):
+            # IRAF's "image": from the header -- harwood's own default.
+            params.get(target, {}).pop(parameter, None)
+            applied.append({**row, "applied": "yes -- read from the header, "
+                                              "harwood's default"})
+            continue
+        value = _cl_value(text)
+        try:
+            value = TypeAdapter(field.annotation).validate_python(value)
+        except ValidationError:
+            skipped.append({**row, "applied": f"no -- not a value {target} --{parameter} "
+                                              "takes (a header keyword, in IRAF)"})
+            continue
+        params.setdefault(target, {})[parameter] = value
+        applied.append({**row, "applied": f"yes -- {target}"})
+    return applied, skipped
+
+
+def _cl_value(text: str):
+    if text in ("yes", "no"):
+        return text == "yes"
+    for kind in (int, float):
+        try:
+            return kind(text)
+        except ValueError:
+            pass
+    return text
 
 
 def _project_header(project: Path) -> str:

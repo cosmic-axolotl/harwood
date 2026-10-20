@@ -192,7 +192,7 @@ def test_implot_colon_commands_average_a_range():
 
     panel.command.setText(":l 11 20")
     panel._run_command()
-    assert "lines 11 to 20" in panel.last[2]
+    assert "lines 11 to 20" in panel.last[2], "IRAF's title: Average of lines 11 to 20"
     assert panel.last[1].mean() == pytest.approx(np.arange(10, 20).mean())
 
 
@@ -204,11 +204,11 @@ def test_implot_says_what_is_wrong_with_a_bad_command():
     panel = ImplotPanel(np.zeros((10, 10)), "test")
     panel.command.setText(":l banana")
     panel._run_command()
-    assert "expected numbers" in panel.status.text()
+    assert "takes numbers" in panel.status.text()
 
     panel.command.setText(":z 1 2")
     panel._run_command()
-    assert ":l for lines" in panel.status.text()
+    assert ":l and :c plot lines and columns" in panel.status.text()
 
 
 def test_hselect_reads_expressions_as_iraf_writes_them(tmp_path, monkeypatch):

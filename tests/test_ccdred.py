@@ -265,3 +265,24 @@ def test_saying_nothing_writes_to_the_runs_own_directory(night):
     assert (night / "o010.fits").read_bytes() == before, "the input is untouched"
     assert result.outputs[0].parent.name.startswith("hrwd_ccdproc_")
     assert not result.warnings, "nothing to warn about when nothing was lost"
+
+
+def test_setinstrument_applies_the_instruments_settings(tmp_path):
+    """IRAF's setinstrument runs ccddb$kpno/direct.cl after choosing the
+    .dat: default.cl's settings, then direct's own flatcor = yes. Here they
+    go into the project file, each one harwood has, the rest said why not."""
+    import yaml
+
+    from harwood.core.registry import get_task
+
+    result = get_task("setinstrument").run(instrument="direct", workdir=tmp_path)
+    document = yaml.safe_load((tmp_path / "harwood.yaml").read_text())
+    assert document["instrument"] == "kpno/direct"
+    ccdproc = document["params"]["ccdproc"]
+    assert ccdproc["flatcor"] is True, "direct.cl after default.cl"
+    assert ccdproc["zerocor"] is True and ccdproc["darkcor"] is False
+    assert ccdproc["function"] == "chebyshev" and "biassec" not in ccdproc
+    assert document["params"]["flatcombine"]["reject"] == "crreject"
+    rows = {row["setting"]: row["applied"] for row in result.data["rows"]}
+    assert rows["ccdred.logfile"].startswith("no -- harwood.log.jsonl")
+    assert rows["combine.gain"].startswith("no")

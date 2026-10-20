@@ -691,11 +691,12 @@ def _references(params: DispCorParams) -> tuple[list[str], list[float]]:
 
 
 REFWHY = {
-    "times": "Every frame is placed on one clock -- the middle of its exposure, "
-             "not its start -- and the clock wraps at an hour nobody observes, "
-             "so a night that crosses midnight still sorts in the order it "
-             "happened. This is why setairmass runs first: it is what puts "
-             "UTMIDDLE in the header.",
+    "times": "Every frame is placed by its sort keyword -- by default JD, the "
+             "Julian date of mid-exposure setjd writes, worked out the same way "
+             "when the header has none -- and grouped by its night, LJD, so an "
+             "arc from another night is never used. With --time the keyword is "
+             "an hour, wrapped at --timewrap so a night that crosses midnight "
+             "sorts in the order it happened.",
     "sort": "The arcs are put in time order. A dispersion solution is not a "
             "property of the spectrograph but of the spectrograph at a moment: "
             "the instrument flexes as the telescope tracks, and the wavelength "
@@ -721,21 +722,31 @@ class RefSpectraParams(TaskParams):
     references: list[str] = Field(
         default_factory=list,
         description="Arc spectra. Left out, every solution in database/ is "
-                    "offered.",
+                    "offered. As in IRAF, a reference is a spectrum whose REFSPEC1 "
+                    "names itself -- or, here, one with a solution in database/.",
     )
+    apertures: str = Field("", description="Apertures of the input to assign, as a "
+                                           "range list: '1,3-5'. Empty is all.")
+    refaps: str = Field("", description="Apertures of the references to use. Empty is all.")
+    ignoreaps: bool = Field(
+        True, description="Use a reference whatever its aperture. Off, each spectrum "
+                          "takes only references of its own aperture (BEAM-NUM).")
     select: str = Field(
         "interp",
         description="How to choose: interp, nearest, preceding, following, "
                     "average, match.",
     )
     sort: str = Field(
-        "utmiddle",
-        description="Header keyword to sort on. The default is the "
-                    "mid-exposure time setairmass writes.",
-    )
+        "jd", description="Header keyword to sort on. JD is the Julian date of "
+                          "mid-exposure; when a header has none it is worked out as "
+                          "setjd would.")
+    group: str = Field(
+        "ljd", description="Keyword whose value an input and its reference must share: "
+                           "LJD, the night (worked out as setjd would when absent). "
+                           "Empty or none groups nothing.")
     time: bool = Field(
-        True, description="Is the sort key a time? Then it wraps at --timewrap."
-    )
+        False, description="Is the sort key an hour of the day? Then it wraps at "
+                           "--timewrap.")
     timewrap: float = Field(
         17.0, ge=0, le=24,
         description="Hour before which a time belongs to the following day.",
@@ -746,22 +757,38 @@ class RefSpectraParams(TaskParams):
     override: bool = Field(
         False, description="Replace an assignment already in the header."
     )
+    confirm: bool = Field(
+        False, description="Ask before each assignment, as IRAF does by default: no "
+                           "skips it, yes takes it, YES takes it and every one after.")
     assign: bool = Field(
         True, description="Write the assignment. Off, it only reports it."
     )
+    logfiles: str = Field(
+        "STDOUT", description="Where the assignments are logged: STDOUT, and files, "
+                              "comma separated. IRAF's default adds a file called "
+                              "logfile; harwood keeps its own log anyway.")
+    verbose: bool = Field(False, description="Also log why a spectrum was passed over.")
 
 
 @register
 class RefSpectra(Task[RefSpectraParams]):
+    """IRAF's refspectra (noao/onedspec/dispcor/ref*.x), ported: the same
+    selections, groups and apertures, the same weights and lines. One
+    difference is IRAF's own bug: its preceding never falls back on the
+    following arc, though its manual says it does -- harwood does what the
+    code does, and says how to get the other."""
+
     name = "refspectra"
     package = "onedspec"
     description = "Assign arc spectra to the exposures they calibrate."
     Params = RefSpectraParams
 
     def plan(self, params: RefSpectraParams) -> list[Step]:
+        none = params.group.lower() in ("", "none")
+        grouped = "" if none else f", grouped by {params.group}"
         return [
-            Step("times", f"{params.sort}, from each header", why=REFWHY["times"]),
-            Step("sort", "arcs in time order", why=REFWHY["sort"]),
+            Step("times", f"{params.sort}{grouped}", why=REFWHY["times"]),
+            Step("sort", "arcs by the same keyword", why=REFWHY["sort"]),
             Step("assign", f"select = {params.select}", why=REFWHY["assign"]),
             Step("write", "REFSPEC1 and REFSPEC2" if params.assign
                  else "nothing -- --no-assign was given", why=REFWHY["write"],
@@ -772,18 +799,16 @@ class RefSpectra(Task[RefSpectraParams]):
     def execute(self, params: RefSpectraParams) -> TaskResult:
         from astropy.io import fits
 
-        from ..core import images, refspec
+        from ..core import images, ranges, refspec
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
-
         targets = [spec.path for spec in images.expand(params.input)]
         if not targets:
             advice.fail(f"nothing matched {', '.join(params.input)}.",
                         "check the path and the pattern with 'harwood sections "
                         f"{params.input[0]}', which shows what a template "
                         "expands to.")
-
         names = params.references or _solutions(params.database)
         if not names:
             advice.fail(
@@ -791,93 +816,289 @@ class RefSpectra(Task[RefSpectraParams]):
                 f"database/ under {params.database} holds no solutions yet.",
                 "run identify on an arc first, or name the arc frames directly "
                 "with --references.")
-
-        references, unreadable = [], []
-        for name in names:
-            when = _sort_key(name, params, targets)
-            if when is None:
-                unreadable.append(_bare(name))
-            # The name that goes in the header is the bare one -- the name the
-            # database indexes solutions by. A full path would not survive the
-            # eighty columns of a FITS card, and would stop being true the
-            # moment the reduction moved.
-            references.append((_bare(name), when))
-
-        entries = [(str(path), _sort_key(path, params, targets)) for path in targets]
-        assignments = refspec.assign(entries, references, params.select)
-
-        by_action["times"].measured = {
-            "objects": len(targets),
-            "arcs": len(references),
-            "span": _span(entries + references),
-        }
-        ordered = sorted((item for item in references if item[1] is not None),
-                         key=lambda item: item[1])
-        by_action["sort"].measured = {
-            "order": " -> ".join(f"{name} at {when % 24:.3f}h"
-                                 for name, when in ordered)
-        }
-
+        aps = ranges.parse(params.apertures)
+        raps = ranges.parse(params.refaps)
+        log: list[str] = []
+        verbose: list[str] = []
+        notes: list[str] = []
+        computed: set[str] = set()
         warnings = []
-        if unreadable:
-            warnings.append(advice.warn(
-                f"no time could be read for {', '.join(unreadable)}: the header "
-                f"has neither {params.sort} nor UT and EXPTIME, so those arcs "
-                "took no part in the assignment.",
-                "run setairmass on the arcs to put UTMIDDLE in their headers, "
-                "or sort on a keyword they do have with --sort."))
 
-        rows, written = [], []
-        for assignment in assignments:
-            rows.append({
-                "spectrum": Path(assignment.image).name,
-                "arc": " + ".join(assignment.references) or "none",
-                "weights": " ".join(f"{weight:.3f}"
-                                    for weight in assignment.weights) or "-",
-                "why": assignment.reason,
-            })
-            if not assignment.references:
-                warnings.append(advice.warn(
-                f"{Path(assignment.image).name}: no arc assigned "
-                f"-- {assignment.reason}.",
-                "check the frame has UT and EXPTIME in its header, and that "
-                "--references names arcs from the same night."))
-                continue
-            if not params.assign:
-                continue
-            with fits.open(assignment.image, mode="update") as hdus:
-                header = hdus[0].header
-                existing, _ = refspec.read_keywords(header)
-                if existing and not params.override:
-                    warnings.append(advice.note(
-                        f"{Path(assignment.image).name} already names "
-                        f"{', '.join(existing)}, so it was left alone.",
-                        "add --override to replace the assignment, or leave it "
-                        "if the one already there is right."))
+        reader = _Reader(params, targets, computed)
+        solutions = set(_solutions(params.database))
+        asking = params.confirm
+        rows, written, kept, every = [], [], [], []
+        for group, listed in _table_groups(params, targets, names, warnings):
+            candidates = []
+            for name in listed:
+                frame, header = reader.frame(name)
+                if header is None:
+                    verbose.append(f"[{_bare(name)}] Reference spectrum not found")
                     continue
-                refspec.write_keywords(header, assignment)
-                brief = refspec.Assignment(
-                    _bare(assignment.image), assignment.time,
-                    assignment.references, assignment.weights)
-                header.add_history(
-                    f"refspectra: {params.select}, " + brief.describe())
-            written.append(Path(assignment.image))
+                own = refspec.read_keywords(header)[0]
+                itself = bool(own and own[0] in (frame.name, _iraf_name(name)))
+                candidates.append((frame, itself or frame.name in solutions))
+            marked = [frame for frame, qualified in candidates if qualified]
+            if not marked and candidates:
+                # None is marked as a reference (REFSPEC1 naming itself, or a
+                # solution in database/): they were named as the arcs, so they are.
+                marked = [frame for frame, _ in candidates]
+            else:
+                verbose += [f"[{frame.name}] Not a reference spectrum"
+                            for frame, qualified in candidates if not qualified]
+            references = []
+            for frame in marked:
+                if frame.ap not in raps:
+                    verbose.append(f"[{frame.name}] Wrong reference aperture: {frame.ap}")
+                    continue
+                references.append(frame)
 
-        interpolated = sum(1 for item in assignments if len(item.references) > 1)
+            entries, paths = [], {}
+            for path in group:
+                frame, header = reader.frame(path)
+                label = _iraf_name(path)
+                existing, _ = refspec.read_keywords(header) if header is not None else ([], [])
+                if existing:
+                    both = " ".join(str(header.get(k, "")) for k in ("REFSPEC1", "REFSPEC2"))
+                    if not params.override:
+                        verbose.append(f"[{label}] Reference spectra already defined: {both}")
+                        kept.append(Path(path).name)
+                        continue
+                    verbose.append(f"[{label}] Overriding previous reference spectra: {both}")
+                if frame.ap not in aps:
+                    verbose.append(f"[{label}] Wrong aperture: {frame.ap}")
+                    continue
+                frame.name = label
+                entries.append(frame)
+                paths[label] = path
+
+            assignments = refspec.assign(entries, references, params.select,
+                                         ignoreaps=params.ignoreaps, group=params.group,
+                                         notes=notes)
+            every += assignments
+            for assignment in assignments:
+                row = {"spectrum": Path(paths[assignment.image]).name,
+                       "arc": " + ".join(assignment.references) or "none",
+                       "weights": " ".join(f"{w:.3f}" for w in assignment.weights) or "-",
+                       "why": assignment.reason}
+                rows.append(row)
+                if not assignment.references:
+                    lines = assignment.messages or [f"[{assignment.image}] No reference "
+                                                    "spectrum found"]
+                    warnings.append(advice.warn(
+                        "; ".join(lines) + (f" ({assignment.reason})"
+                                            if assignment.reason else ""),
+                        "check the arcs are from the same night (the group keyword) and, "
+                        "with --no-ignoreaps, of the same aperture"))
+                    continue
+                lines = refspec.log_lines(assignment)
+                if asking:
+                    answer = _confirm(lines)
+                    if answer == "no":
+                        row["why"] = "not accepted"
+                        continue
+                    if answer == "YES":
+                        asking = False
+                if not asking or not params.confirm:
+                    log += lines
+                if not params.assign:
+                    continue
+                with fits.open(paths[assignment.image], mode="update") as hdus:
+                    header = hdus[0].header
+                    refspec.write_keywords(header, assignment)
+                    header.add_history(f"refspectra: {params.select}, "
+                                       + refspec.Assignment(_bare(assignment.image), None,
+                                                            assignment.references,
+                                                            assignment.weights).describe())
+                written.append(Path(paths[assignment.image]))
+
+        if params.select == "preceding" and any(not a.references for a in every):
+            warnings.append(advice.note(
+                "some spectra have no arc before them and were left unassigned: IRAF's "
+                "preceding does not fall back on the following arc, though its manual "
+                "says it does, and harwood does what IRAF does",
+                "assign those with --select following, or use interp"))
+        if kept:
+            warnings.append(advice.note(
+                f"{', '.join(kept)} already name{'s' if len(kept) == 1 else ''} "
+                "reference spectra, so they were left alone",
+                "add --override to replace the assignment, or leave it if the one "
+                "already there is right"))
+        if computed:
+            warnings.append(advice.note(
+                f"{', '.join(sorted(computed))} not in every header, so worked out as "
+                "setjd would, from DATE-OBS, UT and EXPTIME",
+                "run setjd first to keep them in the headers"))
+        for note in notes:
+            warnings.append(advice.note(note, "name the arcs with --references, in the "
+                                              "order they should be used"))
+
+        shown = _logs(params.logfiles, log, verbose if params.verbose else [],
+                      params.confirm)
+        by_action["times"].measured = {"objects": len(targets), "arcs": len(names)}
         by_action["assign"].measured = {
-            "assigned": sum(1 for item in assignments if item.references),
-            "from two arcs": interpolated,
-            "from one": sum(1 for item in assignments
-                            if len(item.references) == 1),
-        }
+            "assigned": sum(1 for a in every if a.references),
+            "from two arcs": sum(1 for a in every if len(a.references) > 1)}
+        data: dict = {"rows": rows}
+        if shown:
+            data = {"text": shown, "rows": rows}
+        return TaskResult(outputs=written, steps=steps, warnings=warnings, data=data,
+                          history=[])
 
-        return TaskResult(
-            outputs=written,
-            steps=steps,
-            warnings=warnings,
-            data={"rows": rows},
-            history=[],
-        )
+
+def _table_groups(params, targets, names, warnings):
+    """The (inputs, references) groups to assign: all the inputs against all
+    the references -- or, when the one reference named is a text file,
+    IRAF's reference table: lines of 'inputs references', a line without
+    references taking the previous line's."""
+    from ..core import images
+
+    table = Path(str(names[0])) if len(names) == 1 else None
+    if table is None or not table.is_file() or table.suffix.lower() in (".fits", ".fit") \
+            or table.read_bytes()[:6] == b"SIMPLE":
+        return [(targets, names)]
+    lists: dict[str, str] = {}
+    previous = ""
+    for line in table.read_text().splitlines():
+        words = line.split()
+        if not words or words[0].startswith("#"):
+            continue
+        previous = words[1] if len(words) > 1 else previous
+        for spec in images.expand([words[0]]):
+            lists[_iraf_name(spec.path)] = previous
+    groups: dict[str, list] = {}
+    for path in targets:
+        refs = lists.get(_iraf_name(path))
+        if refs is None:
+            warnings.append(advice.warn(f"[{_iraf_name(path)}] No reference spectrum found",
+                                        f"add a line for it to {table}"))
+            continue
+        groups.setdefault(refs, []).append(path)
+    return [(group, [str(spec.path) for spec in images.expand(refs.split(","))])
+            for refs, group in groups.items()]
+
+
+class _Reader:
+    """Each frame's sort value, aperture and group, read once."""
+
+    def __init__(self, params, near, computed: set) -> None:
+        self.params, self.near, self.computed = params, near, computed
+        self.cache: dict = {}
+
+    def frame(self, name):
+        from astropy.io import fits
+
+        from ..core import refspec
+
+        path = _locate(name, self.near)
+        key = str(path)
+        if key in self.cache:
+            return self.cache[key]
+        if path is None:
+            self.cache[key] = (refspec.Frame(_bare(name)), None)
+            return self.cache[key]
+        header = fits.getheader(path)
+        p = self.params
+        try:
+            ap = int(header.get("BEAM-NUM", 1))
+        except (TypeError, ValueError):
+            ap = 1
+        value = None
+        if p.select not in ("match", "average") and p.sort.lower() not in ("", "none"):
+            value = self._value(header, p.sort)
+            if value is not None and p.time:
+                value = (value + 24.0 - p.timewrap) % 24.0
+        group = ""
+        if p.select not in ("match", "average") and p.group.lower() not in ("", "none"):
+            group = self._group(header, p.group)
+        self.cache[key] = (refspec.Frame(_bare(name), value, ap, group), header)
+        return self.cache[key]
+
+    def _value(self, header, keyword: str):
+        from ..core import obstime
+        from ..core.iraffmt import ctod
+        from .imutil import image_parameter
+
+        raw = image_parameter(header, "", keyword)
+        if raw is not None:
+            # imgetd: the card's own text, read by IRAF's ctod -- which is
+            # what decides which of two arcs equally far away is nearer
+            value = ctod(raw)
+            return value if value is not None else obstime.hours(raw)
+        if keyword.lower() == "jd":
+            found = _setjd(header)
+            if found is not None:
+                self.computed.add("JD")
+                return found[0]
+        if keyword.lower() == "utmiddle":
+            return obstime.middle(header, key="UTMIDDLE")
+        return None
+
+    def _group(self, header, keyword: str) -> str:
+        raw = header.get(keyword.upper())
+        if raw is None and keyword.lower() == "ljd":
+            found = _setjd(header)
+            if found is not None:
+                self.computed.add("LJD")
+                raw = found[1]
+        if raw is None:
+            return f"<no {keyword}>"
+        try:                                # 2448647 and 2448647. are one night
+            number = float(raw)
+            return str(int(number)) if number == int(number) else repr(number)
+        except (TypeError, ValueError):
+            return str(raw).strip()
+
+
+def _setjd(header):
+    """The JD of mid-exposure and the LJD, as setjd computes them."""
+    from ..core import asttools, observatory, obstime
+    from .astutil import SetJDParams, _read_for_jd
+
+    here = observatory.from_header(header) or observatory.default()
+    zone = here.timezone if here is not None else 0.0
+    try:
+        ujd, ljd, _ = _read_for_jd(header, SetJDParams(images=["x"]), zone, asttools,
+                                   obstime)
+    except ValueError:
+        return None
+    return ujd, int(ljd)
+
+
+def _confirm(lines: list[str]) -> str:
+    import sys
+
+    for line in lines[:-1]:
+        sys.stderr.write(line + "\n")
+    sys.stderr.write(lines[-1] + "   Accept assignment (no|yes|YES)? ")
+    sys.stderr.flush()
+    answer = sys.stdin.readline().strip()
+    if answer in ("YES", "yes", "no"):
+        return answer
+    return "yes" if answer in ("", "y") else "no"
+
+
+def _logs(logfiles: str, log: list[str], verbose: list[str], confirmed: bool) -> list[str]:
+    """IRAF's logfiles: STDOUT is printed (not when confirming, which has
+    printed them already), anything else is appended to."""
+    shown = []
+    for name in (n.strip() for n in logfiles.split(",") if n.strip()):
+        if name == "STDOUT":
+            if not confirmed:
+                shown += verbose + log
+            continue
+        with open(name, "a", encoding="utf-8") as out:
+            out.writelines(line + "\n" for line in verbose + log)
+    return shown
+
+
+def _iraf_name(name) -> str:
+    """refnoextn: the name as given, without .fits."""
+    text = str(name)
+    for suffix in (".fits", ".fit", ".imh"):
+        if text.endswith(suffix):
+            return text[: -len(suffix)]
+    return text
 
 
 def _bare(name) -> str:
@@ -895,28 +1116,6 @@ def _solutions(root: Path) -> list[str]:
 
     return sorted(path.name[2:] for path in listing(root)
                   if path.name.startswith("id"))
-
-
-def _sort_key(name, params: RefSpectraParams, near) -> float | None:
-    """The time to sort a frame by, hunting for the file if given a bare name."""
-    from astropy.io import fits
-
-    from ..core import obstime
-
-    path = _locate(name, near)
-    if path is None:
-        return None
-    try:
-        header = fits.getheader(path)
-    except OSError:
-        return None
-
-    if not params.time:
-        value = header.get(params.sort.upper())
-        return None if value is None else float(value)
-
-    value = obstime.middle(header, key=params.sort.upper())
-    return obstime.sortable(value, params.timewrap)
 
 
 def _locate(name, near):
@@ -937,13 +1136,6 @@ def _locate(name, near):
                 if guess.is_file():
                     return guess
     return None
-
-
-def _span(entries) -> str:
-    times = [when for _, when in entries if when is not None]
-    if not times:
-        return "no times"
-    return f"{min(times) % 24:.3f}h to {max(times) % 24:.3f}h UT"
 
 
 LINEWHY = {

@@ -211,3 +211,39 @@ def from_project(start: Path | None = None) -> Instrument:
     if not name:
         return Instrument()
     return load(name)
+
+
+def settings(name: str | Path) -> list[tuple[str, str, str]]:
+    """The parameter settings of an instrument's .cl file, as
+    (task, parameter, value text), with `cl < "ccddb$..."` includes read in
+    place -- what IRAF's setinstrument runs after choosing the .dat."""
+    path = Path(str(name))
+    if path.suffix != ".cl":
+        try:
+            path = resolve(name).with_suffix(".cl")
+        except FileNotFoundError:
+            return []
+    if not path.is_file():
+        return []
+    found: list[tuple[str, str, str]] = []
+    for line in path.read_text(encoding="latin-1").splitlines():
+        text = line.split("#", 1)[0].strip() if not line.lstrip().startswith("#") else ""
+        if not text:
+            continue
+        if text.startswith("cl") and "<" in text:
+            target = text.split("<", 1)[1].strip().strip('"\'')
+            if "$" in target:
+                prefix, _, rest = target.partition("$")
+                for directory in IRAF_CCDDB:
+                    if (directory / rest).is_file():
+                        found += settings(directory / rest)
+                        break
+            else:
+                found += settings(path.parent / target)
+            continue
+        left, sep, right = text.partition("=")
+        if not sep or "." not in left:
+            continue
+        task, _, parameter = left.strip().partition(".")
+        found.append((task.strip(), parameter.strip(), right.strip().strip('"')))
+    return found

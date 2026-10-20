@@ -111,3 +111,32 @@ def test_the_whole_chain_lands_on_iraf_s_flux(tmp_path):
     ratio = ours / theirs
     assert np.max(np.abs(ratio - 1)) < 2e-3
     assert abs(np.median(ratio) - 1) < 1e-4
+
+
+def test_fnu_is_iraf_s(tmp_path):
+    """fnu: each sample of the sensitivity times lambda^2/c before it is
+    interpolated, as cal_getflux does -- IRAF's erg/cm2/s/Hz spectrum."""
+    w1, dw, _ = CASES["grids"]["sens_s3"]
+    flux.SensSpectrum(w1, dw, OUT["sens_s3"]).write(sens := tmp_path / "sens.fits")
+    result = get_task("calibrate").run(input=str(write(tmp_path / "obj.fits", "obj")),
+                                       output=tmp_path / "cal.fits", sensitivity=str(sens),
+                                       extinction=str(DATA / "kpnoextinct.dat"), fnu=True)
+    ours = spectrum.read(tmp_path / "cal.fits")[0].flux
+    theirs = np.load(REF / "cal_fnu_s3.npy").astype(float)
+    assert np.max(np.abs(ours - theirs) / np.abs(theirs)) < 1e-5
+    assert result.data["unit"] == "erg/cm2/s/Hz"
+
+
+def test_each_aperture_takes_its_own_sensitivity(tmp_path):
+    """ignoreaps=no: sens.0002 for aperture 2 when it is there."""
+    w1, dw, _ = CASES["grids"]["sens_s3"]
+    flux.SensSpectrum(w1, dw, OUT["sens_s3"]).write(tmp_path / "sens.fits")
+    flux.SensSpectrum(w1, dw, OUT["sens_s3"] + 2.5).write(tmp_path / "sens.0001.fits")
+    obj = write(tmp_path / "obj.fits", "obj")
+    common = dict(input=str(obj), sensitivity=str(tmp_path / "sens"),
+                  extinction=str(DATA / "kpnoextinct.dat"))
+    get_task("calibrate").run(output=tmp_path / "own.fits", **common)
+    get_task("calibrate").run(output=tmp_path / "one.fits", ignoreaps=True, **common)
+    own = spectrum.read(tmp_path / "own.fits")[0].flux
+    one = spectrum.read(tmp_path / "one.fits")[0].flux
+    assert np.allclose(own, one * 10 ** (-0.4 * 2.5), rtol=1e-5)

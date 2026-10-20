@@ -1,0 +1,19 @@
+{
+"about": "IRAF 2.18.1 implot (device=stdvdm) on sa.fits and sb.fits, made by tests/test_implot_iraf.py, driven by this cursor file; the lines it printed.",
+"cursor": "40.3 600 1 \\040\n10 600 1 c\n33 700 1 \\040\n0 0 1 :l 25\n17 600 1 \\040\n0 0 1 :a 5\n0 0 1 :c 40\n33 600 1 \\040\n50 700 1 l\n33 600 1 \\040\n0 0 1 k\n12 600 1 \\040\n0 0 1 :step 7\n0 0 1 j\n12 600 1 \\040\n0 0 1 n\n12 600 1 \\040\n70 300 1 c\n20 310 1 \\040\n0 0 1 :w physical\n55 600 1 \\040\n0 0 1 m\n55 600 1 \\040\n0 0 1 :l 30 34\n9 600 1 \\040\n0 0 1 :w world\n9 600 1 \\040\n0 0 1 q\n",
+"printed": [
+"pixel=[40,20] value=652.1092",
+"pixel=[10,33] value=646.9108",
+"pixel=[17,25] value=602.3512",
+"pixel=[38,33] value=665.2858",
+"pixel=[33,48] value=679.8353",
+"pixel=[12,54] value=690.6649",
+"pixel=[12,47] value=655.9619",
+"pixel=[12,47] value=148.4736",
+"pixel=[68,20] value=228.7227",
+"pixel=[68,55], physical=[68,55], value=470.2227",
+"pixel=[68,54], physical=[70,55], value=815.2612",
+"pixel=[7,30], physical=[9,31], value=647.1893",
+"pixel=[7,30], world=[9.,31.] value=647.1893"
+]
+}

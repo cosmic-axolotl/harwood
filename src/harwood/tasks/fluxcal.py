@@ -459,6 +459,12 @@ class CalibrateParams(TaskParams):
         True, description="Apply the sensitivity function. Off, only the "
                           "extinction is done."
     )
+    ignoreaps: bool = Field(
+        False, description="One sensitivity function for every aperture. Off, as in "
+                           "IRAF, each aperture takes <sensitivity>.0001, .0002, ... "
+                           "when they exist, and the single one when they do not.")
+    fnu: bool = Field(False, description="Flux per hertz (erg/cm2/s/Hz) instead of per "
+                                         "Angstrom.")
     airmass: float | None = Field(
         None, gt=0, description="Airmass. Read from the header when left out."
     )
@@ -466,6 +472,14 @@ class CalibrateParams(TaskParams):
         None, gt=0, description="Exposure time. Read from the header when left out."
     )
     database: Path = Field(Path("."), description="Reduction directory holding database/.")
+
+
+def _sensitivity_file(params, aperture: int | None) -> Path | None:
+    name = (params.sensitivity if aperture is None
+            else f"{params.sensitivity}.{aperture:04d}")
+    candidates = [Path(name), Path(f"{name}.fits"), Path(params.database) / f"{name}.fits",
+                  Path(params.database) / name]
+    return next((c for c in candidates if c.is_file()), None)
 
 
 @register
@@ -526,26 +540,30 @@ class Calibrate(Task[CalibrateParams]):
 
         sens = None
         covered = None
+        per_aperture: dict[int, object] = {}
         if params.flux:
-            candidates = [Path(params.sensitivity),
-                          Path(params.database) / f"{params.sensitivity}.fits",
-                          Path(params.database) / params.sensitivity]
-            found = next((c for c in candidates if c.is_file()), None)
-            if found is None:
+            if not params.ignoreaps:
+                for aperture in apertures:
+                    found = _sensitivity_file(params, aperture.number)
+                    if found is not None:
+                        per_aperture[aperture.number] = flux.SensSpectrum.read(found)
+            found = _sensitivity_file(params, None)
+            if found is None and len(per_aperture) < len(apertures):
                 advice.fail(
-                    f"no sensitivity function '{params.sensitivity}': looked for "
-                    + ", ".join(str(c) for c in candidates) + ".",
+                    f"no sensitivity function '{params.sensitivity}' (nor "
+                    f"{params.sensitivity}.0001 and on, one per aperture).",
                     "run standard on a flux standard and then sensfunc; sensfunc "
                     "writes <name>.fits.",
                     FileNotFoundError)
-            sens = flux.SensSpectrum.read(found)
+            sens = flux.SensSpectrum.read(found) if found is not None else \
+                next(iter(per_aperture.values()))
             covered = (sens.w1, sens.w1 + sens.dw * (sens.values.size - 1))
 
         outside = 0
         for aperture in apertures:
             calibrated, uncertainty, nout = flux.calibrate(
-                aperture, sens, curve, airmass or 1.0, exptime,
-                extinct=params.extinct, interp=params.interp)
+                aperture, per_aperture.get(aperture.number, sens), curve, airmass or 1.0,
+                exptime, extinct=params.extinct, interp=params.interp, fnu=params.fnu)
             outside = max(outside, nout)
             aperture.flux = calibrated.astype(float)
             if uncertainty is not None:
@@ -613,8 +631,8 @@ class Calibrate(Task[CalibrateParams]):
 
         destination = params.output or output.named_for(params.input, ".f.fits")
         extra = fits.Header()
-        extra["BUNIT"] = (flux.FLUX_UNIT if params.flux else "counts",
-                          "what the flux column is in")
+        unit = (flux.FNU_UNIT if params.fnu else flux.FLUX_UNIT) if params.flux else "counts"
+        extra["BUNIT"] = (unit, "what the flux column is in")
         spectrum.write(destination, apertures, header=extra,
                        source=str(params.input))
 
@@ -622,8 +640,7 @@ class Calibrate(Task[CalibrateParams]):
             outputs=[Path(destination)],
             steps=steps,
             warnings=warnings,
-            data={"apertures": len(apertures),
-                  "unit": flux.FLUX_UNIT if params.flux else "counts"},
+            data={"apertures": len(apertures), "unit": unit},
             history=[f"calibrate: sens{params.sensitivity}"
                      + (f", extinction {params.extinction} at airmass "
                         f"{airmass:.3f}" if params.extinct else

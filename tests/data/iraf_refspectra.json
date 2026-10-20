@@ -1,0 +1,384 @@
+{
+"about": "IRAF 2.18.1 refspectra (confirm-, logfiles=STDOUT) on 14 one-dimensional frames, the arcs carrying REFSPEC1 naming themselves: per case the lines it printed, what it said on stderr, and the REFSPEC1|REFSPEC2 left in each object.",
+"frames": {
+"arc01": [
+2448647.6,
+100,
+1,
+true,
+2.4
+],
+"arc02": [
+2448647.6,
+100,
+2,
+true,
+2.4
+],
+"obj01": [
+2448647.65,
+100,
+1,
+false,
+3.6
+],
+"obj02": [
+2448647.65,
+100,
+2,
+false,
+3.6
+],
+"arc03": [
+2448647.75,
+100,
+1,
+true,
+6.0
+],
+"arc04": [
+2448647.75,
+100,
+2,
+true,
+6.0
+],
+"obj03": [
+2448647.7,
+100,
+1,
+false,
+4.8
+],
+"obj04": [
+2448647.8,
+100,
+1,
+false,
+7.2
+],
+"obj05": [
+2448647.55,
+100,
+1,
+false,
+1.2
+],
+"obj06": [
+2448647.75,
+100,
+1,
+false,
+6.0
+],
+"arc05": [
+2448648.62,
+101,
+1,
+true,
+2.9
+],
+"obj07": [
+2448648.7,
+101,
+1,
+false,
+4.8
+],
+"obj08": [
+2448648.6,
+101,
+2,
+false,
+2.4
+],
+"obj09": [
+2448647.675,
+100,
+1,
+false,
+23.5
+]
+},
+"cases": [
+{
+"select": "interp",
+"params": {},
+"stdout": "[obj01] refspec1='arc01 0.66666669'\n[obj01] refspec2='arc03 0.33333334'\n[obj02] refspec1='arc01 0.66666669'\n[obj02] refspec2='arc03 0.33333334'\n[obj03] refspec1='arc01 0.33333334'\n[obj03] refspec2='arc03 0.66666669'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03 0.5'\n[obj06] refspec2='arc04 0.5'\n[obj07] refspec1='arc05'\n[obj08] refspec1='arc05'\n[obj09] refspec1='arc01 0.5'\n[obj09] refspec2='arc03 0.5'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc01 0.66666669'|'arc03 0.33333334'",
+"obj02": "'arc01 0.66666669'|'arc03 0.33333334'",
+"obj03": "'arc01 0.33333334'|'arc03 0.66666669'",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03 0.5'|'arc04 0.5'",
+"obj07": "'arc05'|None",
+"obj08": "'arc05'|None",
+"obj09": "'arc01 0.5'|'arc03 0.5'"
+}
+},
+{
+"select": "nearest",
+"params": {},
+"stdout": "[obj01] refspec1='arc01'\n[obj02] refspec1='arc01'\n[obj03] refspec1='arc03'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03'\n[obj07] refspec1='arc05'\n[obj08] refspec1='arc05'\n[obj09] refspec1='arc03'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc01'|None",
+"obj02": "'arc01'|None",
+"obj03": "'arc03'|None",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03'|None",
+"obj07": "'arc05'|None",
+"obj08": "'arc05'|None",
+"obj09": "'arc03'|None"
+}
+},
+{
+"select": "preceding",
+"params": {},
+"stdout": "[obj01] refspec1='arc01'\n[obj02] refspec1='arc01'\n[obj03] refspec1='arc01'\n[obj04] refspec1='arc03'\n[obj06] refspec1='arc03'\n[obj07] refspec1='arc05'\n[obj09] refspec1='arc01'\n",
+"stderr": "[obj05] No reference spectrum found\nInput [obj05] ljd = 100 : Ref [arc05] ljd = 101\n[obj08] No reference spectrum found\nInput [obj08] ljd = 101 : Ref [arc01] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc02] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc03] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc04] ljd = 100\n",
+"headers": {
+"obj01": "'arc01'|None",
+"obj02": "'arc01'|None",
+"obj03": "'arc01'|None",
+"obj04": "'arc03'|None",
+"obj05": "None|None",
+"obj06": "'arc03'|None",
+"obj07": "'arc05'|None",
+"obj08": "None|None",
+"obj09": "'arc01'|None"
+}
+},
+{
+"select": "following",
+"params": {},
+"stdout": "[obj01] refspec1='arc03'\n[obj02] refspec1='arc03'\n[obj03] refspec1='arc03'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03'\n[obj07] refspec1='arc05'\n[obj08] refspec1='arc05'\n[obj09] refspec1='arc03'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc03'|None",
+"obj02": "'arc03'|None",
+"obj03": "'arc03'|None",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03'|None",
+"obj07": "'arc05'|None",
+"obj08": "'arc05'|None",
+"obj09": "'arc03'|None"
+}
+},
+{
+"select": "average",
+"params": {},
+"stdout": "[obj01] refspec1='arc01 0.5'\n[obj01] refspec2='arc02 0.5'\n[obj02] refspec1='arc01 0.5'\n[obj02] refspec2='arc02 0.5'\n[obj03] refspec1='arc01 0.5'\n[obj03] refspec2='arc02 0.5'\n[obj04] refspec1='arc01 0.5'\n[obj04] refspec2='arc02 0.5'\n[obj05] refspec1='arc01 0.5'\n[obj05] refspec2='arc02 0.5'\n[obj06] refspec1='arc01 0.5'\n[obj06] refspec2='arc02 0.5'\n[obj07] refspec1='arc01 0.5'\n[obj07] refspec2='arc02 0.5'\n[obj08] refspec1='arc01 0.5'\n[obj08] refspec2='arc02 0.5'\n[obj09] refspec1='arc01 0.5'\n[obj09] refspec2='arc02 0.5'\n",
+"stderr": "WARNING: Averaging only first two reference spectra",
+"headers": {
+"obj01": "'arc01 0.5'|'arc02 0.5'",
+"obj02": "'arc01 0.5'|'arc02 0.5'",
+"obj03": "'arc01 0.5'|'arc02 0.5'",
+"obj04": "'arc01 0.5'|'arc02 0.5'",
+"obj05": "'arc01 0.5'|'arc02 0.5'",
+"obj06": "'arc01 0.5'|'arc02 0.5'",
+"obj07": "'arc01 0.5'|'arc02 0.5'",
+"obj08": "'arc01 0.5'|'arc02 0.5'",
+"obj09": "'arc01 0.5'|'arc02 0.5'"
+}
+},
+{
+"select": "match",
+"params": {},
+"stdout": "[obj01] refspec1='arc01'\n[obj02] refspec1='arc02'\n[obj03] refspec1='arc03'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc01'|None",
+"obj02": "'arc02'|None",
+"obj03": "'arc03'|None",
+"obj04": "None|None",
+"obj05": "None|None",
+"obj06": "None|None",
+"obj07": "None|None",
+"obj08": "None|None",
+"obj09": "None|None"
+}
+},
+{
+"select": "interp",
+"params": {
+"ignoreaps": "no"
+},
+"stdout": "[obj01] refspec1='arc01 0.66666669'\n[obj01] refspec2='arc03 0.33333334'\n[obj02] refspec1='arc02 0.66666669'\n[obj02] refspec2='arc04 0.33333334'\n[obj03] refspec1='arc01 0.33333334'\n[obj03] refspec2='arc03 0.66666669'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03'\n[obj07] refspec1='arc05'\n[obj09] refspec1='arc01 0.5'\n[obj09] refspec2='arc03 0.5'\n",
+"stderr": "[obj08] No reference spectrum found\nInput [obj08] ljd = 101 : Ref [arc01] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc02] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc03] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc04] ljd = 100\nInput [obj08] ap = 2 : Ref [arc05] ap = 1\n",
+"headers": {
+"obj01": "'arc01 0.66666669'|'arc03 0.33333334'",
+"obj02": "'arc02 0.66666669'|'arc04 0.33333334'",
+"obj03": "'arc01 0.33333334'|'arc03 0.66666669'",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03'|None",
+"obj07": "'arc05'|None",
+"obj08": "None|None",
+"obj09": "'arc01 0.5'|'arc03 0.5'"
+}
+},
+{
+"select": "nearest",
+"params": {
+"ignoreaps": "no"
+},
+"stdout": "[obj01] refspec1='arc01'\n[obj02] refspec1='arc02'\n[obj03] refspec1='arc03'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03'\n[obj07] refspec1='arc05'\n[obj09] refspec1='arc03'\n",
+"stderr": "[obj08] No reference spectrum found\nInput [obj08] ljd = 101 : Ref [arc01] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc02] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc03] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc04] ljd = 100\nInput [obj08] ap = 2 : Ref [arc05] ap = 1\n",
+"headers": {
+"obj01": "'arc01'|None",
+"obj02": "'arc02'|None",
+"obj03": "'arc03'|None",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03'|None",
+"obj07": "'arc05'|None",
+"obj08": "None|None",
+"obj09": "'arc03'|None"
+}
+},
+{
+"select": "interp",
+"params": {
+"group": "none"
+},
+"stdout": "[obj01] refspec1='arc01 0.66666669'\n[obj01] refspec2='arc03 0.33333334'\n[obj02] refspec1='arc01 0.66666669'\n[obj02] refspec2='arc03 0.33333334'\n[obj03] refspec1='arc01 0.33333334'\n[obj03] refspec2='arc03 0.66666669'\n[obj04] refspec1='arc03 0.94252872'\n[obj04] refspec2='arc05 0.057471264'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03 0.5'\n[obj06] refspec2='arc04 0.5'\n[obj07] refspec1='arc05'\n[obj08] refspec1='arc03 0.022988506'\n[obj08] refspec2='arc05 0.9770115'\n[obj09] refspec1='arc01 0.5'\n[obj09] refspec2='arc03 0.5'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc01 0.66666669'|'arc03 0.33333334'",
+"obj02": "'arc01 0.66666669'|'arc03 0.33333334'",
+"obj03": "'arc01 0.33333334'|'arc03 0.66666669'",
+"obj04": "'arc03 0.94252872'|'arc05 0.057471264'",
+"obj05": "'arc01'|None",
+"obj06": "'arc03 0.5'|'arc04 0.5'",
+"obj07": "'arc05'|None",
+"obj08": "'arc03 0.022988506'|'arc05 0.9770115'",
+"obj09": "'arc01 0.5'|'arc03 0.5'"
+}
+},
+{
+"select": "interp",
+"params": {
+"apertures": "1"
+},
+"stdout": "[obj01] refspec1='arc01 0.66666669'\n[obj01] refspec2='arc03 0.33333334'\n[obj03] refspec1='arc01 0.33333334'\n[obj03] refspec2='arc03 0.66666669'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03 0.5'\n[obj06] refspec2='arc04 0.5'\n[obj07] refspec1='arc05'\n[obj09] refspec1='arc01 0.5'\n[obj09] refspec2='arc03 0.5'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc01 0.66666669'|'arc03 0.33333334'",
+"obj02": "None|None",
+"obj03": "'arc01 0.33333334'|'arc03 0.66666669'",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03 0.5'|'arc04 0.5'",
+"obj07": "'arc05'|None",
+"obj08": "None|None",
+"obj09": "'arc01 0.5'|'arc03 0.5'"
+}
+},
+{
+"select": "interp",
+"params": {
+"refaps": "2",
+"ignoreaps": "no"
+},
+"stdout": "[obj02] refspec1='arc02 0.66666669'\n[obj02] refspec2='arc04 0.33333334'\n",
+"stderr": "[obj01] No reference spectrum found\nInput [obj01] ap = 1 : Ref [arc02] ap = 2\nInput [obj01] ap = 1 : Ref [arc04] ap = 2\n[obj03] No reference spectrum found\nInput [obj03] ap = 1 : Ref [arc02] ap = 2\nInput [obj03] ap = 1 : Ref [arc04] ap = 2\n[obj04] No reference spectrum found\nInput [obj04] ap = 1 : Ref [arc02] ap = 2\nInput [obj04] ap = 1 : Ref [arc04] ap = 2\n[obj05] No reference spectrum found\nInput [obj05] ap = 1 : Ref [arc02] ap = 2\nInput [obj05] ap = 1 : Ref [arc04] ap = 2\n[obj06] No reference spectrum found\nInput [obj06] ap = 1 : Ref [arc02] ap = 2\nInput [obj06] ap = 1 : Ref [arc04] ap = 2\n[obj07] No reference spectrum found\nInput [obj07] ljd = 101 : Ref [arc02] ljd = 100\nInput [obj07] ljd = 101 : Ref [arc04] ljd = 100\n[obj08] No reference spectrum found\nInput [obj08] ljd = 101 : Ref [arc02] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc04] ljd = 100\n[obj09] No reference spectrum found\nInput [obj09] ap = 1 : Ref [arc02] ap = 2\nInput [obj09] ap = 1 : Ref [arc04] ap = 2\n",
+"headers": {
+"obj01": "None|None",
+"obj02": "'arc02 0.66666669'|'arc04 0.33333334'",
+"obj03": "None|None",
+"obj04": "None|None",
+"obj05": "None|None",
+"obj06": "None|None",
+"obj07": "None|None",
+"obj08": "None|None",
+"obj09": "None|None"
+}
+},
+{
+"select": "interp",
+"params": {
+"sort": "ut",
+"time": "yes",
+"group": "none"
+},
+"stdout": "[obj01] refspec1='arc05 0.77419353'\n[obj01] refspec2='arc03 0.22580644'\n[obj02] refspec1='arc05 0.77419353'\n[obj02] refspec2='arc03 0.22580644'\n[obj03] refspec1='arc05 0.38709676'\n[obj03] refspec2='arc03 0.61290324'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03 0.5'\n[obj06] refspec2='arc04 0.5'\n[obj07] refspec1='arc05 0.38709676'\n[obj07] refspec2='arc03 0.61290324'\n[obj08] refspec1='arc01 0.5'\n[obj08] refspec2='arc02 0.5'\n[obj09] refspec1='arc01'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc05 0.77419353'|'arc03 0.22580644'",
+"obj02": "'arc05 0.77419353'|'arc03 0.22580644'",
+"obj03": "'arc05 0.38709676'|'arc03 0.61290324'",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03 0.5'|'arc04 0.5'",
+"obj07": "'arc05 0.38709676'|'arc03 0.61290324'",
+"obj08": "'arc01 0.5'|'arc02 0.5'",
+"obj09": "'arc01'|None"
+}
+},
+{
+"select": "interp",
+"params": {
+"sort": "ut",
+"time": "yes",
+"timewrap": 12.0,
+"group": "none"
+},
+"stdout": "[obj01] refspec1='arc05 0.77419353'\n[obj01] refspec2='arc03 0.22580644'\n[obj02] refspec1='arc05 0.77419353'\n[obj02] refspec2='arc03 0.22580644'\n[obj03] refspec1='arc05 0.38709676'\n[obj03] refspec2='arc03 0.61290324'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03 0.5'\n[obj06] refspec2='arc04 0.5'\n[obj07] refspec1='arc05 0.38709676'\n[obj07] refspec2='arc03 0.61290324'\n[obj08] refspec1='arc01 0.5'\n[obj08] refspec2='arc02 0.5'\n[obj09] refspec1='arc01'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc05 0.77419353'|'arc03 0.22580644'",
+"obj02": "'arc05 0.77419353'|'arc03 0.22580644'",
+"obj03": "'arc05 0.38709676'|'arc03 0.61290324'",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03 0.5'|'arc04 0.5'",
+"obj07": "'arc05 0.38709676'|'arc03 0.61290324'",
+"obj08": "'arc01 0.5'|'arc02 0.5'",
+"obj09": "'arc01'|None"
+}
+},
+{
+"select": "interp",
+"params": {
+"verbose": "yes"
+},
+"stdout": "[obj01] refspec1='arc01 0.66666669'\n[obj01] refspec2='arc03 0.33333334'\n[obj02] refspec1='arc01 0.66666669'\n[obj02] refspec2='arc03 0.33333334'\n[obj03] refspec1='arc01 0.33333334'\n[obj03] refspec2='arc03 0.66666669'\n[obj04] refspec1='arc03'\n[obj05] refspec1='arc01'\n[obj06] refspec1='arc03 0.5'\n[obj06] refspec2='arc04 0.5'\n[obj07] refspec1='arc05'\n[obj08] refspec1='arc05'\n[obj09] refspec1='arc01 0.5'\n[obj09] refspec2='arc03 0.5'\n",
+"stderr": "",
+"headers": {
+"obj01": "'arc01 0.66666669'|'arc03 0.33333334'",
+"obj02": "'arc01 0.66666669'|'arc03 0.33333334'",
+"obj03": "'arc01 0.33333334'|'arc03 0.66666669'",
+"obj04": "'arc03'|None",
+"obj05": "'arc01'|None",
+"obj06": "'arc03 0.5'|'arc04 0.5'",
+"obj07": "'arc05'|None",
+"obj08": "'arc05'|None",
+"obj09": "'arc01 0.5'|'arc03 0.5'"
+}
+},
+{
+"select": "preceding",
+"params": {
+"verbose": "yes"
+},
+"stdout": "[obj01] refspec1='arc01'\n[obj02] refspec1='arc01'\n[obj03] refspec1='arc01'\n[obj04] refspec1='arc03'\n[obj06] refspec1='arc03'\n[obj07] refspec1='arc05'\n[obj09] refspec1='arc01'\n",
+"stderr": "[obj05] No reference spectrum found\nInput [obj05] ljd = 100 : Ref [arc05] ljd = 101\n[obj08] No reference spectrum found\nInput [obj08] ljd = 101 : Ref [arc01] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc02] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc03] ljd = 100\nInput [obj08] ljd = 101 : Ref [arc04] ljd = 100\n",
+"headers": {
+"obj01": "'arc01'|None",
+"obj02": "'arc01'|None",
+"obj03": "'arc01'|None",
+"obj04": "'arc03'|None",
+"obj05": "None|None",
+"obj06": "'arc03'|None",
+"obj07": "'arc05'|None",
+"obj08": "None|None",
+"obj09": "'arc01'|None"
+}
+}
+]
+}

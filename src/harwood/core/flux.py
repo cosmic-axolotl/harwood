@@ -600,16 +600,23 @@ def _pixel_map(wave):
     return lw, wl
 
 
+#: t_calibrate.x's speed of light, Angstroms per second.
+VLIGHT = 2.997925e18
+FNU_UNIT = "erg/cm2/s/Hz"
+
+
 def calibrate(aperture, sens: SensSpectrum | None, curve, airmass: float, exptime: float,
-              extinct: bool = True, interp: str = "poly5"):
+              extinct: bool = True, interp: str = "poly5", fnu: bool = False):
     """IRAF's calibrate, pixel by pixel:
 
         F = counts x 10^(0.4 X k(lambda)) x 10^(-0.4 S(lambda)) / dlambda / t
 
     with S interpolated in the sampled sensitivity function (the
     interpolant of 10^(-0.4 S), clamped to its ends) and dlambda the
-    width of the pixel in Angstroms. Returns (flux, error, pixels outside
-    the sensitivity function's range).
+    width of the pixel in Angstroms. With fnu, each sample of the
+    sensitivity is first multiplied by lambda^2 / c at its own wavelength,
+    as cal_getflux does, so the result is per hertz. Returns (flux, error,
+    pixels outside the sensitivity function's range).
     """
     from .asi import Interpolant
 
@@ -621,6 +628,10 @@ def calibrate(aperture, sens: SensSpectrum | None, curve, airmass: float, exptim
     asi = None
     if sens is not None:
         linear = (f32(10.0) ** (f32(-0.4) * np.asarray(sens.values, dtype=f32))).astype(f32)
+        if fnu:
+            steps = np.arange(linear.size, dtype=f32)
+            grid = (f32(sens.w1) + f32(sens.dw) * steps).astype(f32)
+            linear = (linear * grid ** 2 / f32(VLIGHT)).astype(f32)
         asi = Interpolant(interp, linear)
         n = linear.size
     am = f32(airmass)

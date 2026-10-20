@@ -12,6 +12,13 @@ IRAF), and multiplied by the extinction the exposure suffered at its airmass
 `--no-extinct` leaves the atmosphere in; `--no-flux` takes out only the
 atmosphere.
 
+`--fnu` gives flux per hertz, erg/cm²/s/Hz, instead of per Ångström: as in
+IRAF, each sample of the sensitivity function is multiplied by λ²/c at its
+own wavelength before it is interpolated (BUNIT says which). Each aperture
+takes its own sensitivity function, `sens.0001`, `sens.0002`, ..., when
+those exist, and the single `sens` when they do not; `--ignoreaps` uses the
+single one for all. Both checked against IRAF 2.18's calibrate.
+
 The magnitudes of the standards' tables are turned into flux as F_ν =
 3.68 × 10⁻²⁰ × 10^(−0.4 m) and F_λ = F_ν c / λ², the AB system to within
 0.015 mag; BD+28 4211 at 3200 Å comes out at the published 1.515 × 10⁻¹²

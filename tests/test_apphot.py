@@ -76,14 +76,17 @@ def test_a_star_off_the_box_is_flagged_and_kept():
     assert far.x == pytest.approx(40.31, abs=0.05)
 
 
-def test_algorithms_without_a_batch_meaning_are_refused_by_name():
-    """histplot and radplot are IRAF's interactive markers; file reads the
-    sky from a list. The message names what to use instead."""
+def test_algorithms_without_a_batch_meaning_fail_as_iraf_flags_them():
+    """histplot and radplot without a graphics cursor, and file without a
+    sky file, give IRAF's own errors (NoGraph 208, NoFile 209); an unknown
+    algorithm is refused by name."""
     data = field()
-    for name in ("histplot", "radplot", "file"):
-        with pytest.raises(ValueError) as raised:
-            apphot.fitsky(data, 40, 45, apphot.SkyPars(salgorithm=name))
-        assert "crosscor" in raised.value.fix
+    assert apphot.fitsky(data, 40, 45, apphot.SkyPars(salgorithm="histplot")).ier == 208
+    assert apphot.fitsky(data, 40, 45, apphot.SkyPars(salgorithm="radplot")).ier == 208
+    assert apphot.fitsky(data, 40, 45, apphot.SkyPars(salgorithm="file")).ier == 209
+    with pytest.raises(ValueError) as raised:
+        apphot.fitsky(data, 40, 45, apphot.SkyPars(salgorithm="guess"))
+    assert "crosscor" in raised.value.fix
     with pytest.raises(ValueError) as raised:
         apphot.center(data, 40, 45, apphot.CenterPars(calgorithm="moffat"))
     assert "ofilter" in raised.value.fix

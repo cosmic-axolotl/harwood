@@ -19,6 +19,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
+from ..core import advice
 from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult
 
@@ -270,6 +271,8 @@ class _DataPars(TaskParams):
         "", description="Header keyword with the exposure time. Empty uses itime, "
                         "as IRAF does; name EXPTIME to put magnitudes per second.")
     itime: float = Field(1.0, gt=0, description="Exposure time when no keyword is named.")
+    emission: bool = Field(True, description="The features are above the sky. Off "
+                                             "(IRAF's emission=no), center finds dips.")
     noise: Literal["poisson", "constant"] = Field(
         "poisson", description="Noise model for the centring S/N and the clean: the "
                                "star's photons plus the sky's sigma (poisson), or the "
@@ -305,13 +308,18 @@ class _CenterPars(TaskParams):
 
 class _SkyPars(TaskParams):
     salgorithm: Literal["centroid", "mode", "median", "mean", "gauss", "ofilter",
-                        "crosscor", "constant"] = Field(
+                        "crosscor", "histplot", "radplot", "constant", "file"] = Field(
         "centroid", description="Sky estimator. centroid, IRAF's default, is the "
                                 "centroid of the histogram of the annulus; mode is "
                                 "3 median - 2 mean; gauss fits a skewed gaussian to the "
                                 "histogram; ofilter filters it with a triangle; "
                                 "crosscor takes the peak of its correlation with a "
-                                "gaussian.")
+                                "gaussian; histplot and radplot are marked by hand on "
+                                "the histogram or the radial profile; file reads phot's "
+                                "--skyfile.")
+    gcommands: str = Field(
+        "", description="Graphics cursor commands for histplot and radplot, 'x y wcs "
+                        "key' per line, each star reading until q. Empty: the window.")
     annulus: float = Field(10.0, gt=0, description="Inner radius of the sky annulus, "
                                                    "in scale units.")
     dannulus: float = Field(10.0, gt=0, description="Width of the sky annulus, in "
@@ -354,7 +362,8 @@ def _datapars(params, header):
     return apphot.DataPars(scale=params.scale, fwhmpsf=params.fwhmpsf,
                            sigma=params.sigma, datamin=params.datamin,
                            datamax=params.datamax, epadu=params.epadu,
-                           readnoise=params.readnoise, itime=itime, noise=params.noise)
+                           readnoise=params.readnoise, itime=itime, noise=params.noise,
+                           emission=params.emission)
 
 
 def _centerpars(params):
@@ -363,6 +372,163 @@ def _centerpars(params):
     return apphot.CenterPars(params.calgorithm, params.cbox, params.cthreshold,
                              params.minsnratio, params.cmaxiter, params.maxshift,
                              params.clean, params.rclean, params.rclip, params.kclean)
+
+
+def _need_coords(params):
+    if params.coords is None:
+        advice.fail("no coordinates to measure",
+                    "give the list daofind wrote, or measure with the cursor: "
+                    "--interactive, or --icommands with a cursor file")
+    return params.coords
+
+
+def _by_cursor(task, params, kind: str) -> TaskResult:
+    """phot or center driven by the cursor -- the window's, or IRAF's
+    icommands file -- through core.photsession; the rows written are the
+    ones IRAF's keys write."""
+    import numpy as np
+    from astropy.table import Table
+
+    from ..core import apphot, catalog, images, output, photsession, provenance
+
+    data, header = images.read(params.image)
+    stars = []
+    if params.coords is not None:
+        table = catalog.read(params.coords)
+        x, y = catalog.coordinates(table, params.coords)
+        stars = [(float(a), float(b)) for a, b in zip(x, y, strict=True)]
+    dpars, cpars = _datapars(params, header), _centerpars(params)
+    if kind == "phot":
+        spars = _skypars(params)
+        cursor, skyfile = _sky_sources(params)
+        radii, zmag = sorted(params.apertures), params.zmag
+    else:
+        spars, cursor, skyfile, radii, zmag = apphot.SkyPars(), None, None, [], 25.0
+    session = photsession.Session(data, dpars, cpars, spars, radii, zmag, stars, kind,
+                                  cursor, skyfile)
+    if params.icommands:
+        if not Path(params.icommands).exists():
+            advice.fail(f"cursor file '{params.icommands}' does not exist",
+                        "write 'x y 1 key' lines, or use --interactive for the window",
+                        FileNotFoundError)
+        for x, y, key in photsession.read_commands(params.icommands):
+            session.colon(key) if key.startswith(":") else session.key(key, x, y)
+            if session.done:
+                break
+    else:
+        _in_window(session, data, header, params)
+
+    rows = session.rows
+    out = Table({"id": [r.id for r in rows], "lid": [r.lid for r in rows],
+                 "xinit": [r.xinit for r in rows], "yinit": [r.yinit for r in rows],
+                 "x": [r.center.x for r in rows], "y": [r.center.y for r in rows],
+                 "xshift": [r.center.xshift for r in rows],
+                 "yshift": [r.center.yshift for r in rows],
+                 "xerr": [r.center.xerr for r in rows], "yerr": [r.center.yerr for r in rows],
+                 "cier": [r.center.ier for r in rows]})
+    if kind == "phot":
+        for name, attr in (("msky", "value"), ("stdev", "sigma"), ("sskew", "skew"),
+                           ("nsky", "nsky"), ("nsrej", "nreject"), ("sier", "ier")):
+            out[name] = [getattr(r.sky, attr) for r in rows]
+        out["itime"] = np.full(len(rows), dpars.itime)
+        every = sorted({radius for r in rows for radius in r.radii})
+        for radius in every:
+            suffix = "" if len(every) == 1 else f"_{radius:g}"
+            for column in ("sums", "areas", "flux", "mag", "merr"):
+                name = {"sums": "sum", "areas": "area"}.get(column, column)
+                out[f"{name}{suffix}"] = [
+                    getattr(r.mags, column)[r.radii.index(radius)] if radius in r.radii
+                    else np.nan for r in rows]
+            out[f"pier{suffix}"] = [r.mags.ier if radius in r.radii else -1 for r in rows]
+    destination = params.output or output.named_for(params.image,
+                                                    ".mag" if kind == "phot" else ".ctr")
+    catalog.write(out, destination, harwood_image=str(params.image),
+                  harwood_call=provenance.current_stamp() or "")
+    steps = task.plan(params)
+    data_out: dict = {"stars": len(out)}
+    if session.messages:
+        data_out["text"] = session.messages
+    return TaskResult(outputs=[destination], steps=steps, data=data_out,
+                      warnings=_flags(out["cier"], "cier", _CENTER_FIX) if len(out) else [])
+
+
+def _in_window(session, data, header, params) -> None:
+    """The image in the window and its keys handed to the session until q;
+    each measurement circled where it was centred."""
+    from ..core import display
+
+    screen = display.get(None)
+    window = getattr(screen, "window", None)
+    if window is None or not hasattr(window, "wait_for_examine"):
+        advice.fail("--interactive needs the window",
+                    "run it where there is a screen, or give the keys in a file with "
+                    "--icommands")
+    screen.show(data, header, name=str(params.image))
+    shown = [0]
+
+    def redraw() -> None:
+        frame = window.frames.get(window.current)
+        if frame is None:
+            return
+        rows = session.rows[shown[0]:]
+        radius = max(session.radii) if session.radii else 3.0
+        frame.markers += [display.Marker(r.center.x, r.center.y, "circle", radius,
+                                         label=str(r.id), colour="accent", tag="phot")
+                          for r in rows]
+        shown[0] = len(session.rows)
+        for message in session.messages[getattr(redraw, "said", 0):]:
+            window.log("  " + message)
+        redraw.said = len(session.messages)
+        if rows:
+            last = rows[-1]
+            what = (f"  {last.id}: x={last.center.x:.3f} y={last.center.y:.3f}"
+                    + (f" sky={last.sky.value:.2f} mag="
+                       + " ".join(f"{m:.3f}" for m in last.mags.mag)
+                       if last.mags is not None else ""))
+            window.log(what)
+        window._redraw()
+
+    def key(name: str, x: float, y: float) -> bool:
+        session.key(name, x, y)
+        redraw()
+        if session.done:
+            window.examine_done.emit()
+        return True
+
+    def colon(line: str) -> str:
+        session.colon(line)
+        redraw()
+        return ""
+
+    window.key_hook, window.colon_hook = key, colon
+    window.log(f"{session.task}: space measures and writes, n the next star, l the "
+               "rest, :annulus 12 sets a parameter, q ends.")
+    try:
+        window.wait_for_examine()
+    finally:
+        window.key_hook = window.colon_hook = None
+
+
+def _sky_sources(params):
+    """The graphics cursor histplot and radplot read, and phot's sky file:
+    --gcommands, or the window when there is a screen; None otherwise, and
+    the stars are flagged as IRAF flags them."""
+    from ..core import advice, display, fitsky
+
+    cursor = skyfile = None
+    if params.salgorithm in ("histplot", "radplot"):
+        if params.gcommands:
+            if not Path(params.gcommands).exists():
+                advice.fail(f"graphics cursor file '{params.gcommands}' does not exist",
+                            "write 'x y 1 key' lines, q ending each star")
+            cursor = fitsky.Cursor(params.gcommands)
+        elif display._autodetect() == "native":
+            from ..viewer.graph_panel import mark
+
+            cursor = fitsky.Cursor(show=mark)
+    if params.salgorithm == "file" and getattr(params, "skyfile", ""):
+        skyfile = fitsky.SkyFile(params.skyfile)
+    return cursor, skyfile
 
 
 def _skypars(params):
@@ -420,9 +586,22 @@ APWHY = {
 }
 
 
-class CenterParams(_DataPars, _CenterPars):
+class _Interactive(TaskParams):
+    interactive: bool = Field(
+        False, description="Measure with the cursor in the window, IRAF's keys: space "
+                           "measures and writes, n the next star of the list, l the "
+                           "rest, :annulus 12 sets a parameter, q ends.")
+    icommands: str = Field(
+        "", description="Image cursor commands instead of the window: 'x y 1 key' or "
+                        "'x y 1 :command' per line, IRAF's icommands. \\040 is the "
+                        "space bar.")
+
+
+class CenterParams(_DataPars, _CenterPars, _Interactive):
     image: str = Field(..., description="Image to measure.")
-    coords: Path = Field(..., description="Coordinates to start from, 1-based (x, y).")
+    coords: Path | None = Field(None, description="Coordinates to start from, 1-based "
+                                                  "(x, y). Optional with the cursor.",
+                                json_schema_extra={"positional": True})
     output: Path | None = Field(
         None, description="Table of centres. Left out: obj.ctr in this run's "
                           "directory, as in IRAF.", json_schema_extra={"positional": True})
@@ -456,8 +635,10 @@ class CenterTask(Task[CenterParams]):
 
         from ..core import apphot, catalog, images, output, provenance
 
+        if params.interactive or params.icommands:
+            return _by_cursor(self, params, "center")
         data, header = images.read(params.image)
-        table = catalog.read(params.coords)
+        table = catalog.read(_need_coords(params))
         x0, y0 = catalog.coordinates(table, params.coords)
         dpars, cpars = _datapars(params, header), _centerpars(params)
         found = [apphot.center(data, a, b, cpars, dpars) for a, b in zip(x0, y0, strict=True)]
@@ -517,7 +698,9 @@ class FitskyTask(Task[FitskyParams]):
         table = catalog.read(params.coords)
         x, y = catalog.coordinates(table, params.coords)
         dpars, spars = _datapars(params, header), _skypars(params)
-        skies = [apphot.fitsky(data, a, b, spars, dpars) for a, b in zip(x, y, strict=True)]
+        cursor, _ = _sky_sources(params)
+        skies = [apphot.fitsky(data, a, b, spars, dpars, cursor)
+                 for a, b in zip(x, y, strict=True)]
         out = Table({"id": _ids(table, len(x)), "x": x, "y": y,
                      "msky": [s.value for s in skies], "stdev": [s.sigma for s in skies],
                      "sskew": [s.skew for s in skies], "nsky": [s.nsky for s in skies],
@@ -526,18 +709,22 @@ class FitskyTask(Task[FitskyParams]):
         catalog.write(out, destination, harwood_image=str(params.image),
                       harwood_call=provenance.current_stamp() or "")
         steps = self.plan(params)
-        steps[1].measured = {"sky": f"{np.nanmedian(out['msky']):.2f} counts",
-                             "scatter": f"{np.nanmedian(out['stdev']):.2f} counts",
+        good = np.isfinite(np.asarray(out["msky"], dtype=float))
+        median = float(np.median(out["msky"][good])) if good.any() else float("nan")
+        scatter = float(np.median(out["stdev"][good])) if good.any() else float("nan")
+        steps[1].measured = {"sky": f"{median:.2f} counts",
+                             "scatter": f"{scatter:.2f} counts",
                              "flagged": int((out["sier"] != 0).sum())}
         return TaskResult(outputs=[destination], steps=steps,
-                          data={"stars": len(out),
-                                "sky_median": float(np.nanmedian(out["msky"]))},
+                          data={"stars": len(out), "sky_median": median},
                           warnings=_flags(out["sier"], "sier", _SKY_FIX))
 
 
-class PhotParams(_DataPars, _CenterPars, _SkyPars):
+class PhotParams(_DataPars, _CenterPars, _SkyPars, _Interactive):
     image: str = Field(..., description="Image to measure.")
-    coords: Path = Field(..., description="Coordinate catalogue, 1-based (x,y), from daofind.")
+    coords: Path | None = Field(None, description="Coordinate catalogue, 1-based (x,y), "
+                                                  "from daofind. Optional with the cursor.",
+                                json_schema_extra={"positional": True})
     output: Path | None = Field(
         None,
         description="Photometry table to write. Left out, it goes to this run's "
@@ -549,10 +736,15 @@ class PhotParams(_DataPars, _CenterPars, _SkyPars):
         [3.0], description="Aperture radii in scale units. Several may be given."
     )
     zmag: float = Field(25.0, description="Zero point of the instrumental magnitude scale.")
+    skyfile: str = Field(
+        "", description="Sky values for salgorithm file: one 'x y msky stdev sskew nsky "
+                        "nsrej' line per star, in the order of the coordinates -- a "
+                        "fitsky .sky table's columns.")
 
     @model_validator(mode="after")
     def _check_radii(self) -> PhotParams:
-        if self.salgorithm != "constant" and max(self.apertures) >= self.annulus:
+        if self.salgorithm not in ("constant", "file") and \
+                max(self.apertures) >= self.annulus:
             raise ValueError(
                 f"the sky annulus starts at {self.annulus} px but the largest aperture "
                 f"is {max(self.apertures)} px: the sky would be measured over the star. "
@@ -605,17 +797,20 @@ class Phot(Task[PhotParams]):
 
         from ..core import apphot, catalog, images, output, provenance
 
+        if params.interactive or params.icommands:
+            return _by_cursor(self, params, "phot")
         data, header = images.read(params.image)
-        catalogue = catalog.read(params.coords)
+        catalogue = catalog.read(_need_coords(params))
         x0, y0 = catalog.coordinates(catalogue, params.coords)
         dpars = _datapars(params, header)
         cpars, spars = _centerpars(params), _skypars(params)
         radii = sorted(params.apertures)
 
         centres, skies, measured = [], [], []
+        cursor, skyfile = _sky_sources(params)
         for a, b in zip(x0, y0, strict=True):
             c = apphot.center(data, a, b, cpars, dpars)
-            s = apphot.fitsky(data, c.x, c.y, spars, dpars)
+            s = apphot.fitsky(data, c.x, c.y, spars, dpars, cursor, skyfile)
             centres.append(c)
             skies.append(s)
             measured.append(apphot.apertures(data, c.x, c.y, radii, s, params.zmag, dpars))

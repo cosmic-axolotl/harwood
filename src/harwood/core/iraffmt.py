@@ -15,6 +15,7 @@ has to come out of sys/fmtio/dtoc3.x, so that is what is ported here.
 from __future__ import annotations
 
 import math
+import re
 
 NDIGITS_RP = 7          # mach.h: significant digits of a real
 NDIGITS_DP = 16         # ... and of a double
@@ -203,3 +204,94 @@ def dtoc3(val: float, decpl: int, a_fmt: str = "g", width: int = SZ_OBUF + 1) ->
                 out.append("0")
                 k += 1
     return "".join(out)
+
+
+def pow_di(x: float, n: int) -> float:
+    """f2c's pow_di, which Fortran's double ** integer compiles to: for a
+    negative power the reciprocal first, then repeated squaring -- so
+    10.0 ** -2 is 0.1 * 0.1 = 0.010000000000000002, not 0.01."""
+    result = 1.0
+    if n != 0:
+        if n < 0:
+            n, x = -n, 1.0 / x
+        while True:
+            if n & 1:
+                result *= x
+            n >>= 1
+            if n:
+                x *= x
+            else:
+                break
+    return result
+
+
+def ctod(text: str) -> float | None:
+    """sys/fmtio/ctod.x: a number as IRAF reads it -- the digits gathered
+    into an integer and scaled by a power of ten (pow_di), which is not
+    always the nearest double to the decimal: 2.25 comes out as
+    2.2500000000000004.
+    Sexagesimal h:m:s, d or e exponents and INDEF are accepted; None when
+    the text is not a number."""
+    s = str(text).strip()
+    if s.startswith("INDEF"):
+        return 1.6e308
+    i, n = 0, len(s)
+    neg = s[:1] == "-"
+    if s[:1] in "+-" and s:
+        i += 1
+    while i < n and s[i] == "0":
+        i += 1
+    dval, scalar = 0.0, 60.0
+    digits: list[str] = []
+    e = 0
+    while True:
+        while i < n and s[i].isdigit() and len(digits) < MAX_DIGITS:
+            digits.append(s[i])
+            i += 1
+        e = 0
+        while i < n and s[i].isdigit():
+            e += 1
+            i += 1
+        scalar /= 60.0
+        if i < n and s[i] in "'\":dDhHmMsS" and i > 0:
+            i += 1
+            value = 0.0
+            for d in digits:
+                value = value * 10.0 + int(d)
+            dval += value * scalar * pow_di(10.0, e)
+            digits = []
+            while i < n and s[i] in " '\":dDhHmMsS":
+                i += 1
+        else:
+            break
+    if i < n and s[i] == ".":
+        i += 1
+        if not digits:
+            while i < n and s[i] == "0":
+                i += 1
+                e -= 1
+        while i < n and s[i].isdigit() and len(digits) < MAX_DIGITS:
+            digits.append(s[i])
+            e -= 1
+            i += 1
+        while i < n and s[i].isdigit():
+            i += 1
+    if not any(ch.isdigit() for ch in s[:i]):
+        return None
+    value = 0.0
+    for d in digits:
+        value = value * 10.0 + int(d)
+    if e != 0:
+        value = value * pow_di(10.0, e)
+    expon = 0
+    found = re.match(r"[eEdD]([+-]?\d+)", s[i:])
+    if found:
+        expon = int(found.group(1))
+        i += found.end()
+    dval += value * scalar
+    if expon:
+        dval *= pow_di(10.0, expon)
+    rest = s[i:].strip()
+    if rest and not rest.startswith("/"):
+        return None
+    return -dval if neg else dval
