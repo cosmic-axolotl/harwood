@@ -187,3 +187,31 @@ def test_cases_cover_every_path():
     """Every frozen IRAF file has its case here, and the other way round."""
     frozen = {path.stem for path in REF.glob("*.std")}
     assert frozen == set(CASES)
+
+
+def test_the_window_drives_the_same_editor():
+    from harwood.viewer._qt import application
+    from harwood.viewer.standard_panel import StandardPanel
+
+    application()
+    (_, w1, dw, counts, _), = standard_cases()["std1"][0]
+    spec = stdstar.Spectrum("std1.fits", 1, "fakestar", w1 + dw * np.arange(counts.size),
+                            counts, 1.15, 300.0)
+    cal = stdstar.read_calibration(str(REF / "mycal"), "fakestar")
+    bands = stdstar.initial_bands(cal, spec)
+    editor = stdstar.Editor(spec, bands, stdstar.Extinction(None))
+    stdstar.measure(spec, bands, stdstar.Extinction(None))
+    panel = StandardPanel(editor)
+    assert len(panel.boxes()) == 13
+    panel._x = 4101.0
+    panel.key("d")
+    assert np.float32(4100) not in bands.waves
+    panel._x = 4150.0
+    panel.key("a")
+    panel._x = 4190.0
+    panel.key("a")
+    assert np.float32(4170) in bands.waves and len(panel.boxes()) == 13
+    done = []
+    panel.finished.connect(lambda: done.append(True))
+    panel.key("q")
+    assert done

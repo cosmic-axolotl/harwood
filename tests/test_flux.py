@@ -219,7 +219,7 @@ def test_sensfunc_recovers_the_response_that_was_put_in(night):
     The comparison is against the invented curve at each band, not against the
     fit's own scatter -- a fit can be beautifully self-consistent and wrong.
     """
-    from harwood.core import database, icfit
+    from harwood.core import database, flux
     from harwood.core.registry import get_task
 
     work, _, _ = night
@@ -228,12 +228,12 @@ def test_sensfunc_recovers_the_response_that_was_put_in(night):
     result = get_task("sensfunc").run(standards=work / "std", sensitivity="s",
                                       database=work, order=7)
 
-    solution = database.read("s", work, prefix="sens")
-    fitted = icfit.fit(solution.pixel, solution.wavelength,
-                       icfit.FitSpec(function=solution.function,
-                                     order=solution.order))
-    grid = np.linspace(3400.0, 7400.0, 300)
-    assert np.max(np.abs(fitted(grid) - response(grid))) < 0.05, \
+    solution = database.read("s.0001", work, prefix="sens")
+    assert solution.function == "spline3" and solution.order == 7
+    sampled = flux.SensSpectrum.read(work / "s.0001.fits")
+    grid = sampled.w1 + sampled.dw * np.arange(sampled.values.size)
+    inside = (grid > 3400.0) & (grid < 7400.0)
+    assert np.max(np.abs(sampled.values[inside] - response(grid[inside]))) < 0.05, \
         "the fitted response has to be the one that was put in"
     assert result.data["rms"] < 0.02
 

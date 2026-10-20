@@ -64,18 +64,12 @@ def test_sensfunc_on_iraf_s_standards_is_iraf_s(tmp_path, case):
     get_task("sensfunc").run(standards=REF / "std", sensitivity="sens",
                              extinction=str(DATA / "kpnoextinct.dat"),
                              function=function, order=order, database=tmp_path)
-    ours = flux.SensSpectrum.read(tmp_path / "sens.fits")
+    ours = flux.SensSpectrum.read(tmp_path / "sens.0001.fits")
     w1, dw, nw = CASES["grids"]["sens_" + case]
     assert ours.values.size == nw
-    assert ours.w1 == pytest.approx(w1, abs=1e-6) and ours.dw == pytest.approx(dw, rel=1e-7)
-    theirs = OUT["sens_" + case].astype(float)
-    grid = w1 + dw * np.arange(nw)
-    inside = (grid >= 4040.0) & (grid <= 4280.0)
-    diff = np.abs(ours.values - theirs)
-    # IRAF's curfit solves in single precision: 1e-4 mag where there are
-    # bands; where a spline is extrapolated past them, up to a few 1e-3.
-    assert diff[inside].max() < 1e-4
-    assert diff.max() < 3e-3
+    assert np.float32(ours.w1) == np.float32(w1) and np.float32(ours.dw) == np.float32(dw)
+    # IRAF's curfit, in its single precision: the same bits.
+    assert np.array_equal(ours.values, OUT["sens_" + case])
 
 
 @pytest.mark.parametrize("case", ["s3", "ch", "le", "s1", "noext"])

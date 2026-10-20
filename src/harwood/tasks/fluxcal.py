@@ -423,51 +423,73 @@ SENSWHY = {
                "observed at different airmasses comparable: what is left after "
                "the atmosphere is taken out belongs to the instrument, and the "
                "instrument did not change between exposures.",
-    "fit": "A smooth curve through the response. The instrument's sensitivity "
-           "varies with wavelength because the grating, the coatings and the "
-           "detector all do, and all of those are smooth -- so a low order is "
-           "right and a high one is fitting the errors in the standard star's "
-           "own calibration.",
+    "fit": "A smooth curve through the response, one per aperture: the "
+           "instrument's sensitivity varies with wavelength because the "
+           "grating, the coatings and the detector all do, and all of those are "
+           "smooth -- so a low order is right and a high one is fitting the "
+           "errors in the standard star's own calibration. It is IRAF's curfit, "
+           "in IRAF's single precision, so the curve is IRAF's to the bit.",
     "write": "The fit is sampled from the standards' first to last wavelength at "
-             "their finest dispersion, as IRAF's sensfunc writes it, into "
-             "<name>.fits beside database/; the bands and the fit go to "
-             "database/sens<name>, the rejected ones kept.",
+             "their finest dispersion, as IRAF's sensfunc writes it: "
+             "<name>.0001.fits for aperture 1 and so on (<name>.fits with "
+             "ignoreaps), which calibrate finds by itself. The statistics go to "
+             "the logfile, as IRAF writes them.",
 }
 
 
 class SensFuncParams(TaskParams):
     standards: Path = Field(
-        Path("std"), description="File the standard task wrote.",
+        Path("std"), description="File the standard task wrote (harwood's or IRAF's).",
         json_schema_extra={"positional": True},
     )
     sensitivity: str = Field(
-        "sens", description="Name for the solution, written to database/sens<name>."
-    )
+        "sens", description="Root name of the sensitivity spectra: <name>.0001.fits "
+                            "for aperture 1, and so on.")
+    apertures: str = Field("", description="Apertures to fit, as a range list: "
+                                           "'1,3-5'. Empty is all.")
+    ignoreaps: bool = Field(
+        False, description="One sensitivity function for every aperture, <name>.fits.")
+    logfile: str = Field(
+        "logfile", description="Where the statistics of each fit are appended, as "
+                               "IRAF writes them. Empty for none.")
     extinction: str = Field(
         "", description="Extinction curve. Taken from the standards file when "
                         "left out."
     )
-    function: str = Field(
-        "spline3", description="chebyshev, legendre, spline3 or spline1."
+    newextinction: str = Field(
+        "extinct.dat", description="Where the extinction curve revised by a residual "
+                                   "extinction (key e) is written.")
+    function: Literal["chebyshev", "legendre", "spline3", "spline1"] = Field(
+        "spline3", description="The curve fitted."
     )
     order: int = Field(
         6, ge=1,
         description="Number of terms, or pieces for a spline. Low: the "
                     "response is smooth.",
     )
-    low_reject: float = Field(3.0, ge=0, description="Reject below this many sigma.")
-    high_reject: float = Field(3.0, ge=0, description="Reject above this many sigma.")
-    niterate: int = Field(
-        0, ge=0, description="Rejection passes. IRAF's sensfunc rejects nothing on its "
-                             "own -- bands are deleted by hand -- so 0, as there.")
-    database: Path = Field(Path("."), description="Reduction directory holding database/.")
     interactive: bool = Field(
-        False, description="Fit in the icfit panel, where the order can be changed."
-    )
+        False, description="Work on the stars in IRAF's graphs before each fit is "
+                           "written: delete, move, reweight, shift, composite, "
+                           "residual extinction. Off by default here, on in IRAF.")
+    graphs: str = Field("sr", description="The graphs shown: s sensitivity, r "
+                                          "residuals, a residuals against airmass.")
+    cursor: Path | None = Field(
+        None, description="With interactive, the keys from a file instead of the "
+                          "window: 'x y graph key' per line, IRAF's cursor file. The "
+                          "weight w asks for and the answer e asks for are the next "
+                          "line's ':' text (:0.25, :yes).")
+    answer: Literal["no", "yes", "NO", "YES"] = Field(
+        "yes", description="IRAF's answer to 'Fit aperture N interactively?', given "
+                           "once: YES or yes every aperture, NO or no none.")
+    database: Path = Field(Path("."), description="Reduction directory: the "
+                                                  "sensitivity spectra and database/ "
+                                                  "go there.")
 
 
 @register
 class SensFunc(Task[SensFuncParams]):
+    """IRAF's sensfunc, noao/onedspec/sensfunc: core/sensfunc.py."""
+
     name = "sensfunc"
     package = "onedspec"
     description = "Fit the instrument's response from the measured standards."
@@ -480,25 +502,38 @@ class SensFunc(Task[SensFuncParams]):
                  why=SENSWHY["extinct"]),
             Step("fit", f"{params.function} order {params.order}",
                  why=SENSWHY["fit"]),
-            Step("write", f"database/sens{params.sensitivity}",
-                 why=SENSWHY["write"]),
+            Step("write", f"{params.sensitivity}" +
+                 ("" if params.ignoreaps else ".<aperture>"), why=SENSWHY["write"]),
         ]
 
     def execute(self, params: SensFuncParams) -> TaskResult:
+        import getpass
+        import platform
+        import time
+
         import numpy as np
 
-        from ..core import database, flux, icfit, stdfile
+        from ..core import database, flux, ranges, stdfile
+        from ..core import sensfunc as sf
 
         if not Path(params.standards).exists():
             advice.fail(
                 f"'{params.standards}' does not exist.",
                 "it is written by the standard task; run that on a flux "
                 "standard first.")
-        standard = stdfile.read(params.standards)
-        if len(standard) < 2:
+        said: list[str] = []
+        aps = ranges.parse(params.apertures)
+        if stdfile.format_of(params.standards) == "iraf":
+            text = Path(params.standards).read_text(encoding="utf-8", errors="replace")
+            stars = sf.read_iraf(text, aps, params.ignoreaps, said.append)
+            standard = stdfile.read(params.standards)
+        else:
+            standard = stdfile.read(params.standards)
+            stars = sf.from_measurements(standard, aps, params.ignoreaps)
+        if not stars or sum(s.nwaves for s in stars[:-2]) < 2:
             advice.fail(
-                f"'{params.standards}' holds {len(standard)} bands, which is "
-                "not enough to fit anything.",
+                f"'{params.standards}' holds no bands to fit"
+                + (f" in apertures {params.apertures}" if params.apertures else "") + ".",
                 "run standard again -- on another star, or with a smaller "
                 "--edge if the spectrum was being trimmed too hard.")
 
@@ -511,95 +546,143 @@ class SensFunc(Task[SensFuncParams]):
                 "your own site.")
         curve = flux.read_extinction(name)
 
-        spec = icfit.FitSpec(
-            function=params.function, order=params.order,
-            low_reject=params.low_reject, high_reject=params.high_reject,
-            niterate=params.niterate)
-
-        fit, wavelength, values = flux.sensitivity(standard, curve, spec)
+        from ..core.provenance import _version
+        system = (f"harwood {_version()} {getpass.getuser()}@{platform.node()} "
+                  f"{time.strftime('%a %H:%M:%S %d-%b-%Y')}")
+        mode = "ask" if params.interactive else "no"
+        cursor = None
         if params.interactive:
-            from ..viewer.icfit_panel import run as run_icfit
+            if params.cursor is not None:
+                if not Path(params.cursor).exists():
+                    advice.fail(f"cursor file '{params.cursor}' does not exist",
+                                "write 'x y graph key' lines, or leave --cursor out "
+                                "for the window.", FileNotFoundError)
+                cursor = sf.CursorFile(params.cursor)
+            else:
+                from ..viewer.sensfunc_panel import WindowCursor
 
-            fit = run_icfit(wavelength, values, spec,
-                            title=f"sensfunc · {params.sensitivity}",
-                            xlabel="wavelength", ylabel="sensitivity (mag)")
-        if fit.model is None:
-            advice.fail(f"the response could not be fitted: {fit.message}",
-                        "lower --order, or look at the bands with "
-                        "--interactive.", RuntimeError)
+                cursor = WindowCursor()
+
+        outputs: list[Path] = []
+        ecvs = []
+        fits_made = []
+        logs: list[str] = []
+        for aperture in sf.apertures(stars[:-2]):
+            for star in stars[:-2]:
+                star.flag = sf.INCLUDE if star.beam == aperture else sf.EXCLUDE
+            session = sf.Session(stars, curve, params.function, params.order,
+                                 params.graphs, system)
+            if mode == "ask":
+                said.append(f"Fit aperture {aperture} interactively? {params.answer}")
+                if params.answer == "NO":
+                    mode = "no"
+                elif params.answer == "YES":
+                    mode = "all"
+            if mode == "all" or (mode == "ask" and params.answer == "yes"):
+                cursor.edit(session)
+                for message in session.messages:
+                    if message.strip("\a"):
+                        said.append(message.strip("\a"))
+                for target, lines in session.files.items():
+                    with open(Path(params.database) / target, "a",
+                              encoding="utf-8") as handle:
+                        handle.write("\n".join(lines) + "\n")
+            w1, dw, nw, beam = sf.sampling(stars)
+            values = sf.sample(session.cv, w1, dw, nw)
+            root = params.sensitivity if params.ignoreaps else \
+                f"{params.sensitivity}.{beam:04d}"
+            title = ("Sensitivity function for all apertures" if params.ignoreaps else
+                     f"Sensitivity function for aperture {beam}")
+            image = flux.SensSpectrum(float(w1), float(dw), values).write(
+                Path(params.database) / f"{root}.fits", title=title)
+            said.append(f"{title} --> {root}")
+            outputs.append(image)
+            lines = (sf.stats(stars, session.function, session.order, session.npts,
+                              session.rms, system)
+                     + sf.vstats(stars, session.cv, curve, session.ecv))
+            logs.extend(lines)
+            ecvs.append(session.ecv)
+            used = [s for s in stars[:-2] if s.flag != sf.EXCLUDE] + \
+                [s for s in stars[-2:] if s.flag == sf.INCLUDE]
+            waves = np.concatenate([s.waves for s in used])
+            sens = np.concatenate([s.sens for s in used])
+            kept = np.concatenate([s.wts != 0 for s in used]) & \
+                np.concatenate([np.full(s.nwaves, s.flag == sf.INCLUDE) for s in used])
+            solution = database.Solution(
+                image=root, pixel=waves.astype(float), wavelength=sens.astype(float),
+                function=session.function, order=session.order,
+                rms=float(session.rms) if session.rms is not None else float("nan"),
+                used=kept, units="mag", aperture=beam,
+                extra={"sampled": str(image), "w1": float(w1), "dw": float(dw),
+                       "nw": int(nw)})
+            outputs.append(database.write(solution, params.database, prefix="sens"))
+            fits_made.append((beam, session, int(kept.sum()), int(kept.size)))
+        # Relative names are the reduction directory's, which is the
+        # current one unless --database says otherwise -- as in IRAF.
+        if params.logfile.strip():
+            log = Path(params.database) / params.logfile.strip()
+            with open(log, "a", encoding="utf-8") as handle:
+                handle.write("\n".join(logs) + "\n")
+            outputs.append(log)
+        revised = sf.revised_extinction(curve, ecvs)
+        if revised is not None and params.newextinction.strip():
+            table = Path(params.database) / params.newextinction.strip()
+            table.write_text("\n".join(revised) + "\n")
+            outputs.append(table)
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
+        all_waves = np.concatenate([s.waves for s in stars[:-2]])
         by_action["read"].measured = {
-            "bands": len(standard),
-            "stars": ", ".join(sorted({item.star for item in standard.measurements})),
-            "covering": f"{wavelength.min():.0f} to {wavelength.max():.0f} A",
+            "observations": len(stars) - 2,
+            "bands": int(sum(s.nwaves for s in stars[:-2])),
+            "stars": ", ".join(sorted({s.image for s in stars[:-2]})),
+            "covering": f"{all_waves.min():.0f} to {all_waves.max():.0f} A",
         }
-        airmasses = [item.airmass for item in standard.measurements]
+        airmasses = [float(s.airmass) for s in stars[:-2]]
         by_action["extinct"].measured = {
             "curve": name,
             "airmass": (f"{min(airmasses):.3f}" if min(airmasses) == max(airmasses)
                         else f"{min(airmasses):.3f} to {max(airmasses):.3f}"),
-            "extinction at the ends":
-                f"{flux.extinction_at([wavelength.min()], curve)[0]:.3f} to "
-                f"{flux.extinction_at([wavelength.max()], curve)[0]:.3f} mag/airmass",
         }
-
-        kept = int(np.sum(fit.mask))
         by_action["fit"].measured = {
-            "bands used": f"{kept} of {len(values)}",
-            "rms": f"{fit.rms:.4f} mag",
-            "response range": f"{values.min():.2f} to {values.max():.2f} mag",
-        }
-
-        if flux.sens_range(standard.measurements) is None:
-            advice.fail(
-                f"'{params.standards}' does not record the standards' wavelength "
-                "ranges, which the sensitivity function is sampled over.",
-                "run standard again with this version of harwood to rewrite it.")
-        sampled = flux.SensSpectrum.from_fit(fit, standard.measurements)
-        image = sampled.write(Path(params.database) / f"{params.sensitivity}.fits",
-                              title=f"Sensitivity function {params.sensitivity}")
-        solution = database.Solution(
-            image=params.sensitivity, pixel=wavelength, wavelength=values,
-            function=params.function, order=params.order, rms=float(fit.rms),
-            used=fit.mask, units="mag",
-            extra={"sampled": str(image), "w1": sampled.w1, "dw": sampled.dw,
-                   "nw": int(sampled.values.size)},
-        )
-        destination = database.write(solution, params.database, prefix="sens")
+            f"aperture {beam}": f"{session.function} {session.order}, {kept} of {total} "
+                                f"bands, rms {_rms(session.rms)}"
+            for beam, session, kept, total in fits_made}
+        by_action["write"].measured = {"spectra": ", ".join(
+            str(p.name) for p in outputs if p.suffix == ".fits")}
 
         warnings = []
-        # The rms is the honest size of the flux calibration's systematic
-        # error, and it is worth saying in per cent because magnitudes hide
-        # how large it is.
-        percent = 100.0 * (10.0 ** (0.4 * fit.rms) - 1.0)
+        worst = max((s.rms or 0.0) for _, s, _, _ in fits_made)
+        percent = 100.0 * (10.0 ** (0.4 * worst) - 1.0)
         warnings.append(advice.note(
-            f"the response scatters by {fit.rms:.3f} mag about the fit, which "
+            f"the response scatters by {worst:.3f} mag about the fit, which "
             f"is {percent:.1f} per cent in flux. That is the systematic floor "
             "on every spectrum calibrated with this solution -- it is not "
             "reduced by observing the object for longer.",
             f"quote {percent:.1f} per cent as the systematic uncertainty on "
             "every flux from this solution. To make it smaller, observe more "
             "standards, not longer ones."))
-        if kept < 0.7 * len(values):
-            warnings.append(advice.warn(
-                f"only {kept} of {len(values)} bands survived rejection. Either "
-                "the order is too low to follow the real response, or some "
-                "bands are contaminated.",
-                "look at the fit with --interactive. If the curve misses the "
-                "shape, raise --order a little; if a few bands sit far off on "
-                "their own, they are the problem and not the order."))
-
+        for line in said:
+            if "Warning - exposure time" in line:
+                warnings.append(advice.warn(line, "give standard the exposure time "
+                                                  "(--exptime) and run it again."))
+        first = fits_made[0][1]
         return TaskResult(
-            outputs=[destination, image],
+            outputs=outputs,
             steps=steps,
             warnings=warnings,
-            data={"bands": len(values), "used": kept,
-                  "rms": round(float(fit.rms), 4)},
+            data={"bands": int(sum(t for _, _, _, t in fits_made)),
+                  "used": int(sum(k for _, _, k, _ in fits_made)),
+                  "rms": round(float(first.rms), 4) if first.rms is not None else None,
+                  "text": said},
             history=[f"sensfunc: {params.function} order {params.order}, "
-                     f"{kept} bands, rms {fit.rms:.4f} mag"],
+                     f"{len(fits_made)} apertures, rms {_rms(first.rms)}"],
         )
+
+
+def _rms(value) -> str:
+    return "INDEF" if value is None else f"{value:.4f} mag"
 
 
 CALWHY = {

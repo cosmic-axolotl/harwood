@@ -145,11 +145,6 @@ class Standard:
     def __len__(self) -> int:
         return len(self.measurements)
 
-    def arrays(self) -> tuple[np.ndarray, np.ndarray]:
-        """Wavelength and sensitivity, for the fit."""
-        return (np.array([item.wavelength for item in self.measurements]),
-                np.array([item.sensitivity() for item in self.measurements]))
-
 
 def magnitude_to_flux(magnitude: float, wavelength: float,
                       fnuzero: float = FNUZERO) -> float:
@@ -488,48 +483,6 @@ def measure(aperture, bands: list[Band], exptime: float, airmass: float,
     return out
 
 
-def sensitivity(standard: Standard, curve, spec) -> tuple:
-    """Fit the instrument's response in magnitudes against wavelength:
-    IRAF's sensfunc, 2.5 log10(counts / (flux dw exptime)) + X k(lambda) per
-    band, fitted over the standards' wavelength range (sf_fit, which rejects
-    nothing on its own).
-    """
-    from . import icfit
-
-    wavelength = np.array([item.wavelength for item in standard.measurements])
-    coefficient = extinction_at(wavelength, curve)
-    values = np.array([item.sensitivity(k) for item, k
-                       in zip(standard.measurements, coefficient, strict=True)])
-
-    good = np.isfinite(values)
-    if good.sum() < 2:
-        advice.fail(
-            "not enough usable bands to fit a sensitivity function: "
-            f"{int(good.sum())} of {len(values)}. Bands with no counts, or a "
-            "standard star file that does not overlap the spectrum, give "
-            "nothing to fit.",
-            "check the spectrum's wavelength range against the calibration "
-            "table with 'harwood standards --star <name>', and that the "
-            "extraction has positive counts across it.")
-    xrange = sens_range(standard.measurements)
-    return (icfit.fit(wavelength[good], values[good], spec,
-                      xrange=xrange[:2] if xrange else None),
-            wavelength[good], values[good])
-
-
-def sens_range(measurements):
-    """The standards' wavelength range and finest dispersion: (w1, w2, dw)
-    as sf_output takes them, in single precision; None if not recorded."""
-    spans = [(m.wstart, m.wend, m.npts) for m in measurements
-             if m.wstart is not None and m.wend is not None and m.npts]
-    if not spans:
-        return None
-    w1 = min(f32(min(a, b)) for a, b, _ in spans)
-    w2 = max(f32(max(a, b)) for a, b, _ in spans)
-    dw = min(abs(f32((f32(b) - f32(a)) / f32(n - 1))) for a, b, n in spans)
-    return float(w1), float(w2), float(dw)
-
-
 @dataclass
 class SensSpectrum:
     """The sensitivity function sampled as IRAF's sensfunc writes it: a 1-D
@@ -538,14 +491,6 @@ class SensSpectrum:
     w1: float
     dw: float
     values: np.ndarray
-
-    @classmethod
-    def from_fit(cls, fit, measurements) -> SensSpectrum:
-        """sf_output: from w1 to w2 at the finest dispersion of the standards."""
-        w1, w2, dw = sens_range(measurements)
-        nw = int((f32(w2) - f32(w1)) / f32(dw) + f32(1.5))
-        grid = np.array([f32(f32(w1) + f32(i) * f32(dw)) for i in range(nw)], dtype=float)
-        return cls(w1, dw, np.asarray(fit(grid), dtype=f32))
 
     def write(self, path: Path | str, title: str = "Sensitivity function") -> Path:
         from astropy.io import fits

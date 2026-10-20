@@ -15,13 +15,45 @@ slope from blue to red, largest in the blue. The test suite closes that loop
 with a second star at another airmass -- and checks that without the
 extinction, the slope does appear.
 
-The fit is IRAF's icfit -- `--function spline3` of `--order` pieces by
-default -- with no rejection unless asked (`--niterate`), as in IRAF;
-`--interactive` opens it in the icfit panel, where the order can be changed
-and points deleted with IRAF's keys.
+**One fit per aperture.** Each aperture's stars get their own
+sensitivity function, `<name>.0001.fits` for aperture 1 and so on, which
+[calibrate](task:calibrate) finds by itself; `--ignoreaps` fits them all
+together into `<name>.fits`, and `--apertures 1,3` chooses. The fit is
+IRAF's curfit -- `--function spline3` of `--order` pieces by default, no
+rejection -- in IRAF's own single precision, so the spectrum written is
+IRAF's to the last bit. Each fit's statistics (rms, and every star's mean
+deviation in each third of the spectrum; then, per wavelength, the mean,
+its error and the extinction) are appended to `--logfile`, as IRAF writes
+them.
 
-The solution goes to `database/sens<name>` and a sensitivity spectrum
-`<name>.fits`, which [calibrate](task:calibrate) reads. The rms of the fit is
-also given in per cent of flux, since magnitudes hide size: it is the
-systematic floor of every spectrum calibrated with this solution, and
-observing the object for longer does not lower it.
+**Working on the stars.** `--interactive` shows IRAF's graphs --
+sensitivity and residuals against wavelength (`--graphs sra` adds the
+residuals against airmass) -- and its keys, on the graph under the mouse:
+
+- `d` then `p`, `s` or `w` deletes the point, the whole star or the whole
+  wavelength nearest the cursor; `u` brings them back; `w` gives them a
+  new weight; `m` moves them to the cursor's height; `a` adds a point.
+- `s` shifts every star to a common mean -- the grey shift for a star seen
+  through cloud or partly off the slit, which changes its level but not its
+  colour; `s` again takes it back.
+- `c` combines the stars, weighted, into one composite point per
+  wavelength (`c` again goes back, with any composite point deleted taken
+  out of every star).
+- `e` fits the residual extinction: at each wavelength the slope of the
+  residuals against airmass, a curve through those slopes, and its
+  significance; answered yes, it is taken out of the stars and the revised
+  extinction curve is written to `--newextinction`.
+- `f` refits, `g` refits and redraws, `o` goes back to the original data,
+  `:order 4`, `:function legendre`, `:stats`, `:vstats`; `q` writes the
+  fit -- the fit as it stands, as in IRAF, so a deletion after the last `f`
+  is not in it.
+
+`--cursor file` reads the same keys from a file (`x y graph key`); the
+weight `w` asks for and the answer `e` asks for are the next line's `:`
+text (`:0.25`, `:yes`), where IRAF reads them from the terminal. On 17 IRAF
+runs, batch and from cursor files, every spectrum, logfile and statistics
+file is identical to IRAF's.
+
+The rms of the fit is also given in per cent of flux, since magnitudes hide
+size: it is the systematic floor of every spectrum calibrated with this
+solution, and observing the object for longer does not lower it.
