@@ -276,6 +276,40 @@ def test_calibrate_returns_the_standard_to_its_published_flux(night):
     assert np.std(ratio) < 0.05, "no wavelength-dependent residual"
 
 
+def test_calibrate_marks_what_it_did_and_does_not_do_it_twice(night):
+    """IRAF's EX-FLAG and CA-FLAG: written on the output, and a spectrum
+    already calibrated is refused -- and standard takes the extinction
+    correction back out of one so marked."""
+    from astropy.io import fits
+
+    from harwood.core.registry import get_task
+
+    work, _, _ = night
+    get_task("standard").run(input="std.ms.fits", output=work / "std", caldir=CALDIR)
+    get_task("sensfunc").run(standards=work / "std", sensitivity="s", database=work,
+                             order=7)
+    get_task("calibrate").run(input="std.ms.fits", output=work / "std.e.fits",
+                              sensitivity="s", extinction=EXTINCTION, database=work,
+                              flux=False)
+    header = fits.getheader(work / "std.e.fits")
+    assert header["EX-FLAG"] == 0 and "CA-FLAG" not in header
+    assert header["AIRMASS"] == fits.getheader(work / "std.ms.fits")["AIRMASS"]
+    result = get_task("calibrate").run(input=str(work / "std.e.fits"),
+                                       output=work / "std.f.fits", sensitivity="s",
+                                       extinction=EXTINCTION, database=work)
+    assert any("already applied" in w.message for w in result.warnings)
+    header = fits.getheader(work / "std.f.fits")
+    assert header["EX-FLAG"] == 0 and header["CA-FLAG"] == 0
+    with pytest.raises(ValueError, match="already calibrated"):
+        get_task("calibrate").run(input=str(work / "std.f.fits"), output=work / "x.fits",
+                                  sensitivity="s", extinction=EXTINCTION, database=work)
+    once = get_task("standard").run(input="std.ms.fits", output=work / "a", caldir=CALDIR)
+    again = get_task("standard").run(input=str(work / "std.e.fits"), output=work / "b",
+                                     caldir=CALDIR)
+    for x, y in zip(once.data["rows"], again.data["rows"], strict=True):
+        assert float(x["counts"]) == pytest.approx(float(y["counts"]), rel=1e-4)
+
+
 def test_a_second_star_at_a_different_airmass_comes_out_right(night, bands, curve):
     """The claim flux calibration actually makes.
 

@@ -278,3 +278,68 @@ def standard_spectra():
         counts = counts + rng.normal(0, 0.003 * counts.mean(), n)
         out[name] = (counts.astype(np.float32), airmass, exptime)
     return out
+
+
+def standard_cases():
+    """The spectra IRAF's standard was run on for tests/data/iraf_standard:
+    the two standard exposures, the same extinction-corrected (EX-FLAG 0),
+    without AIRMASS (RA, DEC and HA or ST instead), without anything,
+    beam-switched object and sky pairs (one sky on another dispersion), an
+    infrared one for the J blackbody, and three apertures of one frame with
+    their own dispersions. Returns {name: (apertures, header)} with
+    apertures a list of (number, w1, dw, flux, title)."""
+    from pathlib import Path
+
+    w1, dw, n = 4014.29852458081, 0.28769335609626, 1024
+    spectra = standard_spectra()
+    ext = np.loadtxt(Path(__file__).parent / "data" / "kpnoextinct.dat", comments="#")
+    wave = w1 + dw * np.arange(n)
+    k = np.interp(wave, ext[:, 0], ext[:, 1])
+    rng = np.random.default_rng(5)
+    out = {}
+
+    def one(name, data, start=w1, step=dw, **header):
+        header.setdefault("OBJECT", "fakestar")
+        out[name] = ([(1, start, step, np.asarray(data, np.float32), header["OBJECT"])],
+                     header)
+
+    c1, am1, t1 = spectra["std1"]
+    c2, am2, t2 = spectra["std2"]
+    one("std1", c1, AIRMASS=am1, EXPTIME=t1)
+    one("std2", c2, AIRMASS=am2, EXPTIME=t2)
+    one("ex1", (c1 * 10 ** (0.4 * k * am1)).astype(np.float32), AIRMASS=am1, EXPTIME=t1,
+        **{"EX-FLAG": 0})
+    one("noam", c1, EXPTIME=t1, RA="12:34:56.7", DEC="31:12:45", HA="-01:22:10")
+    one("noamst", c1, EXPTIME=t1, RA="12:34:56.7", DEC="31:12:45", ST="13:58:01")
+    one("ask", c2)
+    sky = (2000.0 + 0.5 * np.arange(n) + rng.normal(0, 5, n)).astype(np.float32)
+    sky2 = (2100.0 + 0.4 * np.arange(n) + rng.normal(0, 5, n)).astype(np.float32)
+    one("b1", c1 + sky, AIRMASS=am1, EXPTIME=t1, OFLAG=1)
+    one("b2", sky, AIRMASS=am1, EXPTIME=t1, OFLAG=0)
+    one("b3", sky2, AIRMASS=am2, EXPTIME=t2, OFLAG=0)
+    one("b4", c2 + sky2, AIRMASS=am2, EXPTIME=t2, OFLAG=1)
+    one("b5", c2 + sky2, AIRMASS=am2, EXPTIME=t2, OFLAG=1)
+    one("b6", c1 + sky, AIRMASS=am1, EXPTIME=t1, OFLAG=1)
+    wsky = w1 - 1.7 + dw * 1.03 * np.arange(n)
+    one("b7", 2000.0 + 0.002 * (wsky - 4000) ** 2 + 30 * np.sin(wsky / 9.0), w1 - 1.7,
+        dw * 1.03, AIRMASS=am1, EXPTIME=t1, OFLAG=0)
+    one("b8", c1 + (2000.0 + 0.002 * (wave - 4000) ** 2 + 30 * np.sin(wave / 9.0))
+        .astype(np.float32), AIRMASS=am1, EXPTIME=t1, OFLAG=1)
+    wir = 11000.0 + 2.0 * np.arange(n)
+    one("ir1", 5e4 * (1 + 0.1 * np.sin(wir / 300.0)), 11000.0, 2.0, AIRMASS=1.2,
+        EXPTIME=100.0)
+    apertures = []
+    bands = np.array(FAKE_STANDARD)
+    for ap, (start, step, scale) in {1: (w1, dw, 1.0), 2: (w1 + 3.1, dw * 0.98, 0.7),
+                                     3: (w1 - 2.0, dw * 1.01, 1.3)}.items():
+        wv = start + step * np.arange(n)
+        kk = np.interp(wv, ext[:, 0], ext[:, 1])
+        mag = np.interp(wv, bands[:, 0], bands[:, 1])
+        flam = 3.68e-20 * 10 ** (-0.4 * mag) * 2.997925e18 / wv ** 2
+        response = scale * 3e15 * (1 + 0.3 * np.cos((wv - 4000) / 70.0 + ap)) * \
+            (wv / 4100) ** 2
+        counts = flam * response * 10 ** (-0.4 * kk * 1.3) * 400.0 * step
+        counts = counts + rng.normal(0, 0.003 * counts.mean(), n)
+        apertures.append((ap, start, step, counts.astype(np.float32), f"fake aperture {ap}"))
+    out["ms3"] = (apertures, {"OBJECT": "fakestar", "AIRMASS": 1.3, "EXPTIME": 400.0})
+    return out

@@ -16,10 +16,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .flux import FNUZERO as FNUZERO_DEFAULT
 from .flux import Measurement, Standard
 
 COLUMNS = ("wavelength", "width", "magnitude", "flux", "counts", "airmass",
-           "star", "used", "wstart", "wend", "npts")
+           "star", "used", "wstart", "wend", "npts", "aperture", "image")
 
 HEADER = [
     "# harwood flux standard measurements.",
@@ -40,6 +41,8 @@ HEADER = [
     "#   wstart,wend the standard spectrum's first and last wavelengths, and",
     "#   npts        its length: sensfunc fits over that range and samples",
     "#               its output at the finest dispersion among them",
+    "#   aperture    which aperture of the spectrum",
+    "#   image       the spectrum, [object]-[sky] for a beam-switched pair",
     "#",
     "# The instrument's response at a band is",
     "#   2.5 log10( counts * 10^(0.4 k X) / flux )",
@@ -70,7 +73,8 @@ def append(path: Path | str, measurements: list[Measurement],
             item.star or "-", "1" if item.used else "0",
             "" if item.wstart is None else f"{item.wstart:.6f}",
             "" if item.wend is None else f"{item.wend:.6f}",
-            "" if item.npts is None else str(item.npts))))
+            "" if item.npts is None else str(item.npts),
+            str(item.aperture), _quoted(item.image))))
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -95,7 +99,7 @@ def read(path: Path | str) -> Standard:
             continue
         if not line or line.startswith("#") or line.startswith("wavelength"):
             continue
-        parts = [part.strip() for part in line.split(",")]
+        parts = _split(line)
         if len(parts) < 6:
             continue
         try:
@@ -108,6 +112,9 @@ def read(path: Path | str) -> Standard:
                 wstart=float(parts[8]) if len(parts) > 8 and parts[8] else None,
                 wend=float(parts[9]) if len(parts) > 9 and parts[9] else None,
                 npts=int(parts[10]) if len(parts) > 10 and parts[10] else None,
+                aperture=int(parts[11]) if len(parts) > 11 and parts[11] else 1,
+                image=parts[12] if len(parts) > 12 else "",
+                flambda=float(parts[3]) if parts[3] else None,
             ))
         except ValueError:
             continue
@@ -128,13 +135,15 @@ def read_iraf(text: str) -> Standard:
     exptime = airmass = 1.0
     w1 = w2 = None
     npts = None
-    star = ""
+    star = image = ""
+    aperture = 1
     for line in text.splitlines():
         line = line.strip()
         if not line:
             continue
         if line.startswith("["):
             parts = line.split()
+            image, aperture = parts[0], int(parts[1])
             npts = int(parts[2])
             exptime = float(parts[3]) if float(parts[3]) > 0 else 1.0
             airmass = float(parts[4])
@@ -149,5 +158,52 @@ def read_iraf(text: str) -> Standard:
         standard.measurements.append(Measurement(
             wavelength=wave, width=width, magnitude=magnitude,
             counts=counts / (exptime * width), airmass=airmass, star=star,
-            wstart=w1, wend=w2, npts=npts))
+            wstart=w1, wend=w2, npts=npts, aperture=aperture, image=image,
+            flambda=flam))
     return standard
+
+
+def _quoted(text: str) -> str:
+    return f'"{text}"' if "," in text or '"' in text else text
+
+
+def _split(line: str) -> list[str]:
+    import csv
+
+    return [part.strip() for part in next(csv.reader([line]))]
+
+
+def format_of(path: Path | str) -> str:
+    """'iraf' for a file IRAF's standard wrote, 'harwood' for harwood's."""
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    return "iraf" if text.lstrip().startswith("[") else "harwood"
+
+
+def append_iraf(path: Path | str, records) -> None:
+    """std_output: IRAF's own lines for each spectrum, appended."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        for record in records:
+            handle.write("\n".join(record.lines) + "\n")
+
+
+def measurements(record, fnuzero: float = FNUZERO_DEFAULT) -> list[Measurement]:
+    """One spectrum's bands (stdstar.Record) as harwood's file keeps them:
+    counts per second per Angstrom, the band skipped where nothing was
+    measured, as IRAF skips it."""
+    from .stdstar import flambda_of
+
+    obj = record.obj
+    image = f"[{obj.image}]" + (f"-[{record.sky.image}]" if record.sky is not None else "")
+    out = []
+    for wave, dwave, mag, total in zip(record.waves, record.dwaves, record.mags,
+                                       record.fluxes, strict=True):
+        if total == 0:
+            continue
+        out.append(Measurement(
+            float(wave), float(dwave), float(mag),
+            float(total) / (float(dwave) * float(obj.exptime)), float(obj.airmass),
+            record.star, wstart=obj.w0, wend=obj.wend, npts=obj.n, aperture=obj.ap,
+            image=image, flambda=float(flambda_of(mag, wave, fnuzero))))
+    return out

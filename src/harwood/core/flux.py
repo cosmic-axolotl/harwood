@@ -110,9 +110,14 @@ class Measurement:
     wstart: float | None = None  #: the standard spectrum's first wavelength
     wend: float | None = None    #: and its last
     npts: int | None = None      #: and its length
+    aperture: int = 1
+    image: str = ""              #: the spectrum measured ([obj]-[sky] for a pair)
+    flambda: float | None = None  #: the true flux as standard wrote it (its fnuzero)
 
     @property
     def flux(self) -> float:
+        if self.flambda is not None:
+            return self.flambda
         return magnitude_to_flux(self.magnitude, self.wavelength)
 
     def sensitivity(self, extinction: float = 0.0) -> float:

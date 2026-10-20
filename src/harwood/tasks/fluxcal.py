@@ -51,45 +51,96 @@ STDWHY = {
 
 
 class StandardParams(TaskParams):
-    input: str = Field(..., description="Calibrated spectrum of a standard star.")
+    input: str = Field(..., description="Wavelength-calibrated spectra of standard stars. "
+                                        "Commas, globs and @lists expand.")
     output: Path = Field(
         Path("std"),
         description="Where the measurements go. Appended to if it exists.",
         json_schema_extra={"positional": True},
     )
+    samestar: bool = Field(
+        True, description="The same star in every aperture, so its table is read "
+                          "once. Off, each aperture names its own (star_name in "
+                          "aperture order).")
+    beam_switch: bool = Field(
+        False, description="Beam-switched data: each aperture comes as an object "
+                           "(OFLAG 1) and a sky (OFLAG 0), in either order, and the sky "
+                           "is subtracted. Implies samestar.")
+    apertures: str = Field("", description="Apertures to measure, as a range list: "
+                                           "'1,3-5'. Empty is all.")
+    bandwidth: float | None = Field(
+        None, gt=0, description="Measure in bands of this width (Angstroms) instead of "
+                                "the table's, their magnitudes interpolated in it.")
+    bandsep: float | None = Field(
+        None, gt=0, description="The distance between those bands' centres. Left out, "
+                                "the bandwidth.")
+    fnuzero: float = Field(3.68e-20, gt=0,
+                           description="The flux per hertz of magnitude zero, which "
+                                       "turns the table's magnitudes into fluxes.")
     star_name: str = Field(
         "",
         description="The standard's name, as the calibration directory spells "
-                    "it. Read from the OBJECT keyword when left out.",
+                    "it. Read from the OBJECT keyword when left out. With samestar "
+                    "off, one per aperture, comma-separated.",
     )
     caldir: str = Field(
         "spec50cal",
         description="Which calibration directory: spec50cal, spec16cal, "
-                    "oke1990, iidscal. 'harwood standards' lists them.",
+                    "oke1990, iidscal, blackbody... or a directory of your own. "
+                    "'harwood standards' lists them.",
     )
     extinction: str = Field(
         "onedstds$kpnoextinct.dat",
-        description="Extinction curve for the site. Recorded now, applied by "
-                    "sensfunc.",
+        description="Extinction curve for the site. Each pixel is corrected for "
+                    "the difference from the band's centre here; the rest is "
+                    "sensfunc's.",
     )
+    observatory: str = Field(
+        "", description="Where the spectra were taken, for an airmass worked out "
+                        "from RA, DEC and HA (or ST) when the header has none. Left "
+                        "out, the header's OBSERVAT, then the project's default.")
     airmass: float | None = Field(
-        None, gt=0,
-        description="Airmass of the exposure. Read from the header when left "
-                    "out -- setairmass puts the effective one there.",
+        None, ge=1,
+        description="Airmass for a spectrum whose header has none and gives no way "
+                    "to work it out. As IRAF does, it is then written into that "
+                    "spectrum's header.",
     )
     exptime: float | None = Field(
-        None, gt=0, description="Exposure time. Read from the header when left out."
-    )
-    aperture: int = Field(1, ge=1, description="Which aperture to measure.")
+        None, gt=0, description="Exposure time for a spectrum whose header has none; "
+                                "written into the header, as IRAF does.")
+    mag: float | None = Field(None, description="A blackbody calibration (caldir "
+                                                "blackbody): the star's magnitude.")
+    magband: str = Field("", description="The band of that magnitude: U B V R I J H "
+                                         "K L Lprime M. Converted to the table's band "
+                                         "through the star's colours.")
+    teff: str = Field("", description="The blackbody's temperature (9500) or the "
+                                      "star's spectral type (A0V).")
+    interact: bool = Field(
+        False, description="Show each spectrum with its bands to add some (a at both "
+                           "ends) or delete some (d), q to go on. Bands changed stay "
+                           "changed for that aperture's next spectrum, as in IRAF. "
+                           "Off by default here, on in IRAF.")
+    cursor: Path | None = Field(
+        None, description="With interact, the keys from a file instead of the window: "
+                          "'wavelength y 1 key' per line, IRAF's cursor file.")
+    answer: Literal["no", "yes", "N", "Y", "NO", "YES", "NO!", "YES!"] = Field(
+        "yes", description="IRAF's answer to 'Edit bandpasses?', given once for every "
+                           "spectrum.")
     edge: float = Field(
         0.0, ge=0,
         description="Ignore this many Angstroms at each end of the spectrum, "
-                    "where the response falls off.",
+                    "where the response falls off. harwood's; IRAF has none.",
     )
+    format: Literal["harwood", "iraf"] = Field(
+        "harwood", description="The file written: harwood's annotated CSV, or IRAF's "
+                               "own text, which IRAF's sensfunc reads. An existing file "
+                               "keeps its format.")
 
 
 @register
 class StandardTask(Task[StandardParams]):
+    """IRAF's standard, noao/onedspec/t_standard.x: core/stdstar.py."""
+
     name = "standard"
     package = "onedspec"
     description = "Measure a flux standard in bands, against its known flux."
@@ -99,102 +150,124 @@ class StandardTask(Task[StandardParams]):
         return [
             Step("star", params.star_name or "from the OBJECT keyword",
                  why=STDWHY["star"]),
-            Step("bands", "integrate the spectrum over each band",
-                 why=STDWHY["bands"]),
+            Step("bands", "integrate the spectrum over each band" + (
+                 f", {params.bandwidth:g} A every {params.bandsep or params.bandwidth:g} A"
+                 if params.bandwidth else ""), why=STDWHY["bands"]),
             Step("airmass", "recorded with each band", why=STDWHY["airmass"]),
             Step("write", str(params.output), why=STDWHY["write"]),
         ]
 
     def execute(self, params: StandardParams) -> TaskResult:
-        from astropy.io import fits
+        from ..core import flux, images, ranges, stdfile, stdstar
 
-        from ..core import flux, spectrum, stdfile
-
-        found = spectrum.read(params.input, number=params.aperture)
-        if not found:
-            advice.fail(
-                f"'{params.input}' has no aperture {params.aperture}; it holds "
-                f"{spectrum.count(params.input)}.",
-                "use --aperture with a number in that range.")
-        aperture = found[0]
-        if aperture.wavelength is None or not any(aperture.wavelength):
-            advice.fail(
-                f"'{params.input}' is still in pixels. A flux standard has to "
-                "be wavelength-calibrated first, or there is no way to know "
-                "which band each count belongs to.",
-                "run dispcor on it. That needs a dispersion solution, so "
-                "identify on an arc comes before it.")
-
-        header = fits.getheader(params.input)
-        name = params.star_name or str(header.get("OBJECT", "")).strip()
-        if not name:
-            advice.fail(
-                "the header has no OBJECT keyword, so the standard cannot be "
-                "named from the file.",
-                "give --star-name. 'harwood standards <caldir>' lists the "
-                "names each calibration directory uses.")
-
-        path = flux.find_star(name, params.caldir)
-        if path is None:
-            advice.fail(*_no_such_star(name, params.caldir))
-
-        airmass = params.airmass or _header_number(header, "AIRMASS")
-        exptime = params.exptime or _header_number(header, "EXPTIME", "ITIME")
-        if airmass is None:
-            advice.fail(
-                "no airmass. Without it the extinction cannot be removed, and "
-                "a standard observed at 1.8 airmasses looks like an instrument "
-                "30 per cent less sensitive than it is.",
-                "give --airmass, or run setairmass to put the effective one in "
-                "the header.")
-        if exptime is None:
-            advice.fail(
-                "no exposure time. Counts per second is the only form that can "
-                "be compared between exposures.",
-                "give --exptime, or put EXPTIME in the header with hedit.")
-
-        bands = flux.read_bands(path)
-        # IRAF's standard corrects each pixel for the extinction difference
-        # from the band's centre, so the curve is needed here already.
+        names = [str(spec) for spec in images.expand(params.input)]
+        if not names:
+            advice.fail(f"'{params.input}' matches nothing.",
+                        "check the path; 'harwood sections' shows what a template "
+                        "expands to.", FileNotFoundError)
+        selected = ranges.parse(params.apertures)
         curve = flux.read_extinction(params.extinction) if params.extinction else None
-        measured = flux.measure(aperture, bands, exptime, airmass,
-                                star=name, edge=params.edge, curve=curve)
-        if not measured:
-            advice.fail(*_no_overlap(aperture, bands, name, path))
+        ext = stdstar.Extinction(curve)
+        latitude = _latitude(params)
+        notes: list[str] = []
+        header_writes: list[str] = []
+        spectra = []
+        for name in names:
+            spectra.extend(_spectra(name, selected, params, latitude, header_writes))
+        if not spectra:
+            advice.fail(f"no aperture of {', '.join(names)} is in '{params.apertures}'.",
+                        "give --apertures as a range of the apertures the files hold.")
+
+        names_given = [n.strip() for n in params.star_name.split(",") if n.strip()]
+        asked: list[str] = []
+
+        def calibration(ap: int):
+            spec = next(s for s in spectra if s.ap == ap)
+            if names_given:
+                star = names_given[min(len(asked), len(names_given) - 1)]
+            else:
+                star = spec.object
+            asked.append(star)
+            if not star:
+                advice.fail(
+                    f"{spec.image} has no OBJECT keyword, so the standard cannot be "
+                    "named from the file.",
+                    "give --star-name. 'harwood standards <caldir>' lists the names "
+                    "each calibration directory uses.")
+            try:
+                cal = stdstar.read_calibration(params.caldir, star, params.mag,
+                                               params.magband, params.teff)
+            except LookupError:
+                advice.fail(*_no_such_star(star, params.caldir))
+            cal.star = star
+            return cal
+
+        cursor = None
+        if params.interact:
+            if params.cursor is not None:
+                if not Path(params.cursor).exists():
+                    advice.fail(f"cursor file '{params.cursor}' does not exist",
+                                "write 'wavelength y 1 key' lines, or leave --cursor "
+                                "out for the window.", FileNotFoundError)
+                cursor = stdstar.CursorFile(params.cursor)
+            else:
+                from ..viewer.standard_panel import WindowCursor
+
+                cursor = WindowCursor()
+        records = stdstar.run(
+            spectra, ext, calibration, samestar=params.samestar,
+            beam_switch=params.beam_switch, bandwidth=params.bandwidth,
+            bandsep=params.bandsep, interact=params.interact,
+            answer=lambda spec: params.answer, cursor=cursor, fnuzero=params.fnuzero,
+            edge=params.edge, say=notes.append)
+        written = [r for r in records if any(f != 0 for f in r.fluxes)]
+        if not written:
+            first = spectra[0]
+            cal = calibration(first.ap)
+            advice.fail(*_no_overlap(first, cal, asked[-1]))
+
+        output = Path(params.output)
+        kind = stdfile.format_of(output) if output.exists() else params.format
+        existing = stdfile.read(output) if output.exists() else None
+        if kind == "iraf":
+            stdfile.append_iraf(output, records)
+        else:
+            stdfile.append(output, [m for r in records
+                                    for m in stdfile.measurements(r, params.fnuzero)],
+                           params.extinction, params.caldir)
+        total = stdfile.read(output)
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
+        stars = sorted({r.star for r in records})
         by_action["star"].measured = {
-            "star": name,
-            "table": f"{params.caldir}/{path.name}",
-            "bands in the table": len(bands),
-            "covering": f"{bands[0].wavelength:.0f} to "
-                        f"{bands[-1].wavelength:.0f} A",
+            "star": ", ".join(stars),
+            "table": ", ".join(sorted({f"{params.caldir}/{r.table.name}"
+                                       for r in records if r.table})),
         }
+        bands_written = sum(1 for r in records for f in r.fluxes if f != 0)
         by_action["bands"].measured = {
-            "bands measured": f"{len(measured)} of {len(bands)}",
-            "spectrum covers": f"{min(aperture.wavelength):.0f} to "
-                               f"{max(aperture.wavelength):.0f} A",
-            "band width": f"{measured[0].width:.0f} A",
+            "spectra": len(records),
+            "apertures": ", ".join(str(a) for a in sorted({r.obj.ap for r in records})),
+            "bands measured": bands_written,
         }
         by_action["airmass"].measured = {
-            "airmass": f"{airmass:.4f}",
-            "exposure": f"{exptime:.1f} s",
+            "airmass": ", ".join(sorted({f"{r.obj.airmass:.3f}" for r in records})),
+            "exposure": ", ".join(sorted({f"{r.obj.exptime:.1f} s" for r in records})),
             "extinction curve": params.extinction,
         }
-
-        existing = stdfile.read(params.output) if Path(params.output).exists() else None
-        total = stdfile.append(params.output, measured, params.extinction,
-                               params.caldir)
+        if header_writes:
+            by_action["airmass"].measured["written to headers"] = "; ".join(header_writes)
         by_action["write"].measured = {
-            "bands in this run": len(measured),
-            "bands in the file": total,
-            "stars in the file": len({item.star for item
-                                      in stdfile.read(params.output).measurements}),
+            "format": kind,
+            "bands in this run": bands_written,
+            "bands in the file": len(total),
+            "stars in the file": len({item.star for item in total.measurements}),
         }
 
         warnings = []
-        if existing and existing.extinction_name != params.extinction:
+        if existing and kind == "harwood" and existing.extinction_name and \
+                existing.extinction_name != params.extinction:
             warnings.append(advice.problem(
                 f"the file already uses the extinction curve "
                 f"'{existing.extinction_name}' and this run gives "
@@ -203,28 +276,142 @@ class StandardTask(Task[StandardParams]):
                 f"start a separate standards file for the other site, or re-run "
                 f"with --extinction {existing.extinction_name} if that is the "
                 "right curve for all of them."))
-        negative = [item for item in measured if item.counts <= 0]
+        if params.format != kind:
+            warnings.append(advice.note(
+                f"'{output}' is already in {kind}'s format, so these bands were added "
+                f"in it rather than in {params.format}'s.",
+                "give another --output to start a file in the other format."))
+        negative = sum(1 for r in records for f in r.fluxes if f < 0)
         if negative:
             warnings.append(advice.note(
-                f"{len(negative)} bands have no positive counts and will drop "
+                f"{negative} bands have no positive counts and will drop "
                 "out of the fit. That is usually the ends of the spectrum, "
                 "where the response has fallen to nothing.",
                 "nothing, if they are at the ends. If they are not, trim the "
                 "ends with --edge, in Angstroms, and look at the extraction."))
+        for message in notes:
+            if "not found" in message and "Effective temperature" not in message:
+                warnings.append(advice.warn(
+                    message + ": beam-switched data come in object and sky pairs, "
+                              "and this one has no partner, so it was not measured.",
+                    "check the OFLAG keywords (1 object, 0 sky) and that every "
+                    "object has its sky in the list."))
 
+        rows = [{"spectrum": f"{r.obj.image}({r.obj.ap})", "wavelength": round(float(w), 2),
+                 "width": round(float(d), 3), "magnitude": round(float(m), 3),
+                 "counts": f"{float(f):.5g}"}
+                for r in records for w, d, m, f in zip(r.waves, r.dwaves, r.mags,
+                                                       r.fluxes, strict=True) if f != 0]
         return TaskResult(
-            outputs=[Path(params.output)],
+            outputs=[output],
             steps=steps,
             warnings=warnings,
-            data={"rows": [{"wavelength": round(item.wavelength, 1),
-                            "width": round(item.width, 1),
-                            "magnitude": round(item.magnitude, 3),
-                            "flux": f"{item.flux:.4g}",
-                            "counts/s/A": f"{item.counts:.5g}"}
-                           for item in measured]},
-            history=[f"standard: {name} from {params.caldir}, {len(measured)} "
-                     f"bands at airmass {airmass:.3f}"],
+            data={"rows": rows, **({"text": notes} if notes else {})},
+            history=[f"standard: {', '.join(stars)} from {params.caldir}, "
+                     f"{bands_written} bands from {len(records)} spectra"],
         )
+
+
+def _latitude(params) -> float | None:
+    from ..core import observatory
+
+    site = observatory.find(params.observatory) if params.observatory else None
+    if params.observatory and site is None:
+        advice.fail(f"unknown observatory '{params.observatory}'.",
+                    "'harwood observatory list' shows the sites harwood knows.")
+    if site is None:
+        site = observatory.default()
+    return None if site is None else site.latitude
+
+
+def _spectra(name: str, selected, params, latitude, writes: list[str]) -> list:
+    """shdr_open for each selected aperture of one file: the header's
+    exposure time, airmass (or the one worked out, or the one given), OFLAG
+    and EX-FLAG."""
+    import numpy as np
+    from astropy.io import fits
+
+    from ..core import observatory, spectrum, stdstar
+
+    apertures = spectrum.read(name)
+    if apertures[0].wavelength is None or not np.any(apertures[0].wavelength):
+        advice.fail(
+            f"'{name}' is still in pixels. A flux standard has to "
+            "be wavelength-calibrated first, or there is no way to know "
+            "which band each count belongs to.",
+            "run dispcor on it. That needs a dispersion solution, so "
+            "identify on an arc comes before it.")
+    header = fits.getheader(name)
+    exptime = _header_real(header, "EXPOSURE")
+    for keyword in ("ITIME", "EXPTIME"):
+        exptime = _header_real(header, keyword, exptime)
+    if exptime is None:
+        if params.exptime is None:
+            advice.fail(
+                f"{name}: no exposure time. Counts per second is the only form that "
+                "can be compared between exposures.",
+                "give --exptime (it is then written into the header), or put "
+                "EXPTIME there with hedit.")
+        exptime = params.exptime
+        _write_keyword(name, "EXPTIME", exptime)
+        writes.append(f"{name} EXPTIME={exptime:g}")
+    airmass = _header_real(header, "AIRMASS")
+    if airmass is not None and airmass < 1:
+        airmass = None
+    if airmass is None:
+        lat = latitude
+        if lat is None:
+            site = observatory.from_header(header)
+            lat = site.latitude if site is not None else None
+        if lat is not None:
+            airmass = stdstar.airmass(*(_header_real(header, k)
+                                        for k in ("RA", "DEC", "HA", "ST")), lat)
+    if airmass is None:
+        if params.airmass is None:
+            advice.fail(
+                f"{name}: no airmass, and no RA, DEC and HA (or ST) to work one out. "
+                "Without it the extinction cannot be removed, and a standard "
+                "observed at 1.8 airmasses looks like an instrument 30 per cent "
+                "less sensitive than it is.",
+                "give --airmass (it is then written into the header), or run "
+                "setairmass to put the effective one there.")
+        airmass = params.airmass
+        _write_keyword(name, "AIRMASS", airmass)
+        writes.append(f"{name} AIRMASS={airmass:g}")
+    oflag = int(_header_real(header, "OFLAG", stdstar.OBJECT))
+    ec = int(_header_real(header, "EX-FLAG", stdstar.ECNO))
+    obj = str(header.get("OBJECT", "")).strip()
+    out = []
+    for aperture in apertures:
+        if aperture.number not in selected:
+            continue
+        spec = stdstar.Spectrum(
+            name, aperture.number, aperture.title or obj, aperture.wavelength,
+            aperture.flux, float(np.float32(airmass)), float(np.float32(exptime)),
+            oflag, ec, f"[SPEC,{aperture.number}]" if len(apertures) > 1 else "", obj)
+        out.append(spec)
+    return out
+
+
+def _header_real(header, keyword: str, default=None):
+    """shdr_gr: imgetr of the keyword (sexagesimal read as IRAF reads it),
+    or the default."""
+    from ..core.iraffmt import INDEF, ctod
+
+    value = header.get(keyword)
+    if value is None or isinstance(value, bool):
+        return default
+    number = ctod(str(value))
+    if number is None or abs(number) >= INDEF:
+        return default
+    return float(number)
+
+
+def _write_keyword(name: str, keyword: str, value: float) -> None:
+    from astropy.io import fits
+
+    with fits.open(name, mode="update") as hdul:
+        hdul[0].header[keyword] = (float(value), "added by standard")
 
 
 SENSWHY = {
@@ -520,6 +707,18 @@ class Calibrate(Task[CalibrateParams]):
                 "run dispcor on it first.")
 
         header = fits.getheader(params.input)
+        # t_calibrate: what the header says is done is not done again.
+        doextinct = params.extinct and int(header.get("EX-FLAG", -1)) != 0
+        doflux = params.flux and int(header.get("CA-FLAG", -1)) != 0
+        if not (doextinct or doflux):
+            advice.fail(f"[{params.input}] is already calibrated: its header has "
+                        "EX-FLAG and CA-FLAG 0.",
+                        "calibrate the spectrum before calibration, or set the flag "
+                        "back with hedit if it is wrong.")
+        already = [what for what, asked, done in (("extinction", params.extinct, doextinct),
+                                                  ("flux", params.flux, doflux))
+                   if asked and not done]
+        params = params.model_copy(update={"extinct": doextinct, "flux": doflux})
         airmass = params.airmass or _header_number(header, "AIRMASS")
         exptime = params.exptime or _header_number(header, "EXPTIME", "ITIME")
         if exptime is None:
@@ -621,7 +820,12 @@ class Calibrate(Task[CalibrateParams]):
                 f"trust the spectrum only between {covered[0]:.0f} and "
                 f"{covered[1]:.0f} A, or run standard on a calibration star "
                 "whose spectrum reaches further."))
-        if not params.flux:
+        if already:
+            warnings.append(advice.note(
+                f"the {' and '.join(already)} correction was already applied "
+                "(the header's flags say so), so it was not applied again.",
+                "nothing, unless the flag is wrong; hedit can set it."))
+        if not params.flux and "flux" not in already:
             warnings.append(advice.note(
                 "--no-flux was given, so this spectrum is extinction-corrected "
                 "counts, not flux. It is comparable between exposures of the "
@@ -630,9 +834,16 @@ class Calibrate(Task[CalibrateParams]):
                 "--no-flux, to get a physical flux."))
 
         destination = params.output or output.named_for(params.input, ".f.fits")
-        extra = fits.Header()
+        extra = header.copy()          # IRAF: NEW_COPY of the input
         unit = (flux.FNU_UNIT if params.fnu else flux.FLUX_UNIT) if params.flux else "counts"
         extra["BUNIT"] = (unit, "what the flux column is in")
+        for keyword in ("EX-FLAG", "CA-FLAG"):
+            if keyword in header:
+                extra[keyword] = header[keyword]
+        if params.extinct:
+            extra["EX-FLAG"] = (0, "extinction corrected (IRAF's flag)")
+        if params.flux:
+            extra["CA-FLAG"] = (0, "flux calibrated (IRAF's flag)")
         spectrum.write(destination, apertures, header=extra,
                        source=str(params.input))
 
@@ -678,13 +889,13 @@ def _no_such_star(name: str, caldir: str) -> tuple[str, str]:
              "lists them."))
 
 
-def _no_overlap(aperture, bands, name: str, path) -> tuple[str, str]:
-    """The spectrum and the standard's table do not meet."""
+def _no_overlap(spec, cal, name: str) -> tuple[str, str]:
+    """The spectra and the standard's table do not meet."""
     return (
         f"none of {name}'s calibration bands falls inside the spectrum. The "
-        f"table covers {bands[0].wavelength:.0f} to {bands[-1].wavelength:.0f} "
-        f"A and the spectrum covers {min(aperture.wavelength):.0f} to "
-        f"{max(aperture.wavelength):.0f} A. A band has to be wholly inside the "
+        f"table covers {min(cal.waves):.0f} to {max(cal.waves):.0f} "
+        f"A and the spectrum covers {min(spec.wave):.0f} to "
+        f"{max(spec.wave):.0f} A. A band has to be wholly inside the "
         "spectrum to be measured, since a partly covered band looks like a "
         "fainter star.",
         "check the dispersion solution put the spectrum where you expect, then "
