@@ -27,8 +27,10 @@ import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 
-#: Where IRAF keeps its translation files, when IRAF is installed alongside.
+#: Where `ccddb$` is looked for: harwood's own copy of IRAF's translations
+#: first, then an installed IRAF, for a file someone has added to theirs.
 IRAF_CCDDB = (
+    Path(__file__).resolve().parent.parent / "data" / "iraf" / "ccddb",
     # Lower case on purpose: `iraf` is the name IRAF itself sets.
     Path(os.environ.get("iraf", "/usr/lib/iraf")) / "noao" / "imred" / "ccdred" / "ccddb",  # noqa: SIM112
     Path("/usr/share/iraf/noao/imred/ccdred/ccddb"),
@@ -124,9 +126,9 @@ def resolve(name: str | Path) -> Path:
             if candidate.is_file():
                 return candidate
         raise FileNotFoundError(
-            f"'{text}' needs IRAF's instrument files. Looked in "
-            f"{', '.join(str(d) for d in IRAF_CCDDB)}. Give a path instead, "
-            "or install iraf-noao."
+            f"there is no translation '{rest}' under ccddb$. "
+            "`harwood setinstrument --list-available` shows them all; or give "
+            "the path of a file of your own."
         )
     path = Path(text)
     if path.is_file():
@@ -189,8 +191,10 @@ def installed() -> dict[str, list[str]]:
             if child.is_dir():
                 names = sorted(p.stem for p in child.glob("*.dat"))
                 if names:
-                    found.setdefault(child.name, []).extend(names)
-    return found
+                    # The same file in harwood's copy and in an IRAF: once.
+                    have = found.setdefault(child.name, [])
+                    have.extend(n for n in names if n not in have)
+    return {place: sorted(names) for place, names in found.items()}
 
 
 def from_project(start: Path | None = None) -> Instrument:

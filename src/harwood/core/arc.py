@@ -17,8 +17,11 @@ from pathlib import Path
 
 import numpy as np
 
-#: Where IRAF keeps its line lists, when IRAF is installed alongside.
+#: Where `linelists$` is looked for: harwood's own copy of IRAF's lists first,
+#: so the answer is the same on every machine, then an installed IRAF, for a
+#: list someone has added to theirs.
 IRAF_LINELISTS = (
+    Path(__file__).resolve().parent.parent / "data" / "iraf" / "linelists",
     # Lower case on purpose: `iraf` is the name IRAF itself sets.
     Path(os.environ.get("iraf", "/usr/lib/iraf")) / "noao" / "lib" / "linelists",  # noqa: SIM112
     Path("/usr/share/iraf/noao/lib/linelists"),
@@ -37,9 +40,8 @@ class Peak:
 def resolve_linelist(name: str | Path) -> Path:
     """Find a line list, accepting IRAF's ``linelists$thorium.dat`` syntax.
 
-    Section 4 wants the calibration data shipped with harwood; until the
-    licences of IRAF's own lists have been checked, an installed IRAF is used
-    when it is there, which is the common case for someone migrating.
+    IRAF's lists ship with harwood (data/iraf/linelists), so no IRAF is
+    needed; see IRAF_LINELISTS for the order they are looked in.
     """
     text = str(name)
     if "$" in text:
@@ -50,10 +52,10 @@ def resolve_linelist(name: str | Path) -> Path:
             candidate = directory / filename
             if candidate.is_file():
                 return candidate
+        known = sorted(p.name for p in IRAF_LINELISTS[0].glob("*.dat"))
         raise FileNotFoundError(
-            f"'{text}' needs IRAF's line lists. Looked in "
-            f"{', '.join(str(d) for d in IRAF_LINELISTS)}. Give a path instead, "
-            "or install iraf-noao."
+            f"there is no line list '{filename}' under linelists$. The lists "
+            f"are: {', '.join(known)}. Or give the path of a list of your own."
         )
     path = Path(text)
     if not path.is_file():

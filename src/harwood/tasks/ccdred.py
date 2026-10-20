@@ -10,8 +10,9 @@ and are usually the first thing a hand-rolled script loses:
   `ZEROCOR`, and running ccdproc again skips that step instead of subtracting
   the bias twice. Doing that to a night of data is silent and unrecoverable.
 
-The algorithms come from `ccdproc` the Python package; what is written here is
-the ordering, the header bookkeeping and the provenance.
+The arithmetic is IRAF's ccdproc, ported (the overscan fit is icfit, as in
+IRAF) and checked against IRAF's own output on the M92 frames; the community
+`ccdproc` package is not used.
 """
 
 from __future__ import annotations
@@ -759,9 +760,10 @@ class SetInstrument(Task[SetInstrumentParams]):
                     for place, names in sorted(found.items())]
             if not rows:
                 raise RuntimeError(
-                    "no instrument translations found. harwood does not ship them "
-                    "yet; install iraf-noao, or write a file of your own -- two "
-                    "columns, 'parameter keyword' or 'HEADER-VALUE imagetype'."
+                    "no instrument translations found, not even harwood's own "
+                    "copy of IRAF's (data/iraf/ccddb): the installation is "
+                    "incomplete. Reinstall harwood, or write a file of your own -- "
+                    "two columns, 'parameter keyword' or 'HEADER-VALUE imagetype'."
                 )
             if not params.instrument:
                 return TaskResult(data={"rows": rows},

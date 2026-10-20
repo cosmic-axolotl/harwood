@@ -1,0 +1,22 @@
+IRAF's own data tables, shipped with harwood so that it never needs IRAF
+installed -- or available anywhere -- to run.
+
+  linelists/   laboratory wavelengths of arc lamps (thar, henear, cuar...),
+               read as linelists$thar.dat
+  onedstds/    flux standards (spec50cal, spec16cal, oke1990...) and
+               extinction curves (kpnoextinct.dat...), read as onedstds$...
+  ccddb/       instrument header translations, read as ccddb$kpno/direct.dat
+
+Copied unchanged from IRAF 2.18.1 (iraf-community; the Ubuntu packages
+iraf 2.18.1-2build1 and iraf-noao 2.18.1-2build1) on 2026-10-20, from
+noao/lib/linelists, noao/lib/onedstds and noao/imred/ccdred/ccddb. The cl
+scripts that sat beside them (airvac.cl, mkbbcal.cl, the ccddb *.cl
+package settings) were left out: harwood reads the tables, not the scripts.
+
+The tables are measurements made by others and distributed with IRAF -- the
+standards are Oke's, Hayes', Massey's and the rest, as the files themselves
+say. They are not edited here: a standard star's flux reproduced by hand is a
+flux with a new error in it.
+
+Copyright (c) 1986 Association of Universities for Research in Astronomy Inc.
+Redistributed under the IRAF licence: see LICENSES/IRAF-COPYRIGHT.

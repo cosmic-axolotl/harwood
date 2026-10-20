@@ -284,7 +284,7 @@ tasks:
   setairmass: {pkg: [astutil, onedspec], domain: headers, status: partial, milestone: mvp, harwood: setairmass,
     note: "effective airmass by Simpson's rule over the exposure, plus UTMIDDLE and JD; a built-in observatory table rather than IRAF's obsdb.dat, and no separate intype/outtype coordinate conversions"}
   setinstrument: {pkg: imred.ccdred, domain: headers, status: partial, milestone: mvp, harwood: setinstrument,
-    note: "chooses a header translation and records it in the project; reads IRAF's own ccddb files, but harwood ships none of its own yet"}
+    note: "chooses a header translation and records it in the project, from IRAF's ccddb files, which ship with harwood; the ccdred package settings IRAF's *.cl files also made are not applied"}
   setjd: {pkg: [astutil, onedspec], domain: headers, status: partial, milestone: mvp, harwood: setjd,
     note: "julian, heliocentric (or barycentric) and local julian dates at mid-exposure,
            written to the header with the correction recorded in HISTORY."}
@@ -1017,7 +1017,8 @@ tasks:
   fcache: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   gripes: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   head: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
-  help: {pkg: system, domain: system, status: planned, milestone: mvp, note: the manual half of S3.2}
+  help: {pkg: system, domain: system, status: planned, milestone: mvp,
+    note: "harwood help <task> prints the manual -- the text of the task's page in the documentation (harwood docs); IRAF's help as a task of its own, with its parameters, is not built"}
   lprint: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   mkdir: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   mkscript: {pkg: system, domain: system, status: wontport,

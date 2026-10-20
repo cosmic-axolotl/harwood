@@ -55,8 +55,11 @@ LIGHT = 2.997925e18
 #: What a calibrated flux is in. Written to the header as BUNIT.
 FLUX_UNIT = "erg/cm2/s/angstrom"
 
-#: Where IRAF keeps its standard stars and extinction curves.
+#: Where `onedstds$` is looked for: harwood's own copy of IRAF's standards
+#: and extinction curves first, then an installed IRAF, for a file someone has
+#: added to theirs.
 IRAF_STANDARDS = (
+    Path(__file__).resolve().parent.parent / "data" / "iraf" / "onedstds",
     # Lower case on purpose: `iraf` is the name IRAF itself sets.
     Path(os.environ.get("iraf", "/usr/lib/iraf")) / "noao" / "lib" / "onedstds",  # noqa: SIM112
     Path("/usr/share/iraf/noao/lib/onedstds"),
@@ -163,9 +166,8 @@ def flux_to_magnitude(flux: float, wavelength: float,
 def resolve(name: str | Path, caldir: str = "") -> Path:
     """Find a standard star or extinction file, IRAF's `onedstds$` accepted.
 
-    Section 4 wants these shipped with harwood; until their provenance has
-    been checked one by one they are read from an installed IRAF, which is the
-    common case for somebody migrating.
+    IRAF's tables ship with harwood (data/iraf/onedstds), so no IRAF is
+    needed; see IRAF_STANDARDS for the order they are looked in.
     """
     text = str(name)
     if "$" in text:
@@ -180,10 +182,9 @@ def resolve(name: str | Path, caldir: str = "") -> Path:
             if candidate.is_file():
                 return candidate
         advice.fail(
-            f"'{text}' needs IRAF's calibration files, and none were found. "
-            f"Looked in {', '.join(str(root) for root in IRAF_STANDARDS)}.",
-            "install iraf-noao, or give a path to the file instead of the "
-            "onedstds$ shorthand.", FileNotFoundError)
+            f"there is no '{filename}' under onedstds$.",
+            "`harwood standards` lists the calibration directories and their "
+            "stars; or give the path of a file of your own.", FileNotFoundError)
 
     path = Path(text)
     if path.is_file():
