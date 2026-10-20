@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 32, partial: 20, planned: 303, replaced: 94, wontport: 161
+#   available: 33, partial: 19, planned: 303, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -599,8 +599,8 @@ tasks:
   stdplot: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   surface: {pkg: plot, domain: display, status: planned, milestone: later}
-  tvmark: {pkg: images.tv, domain: display, status: partial, milestone: mvp, harwood: display,
-    note: "display --coords marks a coordinate list over the image; marking with the cursor and writing the marks back out are not built"}
+  tvmark: {pkg: images.tv, domain: display, status: available, milestone: mvp, harwood: tvmark,
+    note: "IRAF's parameters, marks (point, circle, rectangle, plus, cross, none), numbers and labels; the cursor keys and colon commands, logfile/autolog, command files, a and d updating the list, deletions, and the snapshot as the frame's grey levels with the marks at their colour (or a PNG). Marks are harwood's own raster, IRAF's sizes"}
   velvect: {pkg: plot, domain: display, status: planned, milestone: later}
   window: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}

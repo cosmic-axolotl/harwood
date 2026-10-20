@@ -301,6 +301,251 @@ def display_limits(params: DisplayParams, data, header):
     return z1, z2, table, notes
 
 
+class TvMarkParams(TaskParams):
+    frame: int = Field(1, ge=1, description="Frame to mark.",
+                       json_schema_extra={"positional": True})
+    coords: str = Field("", description="Objects to mark: x and y in columns 1 and 2, "
+                                        "a label in column 3 (a daofind .coo works).",
+                        json_schema_extra={"positional": True})
+    image: str = Field(
+        "", description="Image to display in the frame first. Without it the frame must "
+                        "already hold one (display it, in the same session).")
+    logfile: str = Field("", description="File the cursor commands are logged to, in "
+                                         "the form --commands reads back.")
+    autolog: bool = Field(False, description="Log every command, not only those kept "
+                                             "with k.")
+    outimage: str = Field(
+        "", description="Snapshot of the marked frame: FITS of its grey levels (1-200, "
+                        "marks at their colour), or a .png picture. Written at the end "
+                        "when marking the whole list; :write makes one any time.")
+    deletions: str = Field(
+        "", description="Extension of the file the deleted objects go to: coords.<ext>. "
+                        "Empty keeps no such file.")
+    commands: str = Field(
+        "", description="Cursor commands to run instead of marking the whole list: "
+                        "'x y frame key' or 'x y frame :command' per line -- a logfile "
+                        "of an earlier run works.")
+    mark: Literal["point", "circle", "rectangle", "line", "plus", "cross", "none"] = Field(
+        "point", description="The mark drawn on each object.")
+    radii: str = Field("0", description="Radii of the concentric circles, in image pixels: "
+                                        "'5,10,20'.")
+    lengths: str = Field("0", description="Lengths of the concentric rectangles, and their "
+                                          "width/length after a blank: '10,20 0.5'.")
+    font: str = Field("raster", description="The font; raster is the only one, as in IRAF.")
+    color: int = Field(255, ge=0, le=255, description="Colour of the marks: IMTOOL's 202 "
+                                                      "black, 203 white, 204 red, 205 "
+                                                      "green, 206 blue, 207 yellow, 208 "
+                                                      "cyan, 209 magenta ... 217 wheat.")
+    label: bool = Field(False, description="Write each object's label (column 3) beside it.")
+    number: bool = Field(False, description="Write each object's number in the list.")
+    nxoffset: int = Field(0, description="Offset of the numbers in x, in pixels.")
+    nyoffset: int = Field(0, description="Offset of the numbers in y, in pixels.")
+    pointsize: int = Field(3, ge=1, description="Size of a point mark, rounded up to odd.")
+    txsize: int = Field(1, ge=1, description="Size of text, numbers, + and x, in font cells "
+                                             "of 6 x 7 pixels.")
+    tolerance: float = Field(1.5, gt=0, description="How near the cursor an object must be "
+                                                    "for d to delete it.")
+    interactive: bool = Field(False, description="Mark with the cursor in the window: ? "
+                                                 "lists the keys, q ends.")
+
+
+@register
+class TvMark(Task[TvMarkParams]):
+    """IRAF's tvmark: objects from a list marked on a displayed frame, with
+    the cursor or a command file, and the marked frame saved as an image.
+
+    The marks are overlays on harwood's window; the snapshot draws them into
+    the frame's grey levels -- the levels display computes, 1 to 200 -- at
+    their colour number, so `display snap.fits --ztrans none` shows it as
+    IRAF shows its snap. Every key and colon command goes through one
+    engine, so a logfile replayed with --commands draws what the cursor did."""
+
+    name = "tvmark"
+    package = "tv"
+    description = "Mark objects from a coordinate list on a displayed frame."
+    Params = TvMarkParams
+
+    def plan(self, params: TvMarkParams) -> list[Step]:
+        how = ("with the cursor" if params.interactive else
+               f"the commands in {params.commands}" if params.commands else
+               "every object in the list")
+        steps = [Step("mark", f"frame {params.frame}: {how}, {params.mark}",
+                      why=WHY["mark"])]
+        if params.outimage:
+            steps.append(Step("snap", params.outimage, why=TVWHY["snap"]))
+        return steps
+
+    def execute(self, params: TvMarkParams) -> TaskResult:
+        from ..core import display, tvmark
+
+        settings = tvmark.settings_from(params)
+        engine = tvmark.Engine(settings)
+        if params.coords:
+            if not Path(params.coords).exists():
+                advice.fail(f"coordinate list '{params.coords}' does not exist",
+                            "give the file daofind or a script wrote, or leave it empty "
+                            "and mark with the cursor", FileNotFoundError)
+            engine.items = tvmark.read_coords(params.coords)
+        screen = display.get(None)
+        data, header, window = _frame_contents(screen, params)
+
+        if params.interactive:
+            _interactive(screen, engine, params)
+        elif params.commands:
+            for x, y, _frame, key in tvmark.read_commands(params.commands):
+                if key.startswith(":"):
+                    engine.colon(key, x, y)
+                else:
+                    engine.key(key[:1], x, y)
+                if engine.done:
+                    break
+        else:
+            engine.key("l", 0.0, 0.0)
+            if params.outimage:
+                engine.snaps.append((params.outimage, list(engine.marks)))
+        if not params.interactive and engine.marks:
+            screen.mark(engine.marks, frame=params.frame)
+
+        outputs = _write_snaps(engine, params, data, header, window)
+        if params.logfile and engine.log:
+            with open(params.logfile, "a", encoding="utf-8") as log:
+                log.writelines(line + "\n" for line in engine.log)
+            outputs.append(Path(params.logfile))
+        if params.coords and (engine.deleted or engine.appended):
+            tvmark.rewrite_coords(params.coords, engine.deleted, engine.appended)
+            if params.deletions and engine.deleted:
+                name = Path(f"{params.coords}.{params.deletions}")
+                with open(name, "a", encoding="utf-8") as out:
+                    out.writelines(f"{i.x:.3f} {i.y:.3f}" + (f" {i.label}" if i.label else "")
+                                   + "\n" for i in engine.deleted)
+                outputs.append(name)
+        steps = self.plan(params)
+        steps[0].measured = {"objects": len(engine.items), "marks": len(engine.marks),
+                             "added": len(engine.appended), "deleted": len(engine.deleted)}
+        data_out: dict = {"marked": len(engine.marks)}
+        if engine.messages:
+            data_out["text"] = engine.messages
+        return TaskResult(outputs=outputs, steps=steps, data=data_out)
+
+
+TVWHY = {
+    "snap": "The frame as it looks marked, kept: a FITS of its grey levels with "
+            "the marks at their colour number, as IRAF's snap image, or a PNG "
+            "picture. The pixels of the data are not in it.",
+}
+
+
+def _frame_contents(screen, params: TvMarkParams):
+    """The image in the frame and its display limits: --image displayed
+    now, or what the window's frame already holds."""
+    from ..core import images
+
+    if params.image:
+        data, header = images.read(params.image)
+        defaults = DisplayParams(image=params.image)
+        z1, z2, table, _ = display_limits(defaults, data, header)
+        screen.show(data, header, frame=params.frame, name=params.image, window=(z1, z2))
+        return data, header, (z1, z2)
+    held = getattr(getattr(screen, "window", None), "frames", {}).get(params.frame)
+    if held is None:
+        advice.fail(f"frame {params.frame} holds no image to mark",
+                    "display one first in the same session, or give it with --image")
+    return held.data, held.header, held.limits(_fixed_or_zscale(held))
+
+
+def _fixed_or_zscale(frame) -> str:
+    return "z1 z2" if getattr(frame, "window", None) else "zscale"
+
+
+def _interactive(screen, engine, params) -> None:
+    window = getattr(screen, "window", None)
+    if window is None or not hasattr(window, "wait_for_examine"):
+        advice.fail("--interactive needs the window",
+                    "run it where there is a screen, or replay a command file with "
+                    "--commands")
+    drawn = [0]
+
+    def redraw() -> None:
+        frame = window.frames.get(params.frame)
+        if frame is None:
+            return
+        frame.markers = [m for m in frame.markers if m.tag != "tvmark"] + list(engine.marks)
+        window._redraw()
+        for message in engine.messages[drawn[0]:]:
+            window.log("  " + message)
+        drawn[0] = len(engine.messages)
+
+    def key(name: str, x: float, y: float) -> bool:
+        engine.key(name, x, y)
+        redraw()
+        if engine.done:
+            window.examine_done.emit()
+        return True
+
+    def colon(line: str) -> str:
+        position = getattr(window, "_cursor", None) or (0.0, 0.0)
+        answer = engine.colon(line, *position)
+        redraw()
+        return answer
+
+    window.key_hook, window.colon_hook = key, colon
+    window.log("tvmark: point and press a key; ? lists them, q ends.")
+    try:
+        window.wait_for_examine()
+    finally:
+        window.key_hook = window.colon_hook = None
+
+
+def _write_snaps(engine, params, data, header, window) -> list[Path]:
+    """Each snapshot asked for: by :write name, or outimage; a :write with no
+    name is outimage.snap.N, or the image's name .snap.N, N the first free."""
+    import numpy as np
+    from astropy.io import fits
+
+    from ..core import render, tvmark
+
+    written = []
+    z1, z2 = window
+    short = data.dtype == np.int16 or (header is not None and header.get("BITPIX") == 16
+                                       and not header.get("BZERO"))
+    levels = render.device_levels(data, z1, z2, short=short)
+    for asked, marks in engine.snaps:
+        target = Path(asked) if asked else _next_snap(params)
+        snap = tvmark.snapshot(levels, marks, params.color)
+        if target.suffix.lower() == ".png":
+            from ..viewer.png import save_rgb
+
+            grey = np.clip((snap.astype(float) - 1) / 199, 0, 1)
+            rgb = render.lut("grey")[np.clip((grey * 255).astype(int), 0, 255)]
+            for value in np.unique(snap[snap > 200]):
+                rgb[snap == value] = RGB.get(tvmark.colour_name(int(value)), RGB["lime"])
+            save_rgb(rgb[::-1].copy(), target)
+        else:
+            if target.suffix.lower() not in (".fits", ".fit"):
+                target = target.with_name(target.name + ".fits")
+            header_out = fits.Header({"OBJECT": f"tvmark snapshot of frame {params.frame}"})
+            fits.PrimaryHDU(snap, header_out).writeto(target, overwrite=True)
+        written.append(target)
+    return written
+
+
+def _next_snap(params) -> Path:
+    stem = params.outimage or Path(params.image or "frame").name.removesuffix(".fits")
+    number = 1
+    while Path(f"{stem}.snap.{number}.fits").exists():
+        number += 1
+    return Path(f"{stem}.snap.{number}")
+
+
+#: The overlay colours as RGB, for a PNG snapshot.
+RGB = {"black": (0, 0, 0), "white": (255, 255, 255), "red": (255, 0, 0),
+       "green": (0, 255, 0), "blue": (0, 0, 255), "yellow": (255, 255, 0),
+       "cyan": (0, 255, 255), "magenta": (255, 0, 255), "coral": (255, 127, 80),
+       "maroon": (128, 0, 0), "orange": (255, 165, 0), "khaki": (240, 230, 140),
+       "orchid": (218, 112, 214), "turquoise": (64, 224, 208), "violet": (238, 130, 238),
+       "wheat": (245, 222, 179), "lime": (0, 255, 0)}
+
+
 class ImexamineParams(TaskParams):
     input: list[str] = Field(
         ..., description="Images to examine, each loaded into its own frame. "

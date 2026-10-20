@@ -22,7 +22,9 @@ BACKENDS = ("native", "headless", "ds9")
 
 @dataclass
 class Marker:
-    """Something drawn over the image, in 1-based (x, y)."""
+    """Something drawn over the image, in 1-based (x, y). Shapes: circle,
+    rectangle (radius is half the width), point, plus, cross, line (to x2,
+    y2), box and fill (outlined and filled rectangles), text (the label)."""
 
     x: float
     y: float
@@ -31,6 +33,9 @@ class Marker:
     label: str = ""          #: drawn beside the marker; empty draws nothing
     colour: str = "lime"
     tag: str = ""            #: internal grouping, never drawn
+    width: float = 1.0       #: a rectangle's height over its width
+    x2: float | None = None  #: the far end of a line
+    y2: float | None = None
 
 
 @runtime_checkable

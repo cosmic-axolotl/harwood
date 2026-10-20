@@ -138,6 +138,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     #: q pressed, or the window closed: an imexamine waiting on it can return.
     examine_done = QtCore.Signal()
+    #: A task holding the keys (tvmark): key(x, y) -> handled, and its colon
+    #: commands. None leaves them to imexamine.
+    key_hook = None
+    colon_hook = None
 
     def __init__(self) -> None:
         super().__init__()
@@ -983,14 +987,38 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             # else is a colour a task chose and is drawn as given.
             colour = getattr(_c(), marker.colour, marker.colour)
             pen = pg.mkPen(colour, width=1.4)
+            r = marker.radius
+            if marker.shape == "text":
+                text = pg.TextItem(marker.label, color=colour, anchor=(0, 1))
+                text.setPos(sx, sy)
+                text.setParentItem(self.overlay)
+                continue
             if marker.shape == "circle":
-                item = QtWidgets.QGraphicsEllipseItem(
-                    sx - marker.radius, sy - marker.radius,
-                    2 * marker.radius, 2 * marker.radius)
+                item = QtWidgets.QGraphicsEllipseItem(sx - r, sy - r, 2 * r, 2 * r)
+            elif marker.shape in ("plus", "cross", "line"):
+                path = QtGui.QPainterPath()
+                if marker.shape == "line":
+                    ex, ey = pixels.to_scene(marker.x2, marker.y2)
+                    path.moveTo(sx, sy)
+                    path.lineTo(float(ex), float(ey))
+                elif marker.shape == "plus":
+                    path.moveTo(sx - r, sy)
+                    path.lineTo(sx + r, sy)
+                    path.moveTo(sx, sy - r)
+                    path.lineTo(sx, sy + r)
+                else:
+                    path.moveTo(sx - r, sy - r)
+                    path.lineTo(sx + r, sy + r)
+                    path.moveTo(sx - r, sy + r)
+                    path.lineTo(sx + r, sy - r)
+                item = QtWidgets.QGraphicsPathItem(path)
             else:
-                item = QtWidgets.QGraphicsRectItem(
-                    sx - marker.radius, sy - marker.radius,
-                    2 * marker.radius, 2 * marker.radius)
+                # rectangle, box, fill, point: radius is half the width, and
+                # width the height over the width
+                hy = r * (marker.width or 1.0)
+                item = QtWidgets.QGraphicsRectItem(sx - r, sy - hy, 2 * r, 2 * hy)
+                if marker.shape in ("fill", "point"):
+                    item.setBrush(pg.mkBrush(colour))
             item.setPen(pen)
             item.setParentItem(self.overlay)
             if marker.label:
@@ -1042,6 +1070,12 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 return True
             return False
 
+        if self.key_hook is not None:
+            # A task that owns the keys for now (tvmark): it answers every
+            # lower-case key, q included, at the cursor.
+            if position is None:
+                return False
+            return self.key_hook(key, *position)
         if key == "?":
             for name, what in KEYS.items():
                 self.log(f"  [{name}] {what}")
@@ -1348,6 +1382,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self.close()
             return True, ""
 
+        if line.startswith(":") and self.colon_hook is not None:
+            answer = self.colon_hook(line)
+            if answer:
+                self.log("  " + answer)
+            return True, answer
         if line.startswith(":"):
             try:
                 answer = examine.colon(self.examine_settings, line)
