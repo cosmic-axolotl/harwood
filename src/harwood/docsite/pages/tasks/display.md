@@ -72,5 +72,5 @@ one on purpose.
 
 Not ported: IRAF's display-window geometry (`xcenter`, `ycenter`, `xsize`,
 `ysize`, `xmag`, `ymag`, `fill`, `order`), which the window's zoom and pan
-replace, and overlay masks drawn in colour, which `--coords` and
-[tvmark](task:tvmark) do.
+replace, and overlay masks drawn in colour, which `--coords` (IRAF's
+`tvmark`) does.
