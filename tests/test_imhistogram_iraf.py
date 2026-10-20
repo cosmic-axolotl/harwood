@@ -36,7 +36,30 @@ def test_imhistogram_lists_what_iraf_lists(images, case):
     expected = params.pop("bins")
     image = str(images / params.pop("image"))
     params = {k: {"yes": True, "no": False}.get(v, v) for k, v in params.items()}
-    rows = get_task("imhistogram").run(image=image, **params).data["rows"]
+    rows = get_task("imhistogram").run(image=image, listout=True, **params).data["rows"]
     assert [row["count"] for row in rows] == [count for _, count in expected]
     assert [row["value"] for row in rows] == pytest.approx(
         [value for value, _ in expected], rel=5.01e-7)
+
+
+def test_without_a_screen_the_plot_is_an_svg(tmp_path, monkeypatch):
+    """IRAF plots by default; with no screen the plot is written instead of
+    lost, with IRAF's title and the bins drawn as a line or as boxes."""
+    from astropy.io import fits
+
+    import harwood
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HARWOOD_DISPLAY", "headless")
+    data = (np.arange(400, dtype=np.float32).reshape(20, 20) % 37) + 100
+    fits.PrimaryHDU(data, fits.Header({"OBJECT": "ramp"})).writeto("ramp.fits")
+    result = harwood.run("imhistogram", image="ramp.fits", nbins=37)
+    svg = result.outputs[0].read_text()
+    assert result.outputs[0].name == "ramp.hist.svg"
+    assert "Histogram of ramp.fits = ramp" in svg and "nbins=37" in svg
+    assert svg.count("<polyline") == 1 and "rows" not in result.data
+    boxes = harwood.run("imhistogram", image="ramp.fits", nbins=37, plot_type="box",
+                        logy=False, device=str(tmp_path / "boxes.svg"))
+    assert boxes.outputs == [tmp_path / "boxes.svg"]
+    points = boxes.outputs[0].read_text().split('points="')[1].split('"')[0].split()
+    assert len(points) == 2 * 37, "two corners per bin"

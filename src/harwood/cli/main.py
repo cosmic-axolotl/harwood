@@ -883,6 +883,11 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         raise SystemExit(1) from None
     result, folder, written = finished.result, finished.folder, finished.written
 
+    if result.stdout is not None:
+        _print_advice(result.warnings, where=error_console)
+        for line in result.stdout:
+            click.echo(line)
+        return
     console.print(f"[green]ok[/green] {name} in {result.duration_s:.2f}s"
                   + (f" [dim]({result.backend})[/dim]" if result.backend else ""))
     if explain and result.steps:

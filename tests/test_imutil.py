@@ -237,6 +237,5 @@ def test_hselect_reads_expressions_as_iraf_writes_them(tmp_path, monkeypatch):
     assert names("imagetyp == 'a && b'")[0] == [], "&& inside quotes is text"
     rows, warnings = names("imagtyp == 'zero'")
     assert rows == [] and "no image has the keyword imagtyp" in warnings[0]
-    with pytest.raises(ValueError) as raised:
-        names("object ?= 'M92'")
-    assert "in object" in raised.value.fix
+    assert names("imagetyp ?= 'obj*'")[0] == ["b.fits", "c.fits"], "IRAF's pattern match"
+    assert names("exptime / 2 > 20")[0] == ["b.fits"]

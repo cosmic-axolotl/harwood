@@ -9,6 +9,7 @@ ecosystem, and it is how a night of observing gets sorted.
 from __future__ import annotations
 
 import math
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -122,9 +123,9 @@ class HSelectParams(TaskParams):
     expr: str = Field(
         "yes",
         description=(
-            "Boolean expression over the header, as IRAF writes it: "
-            "\"imagetyp == 'zero'\", \"exptime > 30 && filters == 'V'\". "
-            "Keywords in any case; && || ! or and or not; 'yes' selects everything."
+            "Boolean expression over the header, evaluated as IRAF evaluates it: "
+            "\"imagetyp == 'zero'\", \"exptime > 30 && filters == 'V'\", "
+            "\"object ?= 'M92*'\". Keywords in any case; 'yes' selects everything."
         ),
     )
     missing: str = Field(
@@ -145,35 +146,76 @@ class HSelect(Task[HSelectParams]):
                 Step("print", ", ".join(params.fields), why=WHY["select"])]
 
     def execute(self, params: HSelectParams) -> TaskResult:
-        from ..core import images
+        from ..core import evexpr, images
 
-        matched, seen = [], set()
+        expr = _iraf_words(params.expr)
+        matched, lines, absent, skipped = [], [], set(), 0
         for spec in images.expand(params.input):
             hdul, hdu = images.open_hdu(spec)
             try:
-                header = dict(hdu.header.items())
+                header = hdu.header.copy()
             finally:
                 hdul.close()
-            seen |= {str(key).upper() for key in header}
-            if not _matches(params.expr, header):
+            label = str(spec)
+            getop = _Edit(header, label, "", False, False, [], [])._getop(label)[0]
+            try:
+                selected = evexpr.evaluate(expr, getop)
+            except evexpr.ExprError as error:
+                found = re.search(r"not found \((.+)\)", str(error))
+                if found:
+                    # IRAF stops the whole task here; one frame without the
+                    # keyword simply is not selected.
+                    absent.add(found[1])
+                    skipped += 1
+                    continue
+                advice.fail(f"cannot evaluate {params.expr!r}: {error}",
+                            "write it as IRAF does: imagetyp == 'zero' && exptime > 30; "
+                            "a keyword with - in it is @\"DATE-OBS\"")
+            if selected.type != "bool":
+                advice.fail(f"expression must be boolean: {params.expr!r} is a "
+                            f"{selected.type}", "compare it: exptime > 0, object ?= 'M92*'")
+            if not selected.value:
                 continue
-            upper = {str(key).upper(): value for key, value in header.items()}
-            matched.append(
-                {"image": str(spec),
-                 **{field: str(spec) if field.upper() == "$I"
-                    else upper.get(field.upper(), params.missing)
-                    for field in params.fields}})
+            fields = [key for field in params.fields for name in str(field).split(",")
+                      if name.strip() for key in _expand(header, name.strip())]
+            row = {"image": label}
+            out = []
+            for key in fields:
+                value = label if key == "$I" else image_parameter(header, label,
+                                                                   key.lstrip("$"))
+                if value is None:
+                    out.append("\t" + params.missing)
+                    row[key] = params.missing
+                else:
+                    out.append(("\t" if out else "") + _quoted(value))
+                    row[key] = value
+            lines.append("".join(out))
+            matched.append(row)
         warnings = []
-        absent = sorted(name for name in _names(params.expr)
-                        if name.upper() not in seen and name.lower() not in ("yes", "no"))
         if absent:
+            names = ", ".join(sorted(absent))
+            plural = "s" if len(absent) > 1 else ""
             warnings.append(advice.warn(
-                f"no image has the keyword{'s' if len(absent) > 1 else ''} "
-                f"{', '.join(absent)}, so the expression is false wherever it is used",
+                (f"{skipped} image{'s' if skipped > 1 else ''} without the keyword{plural} "
+                 f"{names} were not selected" if matched else
+                 f"no image has the keyword{plural} {names}, so none was selected"),
                 "check the spelling against a header: harwood imheader IMAGE "
                 "--longheader lists every keyword"))
         return TaskResult(data={"rows": matched, "matched": len(matched)},
-                          warnings=warnings)
+                          warnings=warnings, stdout=lines)
+
+
+def _iraf_words(expr: str) -> str:
+    """Python's and, or and not, outside quotes, as IRAF's && || ! -- a
+    harwood courtesy; IRAF has only the symbols."""
+    out, word = [], re.compile(r"(?<![\w$])(and|or|not)(?![\w$])")
+    for piece in re.split(r"""('[^']*'|"[^"]*")""", expr):
+        if piece[:1] in ("'", '"'):
+            out.append(piece)
+        else:
+            out.append(word.sub(lambda m: {"and": "&&", "or": "||", "not": "!"}[m[1]],
+                                piece))
+    return "".join(out)
 
 
 def _first(header, *keywords: str) -> str:
@@ -188,70 +230,6 @@ def _first(header, *keywords: str) -> str:
         if value not in (None, ""):
             return str(value).strip()
     return ""
-
-
-def _matches(expr: str, header: dict) -> bool:
-    """Evaluate a header expression, written as IRAF writes it.
-
-    Keywords are read in any case, as IRAF reads them (`imagetyp` is
-    IMAGETYP); `&&`, `||` and `!` are IRAF's and, or and not, and Python's
-    own words work too; `yes` and `no` are true and false. The namespace
-    holds only the header's own keywords, and builtins are removed: a header
-    expression is a filter, not a place to run code.
-    """
-    if expr.strip().lower() in ("yes", "true", "1", ""):
-        return True
-    namespace: dict = {"yes": True, "no": False}
-    for key, value in header.items():
-        name = str(key)
-        if name.isidentifier():
-            namespace[name] = namespace[name.lower()] = namespace[name.upper()] = value
-    code = _python(expr)            # refuses what it cannot translate, with a fix
-    try:
-        return bool(eval(code, {"__builtins__": {}}, namespace))  # noqa: S307
-    except NameError:
-        return False           # a keyword this image does not have
-    except Exception as error:
-        raise ValueError(f"cannot evaluate expression {expr!r}: {error}") from None
-
-
-def _python(expr: str) -> str:
-    """IRAF's operators as Python's, outside quotes: && and, || or, ! not."""
-    if "?=" in expr:
-        advice.fail("IRAF's pattern match ?= is not in harwood's expressions",
-                    "for 'contains', write 'M92' in object; for 'equals', ==")
-    out, quote, i = [], None, 0
-    while i < len(expr):
-        ch = expr[i]
-        if quote:
-            out.append(ch)
-            quote = None if ch == quote else quote
-        elif ch in "'\"":
-            quote = ch
-            out.append(ch)
-        elif expr.startswith("&&", i):
-            out.append(" and ")
-            i += 1
-        elif expr.startswith("||", i):
-            out.append(" or ")
-            i += 1
-        elif ch == "!" and not expr.startswith("!=", i):
-            out.append(" not ")
-        else:
-            out.append(ch)
-        i += 1
-    return "".join(out)
-
-
-def _names(expr: str) -> set[str]:
-    """The keywords an expression reads."""
-    import ast
-
-    try:
-        tree = ast.parse(_python(expr), mode="eval")
-    except (SyntaxError, ValueError):
-        return set()
-    return {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
 
 
 class ImStatParams(TaskParams):
@@ -841,27 +819,49 @@ class HEditParams(TaskParams):
         json_schema_extra={"positional": True},
     )
     fields: list[str] = Field(
-        ..., description="Keywords to edit, e.g. 'DISPAXIS' or 'OBJECT'."
+        ..., description="Keywords to edit, e.g. OBJECT, or several: 'EXPTIME,DARKTIME'. "
+                         "* and ? match, in any case: 'CCD*'."
     )
     value: str = Field(
         "",
-        description="What to set it to. Numbers become numbers and yes/no "
-                    "become booleans, unless quoted.",
+        description="The new value. In parentheses it is an expression over the header, "
+                    "as in IRAF: '(EXPTIME * 2)', '(OBJECT // \" B\")', '($ + 1)'. A "
+                    "single . prints the current value instead.",
     )
     comment: str = Field("", description="Comment for the card.")
     add: bool = Field(
-        False, description="Add the keyword when it is not there. Without this "
-                           "a missing keyword is reported, not created."
+        False, description="Add the keyword when it is not there (and edit it when it is)."
+    )
+    addonly: bool = Field(
+        False, description="Add the keyword only where it is not there; leave existing "
+                           "values alone."
     )
     delete: bool = Field(False, description="Delete the keyword instead of setting it.")
+    verify: bool = Field(
+        False, description="Ask before each change, as IRAF does by default: Enter "
+                           "accepts, n skips, anything else is the value to use."
+    )
+    show: bool = Field(True, description="Print each change as IRAF does: "
+                                         "'image,KEY: old -> new'.")
     update: bool = Field(
         True, description="Write the change. Off, it only shows what would happen."
     )
     extension: int = Field(0, ge=0, description="Which HDU's header to edit.")
 
 
+#: Cards that describe the file rather than the data: never matched by a
+#: wildcard, never edited.
+_STRUCTURAL = re.compile(r"^(SIMPLE|BITPIX|NAXIS\d*|EXTEND|XTENSION|PCOUNT|GCOUNT|BSCALE"
+                         r"|BZERO|END|COMMENT|HISTORY|)$")
+
+
 @register
 class HEdit(Task[HEditParams]):
+    """IRAF's hedit, from images/imutil/src/hedit.x, with its expression
+    evaluator: the same fields, the same values, the same lines printed.
+    Where IRAF would write a card that is not valid FITS -- text without
+    quotes in a numeric or logical card -- harwood writes the valid one."""
+
     name = "hedit"
     package = "imutil"
     description = "Edit header keywords, over one image or a whole night."
@@ -869,6 +869,8 @@ class HEdit(Task[HEditParams]):
 
     def plan(self, params: HEditParams) -> list[Step]:
         what = ("delete" if params.delete
+                else "print" if params.value.strip() == "."
+                else f"add only where absent: {params.value!r}" if params.addonly
                 else f"set to {params.value!r}" if params.value != ""
                 else "show")
         return [
@@ -885,133 +887,421 @@ class HEdit(Task[HEditParams]):
 
         from ..core import images
 
-        paths = [spec.path for spec in images.expand(params.images)]
-        if not paths:
+        specs = images.expand(params.images)
+        if not specs:
             raise ValueError(f"nothing matched {', '.join(params.images)}.")
         if params.delete and params.value:
             raise ValueError(
                 "--delete removes the keyword and --value sets it; they cannot "
                 "both apply. Drop one.")
-
-        wanted = [name.strip().upper() for field in params.fields
+        value = params.value.strip()
+        printing = value == "." and not (params.add or params.addonly or params.delete)
+        update = params.update and not printing
+        show = params.show and not printing
+        verify = params.verify and not printing
+        wanted = [name.strip() for field in params.fields
                   for name in str(field).split(",") if name.strip()]
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
 
-        rows, warnings, changed = [], [], []
+        rows, lines, warnings, changed = [], [], [], []
         missing = 0
-        for path in paths:
-            mode = "update" if params.update else "readonly"
-            with fits.open(path, mode=mode) as hdus:
-                header = hdus[params.extension].header
-                touched = False
-                for keyword in wanted:
-                    before = header.get(keyword)
-                    if params.delete:
-                        if before is None:
-                            missing += 1
-                            rows.append(_row(path, keyword, before, "absent"))
-                            continue
-                        if params.update:
-                            del header[keyword]
-                            header.add_history(
-                                f"hedit: deleted {keyword} (was {before!r})")
-                            touched = True
-                        rows.append(_row(path, keyword, before, "deleted"))
-                        continue
-
-                    if params.value == "":
-                        rows.append(_row(path, keyword, before,
-                                         "absent" if before is None else "unchanged"))
-                        if before is None:
-                            missing += 1
-                        continue
-
-                    if before is None and not params.add:
+        for spec in specs:
+            path, label = spec.path, str(spec)
+            with fits.open(path) as hdus:
+                header = hdus[params.extension].header.copy()
+            edit = _Edit(header, label, params.comment, show, verify, lines, rows)
+            if params.add or params.addonly:
+                for field in wanted:
+                    present = _find(header, field)
+                    if present is None:
+                        edit.add(field, value)
+                    elif params.addonly:
+                        warnings.append(advice.note(
+                            f"parameter {label},{field.upper()} already exists",
+                            "--add edits keywords that are there as well"))
+                        rows.append(_row(label, present, header.get(present),
+                                         "kept -- already there"))
+                    else:
+                        edit.change(present, value)
+                touched = bool(wanted)
+            else:
+                matched = [key for field in wanted for key in _expand(header, field)]
+                for field in wanted:
+                    if not _expand(header, field):
                         missing += 1
-                        rows.append(_row(path, keyword, before,
-                                         "absent -- --add would create it"))
-                        continue
-
-                    value = _typed(params.value)
-                    if params.update:
-                        header[keyword] = ((value, params.comment) if params.comment
-                                           else value)
-                        header.add_history(
-                            f"hedit: {keyword} = {value!r}"
-                            + (f", was {before!r}" if before is not None else
-                               ", added"))
-                        touched = True
-                    rows.append(_row(path, keyword, before,
-                                     "added" if before is None else "set"))
-                if touched:
+                        rows.append(_row(label, field.upper(), None,
+                                         "absent" if params.delete or printing
+                                         else "absent -- --add would create it"))
+                for key in dict.fromkeys(matched):
+                    if params.delete:
+                        edit.delete(key)
+                    elif printing or value == "":
+                        edit.show(key)
+                    else:
+                        edit.change(key, value)
+                touched = bool(matched)
+            if update and touched and _confirm(verify, label):
+                if edit.changed:
+                    for line in edit.history:
+                        header.add_history(line)
+                    with fits.open(path, mode="update") as hdus:
+                        hdus[params.extension].header = header
                     changed.append(Path(path))
+                if show:
+                    lines.append(f"{label} updated")
 
-        by_action["read"].measured = {"images": len(paths),
-                                      "keywords": len(wanted)}
-        actions = {}
+        by_action["read"].measured = {"images": len(specs), "keywords": len(wanted)}
+        actions: dict[str, int] = {}
         for row in rows:
             actions[row["action"]] = actions.get(row["action"], 0) + 1
         by_action["edit"].measured = actions
 
-        if missing and not params.add and not params.delete and params.value:
+        if missing and not params.add and not params.addonly and not params.delete \
+                and value not in ("", "."):
             warnings.append(advice.warn(
                 f"{missing} of {len(rows)} were not there and were left alone. "
                 "hedit will not invent a keyword, because a typo in a keyword "
                 "name would otherwise silently add a card nobody reads.",
                 "add --add if you meant to create them. If you did not, check "
                 "the spelling against 'harwood imheader <image> --long'."))
-        if not params.update:
+        if not update and not printing:
             warnings.append(advice.note(
                 "--no-update was given, so nothing was written. The table "
                 "above is what would have happened.",
                 "run it again without --no-update to apply it."))
-
+        data: dict = {"rows": rows}
+        if lines:
+            data = {"text": lines, "rows": rows}
         return TaskResult(outputs=changed, steps=steps, warnings=warnings,
-                          data={"rows": rows}, history=[])
+                          data=data, history=[])
+
+
+def _confirm(verify: bool, label: str) -> bool:
+    """hedit's 'update image ? (yes): ' -- Enter or y writes, anything else
+    does not."""
+    if not verify:
+        return True
+    answer = _ask(f"update {label} ? (yes): ")
+    return answer is not None and (answer.strip() == "" or answer.strip().startswith("y"))
+
+
+def _ask(prompt: str) -> str | None:
+    import sys
+
+    sys.stderr.write(prompt)
+    sys.stderr.flush()
+    line = sys.stdin.readline()
+    return None if line == "" else line.rstrip("\n")
+
+
+def _find(header, field: str) -> str | None:
+    """The header's own spelling of a keyword, matched in any case."""
+    upper = field.upper()
+    return upper if upper in header and not _STRUCTURAL.match(upper) else None
+
+
+def _expand(header, field: str) -> list[str]:
+    """imofnlu: the fields a template names, IRAF's standard ones (i_naxis,
+    i_naxis1, ...) first and then the header's own keywords, in order. A
+    name with $ in front (as $I) passes through; a name without wildcards
+    must exist."""
+    if field.startswith("$"):
+        return [field]
+    if not any(ch in field for ch in "*?["):
+        if field.lower().removeprefix("i_") in _STANDARD:
+            return [field]
+        found = _find(header, field)
+        return [found] if found else []
+    from ..core import evexpr
+
+    pattern = "^{" + field.replace("*", "?*") + "}$"
+    naxis = int(header.get("NAXIS", 0))
+    standard = ["naxis"] + [f"naxis{axis}" for axis in range(1, naxis + 1)]
+    names = [f"i_{name}" for name in standard if evexpr.patmatch(name, pattern)]
+    return names + [str(key) for key in dict.fromkeys(header.keys())
+                    if not _STRUCTURAL.match(str(key)) and evexpr.patmatch(str(key), pattern)]
+
+
+_STANDARD = {"naxis", "naxis1", "naxis2", "naxis3", "naxis4", "naxis5", "naxis6", "naxis7",
+             "pixtype", "title", "pixfile", "minpixval", "maxpixval"}
+
+
+def _quoted(text: str) -> str:
+    """he_pargstr: a value with blanks in it is printed in double quotes."""
+    return f'"{text}"' if any(ch in " \t" for ch in text) else text.replace("\n", "\\n")
+
+
+class _Edit:
+    """The edits on one header, as hedit.x makes them, recording what IRAF
+    prints and what harwood keeps in HISTORY."""
+
+    def __init__(self, header, label: str, comment: str, show: bool, verify: bool,
+                 lines: list, rows: list) -> None:
+        self.header, self.label, self.comment = header, label, comment
+        self.show_lines, self.verify, self.lines, self.rows = show, verify, lines, rows
+        self.history: list[str] = []
+        self.changed = False
+
+    def _old(self, key: str) -> str:
+        if key == "$I":
+            return self.label
+        return image_parameter(self.header, self.label, key.lstrip("$")) or ""
+
+    def _getop(self, field: str):
+        from ..core import evexpr
+        from ..core.evexpr import Operand
+
+        def getop(name: str) -> Operand:
+            if name == ".":
+                return Operand("str", ".")
+            if name == "$F":
+                return Operand("str", field)
+            if name == "$I":
+                return Operand("str", self.label)
+            if name == "$T":
+                import time
+
+                return Operand("int", int(time.time()) - 315532800 - time.timezone)
+            key = field if name == "$" else name
+            return _operand(self.header, self.label, key)
+
+        return getop, evexpr
+
+    def evaluate(self, field: str, value: str):
+        getop, evexpr = self._getop(field)
+        try:
+            return evexpr.evaluate(value, getop)
+        except evexpr.ExprError as error:
+            advice.fail(f"{self.label},{field}: cannot evaluate {value!r}: {error}",
+                        "an expression is in parentheses and uses the header's keywords; "
+                        "a keyword with - in its name is written @\"DATE-OBS\"")
+
+    def show(self, key: str) -> None:
+        old = self._old(key)
+        self.lines.append(f"{self.label},{key} = {_quoted(old)}")
+        self.rows.append(_row(self.label, key, old if old != "" else None, "shown"))
+
+    def change(self, key: str, value: str) -> None:
+        if key.startswith("$") or key.lower().removeprefix("i_") in _STANDARD:
+            self.lines.append(f"cannot update {self.label},{key}")
+            return
+        old = self._old(key)
+        if value.startswith("("):
+            new = self.evaluate(key, value)
+            from ..core import evexpr
+
+            text = evexpr.encode(new)
+        else:
+            text = _literal(value)
+        if text == ".":
+            self.show(key)
+            return
+        if self.verify:
+            answer = _ask(f"{self.label},{key} ({_quoted(old)} -> {_quoted(text)}): ")
+            if answer is None or answer in ("n", "no"):
+                return
+            if answer.startswith("\\"):
+                text = answer[1:]
+            elif answer not in ("", "y", "yes"):
+                text = answer
+        _put(self.header, key, text, self.comment)
+        self.changed = True
+        self.history.append(f"hedit: {key} = {text}, was {old}")
+        if self.show_lines:
+            self.lines.append(f"{self.label},{key}: {_quoted(old)} -> {_quoted(text)}")
+        self.rows.append(_row(self.label, key, old, "set"))
+
+    def add(self, field: str, value: str) -> None:
+        from ..core import evexpr
+
+        key = field.upper()
+        literal = _literal(value)
+        kind, length = evexpr.lexnum(value)
+        if value.startswith("(") or (kind != evexpr.NON and length == len(value)):
+            o = self.evaluate(key, value)
+        else:
+            o = evexpr.Operand("str", literal)
+        text = evexpr.encode(o)
+        _put(self.header, key, text, self.comment, kind=o.type)
+        self.changed = True
+        self.history.append(f"hedit: {key} = {text}, added")
+        if self.show_lines:
+            self.lines.append(f"add {self.label},{key} = {_quoted(text)}")
+        self.rows.append(_row(self.label, key, None, "added"))
+
+    def delete(self, key: str) -> None:
+        if key.startswith("$") or key.lower().removeprefix("i_") in _STANDARD:
+            self.lines.append(f"Warning: Cannot delete image header parameter ({key})")
+            return
+        if self.verify:
+            answer = _ask(f"delete {self.label},{key} ? (yes): ")
+            if answer is None or not (answer.strip() == "" or answer.strip().startswith("y")):
+                return
+        old = self._old(key)
+        del self.header[key]
+        self.changed = True
+        self.history.append(f"hedit: deleted {key} (was {old})")
+        if self.show_lines:
+            self.lines.append(f"{self.label},{key} deleted")
+        self.rows.append(_row(self.label, key, old, "deleted"))
+
+
+def _literal(value: str) -> str:
+    """A literal value as typed. Quotes around the whole of it make it a
+    string, without the quotes -- the shell has usually eaten the ones IRAF's
+    command language would have."""
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        return value[1:-1]
+    return value
+
+
+def _operand(header, label: str, key: str):
+    """he_getfield: a header value as an operand of its own type -- real in
+    single precision, as IRAF reads it."""
+    import numpy as np
+
+    from ..core.evexpr import ExprError, Operand
+
+    name = key.lower().removeprefix("i_")
+    if name in _STANDARD:
+        text = image_parameter(header, label, name)
+        if name in ("title", "pixfile"):
+            return Operand("str", text)
+        return Operand("int", int(text)) if name != "minpixval" and name != "maxpixval" \
+            else Operand("real", np.float32(0.0))
+    upper = key.upper()
+    if upper not in header:
+        raise ExprError(f"image header parameter not found ({key})")
+    value = header[upper]
+    if isinstance(value, bool):
+        return Operand("bool", value)
+    if isinstance(value, int):
+        return Operand("int", value)
+    if isinstance(value, float):
+        return Operand("real", np.float32(value))
+    return Operand("str", str(value).rstrip())
+
+
+def _put(header, key: str, text: str, comment: str = "", kind: str | None = None) -> None:
+    """impstr / imadd: the card as IRAF writes it, kept valid FITS.
+
+    An existing string card stays a string. Otherwise text that is a number
+    is written as the number exactly as given (5., 1.334567); T and F, and
+    yes or no in a logical card, are logical; anything else becomes a string
+    -- where IRAF would write it unquoted and leave a card no FITS reader
+    accepts."""
+    from astropy.io import fits
+
+    from ..core import evexpr
+
+    key = key.upper()
+    old = header.cards[key] if key in header else None
+    keep = comment or (old.comment if old is not None else "")
+    if kind is None:
+        if old is not None and isinstance(old.value, str):
+            kind = "str"
+        else:
+            number, length = evexpr.lexnum(text)
+            if number != evexpr.NON and length == len(text.strip()) and ":" not in text:
+                kind = "number"
+            elif text in ("T", "F") or (old is not None and isinstance(old.value, bool)
+                                        and text in ("yes", "no")):
+                kind = "bool"
+            else:
+                kind = "str"
+    elif kind in ("int", "real"):
+        kind = "number"
+    if len(key) > 8:
+        value = (text in ("T", "yes") if kind == "bool" else
+                 float(text) if kind == "number" and not text.lstrip("-").isdigit() else
+                 int(text) if kind == "number" else text)
+        header[key] = (value, keep) if keep else value
+        return
+    if kind == "bool":
+        field = f"{'T' if text in ('T', 'yes') else 'F':>20}"
+    elif kind == "number":
+        field = f"{text.strip():>20}"
+    else:
+        field = "'" + f"{text.replace(chr(39), chr(39) * 2):<8}" + "'"
+    image = f"{key:<8}= {field}" + (f" / {keep}" if keep else "")
+    card = fits.Card.fromstring(image[:80])
+    if old is not None:
+        index = header.index(key)
+        del header[index]
+        header.insert(index, card)
+    else:
+        header.append(card)
 
 
 def _row(path, keyword, before, action: str) -> dict:
-    return {"image": Path(path).name, "keyword": keyword,
+    return {"image": Path(str(path)).name, "keyword": keyword,
             "was": "-" if before is None else str(before)[:28],
             "action": action}
 
 
-def _typed(text: str):
-    """`3` is a number, `yes` is a boolean, `'3'` is the string three.
-
-    IRAF's headers are typed and its hedit guesses the same way. Quoting is
-    the escape hatch, and it is needed more often than it looks: an OBJECT of
-    `4211` is a name, not a count.
-    """
-    if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
-        return text[1:-1]
-    lowered = text.strip().lower()
-    if lowered in ("yes", "true"):
-        return True
-    if lowered in ("no", "false"):
-        return False
-    try:
-        return int(text)
-    except ValueError:
-        pass
-    try:
-        return float(text)
-    except ValueError:
-        return text
-
-
 class ImGetsParams(TaskParams):
     image: str = Field(
-        ..., description="Image to read.", json_schema_extra={"positional": True}
+        ..., description="Image to read; obj.fits[1] names an extension.",
+        json_schema_extra={"positional": True}
     )
     param: str = Field(
-        ..., description="Keyword to get.", json_schema_extra={"positional": True}
+        ..., description="Keyword to get, in any case. IRAF's standard fields work "
+                         "too: naxis, naxis1..7, pixtype, title, pixfile, with or "
+                         "without i_ in front.",
+        json_schema_extra={"positional": True}
     )
     default: str = Field(
-        "0", description="What to return when the keyword is not there."
+        "0", description="What to print when the keyword is not there; IRAF's is 0."
     )
-    extension: int = Field(0, ge=0, description="Which HDU's header to read.")
+    extension: int | None = Field(None, ge=0, description="Which HDU's header to read, "
+                                                          "if not named in the image.")
+
+
+#: IMIO's pixel types, as i_pixtype reports them (TY_SHORT, TY_INT, ...).
+_PIXTYPE = {8: 3, 16: 3, 32: 4, -32: 6, -64: 7}
+
+
+def image_parameter(header, filename: str, param: str) -> str | None:
+    """imgstr: a header parameter as IRAF's imgets prints it -- the value
+    as written in the card (15, 5.581000E3, T), a string without its
+    trailing blanks -- or one of IMIO's standard fields. None when absent."""
+    key = param.strip().lower()
+    field = key[2:] if key.startswith("i_") else key
+    naxis = int(header.get("NAXIS", 0))
+    if field == "naxis":
+        return str(naxis)
+    if field.startswith("naxis") and field[5:].isdigit() and 1 <= int(field[5:]) <= 7:
+        axis = int(field[5:])
+        return str(header.get(f"NAXIS{axis}", 1)) if axis <= naxis else "1"
+    if field == "pixtype":
+        bitpix = int(header.get("BITPIX", -32))
+        bscale, bzero = float(header.get("BSCALE", 1)), float(header.get("BZERO", 0))
+        if bitpix == 16 and bscale == 1 and bzero == 32768:
+            return "11"                                   # TY_USHORT
+        if bscale != 1 or bzero != 0:
+            return "6"                                    # scaled: TY_REAL
+        return str(_PIXTYPE.get(bitpix, 6))
+    if field == "title":
+        return str(header.get("OBJECT", "")).rstrip()
+    if field == "pixfile":
+        return Path(filename).name
+    if field in ("minpixval", "maxpixval"):
+        # IRAF keeps limits only when it knows them current, which a FITS
+        # file never tells it: it answers 0.
+        return "0."
+    keyword = param.strip().upper()
+    if keyword in ("SIMPLE", "BITPIX", "EXTEND", "XTENSION", "PCOUNT", "GCOUNT"):
+        return None                                       # the FITS kernel's own
+    if keyword not in header:
+        return None
+    value = header[keyword]
+    if isinstance(value, str):
+        return value.rstrip()
+    card = header.cards[keyword]
+    raw = card.image[10:] if len(card.image) >= 10 else ""
+    text = raw.split("/", 1)[0].strip()
+    return text or str(value)
 
 
 @register
@@ -1031,26 +1321,30 @@ class ImGets(Task[ImGetsParams]):
         ]
 
     def execute(self, params: ImGetsParams) -> TaskResult:
-        from astropy.io import fits
+        from ..core import images
 
-        header = fits.getheader(params.image, ext=params.extension)
-        keyword = params.param.strip().upper()
-        value = header.get(keyword)
+        spec = images.parse(params.image)
+        if params.extension is not None and spec.extension is None:
+            spec.extension = params.extension
+        hdul, hdu = images.open_hdu(spec)
+        try:
+            header = hdu.header.copy()
+        finally:
+            hdul.close()
+        value = image_parameter(header, str(spec.path), params.param)
         found = value is not None
+        answer = value if found else params.default
 
         steps = self.plan(params)
-        steps[0].measured = {
-            "value": str(value) if found else params.default,
-            "found": "yes" if found else "no, the default was used",
-        }
+        steps[0].measured = {"value": answer,
+                             "found": "yes" if found else "no, the default was used"}
         return TaskResult(
-            outputs=[], steps=steps,
-            warnings=[] if found else
-            [f"'{params.image}' has no {keyword}; the answer is the default, "
-             f"{params.default!r}. hselect lists what the header does have."],
-            data={"value": str(value) if found else params.default,
-                  "found": found},
-            history=[])
+            outputs=[], steps=steps, stdout=[answer],
+            warnings=[] if found else [advice.warn(
+                f"image header parameter not found ({params.param}); printing "
+                f"{params.default!r} instead, as IRAF does",
+                f"'harwood imheader {params.image} --long' lists what the header has")],
+            data={"value": answer, "found": found}, history=[])
 
 
 # ------------------------------------------------------------------ imhistogram
@@ -1140,11 +1434,21 @@ class ImHistogramParams(TaskParams):
     hist_type: Literal["normal", "cumulative", "difference", "second_difference"] = Field(
         "normal", description="The histogram, its running sum, or its first or "
                               "second difference.")
+    listout: bool = Field(False, description="List each bin's centre and count instead "
+                                             "of plotting.")
+    plot_type: Literal["line", "box"] = Field(
+        "line", description="line joins the bin centres; box draws each bin as a step.")
+    logy: bool = Field(True, description="Plot the counts on a logarithmic axis.")
+    device: str = Field(
+        "stdgraph", description="Where the plot goes: stdgraph is the window when there "
+                                "is a screen, and an SVG file in this run's directory "
+                                "when there is not; a name ending in .svg writes there.")
 
 
 @register
 class ImHistogram(Task[ImHistogramParams]):
-    """IRAF's imhistogram, listed (listout = yes): each bin's centre and count.
+    """IRAF's imhistogram: the histogram plotted, or with --listout each
+    bin's centre and count, as IRAF lists them.
 
     Integer images get IRAF's treatment -- limits rounded to integers and,
     with autoscale, a bin width that is a whole number of values -- which is
@@ -1163,6 +1467,8 @@ class ImHistogram(Task[ImHistogramParams]):
                          "a bad bias show at a glance.")]
 
     def execute(self, params: ImHistogramParams) -> TaskResult:
+        import numpy as np
+
         from ..core import examine, images
 
         data, header = images.read(params.image)
@@ -1176,8 +1482,49 @@ class ImHistogram(Task[ImHistogramParams]):
         centres, counts, z1, z2, nbins, width = made
         rows = [{"value": float(c), "count": int(n)}
                 for c, n in zip(centres, counts, strict=True)]
-        return TaskResult(data={"rows": rows, "z1": z1, "z2": z2, "nbins": nbins,
-                                "width": width}, steps=self.plan(params))
+        summary = {"z1": z1, "z2": z2, "nbins": nbins, "width": width}
+        if params.listout:
+            return TaskResult(data={"rows": rows, **summary}, steps=self.plan(params))
+
+        from ..core import graph, iraffmt
+
+        kind = {"normal": "Histogram", "cumulative": "Cumulative histogram",
+                "difference": "Difference histogram",
+                "second_difference": "Second difference histogram"}[params.hist_type]
+        title = str(header.get("OBJECT", "")).strip()
+        plot = graph.Graph(
+            [f"harwood -- {kind} of {params.image} = {title}",
+             f"From z1={iraffmt.g(z1)} to z2={iraffmt.g(z2)}, nbins={nbins}, "
+             f"width={iraffmt.g(width)}"],
+            xlabel="value", ylabel="count", logy=params.logy)
+        values = np.asarray(counts, dtype=float)
+        if params.plot_type == "line":
+            plot.line(np.asarray(centres, dtype=float), values)
+        else:
+            plot.steps(z1 + width * np.arange(nbins + 1), values)
+        where = _plot(plot, params.device, f"imhistogram · {params.image}",
+                      Path(str(images.parse(params.image).path)).stem + ".hist.svg")
+        return TaskResult(data={"bins": rows, **summary}, steps=self.plan(params),
+                          outputs=[where] if where else [])
+
+
+def _plot(plot, device: str, title: str, name: str):
+    """IRAF's stdgraph: the window when there is a screen to put one on,
+    otherwise (or for a device ending in .svg) a file. Returns the file."""
+    from ..core import display, output
+
+    if device.endswith(".svg"):
+        return plot.write(device)
+    if device not in ("stdgraph", ""):
+        advice.fail(f"no graphics device '{device}'",
+                    "use stdgraph (the window, or a file without a screen) or a name "
+                    "ending in .svg")
+    if display._autodetect() == "native":
+        from ..viewer.graph_panel import run
+
+        run(plot, title)
+        return None
+    return plot.write(output.directory("imhistogram") / name)
 
 
 # ------------------------------------------------------------------- imrename

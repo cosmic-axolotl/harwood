@@ -233,17 +233,21 @@ def test_hedit_sets_a_keyword_and_remembers_what_it_was(frame):
     header = fits.getheader(frame / "sp.fits")
 
     assert header["OBJECT"] == "DH Cep"
-    assert any("was 'DHCep 6707'" in line for line in header["HISTORY"])
+    assert any("was DHCep 6707" in line for line in header["HISTORY"])
 
 
 def test_hedit_types_the_value_the_way_iraf_does(frame):
+    """A new keyword takes the type of what is typed: a number is a number,
+    yes is the word yes (IRAF's own rule), an expression's value has its
+    type, and quotes keep digits as text."""
     from astropy.io import fits
 
-    for value, expected in (("2", 2), ("1.5", 1.5), ("yes", True),
-                            ("no", False), ("'2'", "2")):
-        get_task("hedit").run(images=["sp.fits"], fields=["TESTKEY"],
+    for number, (value, expected) in enumerate((("2", 2), ("1.5", 1.5), ("yes", "yes"),
+                                                ("(yes)", True), ("(3 > 4)", False),
+                                                ("'2'", "2"))):
+        get_task("hedit").run(images=["sp.fits"], fields=[f"TESTKEY{number}"],
                               value=value, add=True)
-        assert fits.getheader(frame / "sp.fits")["TESTKEY"] == expected, value
+        assert fits.getheader(frame / "sp.fits")[f"TESTKEY{number}"] == expected, value
 
 
 def test_hedit_will_not_invent_a_keyword_without_being_asked(frame):
@@ -311,6 +315,7 @@ def test_imgets_returns_one_value(frame):
     result = get_task("imgets").run(image="sp.fits", param="EXPTIME")
     assert result.data["value"] == "1200.0"
     assert result.data["found"] is True
+    assert result.stdout == ["1200.0"]
 
 
 def test_imgets_falls_back_and_says_it_did(frame):
@@ -318,7 +323,22 @@ def test_imgets_falls_back_and_says_it_did(frame):
                                     default="unknown")
     assert result.data["value"] == "unknown"
     assert result.data["found"] is False
-    assert any("hselect" in warning for warning in result.warnings)
+    assert any("not found (GRATING)" in str(warning) for warning in result.warnings)
+
+
+def test_imgets_prints_the_value_and_nothing_else(frame):
+    """For `$(harwood imgets ...)`: the value alone on stdout, the warning on
+    stderr, so a missing keyword is IRAF's 0 and the script still reads it."""
+    from click.testing import CliRunner
+
+    from harwood.cli.main import app
+
+    runner = CliRunner()
+    found = runner.invoke(app, ["imgets", "sp.fits", "exptime"])
+    assert found.exit_code == 0 and found.stdout == "1200.0\n"
+    missing = runner.invoke(app, ["imgets", "sp.fits", "GRATING"])
+    assert missing.stdout == "0\n"
+    assert "not found" in missing.stderr
 
 
 def test_times_after_the_shipped_table_do_not_go_online(tmp_path, monkeypatch):

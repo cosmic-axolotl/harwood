@@ -1,0 +1,1401 @@
+{
+"about": "IRAF 2.18.1 hedit (verify-, show+, update+) on a copy of the base header for each case: what it printed and the cards it left, as raw 80-column text.",
+"base": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+],
+"cases": [
+{
+"name": "edit_num",
+"fields": "EXPTIME",
+"value": "20",
+"params": {},
+"stdout": [
+"edit_num.fits,EXPTIME: 15 -> 20",
+"edit_num.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   20",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_num_str",
+"fields": "EXPTIME",
+"value": "abc",
+"params": {},
+"stdout": [
+"edit_num_str.fits,EXPTIME: 15 -> abc",
+"edit_num_str.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                  abc",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_str_num",
+"fields": "OBJECT",
+"value": "42",
+"params": {},
+"stdout": [
+"edit_str_num.fits,OBJECT: \"M92 field\" -> 42",
+"edit_str_num.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = '42      '",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_str",
+"fields": "OBJECT",
+"value": "NGC 6341",
+"params": {},
+"stdout": [
+"edit_str.fits,OBJECT: \"M92 field\" -> \"NGC 6341\"",
+"edit_str.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'NGC 6341'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_real",
+"fields": "AIRMASS",
+"value": "1.5",
+"params": {},
+"stdout": [
+"edit_real.fits,AIRMASS: 1.234567 -> 1.5",
+"edit_real.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =                  1.5",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_mul",
+"fields": "EXPTIME",
+"value": "(EXPTIME * 2)",
+"params": {},
+"stdout": [
+"edit_expr_mul.fits,EXPTIME: 15 -> 30",
+"edit_expr_mul.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   30",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_real",
+"fields": "AIRMASS",
+"value": "(AIRMASS + 0.1)",
+"params": {},
+"stdout": [
+"edit_expr_real.fits,AIRMASS: 1.234567 -> 1.334567",
+"edit_expr_real.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.334567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_dollar",
+"fields": "GAIN",
+"value": "($ * 2)",
+"params": {},
+"stdout": [
+"edit_expr_dollar.fits,GAIN: 2.5 -> 5.",
+"edit_expr_dollar.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                   5.",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_concat",
+"fields": "OBJECT",
+"value": "(OBJECT // ' B')",
+"params": {},
+"stdout": [
+"edit_expr_concat.fits,OBJECT: \"M92 field\" -> \"M92 field B\"",
+"edit_expr_concat.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field B'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_str",
+"fields": "FILTER",
+"value": "(str(NCOMB))",
+"params": {},
+"stdout": [
+"edit_expr_str.fits,FILTER: V -> 3",
+"edit_expr_str.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = '3       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_bool",
+"fields": "FLAG",
+"value": "(EXPTIME > 10)",
+"params": {},
+"stdout": [
+"edit_expr_bool.fits,FLAG: T -> yes",
+"edit_expr_bool.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                  yes",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_quest",
+"fields": "FILTER",
+"value": "(EXPTIME > 10 ? 'long' : 'short')",
+"params": {},
+"stdout": [
+"edit_expr_quest.fits,FILTER: V -> long",
+"edit_expr_quest.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'long    '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_func",
+"fields": "AIRMASS",
+"value": "(1. / cos (30))",
+"params": {},
+"stdout": [
+"edit_expr_func.fits,AIRMASS: 1.234567 -> 1.154701",
+"edit_expr_func.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.154701",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_int",
+"fields": "NCOMB",
+"value": "(int(AIRMASS * 10))",
+"params": {},
+"stdout": [
+"edit_expr_int.fits,NCOMB: 3 -> 12",
+"edit_expr_int.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                   12",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_nint",
+"fields": "NCOMB",
+"value": "(nint(2.5))",
+"params": {},
+"stdout": [
+"edit_expr_nint.fits,NCOMB: 3 -> 3",
+"edit_expr_nint.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_div",
+"fields": "NCOMB",
+"value": "(7 / 2)",
+"params": {},
+"stdout": [
+"edit_expr_div.fits,NCOMB: 3 -> 3",
+"edit_expr_div.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_I",
+"fields": "TITLE2",
+"value": "($I)",
+"params": {},
+"stdout": [
+"edit_expr_I.fits,TITLE2: x -> edit_expr_I.fits",
+"edit_expr_I.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'edit_expr_I.fits'"
+]
+},
+{
+"name": "edit_expr_F",
+"fields": "TITLE2",
+"value": "($F)",
+"params": {},
+"stdout": [
+"edit_expr_F.fits,TITLE2: x -> TITLE2",
+"edit_expr_F.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'TITLE2  '"
+]
+},
+{
+"name": "edit_expr_pat",
+"fields": "FLAG",
+"value": "(OBJECT ?= 'M9*')",
+"params": {},
+"stdout": [
+"edit_expr_pat.fits,FLAG: T -> yes",
+"edit_expr_pat.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                  yes",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_bool_lit",
+"fields": "FLAG",
+"value": "no",
+"params": {},
+"stdout": [
+"edit_bool_lit.fits,FLAG: T -> no",
+"edit_bool_lit.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                   no",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_wild",
+"fields": "EXP*,GAIN",
+"value": "7",
+"params": {},
+"stdout": [
+"edit_wild.fits,EXPTIME: 15 -> 7",
+"edit_wild.fits,GAIN: 2.5 -> 7",
+"edit_wild.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                    7",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                    7",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_missing",
+"fields": "NOSUCH",
+"value": "1",
+"params": {},
+"stdout": [],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "add_int",
+"fields": "NEWI",
+"value": "7",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_int.fits,NEWI = 7",
+"add_int.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWI    =                    7"
+]
+},
+{
+"name": "add_neg",
+"fields": "NEWN",
+"value": "-42",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_neg.fits,NEWN = -42",
+"add_neg.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWN    =                  -42"
+]
+},
+{
+"name": "add_real",
+"fields": "NEWR",
+"value": "3.14159265358979",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_real.fits,NEWR = 3.141593",
+"add_real.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWR    =             3.141593"
+]
+},
+{
+"name": "add_real_small",
+"fields": "NEWS",
+"value": "1.5e-7",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_real_small.fits,NEWS = 1.500000E-7",
+"add_real_small.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWS    =          1.500000E-7"
+]
+},
+{
+"name": "add_str",
+"fields": "NEWS",
+"value": "hello world",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_str.fits,NEWS = \"hello world\"",
+"add_str.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWS    = 'hello world'"
+]
+},
+{
+"name": "add_sexa",
+"fields": "NEWX",
+"value": "12:30:45",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_sexa.fits,NEWX = 12.5125",
+"add_sexa.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWX    =              12.5125"
+]
+},
+{
+"name": "add_expr",
+"fields": "NEWE",
+"value": "(EXPTIME + 1)",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_expr.fits,NEWE = 16",
+"add_expr.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWE    =                   16"
+]
+},
+{
+"name": "add_bool",
+"fields": "NEWB",
+"value": "(yes)",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_bool.fits,NEWB = yes",
+"add_bool.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWB    =                    T"
+]
+},
+{
+"name": "add_existing",
+"fields": "EXPTIME",
+"value": "99",
+"params": {
+"add": true
+},
+"stdout": [
+"add_existing.fits,EXPTIME: 15 -> 99",
+"add_existing.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   99",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "addonly_existing",
+"fields": "EXPTIME",
+"value": "99",
+"params": {
+"addonly": true
+},
+"stdout": [
+"addonly_existing.fits updated"
+],
+"stderr": [
+"parameter addonly_existing.fits,EXPTIME already exists"
+],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "addonly_new",
+"fields": "NEWO",
+"value": "5",
+"params": {
+"addonly": true
+},
+"stdout": [
+"add addonly_new.fits,NEWO = 5",
+"addonly_new.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWO    =                    5"
+]
+},
+{
+"name": "add_octal",
+"fields": "NEWO",
+"value": "17b",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_octal.fits,NEWO = 15",
+"add_octal.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWO    =                   15"
+]
+},
+{
+"name": "add_yes",
+"fields": "NEWY",
+"value": "yes",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_yes.fits,NEWY = yes",
+"add_yes.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWY    = 'yes     '"
+]
+},
+{
+"name": "add_real_int",
+"fields": "NEWF",
+"value": "2.",
+"params": {
+"add": true
+},
+"stdout": [
+"add add_real_int.fits,NEWF = 2.",
+"add_real_int.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWF    =                   2."
+]
+},
+{
+"name": "delete",
+"fields": "FILTER",
+"value": "",
+"params": {
+"delete": true
+},
+"stdout": [
+"delete.fits,FILTER deleted",
+"delete.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "delete_missing",
+"fields": "NOSUCH",
+"value": "",
+"params": {
+"delete": true
+},
+"stdout": [],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "delete_wild",
+"fields": "N*",
+"value": "",
+"params": {
+"delete": true
+},
+"stdout": [
+"delete_wild.fits,NCOMB deleted",
+"delete_wild.fits updated"
+],
+"stderr": [
+"Warning: Cannot delete image header parameter (i_naxis)",
+"Warning: Cannot delete image header parameter (i_naxis1)",
+"Warning: Cannot delete image header parameter (i_naxis2)"
+],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "print",
+"fields": "EXPTIME,OBJECT",
+"value": ".",
+"params": {},
+"stdout": [
+"print.fits,EXPTIME = 15",
+"print.fits,OBJECT = \"M92 field\""
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "print_I",
+"fields": "$I",
+"value": ".",
+"params": {},
+"stdout": [
+"print_I.fits,$I = print_I.fits"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "noupdate",
+"fields": "EXPTIME",
+"value": "30",
+"params": {
+"update": false
+},
+"stdout": [
+"noupdate.fits,EXPTIME: 15 -> 30"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_max",
+"fields": "GAIN",
+"value": "(max(1, 2.5, NCOMB))",
+"params": {},
+"stdout": [
+"edit_expr_max.fits,GAIN: 2.5 -> 3.",
+"edit_expr_max.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                   3.",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_mod",
+"fields": "NCOMB",
+"value": "(mod(7, 3))",
+"params": {},
+"stdout": [
+"edit_expr_mod.fits,NCOMB: 3 -> 1",
+"edit_expr_mod.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    1",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_pow",
+"fields": "GAIN",
+"value": "(2 ** 3)",
+"params": {},
+"stdout": [
+"edit_expr_pow.fits,GAIN: 2.5 -> 8",
+"edit_expr_pow.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                    8",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_powr",
+"fields": "GAIN",
+"value": "(2.0 ** 0.5)",
+"params": {},
+"stdout": [
+"edit_expr_powr.fits,GAIN: 2.5 -> 1.414214",
+"edit_expr_powr.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =             1.414214",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_sqrt",
+"fields": "GAIN",
+"value": "(sqrt(GAIN))",
+"params": {},
+"stdout": [
+"edit_expr_sqrt.fits,GAIN: 2.5 -> 1.581139",
+"edit_expr_sqrt.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =             1.581139",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_cmpstr",
+"fields": "FLAG",
+"value": "(IMAGETYP == 'object')",
+"params": {},
+"stdout": [
+"edit_expr_cmpstr.fits,FLAG: T -> yes",
+"edit_expr_cmpstr.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                  yes",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_and",
+"fields": "FLAG",
+"value": "(EXPTIME > 10 && GAIN < 3)",
+"params": {},
+"stdout": [
+"edit_expr_and.fits,FLAG: T -> yes",
+"edit_expr_and.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                  yes",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_not",
+"fields": "FLAG",
+"value": "(!FLAG)",
+"params": {},
+"stdout": [
+"edit_expr_not.fits,FLAG: T -> no",
+"edit_expr_not.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                   no",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_bool_fn",
+"fields": "NCOMB",
+"value": "(bool(3))",
+"params": {},
+"stdout": [
+"edit_expr_bool_fn.fits,NCOMB: 3 -> yes",
+"edit_expr_bool_fn.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                  yes",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+},
+{
+"name": "edit_expr_real_fn",
+"fields": "NCOMB",
+"value": "(real(NCOMB))",
+"params": {},
+"stdout": [
+"edit_expr_real_fn.fits,NCOMB: 3 -> 3.",
+"edit_expr_real_fn.fits updated"
+],
+"stderr": [],
+"cards": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                   3.",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+]
+}
+],
+"expressions": {
+"(7/2)": "3",
+"(-7/2)": "-3",
+"(mod(-7,3))": "-1",
+"(2**3**2)": "64",
+"(-2**2)": "4",
+"(2**-1)": "0",
+"('abc' < 'abd')": "yes",
+"(3 > 2 ? 'a' : 'b')": "a",
+"(atan2(1,1))": "45.",
+"(int(-2.7))": "-2",
+"(nint(-2.5))": "-3",
+"(str(1.5e-7))": "1.500000E-7",
+"(max(1,2))": "2",
+"(abs(-3))": "3",
+"(17b + 1fx)": "46",
+"(12:30:00 * 2)": "25.",
+"(bool('x'))": "yes",
+"('M92 x' ?= '^M9#2')": "yes",
+"('ab' ?= '{AB}')": "yes",
+"(exp(1))": "2.718282",
+"(log10(2))": "0.30103",
+"(acos(0.5))": "60.",
+"(tan(45))": "0.9999999",
+"(mod(7.5, 2))": "1.5",
+"(min(3, 1.5))": "1.5",
+"(1e3 / 7)": "142.8571",
+"(str(yes) // str(3))": "yes3",
+"('abc' ?= 'b')": "yes",
+"('abc' ?= '^b')": "no",
+"('a.c' ?= 'a?c')": "yes",
+"('x1' ?= 'x[0-9]')": "yes",
+"(INDEF)": "INDEF",
+"(sqrt(2.) * sqrt(2.))": "2.",
+"(@'EXPTIME' + 1)": "16",
+"(10 - 3 - 2)": "5",
+"(2 * 3 + 4 * 5)": "26",
+"(1 < 2 && 3 > 4 || yes)": "yes",
+"(real(1) / 3)": "0.3333333",
+"(1 / 3.)": "0.3333333"
+},
+"g_format": {
+"123456789.": "123456792.",
+"1e20": "1.000000E20",
+"0.": "0.",
+"0.001234": "0.001234",
+"-0.5": "-0.5",
+"0.333333333": "0.3333333",
+"6.6666666e-6": "6.666667E-6",
+"99999.95": "99999.95",
+"0.1": "0.1",
+"1234567890123.": "1.234568E12",
+"5.": "5.",
+"1.5e-7": "1.500000E-7",
+"0.999999999": "1.",
+"1e-30": "1.000000E-30",
+"7.0e15": "7.000000E15",
+"1234567.": "1234567.",
+"12345678.": "12345678.",
+"0.0001": "1.000000E-4",
+"0.00001": "1.000000E-5",
+"100000.": "100000.",
+"1000000.": "1000000.",
+"9999999.": "9999999.",
+"99999999.": "100000000.",
+"-1.25e-12": "-1.250000E-12",
+"2.5e10": "2.500000E10",
+"0.5": "0.5",
+"0.05": "0.05",
+"1.0e-5": "1.000000E-5",
+"3.0e-4": "3.000000E-4",
+"999.9999": "999.9999",
+"0.099999999": "0.1",
+"65536.": "65536.",
+"1.e7": "10000000."
+},
+"hselect": {
+"images": {
+"base.fits": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '"
+],
+"add_str.fits": [
+"EXPTIME =                   15",
+"OBJECT  = 'M92 field'",
+"AIRMASS =             1.234567",
+"FILTER  = 'V       '",
+"FLAG    =                    T",
+"RA      = '17:17:07.3'",
+"GAIN    =                  2.5",
+"NCOMB   =                    3",
+"IMAGETYP= 'object  '",
+"TITLE2  = 'x       '",
+"NEWS    = 'hello world'"
+]
+},
+"cases": {
+"all": "base.fits\t15\t\"M92 field\"\t1.234567\tT\nadd_str.fits\t15\t\"M92 field\"\t1.234567\tT\n",
+"missing": "base.fits\t2.5\nadd_str.fits\t2.5\n",
+"missfirst": "2.5\n2.5\n",
+"wild": "base.fits\t15\t2\t4\t3\t3\nadd_str.fits\t15\t2\t4\t3\t3\t\"hello world\"\n",
+"pat": "base.fits\nadd_str.fits\n",
+"cmp": "base.fits\t17:17:07.3\nadd_str.fits\t17:17:07.3\n",
+"none": ""
+},
+"runs": {
+"all": [
+"$I,EXPTIME,OBJECT,AIRMASS,FLAG",
+"yes"
+],
+"missing": [
+"$I,NOSUCH,GAIN",
+"yes"
+],
+"missfirst": [
+"NOSUCH,GAIN",
+"yes"
+],
+"wild": [
+"$I,EXP*,N*",
+"yes"
+],
+"pat": [
+"$I",
+"OBJECT ?= 'M9*'"
+],
+"cmp": [
+"$I,RA",
+"EXPTIME > 10 && FLAG"
+],
+"none": [
+"$I",
+"EXPTIME > 100"
+]
+}
+}
+}

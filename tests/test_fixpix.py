@@ -7,12 +7,14 @@ the direction. harwood has to change exactly those pixels, to exactly those
 values.
 """
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pytest
 from iraf_field import fixpix_case
 
+import harwood
 from harwood.core import fixpix
 from harwood.core.registry import get_task
 
@@ -82,3 +84,38 @@ def test_the_task_takes_a_text_mask_or_the_bpm_keyword(tmp_path):
     assert "fixpix" in str(fits.getheader(by_keyword.outputs[0])["HISTORY"])
     untouched = fits.getdata(tmp_path / "frame.fits")
     assert np.array_equal(untouched, image), "the input is not modified"
+
+
+# ------------------------------------------- verbose, pixels and every mask
+
+
+LISTING = json.loads((Path(__file__).parent / "data" / "iraf_fixpix_listing.json").read_text())
+
+
+@pytest.mark.parametrize("tag", list(LISTING["cases"]))
+def test_fixpix_lists_and_fixes_as_iraf(tag, tmp_path, monkeypatch):
+    """The same frame and mask as FITS, as IRAF's own .pl and as a region
+    file; what IRAF printed with verbose+ pixels+, and the pixels it left."""
+    import shutil
+
+    from astropy.io import fits
+
+    case = LISTING["cases"][tag]
+    monkeypatch.chdir(tmp_path)
+    dtype = np.float32 if case["image"] == "real" else np.int16
+    fits.PrimaryHDU(np.array(LISTING[case["image"]], dtype)).writeto(f"{tag}.fits")
+    fits.PrimaryHDU(np.array(LISTING["mask"], np.int16)).writeto("mask.fits")
+    shutil.copy(Path(__file__).parent / "data" / "fixpix_mask.pl", "mask.pl")
+    Path("regions.txt").write_text(LISTING["regions"])
+    given = {key: value == "yes" if value in ("yes", "no") else value
+             for key, value in case["params"].items()}
+    params = {"verbose": True, "pixels": True, **given}
+    result = harwood.run("fixpix", images=[f"{tag}.fits"], masks=[case["mask"]],
+                         output=str(tmp_path / "out"), **params)
+    if params["verbose"]:
+        assert result.data["text"] == case["stdout"]
+    else:
+        assert "text" not in result.data
+    fixed = fits.getdata(result.outputs[0])
+    assert np.array_equal(fixed, np.array(case["fixed"], dtype))
+    assert "Bad pixel file is " + case["mask"] in fits.getheader(result.outputs[0])["FIXPIX"]

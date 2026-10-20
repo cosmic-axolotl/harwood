@@ -87,11 +87,13 @@ def directions(mask: np.ndarray, linterp: int | None = None,
 
 
 def fix(data: np.ndarray, mask: np.ndarray, linterp: int | None = None,
-        cinterp: int | None = None) -> tuple[np.ndarray, dict]:
+        cinterp: int | None = None, listing: list | None = None) -> tuple[np.ndarray, dict]:
     """Return the fixed image and a summary of what was done.
 
     The input is not modified. The output keeps the input's dtype; integer
-    images are rounded, as IRAF writes them.
+    images are rounded, as IRAF writes them. Given a list as `listing`, each
+    replaced pixel is appended to it, in IRAF's order (line by line, then
+    column): (x, y, old, new, [(x, y) of the good pixels it came from]).
     """
     data = np.asarray(data)
     if np.asarray(mask).shape != data.shape:
@@ -136,6 +138,9 @@ def fix(data: np.ndarray, mask: np.ndarray, linterp: int | None = None,
             slope = (source[row, c2] - a) / (c2 - c1) if c2 < nc else 0.0
             fixed[row, todo] = a + slope * (todo - c1)
 
+    if listing is not None:
+        listing.extend(_listing(source, fixed, how, data.dtype))
+
     if np.issubdtype(data.dtype, np.integer):
         # nint: half away from zero, negatives included.
         result = np.where(fixed >= 0, np.floor(fixed + 0.5),
@@ -146,3 +151,51 @@ def fix(data: np.ndarray, mask: np.ndarray, linterp: int | None = None,
                "along lines": int((how == LDEF).sum()),
                "along columns": int((how == CDEF).sum())}
     return result, summary
+
+
+def _listing(source: np.ndarray, fixed: np.ndarray, how: np.ndarray, dtype) -> list:
+    """xt_fps's pixel list: each fixed pixel with the value it had, the value
+    it got (before an integer image rounds it) and its endpoints, 1-based."""
+    nl, nc = how.shape
+    single = not np.issubdtype(dtype, np.float64)
+    out = []
+    for row in range(nl):
+        bad = how[row] != 0
+        for start, stop in _runs(bad):
+            c1, c2 = start - 1, stop
+            if c1 < 0 and c2 >= nc and (how[row, start:stop] == LDEF).all():
+                continue
+            for col in range(start, stop):
+                if how[row, col] == LDEF:
+                    if c1 < 0 and c2 >= nc:
+                        continue
+                    ends = [(c1 + 1, row + 1)] if c1 >= 0 else []
+                    ends += [(c2 + 1, row + 1)] if c2 < nc else []
+                else:
+                    column = how[:, col] != 0
+                    l1 = row
+                    while l1 >= 0 and column[l1]:
+                        l1 -= 1
+                    l2 = row
+                    while l2 < nl and column[l2]:
+                        l2 += 1
+                    if l1 < 0 and l2 >= nl:
+                        continue
+                    ends = [(col + 1, l1 + 1)] if l1 >= 0 else []
+                    ends += [(col + 1, l2 + 1)] if l2 < nl else []
+                new = fixed[row, col]
+                out.append((col + 1, row + 1, source[row, col],
+                            float(np.float32(new)) if single else float(new), ends))
+    return out
+
+
+def format_listing(rows: list, double: bool = False) -> list[str]:
+    """The lines IRAF prints for `pixels`: "%4d %4d %8g %8g" and " %4d %4d"
+    for each endpoint, with IRAF's %g -- fewer digits until it fits 8."""
+    from .iraffmt import printf
+
+    def g8(value: float) -> str:
+        return f"{printf(value, 'g', width=8, double=double):>8}"
+
+    return [f"{x:4d} {y:4d} {g8(old)} {g8(new)}" + "".join(f" {a:4d} {b:4d}" for a, b in ends)
+            for x, y, old, new, ends in rows]

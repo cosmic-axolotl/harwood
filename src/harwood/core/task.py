@@ -122,6 +122,10 @@ class TaskResult:
     #: choice they made, a caveat that applies to this run. Section 2.1 --
     #: nothing important happens where it cannot be seen.
     warnings: list[Any] = field(default_factory=list)   #: str or core.advice.Advice
+    #: Lines for a script to read, printed as they are and alone: the command
+    #: line then writes nothing else to stdout (warnings go to stderr), so
+    #: `$(harwood imgets obj.fits EXPTIME)` is the value and only the value.
+    stdout: list[str] | None = None
     duration_s: float = 0.0
     backend: str | None = None
 

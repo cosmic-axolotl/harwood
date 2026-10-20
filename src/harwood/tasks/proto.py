@@ -49,6 +49,11 @@ class FixpixParams(TaskParams):
     cinterp: int | None = Field(
         None, ge=1, description="Mask value that forces interpolation along "
                                 "columns. Empty is IRAF's INDEF.")
+    verbose: bool = Field(False, description="Print 'FIXPIX: image ... with mask ...' "
+                                             "for each image, as IRAF does.")
+    pixels: bool = Field(
+        False, description="With --verbose, list every pixel replaced: x, y, the value "
+                           "it had, the value it got, and the good pixels it came from.")
     output: str = Field(
         "", description="Where to write: a directory or a prefix. Left out, this "
                         "run's own directory. IRAF fixes in place; name the "
@@ -98,7 +103,7 @@ class Fixpix(Task[FixpixParams]):
             advice.fail(f"{len(params.masks)} masks for {len(specs)} images",
                         "give one mask for all of them, or one for each, in order")
 
-        rows, written, total = [], [], 0
+        rows, written, total, text = [], [], 0, []
         for number, spec in enumerate(specs):
             hdul, hdu = images.open_hdu(spec)
             try:
@@ -107,11 +112,17 @@ class Fixpix(Task[FixpixParams]):
                 hdul.close()
             mask_name = params.masks[0 if len(params.masks) == 1 else number]
             mask, where = _mask(mask_name, header, spec, data.shape)
-            fixed, summary = fixpix.fix(data, mask, params.linterp, params.cinterp)
+            listing: list | None = [] if params.verbose and params.pixels else None
+            fixed, summary = fixpix.fix(data, mask, params.linterp, params.cinterp, listing)
+            if params.verbose:
+                text.append(f"FIXPIX: image {spec} with mask {where}")
+                text += fixpix.format_listing(listing or [],
+                                              double=data.dtype == np.float64)
 
             header.add_history(f"fixpix: {summary['pixels']} pixels from {where} "
                                f"({summary['along lines']} along lines, "
                                f"{summary['along columns']} along columns)")
+            _mark(header, where)
             name = Path(spec.path).name
             stem = name[:-5] if name.endswith(".fits") else name
             destination = _destination(params.output, stem, ".fits", spec, output)
@@ -122,50 +133,42 @@ class Fixpix(Task[FixpixParams]):
 
         steps = self.plan(params)
         steps[1].measured = {"images": len(specs), "pixels replaced": total}
-        return TaskResult(outputs=written, steps=steps, data={"rows": rows},
+        data = {"text": text, "rows": rows} if text else {"rows": rows}
+        return TaskResult(outputs=written, steps=steps, data=data,
                           history=[f"fixpix: {total} pixels"])
 
 
+def _mark(header, mask: str) -> None:
+    """IRAF's record: FIXPIX = '<date> Bad pixel file is <mask>', or FIXPIX02
+    and on when the frame was fixed before. The date is cnvdate's, local."""
+    import time
+
+    now = time.localtime()
+    stamp = time.strftime("%b", now) + f" {now.tm_mday:2d} {now.tm_hour:2d}:{now.tm_min:02d}"
+    value = f"{stamp} Bad pixel file is {mask}"
+    if "FIXPIX" not in header:
+        header["FIXPIX"] = value
+        return
+    for number in range(2, 100):
+        if f"FIXPIX{number:02d}" not in header:
+            header[f"FIXPIX{number:02d}"] = value
+            return
+
+
 def _mask(name: str, header, spec, shape):
-    """The mask for one image: an image, the BPM keyword's, or a text list."""
-    import numpy as np
+    """The mask for one image, named as every IRAF mask is (core.pixmask):
+    an image or .pl, BPM or !KEY for the file a keyword names, a section, a
+    text file of 'x y' and 'x1 x2 y1 y2' lines; ^ inverts. A relative name
+    not found here is looked for beside the image."""
+    from ..core import pixmask
 
-    from ..core import images
-
-    if name.upper() == "BPM":
-        if "BPM" not in header:
-            advice.fail(f"{spec} has no BPM keyword",
-                        "name the mask instead of BPM, or add BPM with hedit")
-        name = str(header["BPM"])
-        candidate = Path(spec.path).parent / name
-        if not Path(name).exists() and candidate.exists():
-            name = str(candidate)
-    path = Path(images.parse(name).path)
-    if not path.exists():
-        advice.fail(f"mask '{name}' does not exist", "check the name, or the BPM keyword",
-                    FileNotFoundError)
-    if path.suffix.lower() in (".fits", ".fit", ".fz", ".gz", ".pl", ".imh"):
-        mask, _ = images.read(name)
-        return np.trunc(mask).astype(np.int64), name
-
-    # IRAF's text format: 'x y' for a pixel, 'x1 x2 y1 y2' for a region.
-    mask = np.zeros(shape, np.int64)
-    for number, line in enumerate(path.read_text().splitlines(), 1):
-        fields = line.split("#", 1)[0].split()
-        if not fields:
-            continue
-        try:
-            values = [int(float(v)) for v in fields]
-        except ValueError:
-            advice.fail(f"{path}:{number}: '{line.strip()}' is not numbers",
-                        "write 'x y' for a pixel or 'x1 x2 y1 y2' for a region")
-        if len(values) == 2:
-            x1 = x2 = values[0]
-            y1 = y2 = values[1]
-        elif len(values) == 4:
-            x1, x2, y1, y2 = values
-        else:
-            advice.fail(f"{path}:{number}: '{line.strip()}' has {len(values)} numbers",
-                        "write 'x y' for a pixel or 'x1 x2 y1 y2' for a region")
-        mask[max(1, y1) - 1:min(shape[0], y2), max(1, x1) - 1:min(shape[1], x2)] = 1
-    return mask, name
+    resolved, _ = pixmask.resolve(name, header)
+    if not resolved:
+        keyword = name.lstrip("^").lstrip("!")
+        advice.fail(f"{spec} has no {keyword} keyword",
+                    "name the mask instead, or add the keyword with hedit")
+    beside = Path(spec.path).parent
+    workdir = "." if (Path(resolved).exists() or resolved.startswith("[")
+                      or resolved == "EMPTY" or not (beside / resolved).exists()) else beside
+    mask = pixmask.read(name, header, shape, workdir)
+    return mask, resolved

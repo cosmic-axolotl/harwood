@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 28, partial: 24, planned: 303, replaced: 94, wontport: 161
+#   available: 32, partial: 20, planned: 303, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -257,16 +257,13 @@ tasks:
   ccdhedit: {pkg: imred.ccdred, domain: headers, status: planned, milestone: later}
   ccdinstrument: {pkg: imred.ccdred, domain: headers, status: planned, milestone: mvp}
   ccdlist: {pkg: imred.ccdred, domain: headers, status: available, milestone: mvp, harwood: ccdlist}
-  hedit: {pkg: images.imutil, domain: headers, status: partial, milestone: mvp, harwood: hedit,
-    note: "sets, adds and deletes keywords over an image template, recording the old value
-           in HISTORY. No expression-valued edits (IRAF's value can be a formula over the
-           header) and no per-image confirmation prompt -- --no-update shows the plan
-           instead."}
+  hedit: {pkg: images.imutil, domain: headers, status: available, milestone: mvp, harwood: hedit,
+    note: "hedit.x ported with IRAF's evexpr: parenthesised expressions ($, $I, $F, the functions, IRAF's integer and single-precision rules), . to print, wildcards, add, addonly, delete, verify, show -- the same lines and cards as IRAF 2.18 on 52 edits. Where IRAF writes an unquoted word into a numeric or logical card (invalid FITS) harwood writes the valid card; the old value goes to HISTORY"}
   hfix: {pkg: proto, domain: headers, status: planned, milestone: later}
-  hselect: {pkg: images.imutil, domain: headers, status: available, milestone: mvp, harwood: hselect}
-  imgets: {pkg: images.imutil, domain: headers, status: partial, milestone: mvp, harwood: imgets,
-    note: "one keyword from one image, with a default when it is absent. No IRAF parameter
-           side effects: the value comes back in the result rather than in imgets.value."}
+  hselect: {pkg: images.imutil, domain: headers, status: available, milestone: mvp, harwood: hselect,
+    note: "IRAF's evexpr (?= patterns, arithmetic, functions) and IRAF's output: tab-separated card text, identical to IRAF 2.18; a frame missing a keyword is skipped with a warning where IRAF stops"}
+  imgets: {pkg: images.imutil, domain: headers, status: available, milestone: mvp, harwood: imgets,
+    note: "the value alone on stdout, as the card holds it, and IRAF's standard fields (naxis, pixtype, title, pixfile); 0 and a warning when absent -- checked against IRAF. Instead of imgets.value, $(harwood imgets ...) or result.data in Python; ctime, mtime and limtime are not given"}
   imheader: {pkg: images.imutil, domain: headers, status: available, milestone: mvp, harwood: imheader}
   keypar: {pkg: utilities.nttools, domain: headers, status: replaced,
     note: "astropy.table plus ECSV replace the t* family"}
@@ -310,8 +307,8 @@ tasks:
   imdivide: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imexpr: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
   imfunction: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
-  imhistogram: {pkg: images.imutil, domain: arithmetic, status: partial, milestone: mvp, harwood: imhistogram,
-    note: "IRAF's bins, integer autoscale and histogram types, checked against IRAF's listout; the list only, no plot"}
+  imhistogram: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imhistogram,
+    note: "IRAF's bins, integer autoscale and histogram types, checked against IRAF's listout; plotted (line or box, logy) in the window, or to an SVG without a screen or with --device name.svg"}
   imjoin: {pkg: [images.imutil, proto.vol], domain: arithmetic, status: planned, milestone: later}
   imrename: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imrename,
     note: "IRAF's rules for the new name; refuses before renaming anything when one would clobber, where IRAF warns and goes on"}
@@ -468,8 +465,8 @@ tasks:
   apmask: {pkg: twodspec.apextract, domain: masks, status: planned, milestone: later}
   bpmedit: {pkg: images.tv, domain: masks, status: planned, milestone: later}
   epix: {pkg: proto, domain: masks, status: planned, milestone: later}
-  fixpix: {pkg: proto, domain: masks, status: partial, milestone: mvp,
-    note: "IRAF's interpolation, ported and identical to IRAF's output; masks as images, BPM or text; no .pl pixel lists, and no verbose pixel listing"}
+  fixpix: {pkg: proto, domain: masks, status: available, milestone: mvp,
+    note: "IRAF's interpolation, ported and identical to IRAF's output; masks as FITS, .pl, BPM/!KEY, sections or region files (IRAF's 2/3 values), matched by LTV; verbose and the pixels listing, and the FIXPIX keyword, as IRAF writes them. Writes a new file unless --output names the input's directory"}
   imedit: {pkg: images.tv, domain: masks, status: planned, milestone: later}
   mskexpr: {pkg: proto, domain: masks, status: planned, milestone: mvp}
   mskregions: {pkg: proto, domain: masks, status: planned, milestone: later}
