@@ -135,7 +135,10 @@ def record(task: str, params: dict[str, Any], result: Any,
         "steps": steps,
     }
     if getattr(result, "warnings", None):
-        document["notes"] = list(result.warnings)
+        # A notice is an Advice; the file keeps it as one line of text, what
+        # happened and what to do, as the log does.
+        document["notes"] = [w.plain() if hasattr(w, "plain") else str(w)
+                             for w in result.warnings]
     if getattr(result, "backend", None):
         document["backend"] = result.backend
 

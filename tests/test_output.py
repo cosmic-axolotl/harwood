@@ -114,6 +114,28 @@ def test_the_record_carries_each_step_with_its_explanation(frames, tmp_path):
     assert steps[1]["skipped"] == "TRIM already in the header"
 
 
+def test_the_record_keeps_a_notice_and_what_to_do_about_it(frames, tmp_path):
+    """A task's notices are Advice; the record keeps them as text. (lineid on
+    a spectrum with unnamed features stopped at the end, after its work was
+    done, because run.yaml could not hold an Advice.)"""
+    import yaml
+
+    from harwood.core import advice
+    from harwood.core.task import TaskResult
+
+    result = TaskResult(outputs=[tmp_path / "x.csv"],
+                        warnings=[advice.note("4 of 4 features are not in the catalogue.",
+                                              "nothing, usually.")])
+    token = output.begin("lineid", frames)
+    try:
+        output.directory()
+        written = output.record("lineid", {}, result, "harwood lineid x")
+    finally:
+        output.end(token)
+    assert yaml.safe_load(written.read_text())["notes"] == [
+        "note: 4 of 4 features are not in the catalogue. -- try: nothing, usually."]
+
+
 def test_output_lives_with_the_reduction_not_with_the_installation(frames):
     """An installation is shared, replaced on upgrade, and often not writable;
     a global place for results is the same mistake as a global place for
