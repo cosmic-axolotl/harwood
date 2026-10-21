@@ -4,6 +4,10 @@
 up, the answer should be in there; when it is not, the answer gets added there
 before it gets written in code.
 
+Section 11 (modern instrumentation, 2026-10-21) was appended to the original
+nine pages, whose source was not kept; its own source is
+`source/secao-11-instrumentacao.html`, typeset with WeasyPrint.
+
 `iraf-inventory.pdf` is what it derives from: the 609 task names of
 Community IRAF 2.18.2, the 22 domains, what makes IRAF a reference and where it
 trips.

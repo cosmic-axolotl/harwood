@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>harwood — decisões de projeto, seção 11</title>
+<!--
+  Fonte das páginas acrescentadas ao fim de docs/design-decisions.pdf.
+  O PDF original (seções 1 a 10) não tem fonte guardada; esta folha imita o
+  seu estilo para que o adendo leia como parte dele. Para regerar:
+
+      weasyprint secao-11-instrumentacao.html secao-11.pdf
+      # e anexar secao-11.pdf às nove páginas originais, que estão no git
+      # (a versão de docs/design-decisions.pdf anterior ao adendo)
+-->
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 16mm 22mm 16mm;
+    @bottom-left {
+      content: "harwood — decisões de projeto · adendo de 21/10/2026";
+      font: 7.5pt "DejaVu Sans"; color: #595959; vertical-align: top; padding-top: 4mm;
+    }
+    @bottom-right {
+      content: "A" counter(page) " / A" counter(pages);
+      font: 7.5pt "DejaVu Sans"; color: #595959; vertical-align: top; padding-top: 4mm;
+    }
+  }
+  html { font: 9.8pt/1.38 "DejaVu Serif"; color: #000; }
+  body { margin: 0; }
+  h2, h3 { font-family: "DejaVu Sans"; font-stretch: semi-condensed; font-weight: bold; }
+  h2 { font-size: 13.5pt; margin: 0 0 6pt; padding-bottom: 2pt; border-bottom: 0.75pt solid #595959; }
+  h2.next { margin-top: 16pt; }
+  h3 { font-size: 10.8pt; margin: 12pt 0 4pt; }
+  p { margin: 0 0 6pt; }
+  code { font: 0.86em "DejaVu Sans Mono"; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 8pt;
+          font: 7.9pt/1.4 "DejaVu Sans"; font-stretch: semi-condensed; }
+  th { text-align: left; font-weight: bold; padding: 3pt 4pt;
+       border-top: 1.2pt solid #000; border-bottom: 0.75pt solid #000; }
+  tr { break-inside: avoid; }
+  h2, h3 { break-after: avoid; }
+  td { vertical-align: top; padding: 3pt 4pt; border-bottom: 0.5pt solid #999; }
+  td:first-child { width: 22%; }
+  td.st, th.st { width: 13%; white-space: nowrap; }
+  .decidido { font-variant: small-caps; }
+  .proposto { font-variant: small-caps; font-style: italic; }
+  table.tec td:first-child { width: 20%; }
+  table.tec td:nth-child(2) { width: 42%; }
+  ul, ol { margin: 0 0 6pt; padding-left: 14pt; }
+  li { margin-bottom: 2pt; }
+  .nota { font-style: italic; }
+</style>
+</head>
+<body>
+
+<h2>11. Além do IRAF: instrumentação moderna</h2>
+
+<p class="nota">Adendo de 21 de outubro de 2026, depois da conversa com um professor sobre como a
+instrumentação avançou desde o IRAF e o deixou para trás em pontos que nenhum algoritmo antigo resolve.</p>
+
+<p>O IRAF não envelheceu nos algoritmos: ajuste de overscan, combinação com rejeição e fotometria de
+abertura continuam certos, e o harwood os reproduz número a número. Envelheceu nas suposições sobre o
+dado: uma imagem 2D, um amplificador, um CCD com overscan, nenhuma incerteza, precisão simples.</p>
+
+<p><strong>Decisão:</strong> manter a superfície do IRAF (nomes, parâmetros, comportamento) e trocar por
+baixo o modelo de dado e o modelo de detector, para que o harwood atenda ao maior leque possível de
+detectores. Nenhum tipo é eleito alvo único.</p>
+
+<table>
+  <tr><th>Item</th><th>Decisão</th><th class="st">Estado</th></tr>
+  <tr><td>Alcance</td>
+      <td>Cobrir CCDs de um ou vários amplificadores, mosaicos, CMOS, EMCCD e arrays infravermelhos. O
+      que muda de um para outro mora no modelo de detector, não em tarefas paralelas</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Compatibilidade</td>
+      <td>Todo passo novo entra desligado por padrão. Com os padrões, o harwood continua reproduzindo o
+      IRAF, e os testes contra o IRAF continuam valendo</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Forma dos passos novos</td>
+      <td>Seguem o padrão do <code>ccdproc</code>: uma chave por passo (<code>lincor</code>,
+      <code>xtalkcor</code>…) e uma marca no cabeçalho que impede repetir o passo, como
+      <code>ZEROCOR</code> e <code>FLATCOR</code> já fazem</td>
+      <td class="st proposto">Proposto</td></tr>
+  <tr><td>Modelo de dado</td>
+      <td>Depende do item 5 da seção 10 (<code>SCI</code>/<code>VAR</code>/<code>DQ</code>), que vira
+      pré-requisito desta seção: saturação, não-linearidade, pixel quente e persistência viram bits no
+      <code>DQ</code>, e o <code>imcombine</code> pesa pela variância inversa. Um modo de compatibilidade grava
+      como o IRAF: uma imagem só, em precisão simples</td>
+      <td class="st proposto">Proposto</td></tr>
+  <tr><td>Modelo de detector</td>
+      <td>Além da tradução de cabeçalho do <code>ccddb$</code>, que continua lida como está, uma descrição
+      física no projeto: tipo de detector; amplificadores, cada um com seção, ganho e ruído de leitura; curva de
+      linearidade; saturação; máscara de pixels ruins; mapas de offset e de ganho por pixel</td>
+      <td class="st proposto">Proposto</td></tr>
+  <tr><td>Validação</td>
+      <td>Para o que não existe no IRAF, não há IRAF que sirva de gabarito. Usar dados sintéticos de
+      verdade conhecida, comparar com pipelines atuais (DRAGONS, o <code>ccdproc</code> da Astropy) e, acima de
+      tudo, usar dado real de cada tipo de detector</td>
+      <td class="st proposto">Proposto</td></tr>
+  <tr><td>Mapa de migração</td>
+      <td>Um status próprio (por exemplo <code>beyond-iraf</code>) para tarefas sem equivalente no IRAF, para
+      que <code>harwood list</code> separe o que veio do IRAF do que é novo</td>
+      <td class="st proposto">Proposto</td></tr>
+</table>
+
+<h3>11.1 As tecnologias e o que cada uma pede</h3>
+
+<table class="tec">
+  <tr><th>Tecnologia</th><th>O que o IRAF não cobre</th><th>No harwood</th></tr>
+  <tr><td>CCD com vários amplificadores e mosaicos (MEF)</td>
+      <td>Overscan, ganho e ruído por amplificador; crosstalk entre amplificadores; montagem do mosaico. No
+      IRAF, o <code>mscred</code> era um pacote à parte, fora do <code>ccdred</code></td>
+      <td><code>ccdproc</code> por extensão e por amplificador; <code>xtalkcor</code>; montagem com WCS</td></tr>
+  <tr><td>CMOS (sCMOS, câmeras ZWO e QHY)</td>
+      <td>Não tem overscan; offset e ganho por pixel; amp glow, em que o dark não escala linearmente com o
+      tempo; ruído telegráfico (RTS); milhares de quadros curtos; obturador rolante</td>
+      <td>Bias por mapa de offset; dark casado por tempo e temperatura; máscara de RTS; combinação em blocos;
+      tempo de exposição por linha</td></tr>
+  <tr><td>Não-linearidade (qualquer detector moderno)</td>
+      <td>Nenhuma correção no <code>ccdred</code></td>
+      <td><code>lincor</code> por amplificador, com a curva vinda do modelo de detector</td></tr>
+  <tr><td>EMCCD</td>
+      <td>Ganho de multiplicação, fator de ruído em excesso, contagem de fótons</td>
+      <td>Ganho EM no modelo de ruído; modo de contagem de fótons</td></tr>
+  <tr><td>Arrays infravermelhos (HgCdTe)</td>
+      <td>Leitura não destrutiva (up-the-ramp, Fowler), pixels de referência, persistência, ganho não
+      linear</td>
+      <td>Ajuste da rampa; correção pelos pixels de referência; máscara de persistência</td></tr>
+  <tr><td>Escala</td>
+      <td>Detectores de 4k a 10k e noites com mais quadros do que cabem na memória</td>
+      <td>Processamento em blocos; núcleos compilados da seção 7</td></tr>
+</table>
+
+<p><strong>Marco:</strong> tudo depois do MVP. A ordem entre as tecnologias será definida pelo primeiro dado
+real disponível de cada tipo, como o M92 definiu a do imageamento. Até lá nenhuma delas é escrita sem um
+conjunto de dados que a exercite.</p>
+
+<h3>11.2 Acréscimos à seção 10</h3>
+<ol start="7">
+  <li>Escolher o primeiro tipo de detector além do CCD clássico, pelo dado real que houver.</li>
+  <li>Definir o formato do modelo de detector e onde ele vive no projeto (ao lado da tradução de
+  instrumento, no <code>harwood.yaml</code>).</li>
+  <li>Definir o nome do status das tarefas sem equivalente no IRAF no mapa de migração.</li>
+</ol>
+<p>O item 5 (convenção <code>SCI</code>/<code>VAR</code>/<code>DQ</code>) deixa de ser só uma escolha de
+formato: é o pré-requisito de toda a seção 11.</p>
+
+</body>
+</html>
