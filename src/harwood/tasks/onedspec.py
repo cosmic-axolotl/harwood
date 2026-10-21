@@ -176,8 +176,18 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
     from ..core import arc, database, icfit, images
     from ..core import identify as idn
 
-    data, header = images.read(params.image)
-    vector, where = idn.arc_vector(data, params.section, params.nsum)
+    extracted = _extracted(params.image)
+    aperture = None
+    if extracted:
+        try:
+            vector, where, aperture = idn.spectrum_vector(extracted, params.section)
+        except ValueError as error:
+            advice.fail(f"{params.image}: {error}", "give --section 'line 2' or "
+                        "'aperture 2'; 'middle line' is the middle aperture.")
+        data = vector
+    else:
+        data, header = images.read(params.image)
+        vector, where = idn.arc_vector(data, params.section, params.nsum)
     linelist = idn.read_linelist(arc.resolve_linelist(params.coordlist))
     units = params.units or linelist.units
     spec = icfit.FitSpec(function=params.function, order=params.order,
@@ -258,14 +268,19 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
             "far off the curve"))
 
     pixel = np.array([f.pix for f in ident.features])
+    extra_ap = {}
+    if aperture is not None:
+        extra_ap = {"aplow": round(float(aperture.centre + aperture.low), 4),
+                    "aphigh": round(float(aperture.centre + aperture.high), 4)}
     solution = database.Solution(
-        image=str(params.image), pixel=pixel,
+        image=str(params.image), pixel=pixel, section=where,
+        aperture=aperture.number if aperture is not None else None,
         wavelength=np.array([np.nan if f.user is None else f.user for f in ident.features]),
         function=params.function, order=params.order, rms=float(rms), units=units,
         coordlist=params.coordlist,
         used=np.array([f.user is not None and f.wts != 0 for f in ident.features]),
         fitted=np.array([f.fit for f in ident.features]),
-        extra={"section": where, "npts": int(vector.size),
+        extra={**extra_ap, "npts": int(vector.size),
                "xrange": [1.0, float(vector.size)], "niterate": params.niterate,
                "low_reject": params.low_reject, "high_reject": params.high_reject,
                "sample": params.sample, "grow": params.grow})
@@ -350,6 +365,18 @@ def _enough_lines(arc, vector, where: str, data, params) -> None:
         f"{'s' if len(peaks) != 1 else ''} in it, fewer than the {params.nfound} "
         "a solution needs",
         "check that the section runs along the dispersion" + other, RuntimeError)
+
+
+def _extracted(path) -> list:
+    """The apertures of a harwood spectrum file, or [] for an image."""
+    from ..core import spectrum as spectra
+
+    try:
+        if spectra.count(str(path).split("[")[0]) == 0:
+            return []
+        return spectra.read(str(path).split("[")[0])
+    except (OSError, ValueError):
+        return []
 
 
 def _database_path(params) -> Path:
@@ -1401,6 +1428,402 @@ LINEWHY = {
                 "do not move: they are in the air above the telescope, which "
                 "makes them the check on whether the shift is real.",
 }
+
+
+REIDWHY = {
+    "reference": "The reference's solutions: the one identify made, and any it "
+                 "already has for its other apertures or lines.",
+    "carry": "Each reference feature is put where the reference solution says its "
+             "wavelength now falls, plus the shift, and centred on the new "
+             "spectrum; the ones that cannot be centred are dropped. Apertures "
+             "share an arc's lines but not its dispersion, so the solution is "
+             "refitted from the features found rather than shifted.",
+    "write": "One record per aperture or line in database/id<image>, where "
+             "dispcor finds the aperture's own.",
+}
+
+
+class ReidentifyParams(TaskParams):
+    reference: str = Field(..., description="Arc already identified (identify or "
+                                            "autoidentify).")
+    images: str = Field(..., description="Spectra to reidentify: the reference itself "
+                                         "for its other apertures or lines, and the "
+                                         "night's other arcs. Commas, globs, @lists.")
+    interactive: Literal["no", "yes", "NO", "YES"] = Field(
+        "no", description="IRAF's stop at each fit; not ported yet, so only no "
+                          "runs.")
+    section: str = Field("middle line", description="The reference's line, column or "
+                                                    "aperture to start from.")
+    newaps: bool = Field(True, description="Reidentify an aperture the reference has "
+                                           "no solution for, from the last one used.")
+    override: bool = Field(False, description="Redo spectra that already have a "
+                                              "solution.")
+    refit: bool = Field(True, description="Refit the solution from the features "
+                                          "found; off, only shift it.")
+    trace: bool = Field(False, description="Along a long slit, carry each line's "
+                                           "solution to the next rather than the "
+                                           "reference's to every line.")
+    step: int = Field(10, ge=0, description="Lines between the solutions traced along "
+                                            "a long slit (0: only the reference's).")
+    nsum: int = Field(10, ge=1, description="Lines summed around each of them.")
+    shift: str = Field("0.", description="Shift added to the reference features, in "
+                                         "wavelength; INDEF to find it from the "
+                                         "spectrum.")
+    search: str = Field("0.", description="With shift INDEF: INDEF finds the shift "
+                                          "from the spectrum's peaks, 0 uses none. "
+                                          "(A radius, IRAF's pattern search, is not "
+                                          "ported.)")
+    nlost: int = Field(0, ge=0, description="Features that may be lost before a "
+                                            "solution along the reference is refused.")
+    ftype: Literal["emission", "absorption"] = Field("emission", description="Feature "
+                                                                             "type.")
+    fwidth: float = Field(4.0, gt=0, description="Feature width in pixels, where the "
+                                                 "reference does not say.")
+    cradius: float = Field(5.0, ge=0, description="Centring radius in pixels.")
+    threshold: float = Field(0.0, ge=0, description="Least range of data a feature "
+                                                    "must span to be centred.")
+    addfeatures: bool = Field(False, description="Add lines of the list the solution "
+                                                 "finds on each spectrum.")
+    coordlist: str = Field("linelists$idhenear.dat", description="Line list, for "
+                                                                 "addfeatures.")
+    match: float = Field(-3.0, description="Matching limit for added lines.")
+    maxfeatures: int = Field(50, ge=1, description="Most features to add.")
+    minsep: float = Field(2.0, ge=0, description="Least separation between features, "
+                                                 "px.")
+    database: Path = Field(Path("."), description="Reduction directory holding "
+                                                  "database/.")
+    logfiles: str = Field("logfile", description="Files the log is appended to "
+                                                 "(comma separated; empty for none).")
+    verbose: bool = Field(False, description="Say also what is skipped and what "
+                                             "becomes a new reference.")
+
+
+@register
+class Reidentify(Task[ReidentifyParams]):
+    """IRAF's reidentify, noao/onedspec/identify/t_reidentify.x:
+    core/reidentify.py."""
+
+    name = "reidentify"
+    package = "onedspec"
+    description = "Carry an arc's solution to its other apertures and to other arcs."
+    Params = ReidentifyParams
+
+    def plan(self, params: ReidentifyParams) -> list[Step]:
+        return [Step("reference", f"{params.reference}, {params.section}",
+                     why=REIDWHY["reference"]),
+                Step("carry", f"to {params.images}, shift {params.shift}"
+                     + (", refitted" if params.refit else ", shifted"),
+                     why=REIDWHY["carry"]),
+                Step("write", "database/id<image>", why=REIDWHY["write"])]
+
+    def execute(self, params: ReidentifyParams) -> TaskResult:
+        from ..core import arc, images
+        from ..core import identify as idn
+        from ..core.iraffmt import INDEF, ctod
+
+        if params.interactive.lower() == "yes":
+            advice.fail("reidentify cannot stop at each fit yet: the identify panel "
+                        "is not wired to it.",
+                        "run it with --interactive no and read its log: a spectrum "
+                        "whose RMS stands out or that lost features can be "
+                        "identified again by hand with 'harwood identify "
+                        "--interactive' (which starts from the lines, not from "
+                        "reidentify's solution).",
+                        NotImplementedError)
+        value = ctod(params.shift)
+        shift = None if value is None or abs(value) >= INDEF else float(value)
+        value = ctod(params.search)
+        search = None if value is None or abs(value) >= INDEF else float(value)
+        linelist = None
+        if params.addfeatures:
+            linelist = idn.read_linelist(arc.resolve_linelist(params.coordlist))
+        log: list[str] = []
+        said: list[str] = []
+        state = _ReidState(params, linelist, log, said)
+        state.search = search
+        reference = _bare(params.reference)
+        state.reference(params.reference, reference, shift)
+        for name in (str(spec) for spec in images.expand(params.images)):
+            if _bare(name) != reference:
+                state.image(params.reference, name, shift)
+        for target in [t.strip() for t in params.logfiles.split(",") if t.strip()]:
+            with open(Path(params.database) / target, "a", encoding="utf-8") as handle:
+                handle.write("\n".join(["", "REIDENTIFY: harwood"] + log) + "\n")
+        steps = self.plan(params)
+        steps[1].measured = {"spectra reidentified": state.done,
+                             "refused (too many features lost)": state.lost}
+        warnings = []
+        if state.lost:
+            warnings.append(advice.warn(
+                f"{state.lost} spectra along the reference lost more features than "
+                f"nlost ({params.nlost}) allows, and have no solution.",
+                "raise --nlost, or check the shift: features that cannot be "
+                "centred are usually ones the shift put more than cradius away."))
+        return TaskResult(outputs=state.written, steps=steps, warnings=warnings,
+                          data={"text": said + log, "spectra": state.done},
+                          history=[f"reidentify: {state.done} spectra from "
+                                   f"{params.reference}"])
+
+
+def _bare(name: str) -> str:
+    text = Path(str(name)).name
+    return text[:-5] if text.endswith(".fits") else text
+
+
+class _ReidState:
+    """ri_reference and ri_image: the references kept by aperture or line,
+    and the identify state that carries from one spectrum to the next."""
+
+    def __init__(self, params, linelist, log, said) -> None:
+        self.p, self.linelist, self.log, self.said = params, linelist, log, said
+        self.refs: dict = {}
+        self.order: list = []
+        self.current = None
+        self.restored = False
+        self.written: list[Path] = []
+        self.done = self.lost = 0
+
+    # -- the spectra of a file, IRAF's lines
+    def lines(self, name: str):
+        """[(key, section, vector, aperture)] in line order, and whether the
+        file is an extracted (multispec) one."""
+        import numpy as np
+
+        from ..core import identify as idn
+        from ..core import images
+
+        path = name if Path(name).exists() or not Path(name + ".fits").exists() \
+            else name + ".fits"
+        extracted = _extracted(path)
+        if extracted:
+            return [((a.number, 1), f" - Ap {a.number}", np.asarray(a.flux, np.float32), a)
+                    for a in extracted], True, path
+        data, _ = images.read(path)
+        if np.ndim(data) == 1:
+            return [((1, 1), "", np.asarray(data, np.float32), None)], False, path
+        kind, _ = idn.parse_section(self.p.section, data.shape)
+        n = data.shape[0] if kind == "line" else data.shape[1]
+        out = []
+        for line in range(1, n + 1):
+            vector, where = idn.arc_vector(data, f"{kind} {line}", self.p.nsum)
+            out.append(((line, 1), where, vector, None))
+        return out, False, path
+
+    def _records(self, name):
+        from ..core import database
+
+        try:
+            return database.read_all(name, self.p.database)
+        except FileNotFoundError:
+            return []
+
+    def _has(self, name, section) -> bool:
+        return any(r.section == section for r in self._records(name))
+
+    def _save(self, key, ident, record=None):
+        ref = self._reference_from_ident(key, ident, record)
+        if key not in self.refs:
+            self.order.append(key)
+        self.refs[key] = ref
+
+    def _reference_from_ident(self, key, ident, record):
+        import copy
+
+        from ..core import reidentify as ri
+
+        return ri.Reference(key, copy.deepcopy(ident.features), ident.fit, ident.shift,
+                            ident.spec, ident.fwidth, record, ident.newfeatures)
+
+    def reference(self, given: str, bare: str, shift) -> None:
+        """ri_reference."""
+        from ..core import reidentify as ri
+
+        lines, multispec, path = self.lines(given)
+        records = self._records(bare)
+        if not records:
+            advice.fail(f"no solution for '{given}' in database/id{bare}",
+                        "run identify or autoidentify on it first.", FileNotFoundError)
+        start = self._start_index(lines, multispec)
+        key0, section0, vector0, aperture0 = lines[start]
+        record = next((r for r in records if r.section == section0), None)
+        if record is None:
+            advice.fail(f"Entry not found: identify {bare}{section0}",
+                        "identify that aperture or line of the reference, or give "
+                        "--section for the one identified.", FileNotFoundError)
+        ref = ri.reference_from(record, key0, self.p.fwidth)
+        self.refs[key0] = ref
+        self.order.append(key0)
+        self.current = ref
+        nreid = max(1, len(ref.features) - self.p.nlost)
+        step = 1 if multispec else (self.p.step or len(lines))
+        if not self.p.override:
+            for index in list(range(start - step, -1, -step)) + \
+                    list(range(start + step, len(lines), step)):
+                key, section, _, _ = lines[index]
+                other = next((r for r in records if r.section == section), None)
+                if other is not None:
+                    self.refs[key] = ri.reference_from(other, key, self.p.fwidth)
+                    if key not in self.order:
+                        self.order.append(key)
+        loghdr = True
+        for direction in (-1, 1):
+            # Going down the reference is the one read from the database;
+            # going up it has been restored by id_getap (see ri.start).
+            self.current, self.restored = ref, direction > 0
+            # ri_reidentify's fit_shift is in and out: without trace each
+            # line starts from the shift measured on the one before, plus
+            # the given shift per step (minus, going down).
+            fit_shift = None if shift is None else 0.0
+            first = start + direction * step
+            indices = range(first, -1, -step) if direction < 0 else \
+                range(first, len(lines), step)
+            for index in indices:
+                key, section, vector, aperture = lines[index]
+                if not self.p.override and self._has(bare, section):
+                    continue
+                if self.p.trace:
+                    base, restored = self.current, self.restored
+                else:
+                    base, restored = ref, True
+                ident = ri.start(base, vector, self.linelist, self.p, restored)
+                if loghdr:
+                    self.log.extend(ri.header(bare, bare, self.p.refit))
+                    loghdr = False
+                if shift is None:
+                    fit_shift = None
+                elif not self.p.trace:
+                    fit_shift = fit_shift + direction * shift
+                else:
+                    fit_shift = direction * shift
+                result = ri.reidentify(ident, fit_shift, self.search, self.p.refit,
+                                       self.p.addfeatures, self.p.maxfeatures)
+                fit_shift = result.fit_shift
+                self.log.append(ri.log_line(bare + section, result))
+                if not result.monotonic:
+                    self.log.append("Non-monotonic dispersion function")
+                if len(result.features) < nreid:
+                    self.log.append("    ** Too many features lost **")
+                    self.lost += 1
+                    if self.p.trace:
+                        break
+                    continue
+                if result.features:
+                    self._write(bare, section, aperture, ident, len(vector))
+                    self._save(key, ident)
+                    self.current, self.restored = self.refs[key], False
+
+    def _start_index(self, lines, multispec: bool) -> int:
+        from ..core import identify as idn
+
+        if multispec:
+            apertures = [line[3] for line in lines]
+            _, where, aperture = idn.spectrum_vector(apertures, self.p.section)
+            return next(i for i, line in enumerate(lines) if line[3] is aperture)
+        if len(lines) == 1:
+            return 0
+        words = self.p.section.lower().split()
+        n = len(lines)
+        where = next((w for w in words if w not in ("line", "column", "lines",
+                                                    "columns")), "middle")
+        index = {"middle": (n + 1) // 2, "first": 1, "last": n}.get(where)
+        return (int(where) if index is None else index) - 1
+
+    def image(self, reference: str, given: str, shift) -> None:
+        """ri_image."""
+        from ..core import reidentify as ri
+
+        lines, multispec, path = self.lines(given)
+        bare = _bare(given)
+        loghdr = True
+        if multispec:
+            for key, section, vector, aperture in lines:
+                ref = self.refs.get(key)
+                if ref is None:
+                    if not self.p.newaps:
+                        if self.p.verbose:
+                            self.said.append(f"{bare}: Reference for aperture {key[0]} "
+                                             "not found")
+                        continue
+                    # A new aperture starts from whatever is in memory: the
+                    # aperture done last.
+                    base, restored = self.current, self.restored
+                else:
+                    base, restored = ref, True
+                    self.current, self.restored = ref, True
+                if not self.p.override and self._has(bare, section):
+                    continue
+                if base is None:
+                    raise RuntimeError("No features in reference")
+                ident = ri.start(base, vector, self.linelist, self.p, restored)
+                if loghdr:
+                    self.log.extend(ri.header(_bare(reference), bare, self.p.refit))
+                    loghdr = False
+                result = ri.reidentify(ident, shift, self.search, self.p.refit,
+                                       self.p.addfeatures, self.p.maxfeatures)
+                self.log.append(ri.log_line(bare + section, result))
+                if not result.monotonic:
+                    self.log.append("Non-monotonic dispersion function")
+                self.current = self._reference_from_ident(key, ident, None)
+                self.restored = False
+                if result.features:
+                    self._write(bare, section, aperture, ident, len(vector))
+                    if ref is None and self.p.newaps:
+                        self._save(key, ident)
+                        if self.p.verbose:
+                            self.said.append(f"{bare}: New reference for aperture "
+                                             f"{key[0]}")
+            return
+        by_key = {line[0]: line for line in lines}
+        for key in list(self.order):
+            if key not in by_key:
+                continue
+            _, section, vector, aperture = by_key[key]
+            if not self.p.override and self._has(bare, section):
+                continue
+            ident = ri.start(self.refs[key], vector, self.linelist, self.p, True)
+            if loghdr:
+                self.log.extend(ri.header(_bare(reference), bare, self.p.refit))
+                loghdr = False
+            result = ri.reidentify(ident, shift, self.search, self.p.refit,
+                                   self.p.addfeatures, self.p.maxfeatures)
+            self.log.append(ri.log_line(bare + section, result))
+            if result.features:
+                self._write(bare, section, aperture, ident, len(vector))
+
+    def _write(self, bare, section, aperture, ident, npts) -> None:
+        import numpy as np
+
+        from ..core import database
+        from ..core import reidentify as ri
+
+        spec = ident.spec
+        extra = {"npts": int(npts), "xrange": [1.0, float(npts)],
+                 "niterate": spec.niterate, "low_reject": spec.low_reject,
+                 "high_reject": spec.high_reject, "sample": spec.sample,
+                 "grow": spec.grow, "naverage": spec.naverage, "fwidth": ident.fwidth}
+        if ident.shift:
+            extra["shift"] = float(ident.shift)
+        if isinstance(ident.fit, ri.SavedFit) and not self.p.refit:
+            extra["curve"] = list(ident.fit.curve_values)
+        if aperture is not None:
+            extra["aplow"] = round(float(aperture.centre + aperture.low), 4)
+            extra["aphigh"] = round(float(aperture.centre + aperture.high), 4)
+        features = ident.features
+        solution = database.Solution(
+            image=bare, section=section,
+            aperture=aperture.number if aperture is not None else None,
+            pixel=np.array([f.pix for f in features]),
+            wavelength=np.array([np.nan if f.user is None else f.user for f in features]),
+            fitted=np.array([f.fit for f in features]),
+            used=np.array([f.user is not None and f.wts != 0 for f in features]),
+            function=spec.function, order=spec.order, rms=float(ident.rms()),
+            units=getattr(self.linelist, "units", "Angstroms") or "Angstroms",
+            coordlist=self.p.coordlist, extra=extra)
+        destination = database.write(solution, self.p.database)
+        ident.newfeatures = False                       # id_dbwrite
+        if destination not in self.written:
+            self.written.append(destination)
+        self.done += 1
 
 
 class LineIdParams(TaskParams):

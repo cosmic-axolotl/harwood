@@ -1,0 +1,192 @@
+{
+ "_comment": "IRAF 2.18.1 noao.onedspec.reidentify on tests/iraf_field.multispec_night() (arc3 and arc3b as multispec images, arc2d the long slit), interactive=no, verbose=yes, every other parameter its default unless in 'params'. Each case first ran autoidentify (arc3: 4160., 0.29; arc2d: the same with nsum=10) and reidentified from the record it wrote, which is the first in database/id<reference> here. 'log' is reidentify's log file without its two-line banner; database/ holds every record IRAF wrote.",
+ "cases": {
+  "ms": {
+   "reference": "arc3",
+   "images": "arc3,arc3b",
+   "params": {
+    "shift": "0.",
+    "search": "0.",
+    "nlost": 40
+   },
+   "log": [
+    "  Reference image = arc3, New image = arc3, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc3 - Ap 1           103/109  61/103      1.55       0.446  1.07E-4    0.036",
+    "arc3 - Ap 3            85/109  39/85        1.5       0.426  1.04E-4   0.0285",
+    "  Reference image = arc3, New image = arc3b, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc3b - Ap 1          103/103  65/103      0.62       0.178  4.28E-5   0.0413",
+    "arc3b - Ap 2          107/109  65/107     0.615       0.177  4.25E-5   0.0373",
+    "arc3b - Ap 3           85/85   40/85      0.622       0.179  4.33E-5   0.0294"
+   ]
+  },
+  "tr": {
+   "reference": "arc2d",
+   "images": "arc2d",
+   "params": {
+    "trace": true,
+    "step": "10",
+    "nsum": "10",
+    "nlost": 30
+   },
+   "log": [
+    "  Reference image = arc2d, New image = arc2d, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc2d[*,41]           108/108  65/108    -0.118     -0.0339  -8.2E-6   0.0371",
+    "arc2d[*,31]           108/108  66/108    -0.106     -0.0303  -7.3E-6   0.0385",
+    "arc2d[*,21]           108/108  65/108   -0.0948     -0.0272  -6.5E-6   0.0373",
+    "arc2d[*,11]           108/108  66/108   -0.0859     -0.0246  -5.9E-6   0.0382",
+    "arc2d[*,1]            108/108  68/108   -0.0622     -0.0178  -4.3E-6   0.0406",
+    "arc2d[*,61]           108/108  65/108     0.121      0.0348  8.36E-6   0.0368",
+    "arc2d[*,71]           108/108  64/108     0.136       0.039  9.38E-6   0.0354",
+    "arc2d[*,81]           108/108  64/108     0.146      0.0418  1.01E-5   0.0358",
+    "arc2d[*,91]           108/108  66/108     0.157      0.0449  1.08E-5   0.0384",
+    "arc2d[*,101]          108/108  65/108     0.123      0.0353  8.49E-6   0.0371"
+   ]
+  },
+  "nt": {
+   "reference": "arc2d",
+   "images": "arc2d",
+   "params": {
+    "trace": false,
+    "step": "25",
+    "nsum": "5",
+    "nlost": 30,
+    "shift": "INDEF",
+    "search": "INDEF"
+   },
+   "log": [
+    "  Reference image = arc2d, New image = arc2d, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc2d[*,26]           108/108  66/108    -0.277     -0.0795  -1.9E-5   0.0383",
+    "arc2d[*,1]            108/108  68/108    -0.478      -0.137  -3.3E-5   0.0409",
+    "arc2d[*,76]           108/108  63/108     0.321      0.0921  2.22E-5   0.0342",
+    "arc2d[*,101]          108/108  66/108     0.699       0.201  4.83E-5   0.0384"
+   ]
+  },
+  "nt0": {
+   "reference": "arc2d",
+   "images": "arc2d",
+   "params": {
+    "trace": false,
+    "step": "10",
+    "nsum": "5",
+    "nlost": 30,
+    "shift": "0."
+   },
+   "log": [
+    "  Reference image = arc2d, New image = arc2d, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc2d[*,41]           108/108  65/108    -0.125     -0.0357  -8.6E-6    0.037",
+    "arc2d[*,31]           108/108  67/108     -0.23     -0.0659  -1.6E-5   0.0397",
+    "arc2d[*,21]           108/108  65/108    -0.324     -0.0928  -2.2E-5   0.0374",
+    "arc2d[*,11]           108/108  66/108    -0.409      -0.117  -2.8E-5   0.0384",
+    "arc2d[*,1]            108/108  68/108    -0.478      -0.137  -3.3E-5   0.0409",
+    "arc2d[*,61]           108/108  65/108     0.115       0.033  7.93E-6   0.0366",
+    "arc2d[*,71]           108/108  65/108      0.25      0.0718  1.73E-5   0.0365",
+    "arc2d[*,81]           108/108  65/108     0.395       0.113  2.72E-5   0.0367",
+    "arc2d[*,91]           108/108  66/108     0.551       0.158  3.80E-5   0.0382",
+    "arc2d[*,101]          108/108  66/108     0.699       0.201  4.83E-5   0.0385"
+   ]
+  },
+  "ntS": {
+   "reference": "arc2d",
+   "images": "arc2d",
+   "params": {
+    "trace": false,
+    "step": "20",
+    "nsum": "5",
+    "nlost": 30,
+    "shift": "0.05"
+   },
+   "log": [
+    "  Reference image = arc2d, New image = arc2d, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc2d[*,31]           108/108  67/108     -0.23     -0.0659  -1.6E-5   0.0397",
+    "arc2d[*,11]           108/108  66/108    -0.409      -0.117  -2.8E-5   0.0384",
+    "arc2d[*,71]           108/108  65/108      0.25      0.0718  1.73E-5   0.0365",
+    "arc2d[*,91]           108/108  66/108     0.551       0.158  3.80E-5   0.0382"
+   ]
+  },
+  "trS": {
+   "reference": "arc2d",
+   "images": "arc2d",
+   "params": {
+    "trace": true,
+    "step": "20",
+    "nsum": "5",
+    "nlost": 30,
+    "shift": "0.05"
+   },
+   "log": [
+    "  Reference image = arc2d, New image = arc2d, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc2d[*,31]           108/108  67/108     -0.23     -0.0659  -1.6E-5   0.0397",
+    "arc2d[*,11]           108/108  66/108    -0.179     -0.0514  -1.2E-5   0.0384",
+    "arc2d[*,71]           108/108  65/108      0.25      0.0718  1.73E-5   0.0365",
+    "arc2d[*,91]           108/108  66/108     0.301      0.0863  2.08E-5   0.0382"
+   ]
+  },
+  "nrf": {
+   "reference": "arc2d",
+   "images": "arc2d",
+   "params": {
+    "trace": false,
+    "step": "25",
+    "nsum": "5",
+    "nlost": 30,
+    "refit": false
+   },
+   "log": [
+    "  Reference image = arc2d, New image = arc2d, Refit = no",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc2d[*,26]           108/108  66/108    -0.277     -0.0795  -1.9E-5   0.0383",
+    "arc2d[*,1]            108/108  66/108    -0.478      -0.137  -3.3E-5    0.039",
+    "arc2d[*,76]           108/108  66/108     0.321      0.0921  2.21E-5   0.0377",
+    "arc2d[*,101]          108/108  66/108     0.699       0.201  4.83E-5   0.0386"
+   ]
+  },
+  "addf": {
+   "reference": "arc3",
+   "images": "arc3,arc3b",
+   "params": {
+    "shift": "0.",
+    "search": "0.",
+    "nlost": 40,
+    "addfeatures": true
+   },
+   "log": [
+    "  Reference image = arc3, New image = arc3, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc3 - Ap 1           103/109  61/103      1.55       0.446  1.07E-4    0.036",
+    "arc3 - Ap 3            85/109  49/91        1.5       0.426  1.04E-4   0.0408",
+    "  Reference image = arc3, New image = arc3b, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc3b - Ap 1          103/103  66/104      0.62       0.178  4.28E-5    0.041",
+    "arc3b - Ap 2          107/109  65/107     0.615       0.177  4.25E-5   0.0373",
+    "arc3b - Ap 3           91/91   48/92      0.622        0.18  4.33E-5    0.038"
+   ]
+  },
+  "msI": {
+   "reference": "arc3",
+   "images": "arc3,arc3b",
+   "params": {
+    "shift": "INDEF",
+    "search": "INDEF",
+    "nlost": 40
+   },
+   "log": [
+    "  Reference image = arc3, New image = arc3, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc3 - Ap 1           106/109  66/106       1.7       0.492  1.18E-4   0.0387",
+    "arc3 - Ap 3           104/109  62/104      2.95        0.85  2.04E-4   0.0403",
+    "  Reference image = arc3, New image = arc3b, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc3b - Ap 1          106/106  68/106      0.62       0.178  4.28E-5   0.0412",
+    "arc3b - Ap 2          107/109  65/107     0.615       0.177  4.25E-5   0.0373",
+    "arc3b - Ap 3          103/104  65/103     0.622       0.178  4.29E-5   0.0448"
+   ]
+  }
+ }
+}

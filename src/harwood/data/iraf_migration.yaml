@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 44, partial: 8, planned: 303, replaced: 94, wontport: 161
+#   available: 44, partial: 9, planned: 302, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -750,7 +750,7 @@ tasks:
   ecreidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
   fitprofs: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   identify: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: identify,
-    note: "IRAF's identify arithmetic ported (center1d, the 'l' line list matching, the fit) with its automatic path being autoidentify's, checked against IRAF; the interactive panel is harwood's own. No reidentify yet, one aperture only, and no 2-D solution"}
+    note: "IRAF's identify arithmetic ported (center1d, the 'l' line list matching, the fit) with its automatic path being autoidentify's, checked against IRAF; the interactive panel is harwood's own. One aperture at a time (reidentify carries it to the others), and no 2-D solution"}
   interp: {pkg: proto, domain: spec-1d, status: planned, milestone: later}
   lcalib: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   match: {pkg: system, domain: spec-1d, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
@@ -763,7 +763,8 @@ tasks:
   ndprep: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   refspectra: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: refspectra,
     note: "ref*.x ported: every selection, sort/group (JD/LJD, worked out as setjd when absent), apertures/refaps/ignoreaps, override, confirm, logfiles, verbose; identical to IRAF 2.18 on 15 runs, including its preceding that never falls back. Reads header numbers with IRAF's ctod, and reference tables (reftable)"}
-  reidentify: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  reidentify: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: reidentify,
+    note: "t_reidentify.x ported: multispec apertures, long-slit lines traced or not, other arcs, shift carried from line to line, shift found from the spectrum (search INDEF), refit or shift only, addfeatures, newaps, override, nlost, logfiles; identical to IRAF 2.18 on 9 runs, log line for line. Not ported: interactive, a nonzero search radius"}
   sarith: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sbands: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   scoords: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}

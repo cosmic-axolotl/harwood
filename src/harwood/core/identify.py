@@ -121,6 +121,9 @@ class Identify:
     fitdata: np.ndarray = field(default=None)  # type: ignore[assignment,arg-type]
     stats: dict = field(default_factory=lambda: {"ncandidate": 0, "nmatch1": 0,
                                                  "nmatch2": 0})
+    #: ID_NEWFEATURES: features added or replaced since the database was
+    #: last written -- set by reading a record, cleared by writing one.
+    newfeatures: bool = False
 
     def __post_init__(self):
         self.data = np.asarray(self.data, dtype=f32)
@@ -265,11 +268,13 @@ class Identify:
             while index > 0 and pix < self.features[index - 1].pix:
                 index -= 1
             self.features.insert(index, new)
+            self.newfeatures = True
             return index
         old = self.features[current]
         if user is not None and old.user is not None and \
                 abs(fit - user) < abs(old.fit - old.user):
             self.features[current] = new
+            self.newfeatures = True
         return current
 
     def match_line(self, value: float, diff: float):
@@ -1285,20 +1290,48 @@ def parse_section(section: str, shape: tuple[int, int]) -> tuple[str, int]:
 
 def arc_vector(data: np.ndarray, section: str = "middle line", nsum: int = 10):
     """The spectrum identify works on: a 1-D image as it is; for a 2-D one
-    the sum of nsum lines or columns around the section's, from
-    index - (nsum - 1) / 2 on. Returns (vector, description)."""
+    the sum of nsum lines or columns from index - (nsum - 1) / 2 on, fewer
+    at the edges. Returns (vector, description)."""
     data = np.asarray(data, dtype=f32)
     if data.ndim == 1:
         return data, ""
     kind, index = parse_section(section, data.shape)
     n = data.shape[0] if kind == "line" else data.shape[1]
     nsum = max(1, int(nsum))
-    lo = max(1, index - (nsum - 1) // 2)
+    # smw_gwattrs: from index - (nsum - 1) / 2 for nsum lines, cut at the
+    # edges rather than moved in -- line 1 of a sum of 10 is six lines.
+    lo = index - (nsum - 1) // 2
     hi = min(n, lo + nsum - 1)
-    lo = max(1, hi - nsum + 1)
+    lo = max(1, lo)
     rows = data[lo - 1:hi] if kind == "line" else data[:, lo - 1:hi].T
     out = np.zeros(rows.shape[1], dtype=f32)
     for row in rows:
         out = (out + row).astype(f32)
     where = f"[*,{index}]" if kind == "line" else f"[{index},*]"
     return out, where
+
+
+def spectrum_vector(apertures, section: str = "middle line"):
+    """The aperture identify works on in an extracted spectrum (IRAF's
+    multispec): the section counts the apertures as an image's lines --
+    'middle line' is the middle one, 'line 2' the second, 'first line' the
+    first. Returns (vector, " - Ap N", aperture)."""
+    lines = len(apertures)
+    npix = len(apertures[0].flux)
+    words = section.lower().split()
+    if not words or words[0].startswith("ap"):
+        # harwood's own: 'aperture 3' names the aperture by its number.
+        number = int(words[1]) if len(words) > 1 else apertures[(lines + 1) // 2 - 1].number
+        found = [a for a in apertures if a.number == number]
+        if not found:
+            raise ValueError(f"there is no aperture {number}; the apertures are "
+                             + ", ".join(str(a.number) for a in apertures))
+        aperture = found[0]
+    else:
+        kind, index = parse_section(section, (lines, npix))
+        if kind != "line":
+            raise ValueError("an extracted spectrum's apertures are its lines: give "
+                             "'middle line', 'line 2' or 'aperture 3'")
+        aperture = apertures[index - 1]
+    vector = np.asarray(aperture.flux, dtype=f32)
+    return vector, f" - Ap {aperture.number}", aperture
