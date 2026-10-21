@@ -291,7 +291,7 @@ def read(spec: ImageSpec | str) -> tuple[Any, Any]:
     hdul, hdu = open_hdu(spec)
     try:
         data = np.asarray(hdu.data, dtype=np.float64)
-        header = hdu.header.copy()
+        header = inherited(hdul, hdu)
     finally:
         hdul.close()
     if spec.section:
@@ -300,6 +300,22 @@ def read(spec: ImageSpec | str) -> tuple[Any, Any]:
         data = data[slices]
         header["HRWDSECT"] = (spec.section, "section read by harwood, 1-based (x,y)")
     return data, header
+
+
+def inherited(hdul, hdu):
+    """The extension's header, with the primary's underneath when it says
+    INHERIT = T -- as harwood's SCI/VAR/DQ files do (core/mef.py), so a task
+    reading SCI still sees OBJECT, EXPTIME and FILTER. The extension wins."""
+    from . import mef
+
+    header = hdu.header.copy()
+    if hdu is hdul[0] or not hdu.header.get("INHERIT", False):
+        return header
+    out = mef.merged(hdul[0].header, header)
+    for key in ("BITPIX", "NAXIS", "NAXIS1", "NAXIS2", "NAXIS3", "EXTNAME", "EXTVER"):
+        if key in header:
+            out[key] = header[key]
+    return out
 
 
 def read_stack(specs: list[ImageSpec | str]):
