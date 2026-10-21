@@ -271,3 +271,139 @@ def resample(flux, dispersion: Dispersion, w1: float, dw: float, nw: int,
             value = f32(value / max(f32(hi - lo), f32(1e-4)))
         out[i - 1] = value
     return out
+
+
+class SpectrumDispersion:
+    """A spectrum's own wavelengths as its dispersion function, for one
+    already dispersion corrected: dcio's 'Resampling using current
+    coordinate system'. Pixels between and past the tabulated ones are
+    linear, as a linear WCS is everywhere."""
+
+    def __init__(self, wave) -> None:
+        self.wave = np.asarray(wave, dtype=float)
+        self.npts = self.wave.size
+        self.pixel = np.arange(1.0, self.npts + 1.0)
+        step = np.diff(self.wave)
+        self.linear = bool(np.allclose(step, step[0], rtol=1e-9, atol=0))
+        self.w0, self.dw = float(self.wave[0]), float((self.wave[-1] - self.wave[0])
+                                                       / (self.npts - 1))
+
+    def eval(self, x: float) -> float:
+        x = max(0.5, min(self.npts + 0.5, x))
+        if self.linear:
+            return self.w0 + (x - 1) * self.dw
+        if x < 1:
+            return float(self.wave[0] + (x - 1) * (self.wave[1] - self.wave[0]))
+        if x > self.npts:
+            return float(self.wave[-1] + (x - self.npts) * (self.wave[-1] - self.wave[-2]))
+        return float(np.interp(x, self.pixel, self.wave))
+
+    def __call__(self, x):
+        return np.array([self.eval(float(v)) for v in np.atleast_1d(x)])
+
+    def inverse(self, y: float) -> float:
+        if self.linear:
+            return (y - self.w0) / self.dw + 1
+        wave, pixel = (self.wave, self.pixel) if self.wave[-1] > self.wave[0] else \
+            (self.wave[::-1], self.pixel[::-1])
+        return float(np.interp(y, wave, pixel))
+
+
+@dataclass
+class Grid:
+    """One wavelength table entry: the grid asked for (None: INDEF) and,
+    for global, the limits found over every spectrum."""
+
+    w1: float | None = None
+    w2: float | None = None
+    dw: float | None = None
+    nw: int | None = None
+    wmin: float = 3.4028234663852886e38
+    wmax: float = -3.4028234663852886e38
+    nwmax: int = 0
+
+
+class Table:
+    """dc_table: the default grid (entry 0) and one per aperture, from a
+    wavelength table file or a dispersion-corrected spectrum."""
+
+    def __init__(self, w1=None, w2=None, dw=None, nw=None) -> None:
+        self.default = Grid(w1, w2, dw, nw)
+        self.entries: dict[int, Grid] = {}
+
+    def entry(self, ap: int) -> Grid:
+        """dc_getentry: the aperture's, made from the default when new."""
+        if ap not in self.entries:
+            d = self.default
+            self.entries[ap] = Grid(d.w1, d.w2, d.dw, d.nw, d.wmin, d.wmax, d.nwmax)
+        return self.entries[ap]
+
+    def read(self, path, apertures=None) -> None:
+        """Lines 'aperture w1 w2 dw nw' (INDEF allowed), or the grids of a
+        linear spectrum's apertures."""
+        from pathlib import Path
+
+        from .iraffmt import INDEF, ctod
+
+        if apertures is not None:
+            for number, w1, w2, dw, nw in apertures:
+                grid = self.entry(number)
+                grid.w1, grid.w2, grid.dw, grid.nw = w1, w2, dw, nw
+            return
+        for line in Path(path).read_text().splitlines():
+            words = line.split()
+            if len(words) < 5:
+                continue
+            values = [ctod(w) for w in words[:5]]
+            if None in values:
+                continue
+            values = [None if abs(v) >= INDEF else v for v in values]
+            if values[0] is None:
+                continue
+            grid = self.entry(int(values[0]))
+            grid.w1, grid.w2, grid.dw = values[1], values[2], values[3]
+            grid.nw = None if values[4] is None else int(values[4])
+
+    def fill_from_first(self) -> None:
+        """ignoreaps: the default's INDEFs from the first aperture's entry."""
+        if not self.entries:
+            return
+        first = next(iter(self.entries.values()))
+        d = self.default
+        d.w1 = first.w1 if d.w1 is None else d.w1
+        d.w2 = first.w2 if d.w2 is None else d.w2
+        d.dw = first.dw if d.dw is None else d.dw
+        d.nw = first.nw if d.nw is None else d.nw
+
+
+def grid_for(grid: Grid, a: float, b: float, n: int) -> tuple:
+    """dc_wavelengths: the entry's grid with its INDEFs filled from the
+    aperture's own ends a, b and length n."""
+    return defaults(a, b, n, grid.w1, grid.w2, grid.dw, grid.nw)
+
+
+def same_grid(grid: Grid, ends: list[tuple[float, float, float]]) -> tuple:
+    """dc_wavelengths1: one grid for every aperture -- from the lowest to
+    the highest wavelength at the finest dispersion."""
+    a = min(min(w1, w2) for w1, w2, _ in ends)
+    b = max(max(w1, w2) for w1, w2, _ in ends)
+    c = min(dw for _, _, dw in ends)
+    n = int((b - a) / c + 1.5)
+    return defaults(a, b, n, grid.w1, grid.w2, grid.dw, grid.nw)
+
+
+def log_lines(output: str, rows: list[tuple], log: bool) -> list[str]:
+    """dc_log: one line per aperture, or one for all when they share a
+    grid; rows are (aperture, w1, w2, dw, nw)."""
+    from .iraffmt import printf
+
+    def g(v):
+        return printf(float(v), "g", None, 8).rjust(8)
+
+    tail = ", log = yes" if log else ""
+    first = rows[0][1:]
+    if len(rows) == 1 or any(r[1:] != first for r in rows[1:]):
+        return [f"{output}: ap = {ap}, w1 = {g(w1)}, w2 = {g(w2)}, dw = {g(dw)}, "
+                f"nw = {nw}{tail}" for ap, w1, w2, dw, nw in rows]
+    _, w1, w2, dw, nw = rows[0]
+    return [f"{output}: w1 = {g(w1)}, w2 = {g(w2)}, dw = {g(dw)}, nw = {nw}{tail}"]

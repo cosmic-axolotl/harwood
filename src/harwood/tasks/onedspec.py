@@ -18,10 +18,12 @@ reads.
 
 from __future__ import annotations
 
+import contextlib
+import math
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, create_model
 
 from ..core import advice
 from ..core.registry import register
@@ -390,18 +392,20 @@ DISPWHY = {
 }
 
 
-class DispCorParams(TaskParams):
-    input: str = Field(..., description="Extracted spectrum, from apall.")
-    output: Path | None = Field(
+class _DispCorParams(TaskParams):
+    input: str = Field(..., description="Extracted spectra, from apall. Commas, globs "
+                                        "and @lists expand.")
+    output: Path | str | None = Field(
         None,
-        description="Where to write. Left out, it goes to this run's own "
-                    "directory, named after the input.",
+        description="Where to write, one name per input. Left out, each goes to "
+                    "this run's own directory, named after its input.",
         json_schema_extra={"positional": True},
     )
     reference: str = Field(
         "",
-        description="Arc whose dispersion solution to use -- the name identify "
-                    "was run on. Read from database/id<reference>.",
+        description="Arc whose dispersion solution to use for every input -- the "
+                    "name identify was run on -- instead of the REFSPEC keywords "
+                    "refspectra wrote. harwood's; IRAF reads the keywords only.",
     )
     linearize: bool = Field(
         True,
@@ -410,6 +414,10 @@ class DispCorParams(TaskParams):
                     "--no-linearize the wavelength column carries the solution and "
                     "the pixels are untouched.",
     )
+    table: str = Field(
+        "", description="Grids per aperture: a file of 'aperture w1 w2 dw nw' lines "
+                        "(INDEF for any to work out), or a linear spectrum whose "
+                        "apertures' grids to copy. The others take w1, w2, dw, nw.")
     w1: float | None = Field(None, description="Starting wavelength of the grid.")
     w2: float | None = Field(None, description="Ending wavelength of the grid.")
     dw: float | None = Field(None, description="Wavelength interval per pixel.")
@@ -420,7 +428,16 @@ class DispCorParams(TaskParams):
                           "in it, not their mean.")
     blank: float | None = Field(0.0, description="Value for output pixels outside the "
                                                  "input.")
-    interp: Literal["nearest", "linear", "poly3", "poly5", "spline3"] = Field(
+    samedisp: bool = Field(False, description="One grid for every aperture of a "
+                                              "spectrum: from the lowest to the highest "
+                                              "wavelength at the finest dispersion.")
+    ignoreaps: bool = Field(
+        False, description="An aperture with no solution of its own takes the arc's "
+                           "first one. Off, as in IRAF, that is an error.")
+    listonly: bool = Field(False, description="Only say what the grids would be.")
+    verbose: bool = Field(True, description="Say the grid of each aperture.")
+    logfile: str = Field("", description="A file the same lines are appended to.")
+    interp: Literal["nearest", "linear", "poly3", "poly5", "spline3", "sinc"] = Field(
         "poly5", description="Interpolant the resampling integrates (onedspec.interp).")
     database: Path = Field(
         Path("."), description="Reduction directory holding database/."
@@ -432,24 +449,41 @@ class DispCorParams(TaskParams):
     )
 
 
+#: `global` is IRAF's name, and a word Python keeps for itself, so the field
+#: is added under it this way.
+DispCorParams = create_model(
+    "DispCorParams", __base__=_DispCorParams,
+    **{"global": (bool, Field(False, description=(
+        "The same grid for an aperture in every spectrum of the list: each "
+        "aperture's lowest to highest wavelength over all of them (with "
+        "samedisp, one grid for all).")))})
+
+
 @register
 class DispCor(Task[DispCorParams]):
+    """IRAF's dispcor, noao/onedspec/dispcor: t_dispcor.x and dcio.x."""
+
     name = "dispcor"
     package = "onedspec"
     description = "Put wavelengths on an extracted spectrum."
     Params = DispCorParams
 
-    def plan(self, params: DispCorParams) -> list[Step]:
+    def plan(self, params) -> list[Step]:
         steps = [
             Step("read", params.input, why=DISPWHY["read"]),
             Step("solution",
                  f"database/id{Path(params.reference).stem}"
                  if params.reference else "the arcs refspectra assigned",
                  why=DISPWHY["solution"]),
-            Step("apply", "wavelength for every pixel", why=DISPWHY["apply"]),
+            Step("apply", "wavelength for every pixel of every aperture",
+                 why=DISPWHY["apply"]),
         ]
         if params.linearize:
-            steps.append(Step("resample", "onto an even wavelength grid",
+            steps.append(Step("resample", "onto an even wavelength grid"
+                              + (", the same for every aperture" if params.samedisp
+                                 else "") +
+                              (", the same in every spectrum" if getattr(params, "global")
+                               else ""),
                               why=DISPWHY["resample"]))
         steps.append(Step("write", str(params.output or "this run's directory"),
                           why=DISPWHY["write"]))
@@ -458,103 +492,125 @@ class DispCor(Task[DispCorParams]):
                               why=DISPWHY["check"]))
         return steps
 
-    def execute(self, params: DispCorParams) -> TaskResult:
-        import math
-
+    def execute(self, params) -> TaskResult:
         import numpy as np
+        from astropy.io import fits
 
-        from ..core import database, dispcor, icfit, output, spectrum
+        from ..core import dispcor, images, output, spectrum
 
-        names, weights = _references(params)
-        apertures = spectrum.read(params.input)
-
-        solutions = [database.read(name, params.database) for name in names]
-        curves, pixels = [], []
-        for name, solution in zip(names, solutions, strict=True):
-            used = solution.used if solution.used is not None else None
-            pixel = solution.pixel if used is None else solution.pixel[used]
-            pixels.append(pixel)
-            saved = solution.extra.get("curve")
-            if saved:
-                # IRAF's own curve, coefficient for coefficient.
-                curves.append(dispcor.Curve.from_saved(saved))
-                continue
-            # A harwood solution: the curve identify fitted, refitted from the
-            # points it kept, over the range its spline pieces were laid on.
-            wavelength = (solution.wavelength if used is None
-                          else solution.wavelength[used])
-            xrange = solution.extra.get("xrange")
-            fitted = icfit.fit(pixel, wavelength,
-                               icfit.FitSpec(function=solution.function,
-                                             order=solution.order),
-                               xrange=tuple(xrange) if xrange else None)
-            if fitted.model is None:
-                advice.fail(
-                    f"the solution in database/id{Path(name).stem} could not be "
-                    f"refitted: {fitted.message}",
-                    "open the file and look at how many features it kept; a "
-                    "solution with too few surviving lines for its order cannot "
-                    "be rebuilt. Re-run identify on that arc.", RuntimeError)
-            curves.append(lambda x, model=fitted: float(model(np.array([x]))[0]))
-
-        solution = solutions[0]
-        pixel = pixels[0]
+        # IRAF's image names leave the extension out: star3 is star3.fits.
+        inputs = [name if Path(name).exists() or not Path(name + ".fits").exists()
+                  else name + ".fits"
+                  for name in (str(spec) for spec in images.expand(params.input))]
+        if not inputs:
+            advice.fail(f"'{params.input}' matches nothing.",
+                        "check the path; 'harwood sections' shows what a template "
+                        "expands to.", FileNotFoundError)
+        outs = [part if Path(part).suffix else part + ".fits"
+                for part in (p.strip() for p in images.split_list(str(params.output)))] \
+            if params.output else []
+        said: list[str] = []
+        table = dispcor.Table(params.w1, params.w2, params.dw, params.nw)
+        if params.table.strip():
+            _read_table(table, params.table.strip())
+        if params.ignoreaps:
+            table.fill_from_first()
+        cache: dict = {}
+        if params.linearize and getattr(params, "global"):
+            _global_grids(table, inputs, params, cache, params.samedisp)
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
-        by_action["solution"].measured = {
-            "arcs": " + ".join(
-                f"{name} ({weight:.3f})" if len(names) > 1 else str(name)
-                for name, weight in zip(names, weights, strict=True)),
-            "features": " and ".join(f"{len(used)} of {len(whole)}"
-                                     for used, whole in zip(pixels, solutions, strict=True)),
-            "function": f"{solution.function} order {solution.order}",
-            "rms": " and ".join(f"{item.rms:.4f} {item.units}"
-                                for item in solutions),
-        }
-
-        warnings = []
-        grid = None
-        for aperture in apertures:
-            npts = len(aperture.flux)
-            disp = dispcor.Dispersion([(w, 0.0, c) for w, c in
-                                       zip(weights, curves, strict=True)], npts)
-            if not params.linearize:
-                aperture.wavelength = disp(np.asarray(aperture.pixel, dtype=float))
+        warnings: list = []
+        written: list[Path] = []
+        first_info = None
+        for index, name in enumerate(inputs):
+            apertures = spectrum.read(name)
+            header = fits.getheader(name)
+            solved = _dispersions(name, apertures, header, params, cache, said)
+            target = outs[index] if index < len(outs) else \
+                str(params.output or output.named_for(name, ".w.fits")) \
+                if len(inputs) == 1 else str(output.named_for(name, ".w.fits"))
+            label = Path(target).name.removesuffix(".fits")
+            rows = []
+            if params.linearize:
+                if params.samedisp:
+                    grid = dispcor.same_grid(table.default,
+                                             [(s.w1, s.w2, s.dwc) for s in solved])
+                    grids = [grid] * len(solved)
+                    if grid[2] * (grid[1] - grid[0]) <= 0 or grid[3] < 1:
+                        advice.fail(f"{name}: Error in wavelength scale",
+                                    "check w1, w2, dw and nw against the solutions.")
+                else:
+                    grids = [dispcor.grid_for(table.entry(s.number), s.w1, s.w2, s.npts)
+                             for s in solved]
+                # The grid is worked out and said in wavelength; with log
+                # the same ends and length are spaced in log10.
+                rows = [(s.number, w1, w2, dw, nw)
+                        for s, (w1, w2, dw, nw) in zip(solved, grids, strict=True)]
+            else:
+                rows = [(s.number, s.w1, s.w2, s.dwc, s.npts) for s in solved]
+            lines = dispcor.log_lines(label, rows, params.log)
+            said.extend(lines)
+            if params.listonly:
                 continue
-            a, b = disp.eval(1.0), disp.eval(float(npts))
-            if params.log:
-                a, b = math.log10(a), math.log10(b)
-            w1, w2, dw, nw = dispcor.defaults(a, b, npts, params.w1, params.w2,
-                                              params.dw, params.nw)
-            grid = (w1, w2, dw, nw)
-            for column in ("flux", "error", "sky", "raw"):
-                values = getattr(aperture, column, None)
-                if values is None:
+            for aperture, s, row in zip(apertures, solved, rows, strict=True):
+                if not params.linearize:
+                    aperture.wavelength = s.dispersion(np.asarray(aperture.pixel, float))
                     continue
-                # Every band is resampled the same way, as IRAF does them.
-                disp = dispcor.Dispersion([(w, 0.0, c) for w, c in
-                                           zip(weights, curves, strict=True)], npts)
-                setattr(aperture, column, dispcor.resample(
-                    values, disp, w1, dw, nw, params.flux, params.blank, params.interp,
-                    params.log).astype(float))
-            wave = w1 + np.arange(nw) * dw
-            aperture.wavelength = 10 ** wave if params.log else wave
-            aperture.pixel = np.arange(1.0, nw + 1.0)
+                _, w1, w2, dw, nw = row
+                if params.log:
+                    w1 = math.log10(w1)
+                    dw = (math.log10(w2) - w1) / (nw - 1)
+                # One inverse for the aperture's every band, as IRAF's
+                # transformation keeps where its last inversion ended.
+                inverse = s.fresh()
+                for column in ("flux", "raw", "sky", "error"):      # apall's bands
+                    values = getattr(aperture, column, None)
+                    if values is None:
+                        continue
+                    setattr(aperture, column, dispcor.resample(
+                        values, inverse, w1, dw, nw, params.flux, params.blank,
+                        params.interp, params.log).astype(float))
+                wave = w1 + np.arange(nw) * dw
+                aperture.wavelength = 10 ** wave if params.log else wave
+                aperture.pixel = np.arange(1.0, nw + 1.0)
+            out_header = _dclog(header)
+            spectrum.write(target, apertures, header=out_header, source=name)
+            written.append(Path(target))
+            if first_info is None:
+                first_info = (apertures[0], solved[0])
 
-        first = apertures[0]
-        low, high = float(first.wavelength.min()), float(first.wavelength.max())
+        if params.logfile.strip():
+            with open(params.logfile.strip(), "a", encoding="utf-8") as handle:
+                handle.write("\n".join(said) + "\n")
+        # The arcs and their weights, said rather than only used: a spectrum
+        # between two arcs is calibrated by both, and the record should show it.
+        arcs = list(dict.fromkeys(
+            " + ".join(f"{name} ({weight:.3f})" if len(names) > 1 else str(name)
+                       for name, weight in zip(names, weights, strict=True))
+            for names, weights, _ in (value for key, value in cache.items()
+                                      if key[0] == "solved")
+            if names))
+        by_action["solution"].measured = {
+            "spectra": len(inputs),
+            "arcs": "; ".join(arcs) or "the spectra's own wavelengths",
+        }
+        data = {"spectra": len(inputs), "text": said}
+        if params.listonly or first_info is None:
+            return TaskResult(outputs=written, steps=steps, warnings=warnings, data=data)
+
+        first, solution = first_info
+        low, high = float(np.min(first.wavelength)), float(np.max(first.wavelength))
         spacing = np.diff(first.wavelength)
         by_action["apply"].measured = {
-            "range": f"{low:.2f} to {high:.2f} {solution.units}",
-            "dispersion": f"{float(np.median(spacing)):.5f} {solution.units}/px",
-            "spacing varies by":
-                f"{100 * float(np.ptp(spacing) / abs(np.median(spacing))):.2f}%",
+            "range": f"{low:.2f} to {high:.2f} A",
+            "dispersion": f"{float(np.median(spacing)):.5f} A/px",
         }
-        if params.linearize and grid is not None:
+        if params.linearize:
             by_action["resample"].measured = {
-                "grid": f"w1 {grid[0]:.4f}, w2 {grid[1]:.4f}, dw {grid[2]:.6g}, "
-                        f"nw {grid[3]}" + (" (log10)" if params.log else ""),
+                "grids": "; ".join(line.split(": ", 1)[1] for line in said
+                                   if ", nw = " in line)[:300],
                 "interpolant": params.interp,
                 "flux": "conserved" if params.flux else "averaged",
             }
@@ -564,22 +620,19 @@ class DispCor(Task[DispCorParams]):
                 "data, and errors estimated from its scatter are too small.",
                 "use --no-linearize when nothing downstream needs an even grid; "
                 "the wavelength column carries the solution without it."))
-
-        # The solution was fitted over the arc's pixels; using it far outside
-        # that range is extrapolation, and it is the quiet kind of wrong.
-        covered = (float(np.min(pixel)), float(np.max(pixel)))
-        outside = int((np.asarray(first.pixel) < covered[0]).sum()
-                      + (np.asarray(first.pixel) > covered[1]).sum())
-        if outside:
-            warnings.append(advice.warn(
-                f"{outside} of {len(first.pixel)} pixels fall outside the range "
-                f"the arc lines covered ({covered[0]:.0f} to {covered[1]:.0f}); "
-                "their wavelengths are extrapolated, and a polynomial "
-                "extrapolates badly.",
-                "identify arc lines nearer the ends of the frame, or use only "
-                f"pixels {covered[0]:.0f} to {covered[1]:.0f} of this "
-                "spectrum."))
-
+        if solution.covered is not None:
+            lo, hi = solution.covered
+            outside = int(((np.arange(1, solution.npts + 1) < lo)
+                           | (np.arange(1, solution.npts + 1) > hi)).sum())
+            data["extrapolated"] = outside
+            if outside:
+                warnings.append(advice.warn(
+                    f"{outside} of {solution.npts} pixels fall outside the range "
+                    f"the arc lines covered ({lo:.0f} to {hi:.0f}); their "
+                    "wavelengths are extrapolated, and a polynomial "
+                    "extrapolates badly.",
+                    "identify arc lines nearer the ends of the frame, or use only "
+                    f"pixels {lo:.0f} to {hi:.0f} of this spectrum."))
         if params.check:
             named, unnamed = _recognise(first)
             by_action["check"].measured = {
@@ -607,24 +660,244 @@ class DispCor(Task[DispCorParams]):
                     "redo identify with --interactive and mark lines by hand. "
                     "Check the wavelength range against what the grating was "
                     "set to before trusting anything downstream."))
-
-        destination = params.output or output.named_for(params.input, ".w.fits")
-        spectrum.write(destination, apertures, source=str(params.input))
-
+        data.update({"apertures": len(first_info and apertures),
+                     "range": f"{low:.2f} to {high:.2f} A"})
         return TaskResult(
-            outputs=[Path(destination)],
-            steps=steps,
-            warnings=warnings,
-            data={"apertures": len(apertures),
-                  "range": f"{low:.2f} to {high:.2f} {solution.units}",
-                  "arcs": " + ".join(str(name) for name in names),
-                  "extrapolated": outside},
-            history=[f"dispcor: {solution.function} order {solution.order} from "
-                     + " + ".join(
-                         f"{name} ({weight:.3f})" if len(names) > 1 else str(name)
-                         for name, weight in zip(names, weights, strict=True))
-                     + f", rms {solution.rms:.4f} {solution.units}"],
-        )
+            outputs=written, steps=steps, warnings=warnings, data=data,
+            history=[f"dispcor: {len(inputs)} spectra; " + "; ".join(said[:6])])
+
+
+class _Solved:
+    """One aperture's dispersion function and the grid it implies (dcio's
+    DC_W1, DC_W2, DC_DW, DC_NW)."""
+
+    def __init__(self, number: int, npts: int, make, covered=None) -> None:
+        self.number, self.npts, self.make, self.covered = number, npts, make, covered
+        self.dispersion = make()
+        self.w1 = self.dispersion.eval(1.0)
+        self.w2 = self.dispersion.eval(float(npts))
+        self.dwc = (self.w2 - self.w1) / (npts - 1)
+
+    def fresh(self):
+        """A dispersion function with the inverse's memory unused, as each
+        dispcora call starts one."""
+        return self.make()
+
+
+def _curve(solution):
+    """The solution's curve: IRAF's own coefficients, or harwood's fit
+    refitted from the features it kept."""
+    import numpy as np
+
+    from ..core import dispcor, icfit
+
+    saved = solution.extra.get("curve")
+    if saved:
+        return dispcor.Curve.from_saved(saved)
+    used = solution.used if solution.used is not None else np.ones(len(solution), bool)
+    xrange = solution.extra.get("xrange")
+    fitted = icfit.fit(solution.pixel[used], solution.wavelength[used],
+                       icfit.FitSpec(function=solution.function, order=solution.order),
+                       xrange=tuple(xrange) if xrange else None)
+    if fitted.model is None:
+        advice.fail(
+            f"the solution in database/id{solution.record} could not be refitted: "
+            f"{fitted.message}",
+            "open the file and look at how many features it kept; a solution with "
+            "too few surviving lines for its order cannot be rebuilt. Re-run "
+            "identify on that arc.", RuntimeError)
+    return lambda x, model=fitted: float(model(np.array([x]))[0])
+
+
+def _records(name: str, params, cache: dict) -> list:
+    from ..core import database
+
+    key = ("db", name)
+    if key not in cache:
+        cache[key] = database.read_all(name, params.database)
+    return cache[key]
+
+
+def _find(records, number: int, ignoreaps: bool, spec: str):
+    """dcio's lookup: the aperture's record, else one that belongs to no
+    aperture, else (ignoreaps) the first."""
+    for record in records:
+        if record.aperture == number:
+            return record
+    for record in records:
+        if record.aperture is None:
+            return record
+    if ignoreaps:
+        return records[0]
+    advice.fail(f"{spec} - Missing reference for aperture {number}",
+                "reidentify the arc so every aperture has a solution, or give "
+                "--ignoreaps to use the arc's first one.", RuntimeError)
+
+
+def _dispersions(name: str, apertures, header, params, cache: dict, said: list) -> list:
+    """dc_gms for one spectrum: each aperture's dispersion function from
+    its references, or its own wavelengths when it has none."""
+    import numpy as np
+
+    from ..core import database, dispcor, refspec
+
+    spec = Path(name).name.removesuffix(".fits")
+    if params.reference:
+        names, weights = [params.reference], [1.0]
+    else:
+        names, weights = refspec.read_keywords(header)
+    key = ("solved", name)
+    if not names:
+        if apertures[0].wavelength is None or not np.any(apertures[0].wavelength):
+            known = [path.name[2:] for path in database.listing(params.database)
+                     if path.name.startswith("id")]
+            advice.fail(
+                f"'{name}' does not say which arc calibrates it, and there is "
+                "no way to guess which arc belongs to which exposure.",
+                "name one with --reference, or run refspectra over the night to "
+                "assign them by time. "
+                + (f"This reduction has solutions for {', '.join(known)}."
+                   if known else "This reduction has none yet, so run identify on an "
+                                 "arc first."))
+        if key not in cache:
+            said.append(f"{spec}: Resampling using current coordinate system")
+        solved = []
+        for a in apertures:
+            wave = np.asarray(a.wavelength, float)
+            solved.append(_Solved(a.number, len(a.flux),
+                                  lambda w=wave: dispcor.SpectrumDispersion(w)))
+        cache[key] = ([], [], solved)
+        return solved
+    if key in cache:
+        return cache[key][2]
+    total = sum(weights)
+    weights = [float(f"{w / total:.8g}") for w in weights]
+    for i, (ref, weight) in enumerate(zip(names, weights, strict=True)):
+        said.append(f"{spec}: REFSPEC{i + 1} = '{ref} {_g8(weight)}'")
+    refs = [_records(ref, params, cache) for ref in names]
+    shifts = [_refshift(header, f"REFSHFT{i + 1}", ref, records, params, cache, said, spec)
+              for i, (ref, records) in enumerate(zip(names, refs, strict=True))]
+    solved = []
+    for aperture in apertures:
+        number, npts = aperture.number, len(aperture.flux)
+        terms, covered = [], None
+        for weight, records, extra in zip(weights, refs, shifts, strict=True):
+            record = _find(records, number, params.ignoreaps, spec)
+            shift = float(record.extra.get("shift", 0.0)) + extra
+            terms.append((weight, shift, _curve(record)))
+            if covered is None and record.used is not None and np.any(record.used):
+                pix = record.pixel[record.used]
+                covered = (float(np.min(pix)), float(np.max(pix)))
+        solved.append(_Solved(number, npts,
+                              lambda t=terms, n=npts: dispcor.Dispersion(t, n), covered))
+    cache[key] = (names, weights, solved)
+    return solved
+
+
+def _refshift(header, keyword, ref, records, params, cache, said, spec) -> float:
+    """dc_refshft, the plain (mean) form: the mean shift of another arc's
+    solutions added to every aperture."""
+    import math
+
+    value = str(header.get(keyword, "")).split()
+    if not value or value[0] == ref:
+        return 0.0
+    other = _records(value[0], params, cache)
+    shifts = [float(r.extra.get("shift", 0.0)) for r in other]
+    mean = sum(shifts) / len(shifts)
+    rms = math.sqrt(max(0.0, sum(s * s for s in shifts) / len(shifts) - mean ** 2))
+    option = value[1] if len(value) > 1 else ""
+    said.append(f"{spec}: {keyword} = '{value[0]} {option}', shift = {_g6(mean)}, "
+                f"rms = {_g6(rms)}")
+    return mean
+
+
+def _g8(value: float) -> str:
+    from ..core.iraffmt import printf
+
+    return printf(float(value), "g", 8)
+
+
+def _g6(value: float) -> str:
+    from ..core.iraffmt import printf
+
+    return printf(float(value), "g", 6)
+
+
+def _read_table(table, name: str) -> None:
+    """dc_table: a linear spectrum's grids, else a text table."""
+    from ..core import spectrum
+
+    with contextlib.suppress(OSError, ValueError):
+        if spectrum.count(name):
+            rows = []
+            for a in spectrum.read(name):
+                w = a.wavelength
+                if w is None or len(w) < 2:
+                    continue
+                rows.append((a.number, float(w[0]), float(w[-1]),
+                             float((w[-1] - w[0]) / (len(w) - 1)), len(w)))
+            table.read(None, rows)
+            return
+    if not Path(name).exists():
+        advice.fail("Can't access wavelength table",
+                    f"'{name}' is neither a table of 'aperture w1 w2 dw nw' lines nor "
+                    "a dispersion-corrected spectrum.", FileNotFoundError)
+    table.read(name)
+
+
+def _global_grids(table, inputs, params, cache, samedisp: bool) -> None:
+    """dc_global and dc_global1: the grids from every spectrum of the list."""
+    from astropy.io import fits
+
+    from ..core import dispcor, spectrum
+
+    wmin, wmax, dwmin = 3.4028234663852886e38, -3.4028234663852886e38, \
+        3.4028234663852886e38
+    quiet: list[str] = []
+    for name in inputs:
+        apertures = spectrum.read(name)
+        solved = _dispersions(name, apertures, fits.getheader(name), params, cache, quiet)
+        for s in solved:
+            if samedisp:
+                wmin = min(wmin, s.w1, s.w2)
+                wmax = max(wmax, s.w1, s.w2)
+                dwmin = min(dwmin, abs(s.dwc))
+            else:
+                grid = table.entry(s.number)
+                grid.wmin = min(grid.wmin, s.w1, s.w2)
+                grid.wmax = max(grid.wmax, s.w1, s.w2)
+                grid.nwmax = max(grid.nwmax, s.npts)
+    # The REFSPEC lines belong to the pass that writes; dcio prints them then.
+    for key in [k for k in cache if k[0] == "solved"]:
+        del cache[key]
+    if samedisp:
+        nwmax = int((wmax - wmin) / dwmin + 1.5)
+        d = table.default
+        d.w1, d.w2, d.dw, d.nw = dispcor.defaults(wmin, wmax, nwmax, d.w1, d.w2, d.dw,
+                                                  d.nw)
+        return
+    for grid in [table.default, *table.entries.values()]:
+        if grid.nwmax:
+            grid.w1, grid.w2, grid.dw, grid.nw = dispcor.defaults(
+                grid.wmin, grid.wmax, grid.nwmax, grid.w1, grid.w2, grid.dw, grid.nw)
+
+
+def _dclog(header):
+    """dc_refspec: the input's header, its REFSPEC and REFSHFT keywords kept
+    as DCLOG1, DCLOG2..."""
+    out = header.copy()
+    n = 1
+    while f"DCLOG{n}" in out:
+        n += 1
+    for keyword in ("REFSPEC1", "REFSPEC2", "REFSHFT1", "REFSHFT2"):
+        if keyword in out:
+            out[f"DCLOG{n}"] = f"{keyword} = {out[keyword]}"
+            del out[keyword]
+            n += 1
+    for keyword in ("HRWDSPEC", "HRWDFROM"):
+        out.remove(keyword, ignore_missing=True, remove_all=True)
+    return out
 
 
 def _recognise(aperture, limit: int = 12) -> tuple[list[str], list[float]]:
@@ -653,41 +926,6 @@ def _recognise(aperture, limit: int = 12) -> tuple[list[str], list[float]]:
         else:
             unnamed.append(round(measured, 2))
     return list(dict.fromkeys(named)), unnamed
-
-
-def _references(params: DispCorParams) -> tuple[list[str], list[float]]:
-    """Which arcs to use: the one given, or the ones refspectra recorded.
-
-    A spectrum that has been through refspectra carries its own answer, which
-    is the point of the keywords: the file says which arc calibrates it without
-    anyone having to remember.
-    """
-    from astropy.io import fits
-
-    from ..core import refspec
-    from ..core.database import listing
-
-    if params.reference:
-        return [params.reference], [1.0]
-
-    try:
-        names, weights = refspec.read_keywords(fits.getheader(params.input))
-    except OSError:
-        names, weights = [], []
-    if names:
-        total = sum(weights)
-        return names, [weight / total for weight in weights]
-
-    known = [path.name[2:] for path in listing(params.database)
-             if path.name.startswith("id")]
-    advice.fail(
-        f"'{params.input}' does not say which arc calibrates it, and there is "
-        "no way to guess which arc belongs to which exposure.",
-        "name one with --reference, or run refspectra over the night to assign "
-        "them by time. "
-        + (f"This reduction has solutions for {', '.join(known)}."
-           if known else "This reduction has none yet, so run identify on an "
-                         "arc first."))
 
 
 REFWHY = {

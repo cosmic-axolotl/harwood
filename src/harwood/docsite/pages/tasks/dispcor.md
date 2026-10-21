@@ -21,6 +21,16 @@ of a resampled spectrum looks lower than it is. `--no-linearize` keeps the
 pixels and writes each one's own wavelength instead. Outside the solution's
 range, `--blank` is written.
 
+**Several apertures, several spectra.** Each aperture gets its own grid
+from its own solution; `--samedisp` puts them all on one, and `--global`
+works the grids out over every spectrum given, so a night's spectra come out
+on the same wavelengths. `--table` reads a grid per aperture
+(`aperture w1 w2 dw nw`, INDEF where the solution should decide).
+`--ignoreaps` takes the arc's first solution for an aperture it has none for;
+without it, that aperture stops the run, as it does in IRAF. `--listonly`
+prints the grids and writes nothing, and a spectrum that already has
+wavelengths is resampled from them.
+
 **It checks itself.** The strongest features of the result are looked up in
 the line catalogue, and dispcor reports which ones landed on a real
 wavelength. That is a different check from the arc's rms: the rms says the

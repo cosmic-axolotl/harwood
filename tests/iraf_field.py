@@ -343,3 +343,68 @@ def standard_cases():
         apertures.append((ap, start, step, counts.astype(np.float32), f"fake aperture {ap}"))
     out["ms3"] = (apertures, {"OBJECT": "fakestar", "AIRMASS": 1.3, "EXPTIME": 400.0})
     return out
+
+
+#: Apertures of the multispec arcs and stars: wavelength offset, scale and
+#: extra curvature against arc_spectrum()'s dispersion, and the centre across
+#: the slit. Aperture 4 has a star but no arc, for dispcor's ignoreaps.
+MULTISPEC_APERTURES = {4: (-0.33, 0.9985, -0.4, 90.5), 1: (0.0, 1.0, 0.0, 30.5),
+                       2: (0.41, 1.002, 0.3, 50.5), 3: (-0.33, 0.9985, -0.4, 70.5)}
+
+
+def multispec_night():
+    """Arcs and stars of three apertures, for reidentify and dispcor.
+
+    Each aperture disperses a little differently, so one identified aperture
+    has to be carried to the others rather than copied. 'arc3b' is a second
+    arc 0.62 px off the first, as flexure leaves it; 'star3' is calibrated
+    by arc3, 'star3b' by both arcs weighted 0.6 and 0.4, and 'star3n' has an
+    aperture (4) no arc has. Also 'arc2d', a long-slit arc of 101 lines whose
+    lines bend across the slit, for tracing. Returns {name: (apertures,
+    header)} with apertures [(number, centre, flux)], and the 2-D frame.
+    """
+    from pathlib import Path
+
+    text = (Path(__file__).parent / "data" / "arc_lines.dat").read_text()
+    lines = np.array([float(row.split()[0]) for row in text.splitlines()
+                      if row.strip() and not row.startswith("#")])
+    strength = 10 ** np.random.default_rng(9).uniform(1.6, 3.8, lines.size)
+    pix = np.arange(1, 1025, dtype=float)
+    t = (pix - 512.5) / 512.0
+
+    def arc(wave, seed, pixshift=0.0):
+        noise = np.random.default_rng(seed)
+        image = 40.0 + 10.0 * t
+        for w, s in zip(lines, strength, strict=True):
+            if wave[0] - 2 < w < wave[-1] + 2:
+                p = np.interp(w, wave, pix) + pixshift
+                image = image + s * np.exp(-((pix - p) / 1.4) ** 2 / 2)
+        return (image + noise.normal(0, 3.0, pix.size)).astype(np.float32)
+
+    def star(wave, seed):
+        noise = np.random.default_rng(seed)
+        image = 2000.0 + 0.8 * (pix - 512)
+        for w, depth, width in ((4040.3, 900, 0.6), (4101.7, 1200, 1.2),
+                                (4190.2, 500, 0.4), (4270.8, 700, 0.8)):
+            p = np.interp(w, wave, pix)
+            image = image - depth * np.exp(-((pix - p) / (width / 0.287)) ** 2 / 2)
+        return (image + noise.normal(0, 15.0, pix.size)).astype(np.float32)
+
+    waves = {ap: 4160.0 + o + 147.0 * s * t + (2.2 + q) * t ** 2 - 0.6 * t ** 3
+             for ap, (o, s, q, _) in MULTISPEC_APERTURES.items()}
+    centre = {ap: v[3] for ap, v in MULTISPEC_APERTURES.items()}
+    arcs = (1, 2, 3)
+    lamp, star_ = {"OBJECT": "arc lamp"}, {"OBJECT": "star"}
+    night = {
+        "arc3": ([(ap, centre[ap], arc(waves[ap], 100 + ap)) for ap in arcs], lamp),
+        "arc3b": ([(ap, centre[ap], arc(waves[ap], 200 + ap, 0.62)) for ap in arcs], lamp),
+        "star3": ([(ap, centre[ap], star(waves[ap], 300 + ap)) for ap in arcs],
+                  {**star_, "REFSPEC1": "arc3"}),
+        "star3b": ([(ap, centre[ap], star(waves[ap], 400 + ap)) for ap in arcs],
+                   {**star_, "REFSPEC1": "arc3 0.6", "REFSPEC2": "arc3b 0.4"}),
+        "star3n": ([(ap, centre[ap], star(waves[ap], 500 + ap)) for ap in (1, 4)],
+                   {**star_, "REFSPEC1": "arc3"}),
+    }
+    frame = np.array([arc(waves[1], 1000 + y, 0.012 * (y - 51) + 0.00005 * (y - 51) ** 2)
+                      for y in range(1, 102)], dtype=np.float32)
+    return night, frame

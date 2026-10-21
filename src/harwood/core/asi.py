@@ -20,6 +20,26 @@ import numpy as np
 f32 = np.float32
 
 
+#: ii_sinc's truncation and its least offset worth interpolating.
+NSINC = 15
+SINC_DX = f32(0.001)
+
+
+def _sinc_taper(nsinc: int) -> np.ndarray:
+    """ii_sinc's cosine-bell taper with the sinc's alternating sign."""
+    halfpi = 1.5707963267948966
+    sconst = f32((halfpi / nsinc) ** 2)
+    a2, a4 = f32(-0.49670), f32(0.03705)
+    w1 = f32(1.0) if nsinc % 2 == 0 else f32(-1.0)
+    taper = np.zeros(2 * nsinc + 1, dtype=f32)
+    for j in range(-nsinc, nsinc + 1):
+        dx2 = f32(f32(sconst * f32(j)) * f32(j))
+        t = f32(f32(f32(1.0) + f32(a2 * dx2)) + f32(f32(a4 * dx2) * dx2))
+        taper[j + nsinc] = f32(w1 * f32(t * t))
+        w1 = f32(-w1)
+    return taper
+
+
 class Interpolant:
     """asiinit + asifit: an interpolant of `data` (1-based), linear or spline3."""
 
@@ -76,11 +96,46 @@ class Interpolant:
             c[1:n + 3] = _spline(c[1:n + 3], n)
             self.coeff = c
             self.offset = 1
+        elif kind == "sinc":
+            if n < 1:
+                raise ValueError("ASIFIT: too few points for SINC")
+            # COEFF[1..n] the data, stored with a leading pad as above.
+            c = np.zeros(n + 1, dtype=f32)
+            c[1:] = data
+            self.coeff = c
+            self.offset = 0
+            self.nsinc = NSINC
+            self._taper = _sinc_taper(NSINC)
         else:
             raise ValueError(f"interpolant '{kind}' is not ported")
 
+    def _sinc(self, x) -> f32:
+        """ii_sinc at one point: the tapered sinc convolution, normalised by
+        the sum of its weights, the end pixels repeated past the ends."""
+        x = f32(x)
+        npix, nsinc = self.n, self.nsinc
+        data = self.coeff
+        xc = int(np.floor(x + f32(0.5)))
+        if xc < 1 or xc > npix:
+            return f32(0)
+        dx = f32(x - f32(xc))
+        if abs(dx) < SINC_DX:
+            return data[xc]
+        minj, maxj = max(1, xc - nsinc), min(npix, xc + nsinc)
+        offj = -xc + nsinc
+        total = weight = f32(0)
+        dxn = f32(dx + f32(xc))
+        for j in range(xc - nsinc, xc + nsinc + 1):
+            w1 = f32(self._taper[j + offj] / f32(dxn - f32(j)))
+            value = data[1] if j < minj else (data[npix] if j > maxj else data[j])
+            total = f32(total + f32(w1 * value))
+            weight = f32(weight + w1)
+        return f32(total / weight)
+
     def __call__(self, x: float) -> float:
         """asieval at one point."""
+        if self.kind == "sinc":
+            return float(self._sinc(x))
         x = f32(x)  # type: ignore[assignment]
         nx = int(x)
         c = self.coeff
@@ -110,6 +165,17 @@ class Interpolant:
     def integral(self, a: float, b: float) -> float:
         """asigrl from a to b."""
         xa, xb = (f32(a), f32(b)) if a <= b else (f32(b), f32(a))
+        if self.kind == "sinc":
+            # ii_sincigrl: the value at the middle of each of n equal steps
+            # of at most a pixel, times the step.
+            n = max(1, int(np.floor(f32(xb - xa) + f32(0.5))))
+            dx = f32(f32(xb - xa) / f32(n))
+            total = f32(0)
+            x = f32(xa + f32(dx / f32(2)))
+            while x < xb:
+                total = f32(total + f32(self._sinc(x) * dx))
+                x = f32(x + dx)
+            return float(total if a <= b else -total)
         neara, nearb = int(xa), int(xb)
         c = self.coeff
         accum = f32(0)
