@@ -71,7 +71,12 @@ def parse(spec: str | Path) -> ImageSpec:
         elif extension.isdigit():
             extension = int(extension)
     section = match.group("section")
-    return ImageSpec(Path(match.group("path")), extension, section)
+    path = Path(match.group("path"))
+    # IRAF names an image without its extension: 'arc' is arc.fits.
+    named = path.with_name(path.name + ".fits")
+    if not path.exists() and path.suffix != ".fits" and named.exists():
+        path = named
+    return ImageSpec(path, extension, section)
 
 
 def split_brackets(text: str) -> tuple[str, str]:

@@ -1,0 +1,135 @@
+{
+ "_comment": "IRAF 2.18.1 apall with references='A', after apall on A as in iraf_apall.json's d2_none (interactive=no, find, resize, trace, extract, nfind=2, format multispec). A is tests/iraf_field.spectra_frame(), B spectra_frame(1.3), arc arc_frame(), all with DISPAXIS=2; every other parameter IRAF's default unless in 'params' (harwood's names). 'log' is the RECENTER line apextract.logfile got; 'apertures' what IRAF wrote to database/ap<image> (center, low, high along the slit); the bands are in iraf_apall_references.npz as <case>__<band>.",
+ "cases": {
+  "r_arc": {
+   "image": "arc",
+   "params": {
+    "recenter": false,
+    "resize": false,
+    "trace": false
+   },
+   "log": null,
+   "apertures": [
+    [
+     34.59373,
+     -3.727915,
+     3.779636
+    ],
+    [
+     69.26266,
+     -5.099289,
+     3.067406
+    ]
+   ]
+  },
+  "r_shift": {
+   "image": "B",
+   "params": {
+    "recenter": true,
+    "resize": false,
+    "trace": false
+   },
+   "log": "RECENTER  - 2 apertures shifted by 1.18 for B.",
+   "apertures": [
+    [
+     35.77629,
+     -3.727915,
+     3.779636
+    ],
+    [
+     70.44522,
+     -5.099289,
+     3.067406
+    ]
+   ]
+  },
+  "r_each": {
+   "image": "B",
+   "params": {
+    "recenter": true,
+    "shift": false,
+    "resize": false,
+    "trace": false
+   },
+   "log": "RECENTER - 2 apertures recentered for B",
+   "apertures": [
+    [
+     35.05269,
+     -3.727915,
+     3.779636
+    ],
+    [
+     71.16882,
+     -5.099289,
+     3.067406
+    ]
+   ]
+  },
+  "r_peak": {
+   "image": "B",
+   "params": {
+    "recenter": true,
+    "npeaks": 1,
+    "resize": false,
+    "trace": false
+   },
+   "log": "RECENTER  - 2 apertures shifted by 0.46 for B.",
+   "apertures": [
+    [
+     35.05269,
+     -3.727915,
+     3.779636
+    ],
+    [
+     69.72162,
+     -5.099289,
+     3.067406
+    ]
+   ]
+  },
+  "r_aprec": {
+   "image": "B",
+   "params": {
+    "recenter": true,
+    "aprecenter": "2",
+    "resize": false,
+    "trace": false
+   },
+   "log": "RECENTER  - 2 apertures shifted by 1.91 for B.",
+   "apertures": [
+    [
+     36.4999,
+     -3.727915,
+     3.779636
+    ],
+    [
+     71.16882,
+     -5.099289,
+     3.067406
+    ]
+   ]
+  },
+  "r_full": {
+   "image": "B",
+   "params": {
+    "recenter": true,
+    "resize": true,
+    "trace": true,
+    "background": "fit"
+   },
+   "log": "RECENTER  - 2 apertures shifted by 1.18 for B.",
+   "apertures": [
+    [
+     35.77629,
+     -4.505032,
+     3.153423
+    ],
+    [
+     70.44522,
+     -3.605743,
+     4.707787
+    ]
+   ]
+  }
+ }
+}

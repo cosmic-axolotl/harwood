@@ -688,7 +688,7 @@ tasks:
 
   # --- spec-2d (later, 30 tasks) --------------------------------
   apall: {pkg: twodspec.apextract, domain: spec-2d, status: partial, milestone: later, harwood: apall,
-    note: "IRAF's find, resize, trace, background (none, average, median, minimum, fit, skybox) and extraction (fractional edge pixels; variance weights with fit1d profiles and cleaning), ported and checked against IRAF's output; not ported: fit2d profiles, subapertures, reference apertures from another frame, recenter, output formats other than harwood's"}
+    note: "IRAF's find, resize, trace, background (none, average, median, minimum, fit, skybox) and extraction (fractional edge pixels; variance weights with fit1d profiles and cleaning), apertures from another frame (references, OLD, NEW) or from the frame's own database, and recentering (shift, npeaks, aprecenter), ported and checked against IRAF's output; not ported: fit2d profiles, subapertures, output formats other than harwood's"}
   apdefault: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apedit: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apall,
     note: "part of apall: --edit opens it, and the finding and sizing happen there"}

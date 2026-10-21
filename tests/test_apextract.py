@@ -435,7 +435,7 @@ def test_apall_uses_what_apedit_returned(frame, monkeypatch):
     # The band set by hand, 5 to 20 px outside each edge, is the sample.
     from harwood.core import database
     stored = database.read("obj.fits", frame, prefix="ap")
-    assert stored.extra["apertures"][0]["background"] == "-29:-14,14:29"
+    assert stored.extra["apertures"][0]["background"]["sample"] == "-29:-14,14:29"
 
 
 def test_deleting_every_aperture_stops_rather_than_extracting_nothing(frame,

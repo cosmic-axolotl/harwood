@@ -3,6 +3,7 @@ background and extraction.
 
 From iraf-community 2.18: apgetdata.x (the profile across the slit),
 peaks.x and apfind.x (finding), apcenter.x with xtools center1d (centring),
+aprecenter.x (moving apertures taken from a reference frame),
 apylevel.x and apresize.x (aperture limits), aptrace.x (tracing),
 apskyeval.x (background), apextract.x (the sum with fractional edge pixels),
 approfile.x and apvariance.x (variance weighting and cleaning).
@@ -16,8 +17,7 @@ Single precision where IRAF decides with it -- the edge weights, the sums,
 the centring. The trace and background fits go through core.icfit, IRAF's
 icfit, in double.
 
-Not ported: fit2d (Marsh) profiles, subapertures, aperture reference
-images.
+Not ported: fit2d (Marsh) profiles, subapertures.
 
 Translated from IRAF, Copyright (c) 1986 Association of Universities for
 Research in Astronomy Inc.; the notice it is distributed under is in
@@ -102,6 +102,120 @@ class Aperture:
                     continue
                 x1, x2 = min(x1, value), max(x2, value)
         return x1, x2
+
+
+def to_record(ap: Aperture) -> dict:
+    """An aperture as database/ap<image> keeps it: enough to use it again on
+    another frame -- the trace as the points it was fitted to, the fit's
+    parameters and the points deleted by hand, so refitting gives back the
+    same curve, as an identify solution is kept."""
+    bg = ap.background
+
+    def g(value):           # ap_dbwrite's %g of a real: what a reference reads back
+        return float(f"{float(f32(value)):.7g}")
+
+    record = {"number": ap.number, "centre": g(ap.centre), "low": g(ap.low),
+              "high": g(ap.high),
+              "line": float(ap.line),
+              "background": {"function": bg.function, "order": bg.order,
+                             "sample": bg.sample, "naverage": bg.naverage,
+                             "niterate": bg.niterate, "low_reject": bg.low_reject,
+                             "high_reject": bg.high_reject, "grow": bg.grow},
+              "trace": {"xmin": ap.trace.xmin, "xmax": ap.trace.xmax}}
+    fit = ap.trace.fit
+    if fit is not None and fit.model is not None:
+        spec = fit.spec
+        record["trace"].update({
+            "function": spec.function, "order": spec.order, "sample": spec.sample,
+            "naverage": spec.naverage, "niterate": spec.niterate,
+            "low_reject": spec.low_reject, "high_reject": spec.high_reject,
+            "grow": spec.grow, "x": [float(v) for v in fit.x],
+            "y": [float(v) for v in fit.y],
+            "deleted": [int(i) for i in np.flatnonzero(fit.deleted)]})
+    return record
+
+
+def from_record(record: dict, length: int) -> Aperture:
+    """to_record backwards; `length` is the frame's along the dispersion,
+    the range a trace is fitted over."""
+    background = icfit.FitSpec(**record["background"]) if isinstance(
+        record.get("background"), dict) else icfit.FitSpec(
+        function="chebyshev", order=1, sample=str(record.get("background", "-10:-6,6:10")),
+        naverage=-3, niterate=0, low_reject=3.0, high_reject=3.0, grow=0.0)
+    saved = record.get("trace") or {}
+    trace = Trace(None, float(saved.get("xmin", 1.0)), float(saved.get("xmax", 1.0)))
+    if "x" in saved:
+        spec = icfit.FitSpec(**{k: saved[k] for k in (
+            "function", "order", "sample", "naverage", "niterate", "low_reject",
+            "high_reject", "grow")})
+        x = np.asarray(saved["x"], dtype=float)
+        deleted = np.zeros(x.size, dtype=bool)
+        deleted[np.asarray(saved.get("deleted", []), dtype=int)] = True
+        trace.fit = icfit.fit(x, np.asarray(saved["y"], dtype=float), spec,
+                              deleted=deleted, xrange=(1.0, float(length)))
+    return Aperture(int(record["number"]), float(record["centre"]), float(record["low"]),
+                    float(record["high"]), float(record.get("line", 1.0)), trace,
+                    background)
+
+
+def recenter(apertures: list[Aperture], profile, line: int, width: float = 5.0,
+             radius: float = 10.0, threshold: float = 0.0, aprecenter: str = "",
+             npeaks: float | None = None, shift: bool = True) -> tuple[int, float | None]:
+    """ap_recenter: move apertures taken from another frame onto this one's
+    profile. Each aperture's centre at `line` is centred with center1d; with
+    `shift` (IRAF's default) every aperture moves by the median of those
+    moves -- of the `npeaks` brightest, among the apertures `aprecenter`
+    names -- keeping their spacing; without it, each moves by its own.
+    Returns how many moved and, with shift, by how much."""
+    from . import ranges
+
+    naps = len(apertures)
+    if naps < 1:
+        return 0, None
+    if npeaks is None:
+        npeaks_n = naps
+    elif npeaks < 1:
+        npeaks_n = int(max(1.0, npeaks * naps))
+    else:
+        npeaks_n = int(npeaks)
+    data = np.asarray(profile, dtype=f32)
+    npts = data.size
+    if npeaks_n == naps and not shift:
+        moved = 0
+        for ap in apertures:
+            offset = f32(ap.trace(np.array([float(line)]))[0])
+            centre = center1d(float(f32(f32(ap.centre) + offset)), data, width,
+                              "emission", radius, threshold)
+            if centre is not None:
+                ap.centre = float(f32(f32(centre) - offset))
+                moved += 1
+        return moved, None
+    wanted = ranges.parse(aprecenter)
+    found = []                                      # (-peak, delta, index)
+    for i, ap in enumerate(apertures):
+        if ap.number not in wanted:
+            continue
+        offset = f32(ap.trace(np.array([float(line)]))[0])
+        centre = f32(f32(ap.centre) + offset)
+        c = center1d(float(centre), data, width, "emission", radius, threshold)
+        if c is not None:
+            k = max(1, min(npts, int(c + 0.5)))
+            found.append((-float(data[k - 1]), float(f32(f32(c) - centre)), i))
+    if not found or npeaks_n <= 0:
+        return 0, None
+    if npeaks_n < len(found):
+        found = sorted(found, key=lambda item: item[0])[:npeaks_n]      # xt_sort3
+    if shift:
+        deltas = np.sort(np.array([d for _, d, _ in found], dtype=f32))
+        j = deltas.size
+        delta = float(f32((deltas[j // 2 - 1] + deltas[j // 2]) / f32(2))) if j % 2 == 0 \
+            else float(deltas[j // 2])                                   # asokr
+        for ap in apertures:
+            ap.centre = float(f32(f32(ap.centre) + f32(delta)))
+        return naps, delta
+    for _, delta, i in found:
+        apertures[i].centre = float(f32(f32(apertures[i].centre) + f32(delta)))
+    return len(found), None
 
 
 # ---------------------------------------------------------------- the profile

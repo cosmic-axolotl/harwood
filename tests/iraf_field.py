@@ -176,13 +176,14 @@ def align_frames():
     return frames, coords
 
 
-def spectra_frame():
+def spectra_frame(shift=0.0):
     """A long-slit frame for apall: DISPAXIS=2, the dispersion along the
     lines (y), 300 of them, and 100 columns across. Two spectra, one bright
     and one faint, each wandering by a few pixels along the dispersion; a
     sky with a slope across the slit and emission lines along it; absorption
     lines in the brighter star; cosmic rays, some in the apertures; noise for
-    a gain of 2 e-/ADU and a read noise of 5 e-."""
+    a gain of 2 e-/ADU and a read noise of 5 e-. `shift` moves both spectra
+    across the slit, as the next exposure of the same stars."""
     rng = np.random.default_rng(61)
     ny, nx = 300, 100
     yy, xx = np.mgrid[1:ny + 1, 1:nx + 1].astype(float)
@@ -192,7 +193,7 @@ def spectra_frame():
         image += strength * np.exp(-((yy - line) ** 2) / (2 * 1.3 ** 2))
     for centre, curve, tilt, flux, sigma in ((34.6, 2.5, 1.8, 6000.0, 1.7),
                                              (68.3, -1.5, 1.2, 1500.0, 1.9)):
-        position = centre + tilt * t + curve * t ** 2
+        position = centre + shift + tilt * t + curve * t ** 2
         continuum = flux * (1.0 + 0.3 * t) * (1 - 0.6 * np.exp(-((yy - 180.0) / 2.0) ** 2))
         image += continuum / (np.sqrt(2 * np.pi) * sigma) * \
             np.exp(-((xx - position) ** 2) / (2 * sigma ** 2))
@@ -202,6 +203,21 @@ def spectra_frame():
     for y, x, value in ((60, 35, 4000.0), (61, 35, 2500.0), (150, 70, 3000.0),
                         (210, 33, 5000.0), (90, 10, 2000.0), (275, 69, 1800.0)):
         image[y - 1, x - 1] += value
+    return image.astype(np.float32)
+
+
+def arc_frame():
+    """A comparison lamp on spectra_frame()'s slit: emission lines filling
+    all 100 columns at fixed positions along the 300 lines, a little
+    scattered light, noise. There is no star to find in it, which is why
+    it is extracted with a star frame's apertures."""
+    rng = np.random.default_rng(67)
+    yy, xx = np.mgrid[1:301, 1:101].astype(float)
+    image = 20.0 + 0.05 * xx
+    for line, strength in ((23.4, 900.0), (61.2, 3000.0), (97.8, 400.0), (140.5, 2200.0),
+                           (171.1, 700.0), (205.6, 5000.0), (248.3, 1500.0), (281.9, 600.0)):
+        image += strength * np.exp(-((yy - line) ** 2) / (2 * 1.1 ** 2))
+    image = rng.poisson(np.clip(image * 2.0, 0, None)) / 2.0 + rng.normal(0, 2.5, image.shape)
     return image.astype(np.float32)
 
 

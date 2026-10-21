@@ -33,6 +33,15 @@ WHY = {
                "you can centroid. It only works while the spectrum is straight "
                "enough that adding the whole frame does not smear it, which is "
                "what nsum limits.",
+    "reference": "An arc has no star in it to find, and a faint exposure may not "
+                 "show its star well enough to trace. Both are extracted with the "
+                 "apertures of a frame that does -- the same centre, limits and "
+                 "trace -- so the arc's lines are measured on exactly the pixels "
+                 "the star's light was summed from.",
+    "recenter": "The reference's apertures, moved to where this frame's profile "
+                "peaks: by default all by the median of their moves, so a small "
+                "drift of the star on the slit is followed and the apertures keep "
+                "their spacing.",
     "find": "The strongest peaks in the spatial profile, none closer than minsep "
             "to a stronger one, each centred with center1d. One for a star on a "
             "long slit, many for fibres or an echelle.",
@@ -90,7 +99,23 @@ class ApAllParams(TaskParams):
                     "along the columns (y). Left out, the DISPAXIS keyword, else 2.",
     )
 
-    find: bool = Field(True, description="Find the apertures?")
+    references: str = Field(
+        "", description="Frame whose apertures (database/ap<frame>) are used instead "
+                        "of finding them -- as for an arc, extracted with its star's. "
+                        "Empty: this frame's own, if it has any. OLD: only a frame "
+                        "that has its own; NEW<frame>: only one that does not.")
+    find: bool = Field(True, description="Find the apertures, when there are none?")
+    recenter: bool = Field(
+        True, description="Recenter apertures taken from the database on this frame?")
+    aprecenter: str = Field(
+        "", description="Apertures used to work out the recentering (a range list; "
+                        "empty is all).")
+    npeaks: float | None = Field(
+        None, ge=0, description="Recenter on only the brightest this many (below 1, "
+                                "this fraction); None is all.")
+    shift: bool = Field(
+        True, description="Move every aperture by the median recentering rather "
+                          "than each by its own.")
     resize: bool = Field(True, description="Resize the apertures to the profile?")
     edit: bool = Field(
         False,
@@ -193,7 +218,14 @@ class ApAll(Task[ApAllParams]):
             Step("profile", f"{'sum' if params.nsum > 0 else 'median'} of "
                             f"{abs(params.nsum)} lines", why=WHY["profile"]),
         ]
-        if params.find:
+        stored = _stored_name(params)
+        if stored:
+            steps.append(Step("reference", f"the apertures of database/ap{stored}",
+                              why=WHY["reference"]))
+            if params.recenter:
+                steps.append(Step("recenter", "all by the median move" if params.shift
+                                  else "each on its own peak", why=WHY["recenter"]))
+        elif params.find:
             steps.append(Step("find", f"up to {params.nfind}, at least {params.minsep:g} "
                                       f"px apart, centred over {params.width:g} px",
                               why=WHY["find"]))
@@ -249,22 +281,42 @@ class ApAll(Task[ApAllParams]):
             low_reject=params.b_low_reject, high_reject=params.b_high_reject,
             grow=params.b_grow)
 
-        centres = []
-        if params.find:
+        # t_apall: the reference's apertures, or this frame's own; found only
+        # when there are none.
+        apertures = _apertures_from_database(params, frame.shape[0])
+        recentred = None
+        if apertures:
+            if params.recenter:
+                moved, delta = apextract.recenter(
+                    apertures, profile, line, params.width, params.radius,
+                    params.threshold, params.aprecenter, params.npeaks, params.shift)
+                # ap_recenter's log line, as IRAF words it.
+                recentred = (f"RECENTER  - {moved} apertures shifted by {delta:.2f} for "
+                             f"{params.input}." if delta is not None else
+                             f"RECENTER - {moved} apertures recentered for {params.input}")
+                if "recenter" in by_action:
+                    by_action["recenter"].measured = {"moved": recentred}
+            if "reference" in by_action:
+                by_action["reference"].measured = {
+                    "apertures": len(apertures),
+                    "centres": ", ".join(f"{a.centre:.2f}" for a in apertures[:6])}
+        elif params.find:
             centres = apextract.find(profile, params.nfind, params.minsep, params.width,
                                      params.radius, params.threshold, params.order)
-            by_action["find"].measured = {
-                "found": len(centres),
-                "at": ", ".join(f"{c:.2f}" for c in centres[:6])}
-        if not centres and not params.edit:
+            if "find" in by_action:
+                by_action["find"].measured = {
+                    "found": len(centres),
+                    "at": ", ".join(f"{c:.2f}" for c in centres[:6])}
+            apertures = [apextract.Aperture(number, centre, params.lower, params.upper,
+                                            float(line), background=background)
+                         for number, centre in enumerate(centres, start=1)]
+        if not apertures and not params.edit:
             advice.fail(
                 f"no spectrum found in {params.input}.",
                 "check --dispaxis: with the axes the wrong way round the profile is "
-                "the spectrum rather than the slit; or set --edit and mark them.",
+                "the spectrum rather than the slit; or set --edit and mark them; "
+                "or give --references a frame whose apertures to use.",
                 RuntimeError)
-        apertures = [apextract.Aperture(number, centre, params.lower, params.upper,
-                                        float(line), background=background)
-                     for number, centre in enumerate(centres, start=1)]
         if params.resize and apertures:
             apextract.resize(apertures, profile, line, params.llimit, params.ulimit,
                              params.ylevel, params.peak, params.bkg, params.r_grow,
@@ -348,11 +400,13 @@ class ApAll(Task[ApAllParams]):
 
         stored = database.write(_solution(params, apertures), params.database, prefix="ap")
         outputs.append(stored)
+        data = {"apertures": len(apertures),
+                "centres": ", ".join(f"{a.centre:.2f}" for a in apertures),
+                "limits": ", ".join(f"{a.low:+.2f}:{a.high:+.2f}" for a in apertures)}
+        if recentred is not None:
+            data["recenter"] = recentred
         return TaskResult(
-            outputs=outputs, steps=steps,
-            data={"apertures": len(apertures),
-                  "centres": ", ".join(f"{a.centre:.2f}" for a in apertures),
-                  "limits": ", ".join(f"{a.low:+.2f}:{a.high:+.2f}" for a in apertures)},
+            outputs=outputs, steps=steps, data=data,
             history=[f"apall: {len(apertures)} aperture(s), background="
                      f"{params.background}, weights="
                      f"{'variance' if params.clean else params.weights}, trace "
@@ -418,7 +472,7 @@ def _solution(params, apertures):
     """The apertures, for database/ap<image>, so the next frame can reuse them."""
     import numpy as np
 
-    from ..core import database
+    from ..core import apextract, database
 
     centres = np.array([a.centre for a in apertures])
     rms = [a.trace.fit.rms for a in apertures if a.trace.fit is not None]
@@ -432,12 +486,58 @@ def _solution(params, apertures):
         used=np.ones(centres.size, dtype=bool),
         fitted=centres,
         extra={"task": "apall",
-               "apertures": [{"number": a.number, "centre": round(a.centre, 4),
-                              "low": round(a.low, 4), "high": round(a.high, 4),
-                              "background": a.background.sample,
-                              "trace": {"xmin": a.trace.xmin, "xmax": a.trace.xmax}}
-                             for a in apertures]},
+               "apertures": [apextract.to_record(a) for a in apertures]},
     )
+
+
+def _stored_name(params) -> str | None:
+    """Whose database/ap record t_apall starts from: the reference's, or
+    this frame's own when it has one -- None when it finds afresh."""
+    from ..core import database
+
+    reference = params.references.strip()
+    own = database._root(params.input)
+    if reference.upper().startswith("NEW"):
+        reference = reference[3:]
+    if reference in ("", own) or reference.upper() == "OLD":
+        path = database.path_for(params.input, params.database, "ap")
+        return own if path.exists() else None
+    return database._root(reference)
+
+
+def _apertures_from_database(params, length: int) -> list:
+    """ap_dbread of the reference (or of this frame), as t_apall chooses."""
+    from ..core import apextract, database
+
+    reference = params.references.strip()
+    own = database.path_for(params.input, params.database, "ap")
+    if reference.upper() == "OLD" and not own.exists():
+        advice.fail(f"{params.input} has no apertures of its own (database/"
+                    f"{own.name}), and --references OLD only takes frames that do.",
+                    "drop --references to find them, or name the frame to take them "
+                    "from.", FileNotFoundError)
+    if reference.upper().startswith("NEW"):
+        if own.exists():
+            advice.fail(f"{params.input} already has apertures (database/{own.name}), "
+                        "and --references NEW only takes frames that do not.",
+                        "give the reference without NEW to replace them.",
+                        FileExistsError)
+        reference = reference[3:]
+    name = database._root(reference) if reference and reference.upper() != "OLD" else None
+    if name is None or name == database._root(params.input):
+        if not own.exists():
+            return []
+        record = database.read(params.input, params.database, prefix="ap")
+    else:
+        path = database.path_for(reference, params.database, "ap")
+        if not path.exists():
+            advice.fail(f"Reference image ({reference}) apertures not found: no "
+                        f"database/{path.name}.",
+                        f"run apall on {reference} first, so it has apertures to "
+                        "lend.", FileNotFoundError)
+        record = database.read(reference, params.database, prefix="ap")
+    return [apextract.from_record(r, length)
+            for r in record.extra.get("apertures", [])]
 
 
 class WSpecTextParams(TaskParams):

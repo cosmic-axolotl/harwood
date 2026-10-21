@@ -31,6 +31,29 @@ ok apall in 0.24s
 the trace came to: 51 points, fitted to 0.017 pixels rms, drifting −1.51
 pixels from one end of the spectrum to the other.
 
+## Apertures from another frame
+
+A frame that already has apertures in `database/` -- from an earlier run --
+starts from them instead of finding the spectra again, as in IRAF. And
+`--references` takes them from another frame: that is how an arc is
+extracted, since a lamp filling the slit has no star to find or trace.
+
+```console
+$ harwood apall p/sp0018.fits sp0018.ms.fits --references sp0019 \
+      --no-recenter --no-resize --no-trace --background none
+```
+
+The arc's lines are then measured on exactly the pixels the star's light was
+summed from. Apertures taken from the database are recentred on this frame's
+profile (`--recenter`, on by default): every aperture moves by the median of
+their moves (`--shift`), so a small drift of the star on the slit is followed
+and the apertures keep their spacing; `--no-shift` moves each by its own,
+`--npeaks` uses only the brightest and `--aprecenter` only the apertures it
+names. The log says what happened, in IRAF's words:
+`RECENTER  - 2 apertures shifted by 1.18 for B.` `--references OLD` takes
+only frames that have apertures of their own, `NEW<frame>` only those that do
+not.
+
 ## Extraction
 
 - **`--weights none`** (the default, as IRAF) is a plain sum, the end pixels
