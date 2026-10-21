@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>harwood — decisões de projeto, seção 12</title>
+<!--
+  Fonte da seção 12, acrescentada ao fim de docs/design-decisions.pdf.
+  O PDF original (seções 1 a 10) não tem fonte guardada; esta folha imita o
+  seu estilo para que o adendo leia como parte dele. Para regerar:
+
+      weasyprint secao-12-dados.html secao-12.pdf
+      # e anexar secao-12.pdf depois da seção 11
+-->
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 16mm 22mm 16mm;
+    @bottom-left {
+      content: "harwood — decisões de projeto · adendo de 21/10/2026, seção 12";
+      font: 7.5pt "DejaVu Sans"; color: #595959; vertical-align: top; padding-top: 4mm;
+    }
+    @bottom-right {
+      content: "B" counter(page) " / B" counter(pages);
+      font: 7.5pt "DejaVu Sans"; color: #595959; vertical-align: top; padding-top: 4mm;
+    }
+  }
+  html { font: 9.8pt/1.38 "DejaVu Serif"; color: #000; }
+  body { margin: 0; }
+  h2, h3 { font-family: "DejaVu Sans"; font-stretch: semi-condensed; font-weight: bold; }
+  h2 { font-size: 13.5pt; margin: 0 0 6pt; padding-bottom: 2pt; border-bottom: 0.75pt solid #595959; }
+  h2.next { margin-top: 16pt; }
+  h3 { font-size: 10.8pt; margin: 12pt 0 4pt; }
+  p { margin: 0 0 6pt; }
+  code { font: 0.86em "DejaVu Sans Mono"; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 8pt;
+          font: 7.9pt/1.4 "DejaVu Sans"; font-stretch: semi-condensed; }
+  th { text-align: left; font-weight: bold; padding: 3pt 4pt;
+       border-top: 1.2pt solid #000; border-bottom: 0.75pt solid #000; }
+  tr { break-inside: avoid; }
+  h2, h3 { break-after: avoid; }
+  td { vertical-align: top; padding: 3pt 4pt; border-bottom: 0.5pt solid #999; }
+  td:first-child { width: 22%; }
+  td.st, th.st { width: 13%; white-space: nowrap; }
+  .decidido { font-variant: small-caps; }
+  .proposto { font-variant: small-caps; font-style: italic; }
+  table.tec td:first-child { width: 20%; }
+  table.dq td:first-child { width: 8%; } table.dq td:nth-child(2) { width: 18%; }
+  table.tec td:nth-child(2) { width: 42%; }
+  ul, ol { margin: 0 0 6pt; padding-left: 14pt; }
+  li { margin-bottom: 2pt; }
+  .nota { font-style: italic; }
+</style>
+</head>
+<body>
+
+<h2>12. Os dados: SCI, VAR e DQ</h2>
+
+<p class="nota">Adendo de 21 de outubro de 2026. Fecha o item 5 da seção 10 e passa a
+<em>Decidido</em> o item "Incertezas não propagadas" da seção 2. É pré-requisito da
+seção 11.</p>
+
+<p>O IRAF guarda um número por pixel. A incerteza desse número e o motivo de um pixel
+não merecer confiança ficam fora do arquivo — numa máscara <code>.pl</code> à parte,
+quando existem — e se perdem a cada operação. O harwood passa a levar os três juntos
+em toda operação: o dado, a sua variância e a qualidade de cada pixel.</p>
+
+<table>
+  <tr><th>Item</th><th>Decisão</th><th class="st">Estado</th></tr>
+  <tr><td>Estrutura</td>
+      <td>Uma imagem é um FITS de várias extensões: <code>SCI</code> (o dado),
+      <code>VAR</code> (a variância) e <code>DQ</code> (a qualidade, em bits). O HDU
+      primário não tem pixels e leva o cabeçalho comum. Um detector de vários
+      amplificadores ou um mosaico repete o trio com <code>EXTVER</code>
+      (<code>SCI,1</code>, <code>SCI,2</code>…), a convenção do DRAGONS</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Incerteza por dentro</td>
+      <td>Sempre a variância. Variâncias somam diretamente ao combinar e subtrair; o
+      desvio-padrão é calculado só para mostrar</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Incerteza no arquivo</td>
+      <td>O usuário escolhe como gravar: <code>VAR</code>, a variância (padrão);
+      <code>ERR</code>, o desvio-padrão (convenção do JWST); ou <code>UNCERT</code>, o
+      formato do <code>CCDData</code> do astropy. Escolha no projeto
+      (<code>harwood.yaml</code>) ou por execução (<code>--uncertainty</code>). Na
+      leitura as três são reconhecidas e convertidas para variância</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Bits do <code>DQ</code></td>
+      <td>Os do DRAGONS, em inteiro de 16 bits (tabela 12.1). Um pixel bom é 0; cada
+      bit diz um motivo, e os motivos se acumulam</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Saída padrão</td>
+      <td>Toda task grava <code>SCI</code>/<code>VAR</code>/<code>DQ</code></td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Saída para o IRAF</td>
+      <td><code>--format iraf</code> grava um HDU só, o dado, como o IRAF lê; a máscara
+      vai junto como <code>.pl</code> com a palavra-chave <code>BPM</code>, que o
+      <code>ccdproc</code> e o <code>imcombine</code> do IRAF entendem. A opção é
+      anunciada onde importa — na ajuda, no manual de migração e no aviso que diz o
+      que ficou para trás (a variância)</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Entrada de um HDU só</td>
+      <td>Um quadro do IRAF ou de uma câmera é aceito como está. A variância vem do
+      ganho e do ruído de leitura — do cabeçalho, do modelo de detector (seção 11) ou
+      de um parâmetro — e, sem eles, fica ausente com um aviso: nunca se inventa um
+      ganho. O <code>DQ</code> vem de uma máscara <code>BPM</code>/<code>.pl</code>, se
+      houver, senão começa zerado</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Testes contra o IRAF</td>
+      <td>Rodam com <code>--format iraf</code>, e comparam o <code>SCI</code>. A
+      variância e o <code>DQ</code>, que o IRAF não tem, são validados contra dados de
+      verdade conhecida</td>
+      <td class="st decidido">Decidido</td></tr>
+  <tr><td>Espectros</td>
+      <td>As tabelas por abertura continuam com a coluna <code>error</code> em
+      desvio-padrão, que é o que se lê numa tabela; a escolha de
+      <code>--uncertainty</code> vale para imagens</td>
+      <td class="st proposto">Proposto</td></tr>
+  <tr><td>Propagação</td>
+      <td>Pixel a pixel, o <code>DQ</code> de saída é o OU dos de entrada. Na combinação,
+      um pixel rejeitado sai também da variância, e o <code>DQ</code> de saída marca um
+      bit só quando todos os valores usados o tinham; sem nenhum valor bom, <code>no
+      data</code></td>
+      <td class="st proposto">Proposto</td></tr>
+</table>
+
+<h3>12.1 Os bits do <code>DQ</code></h3>
+
+<table class="dq">
+  <tr><th>Bit</th><th>Nome</th><th>Quem marca</th></tr>
+  <tr><td>0</td><td>good</td><td>—</td></tr>
+  <tr><td>1</td><td>bad pixel</td><td>máscara de pixels ruins do detector (<code>BPM</code>, <code>.pl</code>, <code>ccdmask</code>)</td></tr>
+  <tr><td>2</td><td>non linear</td><td>acima do limite de linearidade do modelo de detector</td></tr>
+  <tr><td>4</td><td>saturated</td><td>acima da saturação (<code>ccdproc</code>, <code>apall --saturation</code>)</td></tr>
+  <tr><td>8</td><td>cosmic ray</td><td><code>cosmicrays</code> (L.A.Cosmic ou o algoritmo de 1989)</td></tr>
+  <tr><td>16</td><td>no data</td><td>combinação sem valor bom; área fora do detector num mosaico</td></tr>
+  <tr><td>32</td><td>overlap</td><td>sobreposição de quadros num mosaico</td></tr>
+  <tr><td>64</td><td>unilluminated</td><td>fora da área iluminada (o que hoje o <code>trim</code> corta)</td></tr>
+</table>
+<p>Bits a partir de 128 ficam livres para o que a seção 11 trouxer — ruído telegráfico
+do CMOS, persistência do infravermelho — e só entram com dado real que os exija.</p>
+
+<h3>12.2 Ordem de implementação</h3>
+<ol>
+  <li>O núcleo: ler e gravar o trio nas três formas de incerteza, ler de um HDU só e de
+  <code>.pl</code>, <code>--format iraf</code> e o aviso do que fica para trás.</li>
+  <li><code>ccdproc</code>: a variância nasce aqui, do ganho e do ruído de leitura, e
+  atravessa overscan, zero, dark e flat; saturação e máscara de pixels ruins no
+  <code>DQ</code>.</li>
+  <li><code>imarith</code>, <code>imcombine</code> e os presets: a propagação.</li>
+  <li><code>cosmicrays</code> e <code>fixpix</code>: o <code>DQ</code> em vez de
+  máscaras soltas.</li>
+  <li><code>phot</code> e <code>apall</code>: erros tirados da variância, não
+  reestimados.</li>
+  <li>O visualizador: o <code>DQ</code> como camada, com o motivo de cada pixel.</li>
+</ol>
+<p>Cada passo mantém os testes contra o IRAF passando com <code>--format iraf</code>.</p>
+
+</body>
+</html>
