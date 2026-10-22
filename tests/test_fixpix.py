@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from astropy.io import fits
 from iraf_field import fixpix_case
 
 import harwood
@@ -119,3 +120,30 @@ def test_fixpix_lists_and_fixes_as_iraf(tag, tmp_path, monkeypatch):
     fixed = fits.getdata(result.outputs[0])
     assert np.array_equal(fixed, np.array(case["fixed"], dtype))
     assert "Bad pixel file is " + case["mask"] in fits.getheader(result.outputs[0])["FIXPIX"]
+
+
+def test_fixpix_takes_the_dq_and_keeps_the_reason(tmp_path, monkeypatch):
+    """--masks DQ fixes what the image's own DQ flags; a fixed pixel keeps its
+    reason, one an outside mask named becomes a bad pixel, and the variance
+    is interpolated as the value is."""
+    from harwood.core import dq, mef
+    from harwood.core.registry import get_task
+
+    monkeypatch.chdir(tmp_path)
+    sci = np.tile(np.arange(10.0) * 10.0, (6, 1))
+    var = np.tile(np.arange(10.0) + 1.0, (6, 1))
+    quality = dq.empty(sci.shape)
+    quality[2, 4] = dq.COSMIC_RAY
+    sci[2, 4] = 9999.0
+    mef.write(tmp_path / "f.fits", mef.Image(fits.Header({"OBJECT": "f"}),
+                                             [mef.Plane(sci, var, quality)]))
+    get_task("fixpix").run(images=["f.fits"], masks=["DQ"], output="d_")
+    fixed = mef.read(tmp_path / "d_f.fits").plane
+    assert fixed.sci[2, 4] == pytest.approx(40.0)            # along its line
+    assert fixed.var[2, 4] == pytest.approx(5.0)
+    assert fixed.dq[2, 4] == dq.COSMIC_RAY, "the reason stays"
+
+    get_task("fixpix").run(images=["d_f.fits"], masks=["[7,*]"], output="c_")
+    again = mef.read(tmp_path / "c_d_f.fits").plane
+    assert np.all(again.dq[:, 6] == dq.BAD_PIXEL)
+    assert again.dq[2, 4] == dq.COSMIC_RAY

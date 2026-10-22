@@ -46,7 +46,8 @@ harwood is careful that neither direction is a dead end:
   IRAF reads it, and the DQ as a FITS mask named by `BPM` that IRAF's
   `ccdproc`, `fixpix` and `imcombine` use. The run says what stayed behind --
   the variance -- rather than dropping it quietly. `ccdproc`, `imcombine`
-  with its presets and `imarith` have it now; the other tasks that write
+  with its presets, `imarith`, `cosmicrays` and `fixpix` have it now; the
+  other tasks that write
   images get it as they learn to carry the variance (design contract,
   section 12.2), and until then write one HDU anyway.
 - **Halfway.** IRAF opens a harwood file directly: `imstat obj.fits[SCI]`,

@@ -297,21 +297,44 @@ def frames_on_disk(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_the_task_writes_a_cleaned_frame_and_a_mask(frames_on_disk):
+def test_the_task_writes_the_hits_into_the_frames_dq(frames_on_disk):
+    """The cosmic rays travel with the frame, as DQ bit 8: cleaned, the
+    pixels are replaced and stay flagged; with --no-clean the data is left as
+    it was and only the DQ says so -- what imcombine, which leaves flagged
+    pixels out, wants. A mask of their own comes only with --crmask."""
     from astropy.io import fits
 
+    from harwood.core import dq, images, mef
     from harwood.core.registry import get_task
 
     result = get_task("cosmicrays").run(input=["f1.fits"], output="out/",
                                         gain=GAIN, rdnoise=RDNOISE)
-    assert (frames_on_disk / "out" / "f1.fits").exists()
-    assert (frames_on_disk / "out" / "f1.mask.fits").exists()
+    found = result.data["rows"][0]["found"]
+    cleaned = mef.read(frames_on_disk / "out" / "f1.fits").plane
+    assert int(((cleaned.dq & dq.COSMIC_RAY) != 0).sum()) == found > 0
+    assert not (frames_on_disk / "out" / "f1.mask.fits").exists()
+    hit = (cleaned.dq & dq.COSMIC_RAY) != 0
+    original = fits.getdata(frames_on_disk / "f1.fits")
+    assert np.all(cleaned.sci[hit] != original[hit]), "replaced"
 
-    mask = fits.getdata(frames_on_disk / "out" / "f1.mask.fits")
-    header = fits.getheader(frames_on_disk / "out" / "f1.mask.fits")
-    assert mask.sum() == header["HRWDCRM"] == result.data["rows"][0]["found"]
-    # The cleaned frame points at the mask, so nothing downstream has to guess.
-    assert fits.getheader(frames_on_disk / "out" / "f1.fits")["CRMASK"]
+    get_task("cosmicrays").run(input=["f1.fits"], output="flag/", gain=GAIN,
+                               rdnoise=RDNOISE, clean=False, crmask="masks/")
+    flagged = mef.read(frames_on_disk / "flag" / "f1.fits").plane
+    np.testing.assert_array_equal(flagged.sci, original)
+    np.testing.assert_array_equal(flagged.dq, cleaned.dq)
+    mask = fits.getdata(frames_on_disk / "masks" / "f1.mask.fits")
+    assert mask.sum() == found
+    assert images.read_header(frames_on_disk / "flag" / "f1.fits")["CRMASK"] == \
+        "f1.mask.fits"
+
+
+def test_the_gain_comes_from_the_header_or_is_said_to_be_assumed(frames_on_disk):
+    from harwood.core.registry import get_task
+
+    result = get_task("cosmicrays").run(input=["f1.fits"], output="out/")
+    assert any("no GAIN in the header" in str(w) for w in result.warnings)
+    step, = [item for item in result.steps if item.action == "read"]
+    assert step.measured["gain"] == "1.0 e-/count"
 
 
 def test_the_task_scores_itself_when_asked(frames_on_disk):

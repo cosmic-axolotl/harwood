@@ -20,12 +20,13 @@ false positives, measured -- instead of trusted.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 
 from ..core import advice
 from ..core.registry import register
-from ..core.task import Step, Task, TaskParams, TaskResult
+from ..core.task import Step, Task, TaskParams, TaskResult, format_field, uncertainty_field
 
 WHY = {
     "read": "The frame, and the gain and read noise that turn its counts into "
@@ -89,15 +90,20 @@ class CosmicRaysParams(TaskParams):
     )
     crmask: str = Field(
         "",
-        description="Where to write the mask. Left out, beside the output as "
-                    "<name>.mask.fits.",
+        description="Also write the cosmic rays as a mask image of their own, "
+                    "1 where a pixel was hit: a directory or a prefix. Left out, "
+                    "none -- they are in the DQ of the frame, bit 8.",
     )
     algorithm: str = Field(
         "lacosmic",
         description="lacosmic (van Dokkum 2001) or iraf (the 1989 flux ratio).",
     )
-    gain: float = Field(1.0, gt=0, description="Electrons per count.")
-    rdnoise: float = Field(0.0, ge=0, description="Read noise in electrons.")
+    gain: float | str | None = Field(
+        None, description="Electrons per count, or the header keyword holding it. "
+                          "Left out, the frames' GAIN, else 1 -- and the run says so.")
+    rdnoise: float | str | None = Field(
+        None, description="Read noise in electrons, or the keyword holding it. Left "
+                          "out, the frames' RDNOISE, else 0.")
     sigclip: float = Field(
         4.5, gt=0,
         description="How many sigma above the noise a Laplacian edge must be.",
@@ -147,8 +153,12 @@ class CosmicRaysParams(TaskParams):
                     "already aligned.",
     )
     clean: bool = Field(
-        True, description="Write cleaned frames. Off, only the masks."
-    )
+        True, description="Replace the hit pixels by the median of their unflagged "
+                          "neighbours, as IRAF does. Off, they are only flagged in "
+                          "the DQ and the data is left as it was -- what imcombine, "
+                          "which leaves flagged pixels out, wants.")
+    uncertainty: Literal["VAR", "ERR", "UNCERT"] = uncertainty_field()
+    format: Literal["harwood", "iraf"] = format_field()
 
 
 @register
@@ -197,11 +207,12 @@ class CosmicRays(Task[CosmicRaysParams]):
                         "check the path and the pattern; 'harwood sections' "
                         "shows what a template expands to.")
 
+        params, said = _noise(params, images.read_header(frames[0]))
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
         detector = self._detector(params, cosmic)
 
-        warnings, rows, written = [], [], []
+        warnings, rows, written = list(said), [], []
         loaded, results = [], []
         for spec in frames:
             data, header = images.read(spec)
@@ -259,7 +270,10 @@ class CosmicRays(Task[CosmicRaysParams]):
             self._verify(params, loaded, detector, by_action, warnings, cosmic)
 
         for (spec, data, header), found in zip(loaded, results, strict=True):
-            written += self._write(params, spec, data, header, found, output, fits, np)
+            files, notes = self._write(params, spec, data, header, found, output, fits, np)
+            written += files
+            if notes and not any("--format iraf" in str(w) for w in warnings):
+                warnings.extend(notes)
 
         by_action["write"].measured = {"files": len(written)}
         return TaskResult(outputs=written, steps=steps, warnings=warnings,
@@ -339,30 +353,84 @@ class CosmicRays(Task[CosmicRaysParams]):
                 "really aligned."))
 
     def _write(self, params, spec, data, header, found, output, fits, np):
-        """The cleaned frame and its mask."""
+        """The frame -- cleaned, or as it was -- with the hits in its DQ, and
+        their mask on its own when --crmask asks for one."""
+        from ..core import dq, mef
+
         name = Path(spec.path).name
         stem = name[:-5] if name.endswith(".fits") else name
+        _, _, var, quality = mef.load(spec)
+        hit = np.asarray(found.mask, dtype=bool)
+        quality = quality | np.where(hit, dq.COSMIC_RAY, 0).astype(dq.DTYPE)
+        out = data
+        if params.clean:
+            out = found.cleaned
+            if var is not None:
+                var = _local_variance(var, hit)
+        header = header.copy()
+        header["HRWDCRM"] = (found.count, "pixels flagged as cosmic rays (DQ bit 8)")
+        header.add_history(f"cosmicrays: {params.algorithm}, {found.count} pixels "
+                           + ("replaced" if params.clean else "flagged"))
 
         written = []
-        if params.clean:
-            destination = _destination(params.output, stem, ".fits", spec, output)
-            out = fits.PrimaryHDU(found.cleaned.astype(np.float32), header)
-            out.header["CRMASK"] = (f"{stem}.mask.fits", "pixels replaced here")
-            out.header.add_history(
-                f"cosmicrays: {params.algorithm}, {found.count} pixels replaced")
-            out.writeto(destination, overwrite=True)
-            written.append(Path(destination))
+        if params.crmask:
+            mask = _destination(params.crmask, stem, ".mask.fits", spec, output,
+                                suffix=".mask.fits")
+            hdu = fits.PrimaryHDU(hit.astype(np.uint8))
+            hdu.header["HRWDCRM"] = (found.count, "pixels flagged as cosmic rays")
+            hdu.header.add_history(
+                "cosmicrays: 1 where the pixel is no longer a measurement")
+            hdu.writeto(mask, overwrite=True)
+            header["CRMASK"] = (Path(mask).name, "the cosmic rays, as a mask image")
+            written.append(Path(mask))
+        destination = _destination(params.output, stem, ".fits", spec, output)
+        files, notes = mef.save(destination, out, header, var, quality,
+                                params.uncertainty, params.format)
+        return files + written, notes
 
-        mask = _destination(params.crmask or params.output, stem, ".mask.fits",
-                            spec, output, suffix=".mask.fits")
-        hdu = fits.PrimaryHDU(found.mask.astype(np.uint8))
-        hdu.header["HRWDCRM"] = (found.count, "pixels flagged as cosmic rays")
-        hdu.header["EXTNAME"] = "CRMASK"
-        hdu.header.add_history(
-            "cosmicrays: 1 where the pixel is no longer a measurement")
-        hdu.writeto(mask, overwrite=True)
-        written.append(Path(mask))
-        return written
+
+def _noise(params, header):
+    """The gain and read noise to detect with: the parameters, as numbers or
+    as keywords, else the frames' GAIN and RDNOISE, else 1 and 0 -- and a
+    word that they were assumed. Returns the parameters with numbers in."""
+    said = []
+
+    def value(given, keyword, fallback):
+        if given is not None:
+            try:
+                return float(given)
+            except ValueError:
+                if given in header:
+                    return float(header[given])
+                advice.fail(f"'{given}' is neither a number nor a keyword in the "
+                            "header.", f"give the {keyword.lower()} as a number")
+        if keyword in header:
+            return float(header[keyword])
+        said.append(advice.note(
+            f"no {keyword} in the header and none given, so {fallback:g} was used. "
+            "The noise model is what decides what counts as a cosmic ray.",
+            f"give --{'gain' if keyword == 'GAIN' else 'rdnoise'}, from the "
+            "detector's sheet."))
+        return fallback
+
+    gain = value(params.gain, "GAIN", 1.0)
+    rdnoise = value(params.rdnoise, "RDNOISE", 0.0)
+    return params.model_copy(update={"gain": gain, "rdnoise": rdnoise}), said
+
+
+def _local_variance(var, hit):
+    """What a replaced pixel's variance becomes: the median of its unflagged
+    neighbours' in a 5x5 box -- the noise a pixel there would have had, as
+    the value is now the median of theirs. The DQ keeps it flagged."""
+    import numpy as np
+
+    out = np.array(var, dtype=float)
+    padded = np.pad(np.where(hit, np.nan, out), 2, constant_values=np.nan)
+    for y, x in zip(*np.nonzero(hit), strict=True):
+        box = padded[y:y + 5, x:x + 5]
+        if np.isfinite(box).any():
+            out[y, x] = float(np.nanmedian(box))
+    return out
 
 
 def _header_dispaxis(header) -> int | None:

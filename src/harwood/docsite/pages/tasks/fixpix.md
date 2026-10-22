@@ -37,18 +37,25 @@ and 9,6.)
 Each fixed frame gets IRAF's `FIXPIX` keyword (`Oct 20  3:21 Bad pixel file
 is badcols.pl`, `FIXPIX02` the next time) and a HISTORY line with the counts.
 
+`DQ` as the mask takes the pixels the image's own DQ flags -- whatever
+[cosmicrays](task:cosmicrays), [ccdproc](task:ccdproc) and the rest have
+marked in it. A fixed pixel keeps its flag (one the DQ had no reason for
+becomes a *bad pixel*): it looks right and is not a measurement. Its
+variance is interpolated the same way as its value, the noise a pixel there
+would have had.
+
 ```example
 title: Repair the pixels the cosmic rays hit
 after: reduced
 run:
-  - harwood cosmicrays red/obj003.fits --output cr_ --gain 2 --rdnoise 10
-  - harwood fixpix red/obj003.fits cr_obj003.mask.fits --output fixed_
+  - harwood cosmicrays red/obj003.fits --output cr_ --gain 2 --rdnoise 10 --no-clean
+  - harwood fixpix cr_obj003.fits DQ --output fixed_
 output: |
-  -> fixed_obj003.fits
+  -> fixed_cr_obj003.fits
 ```
 
-The mask cosmicrays wrote marks 18 pixels; fixpix interpolates across each
-small region along its narrow side -- here 16 along columns and 2 along
-lines. For a detector's permanent bad columns, keep one mask for the night
+cosmicrays flagged 18 pixels in the DQ and left them as they were; fixpix
+interpolates across each small region along its narrow side -- here 16
+along columns and 2 along lines. For a detector's permanent bad columns, keep one mask for the night
 and let [ccdproc](task:ccdproc) apply it (`--fixpix --bpm mask.fits`) before
 anything else.

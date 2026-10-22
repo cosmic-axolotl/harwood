@@ -19,12 +19,23 @@ output: |
 ```
 
 obj003 of the sample night was hit by eight cosmic rays of two pixels each.
-All sixteen pixels are in the mask, with two neighbours of them the growth
-step took; the cleaned frame is `cr_obj003.fits` and the mask
-`cr_obj003.mask.fits`, ready for [fixpix](task:fixpix).
+All sixteen pixels are found, with two neighbours of them the growth step
+took. The cleaned frame is `cr_obj003.fits`, and the eighteen pixels are
+flagged in its DQ -- bit 8, *cosmic ray* -- so they stay known for what they
+are after the replacement: [imcombine](task:imcombine) leaves them out and
+the viewer can show them. Their variance becomes their neighbours'.
+
+`--no-clean` only flags them and leaves the data as it was, which is what a
+combination wants -- it has the other frames to fill the gap with -- and
+what [fixpix](task:fixpix) takes with `DQ` as its mask. `--crmask` also
+writes them as a mask image of their own, and `--format iraf` writes the
+frame as IRAF reads it, with the DQ as the mask its `BPM` names.
 
 **The gain and read noise matter.** The method compares edges against the
 expected noise, so a gain wrong by a factor of two moves every threshold.
+Left out, they come from the frame's `GAIN` and `RDNOISE`; with neither,
+1 and 0 are used and the run says so.
+
 Give `--gain` in electrons per count and `--rdnoise` in electrons. For a
 long-slit spectrum, `--dispaxis` says which way the spectrum runs, so that
 its smooth flank is not taken for structure.

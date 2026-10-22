@@ -153,7 +153,15 @@ def read(path: Path | str, workdir: Path | str = ".") -> Image:
     if "BPM" in header:
         from . import pixmask
 
-        mask = pixmask.read("BPM", header, sci.shape, workdir)
+        # Beside the image first, where --format iraf puts it, then here. A
+        # mask that is in neither does not stop the image being read: the
+        # task that needs it will say so.
+        for where in (Path(spec.path).parent, Path(workdir)):
+            try:
+                mask = pixmask.read("BPM", header, sci.shape, where)
+                break
+            except (FileNotFoundError, ValueError, OSError):
+                continue
     quality = dq.empty(sci.shape)
     if mask is not None:
         quality[mask != 0] |= dq.BAD_PIXEL
@@ -232,6 +240,14 @@ def write(path: Path | str, image: Image, uncertainty: str = "VAR",
     return [_write_sci(path, image, uncertainty, overwrite)], []
 
 
+def _stored(data) -> np.ndarray:
+    """The pixels as written: double precision, harwood's working one, goes
+    to disk as single, as IRAF writes real images; any other type -- an
+    integer frame fixpix kept integer -- stays what it is."""
+    data = np.asarray(data)
+    return data.astype(np.float32) if data.dtype == np.float64 else data
+
+
 def _extension(data, name, version, header=None):
     from astropy.io import fits
 
@@ -251,8 +267,7 @@ def _write_sci(path: Path, image: Image, uncertainty: str, overwrite: bool) -> P
         # the inherited primary: without it, hselect x.fits[SCI] OBJECT is blank.
         if "OBJECT" in image.primary and "OBJECT" not in header:
             header["OBJECT"] = image.primary["OBJECT"]
-        hdus.append(_extension(np.asarray(plane.sci, dtype=np.float32), "SCI", version,
-                               header))
+        hdus.append(_extension(_stored(plane.sci), "SCI", version, header))
         if plane.var is not None:
             if uncertainty == "ERR":
                 hdus.append(_extension(np.sqrt(plane.var).astype(np.float32), "ERR",
@@ -274,8 +289,7 @@ def _write_ccddata(path: Path, image: Image, overwrite: bool) -> Path:
     from astropy.io import fits
 
     plane = image.plane
-    hdus = [fits.PrimaryHDU(np.asarray(plane.sci, dtype=np.float32),
-                            header=merged(image.primary, plane.header))]
+    hdus = [fits.PrimaryHDU(_stored(plane.sci), header=merged(image.primary, plane.header))]
     if plane.var is not None:
         uncert = fits.ImageHDU(np.sqrt(plane.var).astype(np.float32), name="UNCERT")
         uncert.header["UTYPE"] = "StdDevUncertainty"
@@ -318,8 +332,7 @@ def _write_iraf(path: Path, image: Image, overwrite: bool) -> tuple[list[Path], 
         del header["BPM"]
     if plane.var is not None:
         lost.append("the variance")
-    fits.PrimaryHDU(np.asarray(plane.sci, dtype=np.float32), header=header) \
-        .writeto(path, overwrite=overwrite)
+    fits.PrimaryHDU(_stored(plane.sci), header=header).writeto(path, overwrite=overwrite)
     return written, lost
 
 
