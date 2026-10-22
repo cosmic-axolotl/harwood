@@ -45,9 +45,10 @@ harwood is careful that neither direction is a dead end:
 - **To IRAF.** **`--format iraf`** writes the data alone, in one HDU, as
   IRAF reads it, and the DQ as a FITS mask named by `BPM` that IRAF's
   `ccdproc`, `fixpix` and `imcombine` use. The run says what stayed behind --
-  the variance -- rather than dropping it quietly. `ccdproc` has it now; the
-  other tasks that write images get it as they learn to carry the variance
-  (design contract, section 12.2), and until then write one HDU anyway.
+  the variance -- rather than dropping it quietly. `ccdproc`, `imcombine`
+  with its presets and `imarith` have it now; the other tasks that write
+  images get it as they learn to carry the variance (design contract,
+  section 12.2), and until then write one HDU anyway.
 - **Halfway.** IRAF opens a harwood file directly: `imstat obj.fits[SCI]`,
   `hselect obj.fits[SCI] OBJECT,EXPTIME yes`. The extensions carry
   `INHERIT = T`, so the exposure's keywords are there too.

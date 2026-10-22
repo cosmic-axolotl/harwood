@@ -24,3 +24,8 @@ output: |
 The result is named like any output: one name per input, a directory, an
 `@list`, or IRAF's `%old%new%` template -- `%obj%rate%` turns `obj001.fits`
 into `rate001.fits`. The operation goes into the result's HISTORY.
+
+Images that carry a variance give the result one: sums and differences add
+the variances, products and quotients propagate them to first order, and a
+number counts as exact. The DQ is whatever either operand said, and a pixel
+divided by zero is marked *no data* as well as set to `--divzero`.

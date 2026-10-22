@@ -323,7 +323,8 @@ class CcdProc(Task[CcdProcParams]):
             calibration = {key: prepared.get(str(value), value)
                            for key, value in calibration.items()}
 
-            steps.extend(_process(frame, params, survey["instrument"], calibration))
+            steps.extend(_process(frame, params, survey["instrument"], calibration,
+                                  kind=survey["kinds"].get(spec, "object")))
             if frame.var is None:
                 no_gain.append(Path(str(spec)).name)
             data = frame.data
@@ -500,7 +501,7 @@ def _prepare_calibrations(survey, params) -> dict:
         steps = _process(frame, params, survey["instrument"],
                          {"zero": zero, "dark": None, "flat": None},
                          only=("overscan", "trim") + (("zerocor",) if zero is not None
-                                                      else ()))
+                                                      else ()), kind=kind)
         for step in steps:
             if not step.skipped:
                 step.action = f"{kind} {Path(path).name}: {step.action}"
@@ -562,8 +563,10 @@ def _noise(header, params, inst) -> tuple[float | None, float]:
 
 def _process(frame: _Frame, params, inst, calibration: dict,
              only: tuple[str, ...] = ("fixpix", "overscan", "trim", "zerocor", "darkcor",
-                                      "flatcor")) -> list[Step]:
-    """ccdproc's steps, in IRAF's order, on the data with its variance and DQ."""
+                                      "flatcor"), kind: str = "object") -> list[Step]:
+    """ccdproc's steps, in IRAF's order, on the data with its variance and DQ.
+    `kind` is the image type: a zero frame has no photons in it, only read
+    noise, and its variance is that alone."""
     import numpy as np
 
     from ..core import dq, images, pixels
@@ -605,7 +608,7 @@ def _process(frame: _Frame, params, inst, calibration: dict,
         frame.data, step, cal = _calibrate(frame.data, header, "zero",
                                            calibration["zero"], params)
         steps.append(step)
-        _carry(frame, cal, step, 1.0, params, inst)
+        _carry(frame, cal, step, 1.0, params, inst, "zero")
 
     # The variance is born here: with the overscan and the bias off, the data
     # counts the electrons each pixel collected, dark current and all.
@@ -614,9 +617,11 @@ def _process(frame: _Frame, params, inst, calibration: dict,
         offset_off = any(key in header for key in (MARKS["overscan"][0],
                                                    MARKS["zerocor"][0]))
         if gain is not None and offset_off:
-            frame.var = np.maximum(frame.data, 0.0) / gain + (readnoise / gain) ** 2
-            steps.append(Step("variance", f"data/{gain:g} + ({readnoise:g}/{gain:g})^2, "
-                                          "in ADU^2", why=WHY["variance"],
+            photons = 0.0 if kind == "zero" else np.maximum(frame.data, 0.0) / gain
+            frame.var = photons + np.zeros_like(frame.data) + (readnoise / gain) ** 2
+            model = ("read noise only, a zero frame: " if kind == "zero" else "data/"
+                     f"{gain:g} + ") + f"({readnoise:g}/{gain:g})^2, in ADU^2"
+            steps.append(Step("variance", model, why=WHY["variance"],
                               measured={"gain": f"{gain:g} e-/ADU",
                                         "read noise": f"{readnoise:g} e-",
                                         "median sigma":
@@ -632,7 +637,7 @@ def _process(frame: _Frame, params, inst, calibration: dict,
                                            calibration["dark"], params)
         steps.append(step)
         if cal is not None:
-            _carry(frame, cal, step, cal.factor, params, inst)
+            _carry(frame, cal, step, cal.factor, params, inst, "dark")
     if "flatcor" in only and params.flatcor:
         before = frame.data
         frame.data, step, cal = _calibrate(frame.data, header, "flat",
@@ -641,14 +646,15 @@ def _process(frame: _Frame, params, inst, calibration: dict,
         if cal is not None:
             n = cal.normalised
             if frame.var is not None:
-                var_n = _cal_variance(cal, params, inst, step, header) / cal.level ** 2
+                var_n = _cal_variance(cal, params, inst, step, header, "flat") \
+                    / cal.level ** 2
                 frame.var = frame.var / n ** 2 + (before / n) ** 2 * var_n / n ** 2
             frame.dq |= cal.dq
             frame.dq[cal.clamped] |= dq.BAD_PIXEL
     return steps
 
 
-def _cal_variance(cal, params, inst, step, frame_header):
+def _cal_variance(cal, params, inst, step, frame_header, key):
     """A calibration's variance: its own VAR when it has one. Otherwise, with
     a gain, the noise of the NCOMBINE frames it was combined from -- read
     noise and photons, averaged -- which is what an IRAF-made Zero.fits holds;
@@ -668,17 +674,18 @@ def _cal_variance(cal, params, inst, step, frame_header):
     count = int(cal.header.get("NCOMBINE", 1) or 1)
     step.measured["calibration variance"] = (
         f"estimated from the gain and read noise, NCOMBINE={count}")
-    return (np.maximum(cal.data, 0.0) / gain + (readnoise / gain) ** 2) / count
+    photons = 0.0 if key == "zero" else np.maximum(cal.data, 0.0) / gain
+    return (photons + (readnoise / gain) ** 2) / count
 
 
-def _carry(frame, cal, step, factor, params, inst) -> None:
+def _carry(frame, cal, step, factor, params, inst, key) -> None:
     """A subtracted calibration: its variance adds (scaled by the square of
     what it was multiplied by), its DQ joins the frame's."""
     if cal is None:
         return
     if frame.var is not None:
         frame.var = frame.var + factor ** 2 * _cal_variance(cal, params, inst, step,
-                                                             frame.header)
+                                                             frame.header, key)
     frame.dq |= cal.dq
 
 

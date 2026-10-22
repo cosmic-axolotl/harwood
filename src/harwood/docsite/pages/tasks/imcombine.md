@@ -50,3 +50,23 @@ The combined image names every input in `IMCMB` cards. `--sigmas` writes
 the standard deviation at each pixel, `--nrejmasks` how many values were
 rejected there; `--ccdtype` and `--subsets` pick frames by type and combine
 each filter apart, as the presets do.
+
+## The variance, and what each pixel is worth
+
+When the inputs carry a variance -- as ccdproc's do, once it knows the
+gain -- the result carries one too, worked out from the values each pixel
+actually kept: the weighted mean's variance for `average`, the sum of them
+for `sum`. A median is noisier than the mean, by a factor that reaches π/2
+only for many frames: with three it is 1.35, and harwood uses the right one
+for each count, with the harmonic mean of the sigmas when the frames differ
+(a median is held by its sharpest values). Rejected pixels leave the variance
+with the data. A simulated stack scatters as the variance says, case by case
+(`tests/test_combine_variance.py`).
+
+Each input's DQ leaves its flagged pixels out of the combination --
+saturated, cosmic rays, bad columns -- unless every frame flags that pixel,
+when the result keeps what they all said; a pixel nothing went into is
+marked *no data*. `--masktype none` uses every pixel, as IRAF does by
+default; IRAF's own images have no DQ, so for them nothing changes.
+`--format iraf` writes the result as IRAF reads it ([coming from
+IRAF](page:iraf/migration)).

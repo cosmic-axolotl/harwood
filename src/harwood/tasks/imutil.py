@@ -17,7 +17,15 @@ from pydantic import Field
 
 from ..core import advice
 from ..core.registry import register
-from ..core.task import Step, Task, TaskParams, TaskResult, Template
+from ..core.task import (
+    Step,
+    Task,
+    TaskParams,
+    TaskResult,
+    Template,
+    format_field,
+    uncertainty_field,
+)
 
 WHY = {
     "read headers": "Only the headers are read, not the pixels, so this is quick "
@@ -502,8 +510,11 @@ class ImArithParams(TaskParams):
                          "directory, or a template like '%tr%n%'."
     )
     divzero: float = Field(
-        0.0, description="Value written where a division by zero would happen."
+        0.0, description="Value written where a division by zero would happen; the "
+                         "DQ marks those pixels 'no data'."
     )
+    uncertainty: Literal["VAR", "ERR", "UNCERT"] = uncertainty_field()
+    format: Literal["harwood", "iraf"] = format_field()
 
 
 @register
@@ -522,10 +533,9 @@ class ImArith(Task[ImArithParams]):
                 Step("write", params.result, why=WHY["write"])]
 
     def execute(self, params: ImArithParams) -> TaskResult:
-        import numpy as np
         from astropy.io import fits
 
-        from ..core import images, provenance
+        from ..core import images, mef, provenance
 
         left = _operand_list(params.operand1)
         right = _operand_list(params.operand2)
@@ -540,40 +550,28 @@ class ImArith(Task[ImArithParams]):
                         if not _is_number(params.operand1)
                         else [Path(params.result)])
 
-        outputs, history = [], []
+        outputs, history, warnings = [], [], []
         for index, first in enumerate(left):
             second = right[0] if len(right) == 1 else right[index]
-            a, header_a = _read(first)
-            b, header_b = _read(second)
+            a, header_a, va, qa = _read(first)
+            b, header_b, vb, qb = _read(second)
             header = (header_a if header_a is not None else header_b)
 
-            with np.errstate(divide="ignore", invalid="ignore"):
-                if params.op == "+":
-                    out = a + b
-                elif params.op == "-":
-                    out = a - b
-                elif params.op == "*":
-                    out = a * b
-                else:
-                    out = np.where(np.asarray(b) != 0,
-                                   np.divide(a, b, out=np.zeros_like(
-                                       np.broadcast_arrays(np.asarray(a, float),
-                                                           np.asarray(b, float))[0]),
-                                       where=np.asarray(b) != 0),
-                                   params.divzero)
-
+            out, var, quality = _arith(a, b, va, vb, qa, qb, params.op, params.divzero)
             header = header.copy() if header is not None else fits.Header()
             line = f"imarith: {first} {params.op} {second}"
             provenance.stamp_header(header, [line])
             destination = Path(destinations[index])
             destination.parent.mkdir(parents=True, exist_ok=True)
-            fits.PrimaryHDU(data=np.asarray(out, dtype=np.float32),
-                            header=header).writeto(destination, overwrite=True)
-            outputs.append(destination)
+            written, notes = mef.save(destination, out, header, var, quality,
+                                      params.uncertainty, params.format)
+            outputs.extend(written)
+            if notes and not warnings:
+                warnings.extend(notes)
             history.append(line)
 
         return TaskResult(outputs=outputs, history=history, steps=self.plan(params),
-                          data={"images": len(outputs)})
+                          warnings=warnings, data={"images": len(left)})
 
 
 def _is_number(text: str) -> bool:
@@ -600,11 +598,47 @@ def _as_spec(name: str):
 
 
 def _read(text: str):
-    from ..core import images
+    """An operand: (value, header, variance, DQ). A number is exact: no
+    header, no variance, nothing wrong with it."""
+    from ..core import mef
 
     if _is_number(text):
-        return float(text), None
-    return images.read(text)
+        return float(text), None, 0.0, 0
+    return mef.load(text)
+
+
+def _arith(a, b, va, vb, qa, qb, op: str, divzero: float):
+    """imarith on values with their variances (None: unknown) and DQ. Sums
+    and differences add variances; products and quotients propagate them to
+    first order. The DQ is what either operand said, and a division by zero
+    is no data."""
+    import numpy as np
+
+    from ..core import dq
+
+    a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    a, b = np.broadcast_arrays(a, b)
+    known = va is not None and vb is not None
+    var = None
+    quality = (np.zeros(a.shape, dtype=dq.DTYPE) | np.asarray(qa, dtype=dq.DTYPE)
+               | np.asarray(qb, dtype=dq.DTYPE))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        if op in "+-":
+            out = a + b if op == "+" else a - b
+            var = va + vb if known else None
+        elif op == "*":
+            out = a * b
+            var = b ** 2 * va + a ** 2 * vb if known else None
+        else:
+            zero = b == 0
+            safe = np.where(zero, 1.0, b)
+            out = np.where(zero, divzero, a / safe)
+            if known:
+                var = np.where(zero, 0.0, va / safe ** 2 + a ** 2 * vb / safe ** 4)
+            quality = quality | np.where(zero, dq.NO_DATA, 0).astype(dq.DTYPE)
+    if var is not None:
+        var = np.broadcast_to(np.asarray(var, dtype=float), a.shape)
+    return out, var, quality
 
 
 class ImCopyParams(TaskParams):

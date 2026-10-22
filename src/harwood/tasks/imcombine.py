@@ -20,7 +20,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from ..core.registry import register
-from ..core.task import Step, Task, TaskParams, TaskResult
+from ..core.task import Step, Task, TaskParams, TaskResult, format_field, uncertainty_field
 
 #: What each step does to the data, and why. Shown by --explain, written here
 #: rather than in a docstring because the person who needs it is running the
@@ -218,6 +218,13 @@ class ImCombineParams(TaskParams):
     nrejmasks: Path | None = Field(
         None, description="Optional output image counting rejections at each pixel."
     )
+    masktype: Literal["dq", "none"] = Field(
+        "dq", description="dq leaves out the pixels each image's DQ flags -- saturated, "
+                          "cosmic rays, bad columns -- unless every image flags it; an "
+                          "image without a DQ flags nothing. none uses every pixel, as "
+                          "IRAF does by default.")
+    uncertainty: Literal["VAR", "ERR", "UNCERT"] = uncertainty_field()
+    format: Literal["harwood", "iraf"] = format_field()
 
     @model_validator(mode="after")
     def _check(self) -> ImCombineParams:
@@ -325,7 +332,7 @@ class ImCombine(Task[ImCombineParams]):
         import numpy as np
         from astropy.io import fits
 
-        from ..core import images, provenance
+        from ..core import images, mef, provenance
 
         output = Path(output)
         stack, headers = images.read_stack(specs)
@@ -363,6 +370,14 @@ class ImCombine(Task[ImCombineParams]):
             valid &= stack >= params.lthreshold
         if params.hthreshold is not None:
             valid &= stack <= params.hthreshold
+        variances, qualities = _planes(specs, stack.shape)
+        flagged_everywhere = None
+        if params.masktype == "dq":
+            good = qualities == 0
+            # A pixel every image flags is still combined -- the DQ of the
+            # result keeps what they all said -- rather than left empty.
+            flagged_everywhere = ~(good & valid).any(axis=0)
+            valid &= good | flagged_everywhere[None]
 
         section = _stat_slice(params.statsec, stack.shape[1:]) if params.statsec else None
         uses_exposure = "exposure" in (params.scale, params.weight)
@@ -388,6 +403,13 @@ class ImCombine(Task[ImCombineParams]):
             flavor=self.flavor)
         nrej = (stack.shape[0] - used).astype(np.int32)
         factors, offsets = scaling.scales, scaling.zeros
+        keep = valid & ~rejected
+        if not np.array_equal(keep.sum(axis=0), used):
+            # nkeep can hand rejected values back; the count is the engine's,
+            # and the variance follows the count where the two disagree.
+            keep = _restore(keep, valid, used, stack, scaling)
+        var, quality, notes = _uncertainty(variances, qualities, keep, scaling, params,
+                                           flagged_everywhere, specs)
         working = (stack / factors[:, None, None] - offsets[:, None, None])
         backend_label = engine.backend()
 
@@ -429,10 +451,10 @@ class ImCombine(Task[ImCombineParams]):
         provenance.stamp_header(header, history)
 
         output.parent.mkdir(parents=True, exist_ok=True)
-        fits.PrimaryHDU(data=combined.astype(np.float32), header=header).writeto(
-            output, overwrite=True
-        )
-        outputs = [output]
+        written, lost = mef.save(output, combined, header, var, quality,
+                                 params.uncertainty, params.format)
+        notes.extend(lost)
+        outputs = list(written)
         for path, array in ((params.sigmas, sigma), (params.nrejmasks, nrej)):
             if path:
                 fits.PrimaryHDU(data=np.asarray(array, dtype=np.float32),
@@ -448,11 +470,69 @@ class ImCombine(Task[ImCombineParams]):
             },
             history=history,
             steps=steps,
+            warnings=notes,
             backend=backend_label,
         )
 
 
 # --------------------------------------------------------------- helpers
+
+
+def _planes(specs, shape):
+    """Each input's variance (None where it has none) and DQ, as stacks."""
+    import numpy as np
+
+    from ..core import dq, mef
+
+    variances, qualities = [], np.zeros(shape, dtype=dq.DTYPE)
+    for index, spec in enumerate(specs):
+        _, _, var, quality = mef.load(spec)
+        variances.append(var)
+        if quality.shape == shape[1:]:
+            qualities[index] = quality
+    return variances, qualities
+
+
+def _restore(keep, valid, used, stack, scaling):
+    """Where the engine kept more values than survived rejection (nkeep), the
+    ones it handed back are the valid values nearest the pixel's median."""
+    import numpy as np
+
+    short = keep.sum(axis=0) < used
+    if not short.any():
+        return keep
+    scaled = stack / scaling.scales[:, None, None] - scaling.zeros[:, None, None]
+    centre = np.nanmedian(np.where(valid, scaled, np.nan), axis=0)
+    distance = np.where(valid, np.abs(scaled - centre), np.inf)
+    ranks = np.argsort(np.argsort(distance, axis=0), axis=0)
+    return np.where(short[None], valid & (ranks < used[None]), keep)
+
+
+def _uncertainty(variances, qualities, keep, scaling, params, flagged_everywhere, specs):
+    """The combined image's variance and DQ, and what to say about them."""
+    import numpy as np
+
+    from ..core import advice, dq
+    from ..core import combine as engine
+
+    notes = []
+    var = None
+    missing = [Path(str(s)).name for s, v in zip(specs, variances, strict=True) if v is None]
+    if not missing:
+        var = engine.propagate(np.array(variances), keep, scaling, params.combine)
+    elif len(missing) < len(specs):
+        notes.append(advice.warn(
+            f"{len(missing)} of the {len(specs)} images carry no variance "
+            f"({', '.join(missing[:3])}{'...' if len(missing) > 3 else ''}), so the "
+            "combined one has none either.",
+            "give them one: ccdproc writes it when it knows the gain."))
+    quality = np.zeros(keep.shape[1:], dtype=dq.DTYPE)
+    if flagged_everywhere is not None and flagged_everywhere.any():
+        common = np.bitwise_and.reduce(np.where(keep, qualities, 0xFFFF).astype(dq.DTYPE),
+                                       axis=0)
+        quality = np.where(flagged_everywhere & keep.any(axis=0), common, 0).astype(dq.DTYPE)
+    quality[keep.sum(axis=0) == 0] |= dq.NO_DATA
+    return var, quality, notes
 
 
 def _stat_slice(statsec, shape):
