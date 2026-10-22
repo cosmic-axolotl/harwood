@@ -99,9 +99,9 @@ def cross_match(a, b, tolerance=1.2):
 
 def test_the_1987_headers_are_understood(reduced):
     """BIASSEC and TRIMSEC come from the header, and the frame ends up trimmed."""
-    from astropy.io import fits
+    from harwood.core import images
 
-    data, header = fits.getdata(reduced / "m92010p.fits", header=True)
+    data, header = images.read(reduced / "m92010p.fits")
     assert data.shape == (512, 320)          # 352 columns minus the 32 of overscan
     assert "OVERSCAN" in header and "TRIM" in header and "ZEROCOR" in header
     assert "FLATCOR" in header

@@ -138,7 +138,7 @@ def read(path: Path | str, workdir: Path | str = ".") -> Image:
     spec = images.parse(path)
     with fits.open(spec.path, memmap=False) as hdul:
         names = [str(h.header.get("EXTNAME", "")).upper() for h in hdul]
-        if "SCI" in names:
+        if "SCI" in names[1:]:
             return _read_sci(hdul)
         if hdul[0].data is not None and ("UNCERT" in names or "MASK" in names):
             return _read_ccddata(hdul, names)
@@ -321,3 +321,41 @@ def _write_iraf(path: Path, image: Image, overwrite: bool) -> tuple[list[Path], 
     fits.PrimaryHDU(np.asarray(plane.sci, dtype=np.float32), header=header) \
         .writeto(path, overwrite=overwrite)
     return written, lost
+
+
+def save(destination: Path | str, data, header, var=None, quality=None,
+         uncertainty: str = "VAR", format: str = "harwood") -> tuple[list[Path], list]:
+    """What a task calls to write one image: the pixels and the header it
+    worked with (one header, as images.read gives it), split back into the
+    exposure's and the plane's, and written as the user asked. Returns the
+    files and the notices to pass on -- what --format iraf left behind."""
+    primary, plane_header = split(header)
+    image = Image(primary, [Plane(np.asarray(data), var, quality, plane_header)])
+    written, lost = write(destination, image, uncertainty=uncertainty, format=format)
+    notes = []
+    if lost:
+        notes.append(advice.note(
+            f"--format iraf wrote {Path(destination).name} as IRAF reads it, without "
+            f"{' and '.join(lost)}: IRAF has nowhere to keep it.",
+            "keep a copy in harwood's format (leave --format out) if the "
+            "uncertainties will be needed again."))
+    return written, notes
+
+
+def load(spec, workdir: Path | str = ".") -> tuple[np.ndarray, Any, np.ndarray | None,
+                                                     np.ndarray]:
+    """What a task calls to read one image: (data as float64, the header
+    images.read would give, the variance or None, the DQ). An extension or a
+    section asked for by name is read as images.read reads it, with no
+    variance and every pixel good."""
+    from . import images
+
+    spec = images.parse(spec) if not isinstance(spec, images.ImageSpec) else spec
+    if spec.extension is not None or spec.section:
+        data, header = images.read(spec)
+        return data, header, None, dq.empty(data.shape)
+    image = read(spec.path, workdir)
+    plane = image.plane
+    data = np.asarray(plane.sci, dtype=np.float64)
+    var = None if plane.var is None else np.asarray(plane.var, dtype=np.float64)
+    return data, merged(image.primary, plane.header), var, np.asarray(plane.dq, dq.DTYPE)

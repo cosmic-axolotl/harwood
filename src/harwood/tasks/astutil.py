@@ -912,11 +912,7 @@ class Observatory(Task[ObservatoryParams]):
         elif command == "images":
             sites, rows = [], []
             for spec in image_files.expand(params.images or [obsid]):
-                hdul, hdu = image_files.open_hdu(spec)
-                try:
-                    header = hdu.header
-                finally:
-                    hdul.close()
+                header = image_files.read_header(spec)
                 site = observatory.from_header(header) or observatory.default()
                 rows.append({"image": str(spec),
                              "OBSERVAT": header.get("OBSERVAT", "-"),

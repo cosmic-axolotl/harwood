@@ -73,6 +73,33 @@ themselves, as IRAF does by default -- the marks make that safe to repeat,
 but the originals are gone. A plain text line per frame per step goes to
 `harwood.log` (`--logfile`), to watch in another window.
 
+## The uncertainty, and what each pixel is worth
+
+IRAF's ccdproc keeps one number per pixel. harwood's writes three: the data
+(`SCI`), its variance (`VAR`) and why a pixel is not to be trusted (`DQ`).
+
+The variance is born once the overscan and the bias are off: what is left
+counts the electrons each pixel collected, so it is data/gain + (read
+noise/gain)², in ADU². The gain and read noise come from `--gain` and
+`--readnoise` -- numbers, or the keywords that hold them -- else from the
+instrument's keywords, `GAIN` and `RDNOISE`. The dark and the flat add their
+own: a master that carries a `VAR` gives it, and one that does not -- an
+IRAF-made `Zero.fits` -- is credited with the noise of the `NCOMBINE` frames
+it was averaged from. With no gain anywhere there is no variance, and the
+run says so; one is never made up. A simulated night, reduced 120 times
+over with fresh calibrations each time, scatters as much as this variance
+says to within a few per cent, from 200 to 20000 electrons
+(`tests/test_ccdproc_variance.py`).
+
+The DQ collects `--saturation` (a raw level, flagged while the frame is
+raw), the pixels `--fixpix` replaced -- they look right and are not data --
+and the dead pixels of the flat. Calibrations' DQ joins the frame's.
+
+`--uncertainty ERR` writes the standard deviation instead of the variance,
+`UNCERT` astropy's `CCDData` layout. **`--format iraf`** writes what IRAF
+reads -- one HDU, the DQ as a `BPM` mask -- for frames going back to IRAF;
+see [coming from IRAF](page:iraf/migration).
+
 ## Headers from other instruments
 
 The keywords are read through an instrument translation: which keyword

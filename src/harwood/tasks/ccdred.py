@@ -13,6 +13,15 @@ and are usually the first thing a hand-rolled script loses:
 The arithmetic is IRAF's ccdproc, ported (the overscan fit is icfit, as in
 IRAF) and checked against IRAF's own output on the M92 frames; the community
 `ccdproc` package is not used.
+
+What IRAF's ccdproc never did is keep the uncertainty (design contract,
+section 12). Here the variance is born once the overscan and the bias are
+off -- what is left counts the electrons the pixel collected, so its
+variance is data/gain + (readnoise/gain)^2 in ADU^2 -- and is carried through
+the dark and the flat with the calibrations' own. Saturated pixels, the
+bad pixels fixpix papered over and the dead pixels of the flat go into the
+DQ. With no gain anywhere there is no variance, and the run says so: one is
+never made up.
 """
 
 from __future__ import annotations
@@ -26,7 +35,15 @@ from pydantic import Field
 
 from ..core import advice
 from ..core.registry import register
-from ..core.task import Step, Task, TaskParams, TaskResult, Template
+from ..core.task import (
+    Step,
+    Task,
+    TaskParams,
+    TaskResult,
+    Template,
+    format_field,
+    uncertainty_field,
+)
 
 #: Keyword written once a step has been applied, so it is never applied twice.
 MARKS = {
@@ -146,6 +163,19 @@ class CcdProcParams(TaskParams):
                          "IRAF does."
     )
 
+    gain: float | str | None = Field(
+        None, description="Electrons per ADU, or the header keyword holding it. Left "
+                          "out, the instrument's gain keyword (GAIN). Without one the "
+                          "variance cannot be known and none is written.")
+    readnoise: float | str | None = Field(
+        None, description="Read noise in electrons, or the header keyword holding it. "
+                          "Left out, the instrument's (RDNOISE), else 0.")
+    saturation: float | None = Field(
+        None, description="Raw level, in ADU, at which a pixel is flagged saturated in "
+                          "the DQ. Left out, none is.")
+    uncertainty: Literal["VAR", "ERR", "UNCERT"] = uncertainty_field()
+    format: Literal["harwood", "iraf"] = format_field()
+
 
 @register
 class CcdProc(Task[CcdProcParams]):
@@ -250,9 +280,8 @@ class CcdProc(Task[CcdProcParams]):
         import time
 
         import numpy as np
-        from astropy.io import fits
 
-        from ..core import images, logfile, provenance, subsets
+        from ..core import images, logfile, mef, provenance, subsets
 
         specs = images.expand(params.input)
         survey = _survey(specs, params)
@@ -284,29 +313,20 @@ class CcdProc(Task[CcdProcParams]):
         # safe to run over a calibration that is already corrected.
         prepared = _prepare_calibrations(survey, params)
 
-        outputs, all_steps, history = [], [], []
+        outputs, all_steps, history, warnings = [], [], [], []
+        no_gain = []
         for spec, destination in zip(targets, destinations, strict=True):
-            data, header = images.read(spec)
+            frame = _Frame.load(spec)
+            header = frame.header
             steps: list[Step] = []
             calibration = _calibration_for(header, survey, params)
             calibration = {key: prepared.get(str(value), value)
                            for key, value in calibration.items()}
 
-            if params.fixpix and params.bpm is not None:
-                data, step = _fixpix(data, params.bpm, header)
-                steps.append(step)
-            if params.overscan:
-                data, step = _overscan(data, header, params)
-                steps.append(step)
-            if params.trim:
-                data, step = _trim(data, header, params)
-                steps.append(step)
-            for flag, key in (("zerocor", "zero"), ("darkcor", "dark"),
-                              ("flatcor", "flat")):
-                if getattr(params, flag):
-                    data, step = _calibrate(data, header, key,
-                                            calibration[key], params)
-                    steps.append(step)
+            steps.extend(_process(frame, params, survey["instrument"], calibration))
+            if frame.var is None:
+                no_gain.append(Path(str(spec)).name)
+            data = frame.data
 
             # A flat is left with nothing below minreplace, as IRAF leaves it,
             # so that dividing by it later can never divide by noise or zero.
@@ -314,6 +334,7 @@ class CcdProc(Task[CcdProcParams]):
                 low = data < params.minreplace
                 if low.any():
                     data = np.where(low, params.minreplace, data)
+                    frame.data = data
                     steps.append(Step("minreplace", f"{int(low.sum())} pixels below "
                                       f"{params.minreplace:g} set to it",
                                       why=WHY["minreplace"],
@@ -329,10 +350,12 @@ class CcdProc(Task[CcdProcParams]):
             logfile.write(params.logfile, "ccdproc", str(spec),
                           [step.render() for step in steps])
             destination.parent.mkdir(parents=True, exist_ok=True)
-            fits.PrimaryHDU(data=data.astype(np.float32), header=header).writeto(
-                destination, overwrite=True
-            )
+            written, notes = mef.save(destination, data, header, frame.var, frame.dq,
+                                      params.uncertainty, params.format)
             outputs.append(destination)
+            outputs.extend(written[1:])
+            if notes and not any("--format iraf" in str(w) for w in warnings):
+                warnings.extend(notes)
             all_steps.extend(steps)
             history.extend(lines)
 
@@ -341,7 +364,14 @@ class CcdProc(Task[CcdProcParams]):
         logfile.note(params.logfile,
                      f"ccdproc finished: {len(outputs)} image(s), "
                      f"{skipped} step(s) already done")
-        warnings = []
+        if no_gain:
+            warnings.append(advice.warn(
+                f"no gain for {len(no_gain)} of {len(outputs)} image(s) "
+                f"({', '.join(no_gain[:3])}{'...' if len(no_gain) > 3 else ''}), so "
+                "no variance was written for them: it cannot be known without one.",
+                "give --gain (electrons per ADU) and --readnoise, or the header "
+                "keywords that hold them; the instrument's sheet or the observatory's "
+                "web page has them."))
         if params.inplace:
             warnings.append(advice.warn(
                 f"{len(outputs)} image(s) were corrected in place. The header "
@@ -386,6 +416,16 @@ WHY = {
             "across the chip. The dark frame measures that rate, and is scaled to "
             "this exposure's time before subtraction -- twice the exposure, twice "
             "the dark.",
+    "saturation": "Above its full well a pixel stops counting, and its value is a "
+                  "floor, not a measurement. It is flagged in the DQ while the frame "
+                  "is raw -- after the bias and the flat are off, the level it hit is "
+                  "no longer the number the detector reported.",
+    "variance": "With the overscan and the bias subtracted, what is left in a pixel "
+                "counts the electrons it collected -- star, sky and dark current. "
+                "Their number fluctuates as Poisson says, and the amplifier adds its "
+                "read noise, so the variance is data/gain + (readnoise/gain)^2, in "
+                "ADU^2. From here on it travels with the data: the dark and the flat "
+                "add their own.",
     "minreplace": "A flat is about to be divided into every frame of the night, so "
                   "a pixel near zero in it -- a dead column, a vignetted corner -- "
                   "would turn into an enormous value in each of them. IRAF raises "
@@ -442,7 +482,6 @@ def _prepare_calibrations(survey, params) -> dict:
     does not get flat-fielded by itself, which is the mistake this exists to
     avoid making by accident.
     """
-    from ..core import images
 
     done: dict = {"_steps": []}
     candidates = []
@@ -454,39 +493,193 @@ def _prepare_calibrations(survey, params) -> dict:
         candidates.extend(("flat", path) for path in survey["flats"].values())
 
     for kind, path in candidates:
-        data, header = images.read(path)
-        steps: list[Step] = []
-        if params.overscan:
-            data, step = _overscan(data, header, params)
-            steps.append(step)
-        if params.trim:
-            data, step = _trim(data, header, params)
-            steps.append(step)
+        frame = _Frame.load(path)
+        zero = None
         if kind in ("dark", "flat") and params.zerocor:
             zero = done.get(str(survey["zero"]), survey["zero"])
-            if zero is not None:
-                data, step = _calibrate(data, header, "zero", zero, params)
-                steps.append(step)
-
+        steps = _process(frame, params, survey["instrument"],
+                         {"zero": zero, "dark": None, "flat": None},
+                         only=("overscan", "trim") + (("zerocor",) if zero is not None
+                                                      else ()))
         for step in steps:
             if not step.skipped:
                 step.action = f"{kind} {Path(path).name}: {step.action}"
         done["_steps"].extend(steps)
-        done[str(path)] = _Prepared(data, header, Path(path))
+        done[str(path)] = frame
 
     return done
 
 
 @dataclass
-class _Prepared:
-    """A calibration frame already put through the geometry, held in memory."""
+class _Frame:
+    """An image as ccdproc works on it: the pixels, the header, and the
+    variance (None until there is a gain to make one) and DQ that travel
+    with them. A calibration frame prepared in memory is one too."""
 
     data: object
     header: object
+    var: object
+    dq: object
     path: Path
+    # What _calibrate used it as: the dark's scale, the flat's normalised
+    # response, its level and the pixels raised to minreplace.
+    factor: float = 1.0
+    normalised: object = None
+    level: float = 1.0
+    clamped: object = None
+
+    @classmethod
+    def load(cls, spec) -> _Frame:
+        from ..core import mef
+
+        data, header, var, quality = mef.load(spec)
+        return cls(data, header, var, quality.copy(), Path(str(getattr(spec, "path", spec))))
 
     def __str__(self) -> str:
         return str(self.path)
+
+
+def _noise(header, params, inst) -> tuple[float | None, float]:
+    """The gain (None when nothing says) and the read noise, in electrons:
+    the parameter as a number or as a keyword, else the instrument's."""
+
+    def value(given, parameter):
+        if given is not None:
+            try:
+                return float(given)
+            except ValueError:
+                return float(header[given]) if given in header else None
+        found = inst.value(header, parameter)
+        try:
+            return float(found) if found is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    gain = value(params.gain, "gain")
+    readnoise = value(params.readnoise, "rdnoise")
+    return (gain if gain and gain > 0 else None), (readnoise or 0.0)
+
+
+def _process(frame: _Frame, params, inst, calibration: dict,
+             only: tuple[str, ...] = ("fixpix", "overscan", "trim", "zerocor", "darkcor",
+                                      "flatcor")) -> list[Step]:
+    """ccdproc's steps, in IRAF's order, on the data with its variance and DQ."""
+    import numpy as np
+
+    from ..core import dq, images, pixels
+
+    steps: list[Step] = []
+    header = frame.header
+    raw = not any(MARKS[flag][0] in header for flag in MARKS)
+    if params.saturation is not None:
+        if raw:
+            saturated = frame.data >= params.saturation
+            frame.dq[saturated] |= dq.SATURATED
+            steps.append(Step("saturation", f"{int(saturated.sum())} pixels at or above "
+                                            f"{params.saturation:g} flagged in the DQ",
+                              why=WHY["saturation"],
+                              measured={"saturated": int(saturated.sum())}))
+        else:
+            steps.append(Step("saturation", skipped=True,
+                              reason="the frame is already processed, and saturation "
+                                     "is a raw level"))
+    if "fixpix" in only and params.fixpix and params.bpm is not None:
+        frame.data, step = _fixpix(frame.data, params.bpm, header)
+        if not step.skipped:
+            mask, _ = images.read(params.bpm)
+            frame.dq[mask != 0] |= dq.BAD_PIXEL
+        steps.append(step)
+    if "overscan" in only and params.overscan:
+        frame.data, step = _overscan(frame.data, header, params)
+        steps.append(step)
+    if "trim" in only and params.trim:
+        shape = frame.data.shape
+        frame.data, step = _trim(frame.data, header, params)
+        if not step.skipped:
+            cut = pixels.parse_section(header["TRIMSEC"], shape)
+            frame.dq = frame.dq[cut]
+            if frame.var is not None:
+                frame.var = frame.var[cut]
+        steps.append(step)
+    if "zerocor" in only and params.zerocor:
+        frame.data, step, cal = _calibrate(frame.data, header, "zero",
+                                           calibration["zero"], params)
+        steps.append(step)
+        _carry(frame, cal, step, 1.0, params, inst)
+
+    # The variance is born here: with the overscan and the bias off, the data
+    # counts the electrons each pixel collected, dark current and all.
+    if frame.var is None:
+        gain, readnoise = _noise(header, params, inst)
+        offset_off = any(key in header for key in (MARKS["overscan"][0],
+                                                   MARKS["zerocor"][0]))
+        if gain is not None and offset_off:
+            frame.var = np.maximum(frame.data, 0.0) / gain + (readnoise / gain) ** 2
+            steps.append(Step("variance", f"data/{gain:g} + ({readnoise:g}/{gain:g})^2, "
+                                          "in ADU^2", why=WHY["variance"],
+                              measured={"gain": f"{gain:g} e-/ADU",
+                                        "read noise": f"{readnoise:g} e-",
+                                        "median sigma":
+                                            f"{float(np.median(np.sqrt(frame.var))):.3g}"
+                                            " ADU"}))
+        elif gain is not None:
+            steps.append(Step("variance", skipped=True,
+                              reason="the bias level is still in the data, so its counts "
+                                     "are not electrons yet: run --overscan or --zerocor"))
+
+    if "darkcor" in only and params.darkcor:
+        frame.data, step, cal = _calibrate(frame.data, header, "dark",
+                                           calibration["dark"], params)
+        steps.append(step)
+        if cal is not None:
+            _carry(frame, cal, step, cal.factor, params, inst)
+    if "flatcor" in only and params.flatcor:
+        before = frame.data
+        frame.data, step, cal = _calibrate(frame.data, header, "flat",
+                                           calibration["flat"], params)
+        steps.append(step)
+        if cal is not None:
+            n = cal.normalised
+            if frame.var is not None:
+                var_n = _cal_variance(cal, params, inst, step, header) / cal.level ** 2
+                frame.var = frame.var / n ** 2 + (before / n) ** 2 * var_n / n ** 2
+            frame.dq |= cal.dq
+            frame.dq[cal.clamped] |= dq.BAD_PIXEL
+    return steps
+
+
+def _cal_variance(cal, params, inst, step, frame_header):
+    """A calibration's variance: its own VAR when it has one. Otherwise, with
+    a gain, the noise of the NCOMBINE frames it was combined from -- read
+    noise and photons, averaged -- which is what an IRAF-made Zero.fits holds;
+    without a gain, none, and the step says it was left out. The gain is the
+    calibration's if its header has one, else the frame's: it is the same
+    detector, and a master bias or flat seldom carries GAIN."""
+    import numpy as np
+
+    if cal.var is not None:
+        return cal.var
+    gain, readnoise = _noise(cal.header, params, inst)
+    if gain is None:
+        gain, readnoise = _noise(frame_header, params, inst)
+    if gain is None:
+        step.measured["calibration variance"] = "unknown (no gain): left out"
+        return np.zeros_like(cal.data)
+    count = int(cal.header.get("NCOMBINE", 1) or 1)
+    step.measured["calibration variance"] = (
+        f"estimated from the gain and read noise, NCOMBINE={count}")
+    return (np.maximum(cal.data, 0.0) / gain + (readnoise / gain) ** 2) / count
+
+
+def _carry(frame, cal, step, factor, params, inst) -> None:
+    """A subtracted calibration: its variance adds (scaled by the square of
+    what it was multiplied by), its DQ joins the frame's."""
+    if cal is None:
+        return
+    if frame.var is not None:
+        frame.var = frame.var + factor ** 2 * _cal_variance(cal, params, inst, step,
+                                                             frame.header)
+    frame.dq |= cal.dq
 
 
 def _calibration_for(header, survey, params) -> dict:
@@ -512,11 +705,7 @@ def _peek(spec):
     """Read one header, without the pixels."""
     from ..core import images
 
-    hdul, hdu = images.open_hdu(spec)
-    try:
-        return hdu.header.copy()
-    finally:
-        hdul.close()
+    return images.read_header(spec)
 
 
 def _already(header, flag: str) -> bool:
@@ -654,19 +843,15 @@ def _trim(data, header, params):
 def _calibrate(data, header, key, image, params):
     import numpy as np
 
-    from ..core import images
-
     flag = {"zero": "zerocor", "dark": "darkcor", "flat": "flatcor"}[key]
     if _already(header, flag):
         return data, Step(key, skipped=True,
-                          reason=f"{MARKS[flag][0]} already in the header")
+                          reason=f"{MARKS[flag][0]} already in the header"), None
     if image is None:
         raise ValueError(f"{flag} was asked for but no --{key} image was given")
 
-    if isinstance(image, _Prepared):
-        calibration, cal_header = image.data, image.header
-    else:
-        calibration, cal_header = images.read(image)
+    cal = image if isinstance(image, _Frame) else _Frame.load(image)
+    calibration, cal_header = cal.data, cal.header
     if calibration.shape != data.shape:
         raise ValueError(
             f"{key} image {image} is {calibration.shape} but the frame is "
@@ -683,6 +868,7 @@ def _calibrate(data, header, key, image, params):
         dark_time = float(cal_header.get(params.exposure_key, 1.0))
         factor = frame_time / dark_time if dark_time else 1.0
         out = data - calibration * factor
+        cal.factor = factor
         detail = f"subtracted {Path(str(image)).name} scaled by {factor:.3f}"
         measured["scale"] = f"{frame_time:g}s / {dark_time:g}s = {factor:.3f}"
     else:
@@ -701,6 +887,8 @@ def _calibrate(data, header, key, image, params):
             source = "its mean"
         normalised = safe / level
         out = data / normalised
+        cal.normalised, cal.level = normalised, level
+        cal.clamped = calibration < params.minreplace
         detail = f"divided by {Path(str(image)).name}, normalised to {source}"
         measured["flat level"] = round(level, 3)
         measured["response range"] = (f"{float(normalised.min()):.3f} to "
@@ -711,7 +899,7 @@ def _calibrate(data, header, key, image, params):
 
     _mark(header, flag)
     return out, Step(key, detail, why=WHY[key], measured=measured,
-                     before=Task.statistics(data), after=Task.statistics(out))
+                     before=Task.statistics(data), after=Task.statistics(out)), cal
 
 
 class SetInstrumentParams(TaskParams):
@@ -942,7 +1130,7 @@ class CcdList(Task[CcdListParams]):
         for spec in images.expand(params.input):
             hdul, hdu = images.open_hdu(spec)
             try:
-                header = hdu.header.copy()
+                header = images.inherited(hdul, hdu)
                 shape = ("x".join(str(n) for n in reversed(hdu.data.shape))
                          if getattr(hdu, "data", None) is not None else "-")
             finally:
@@ -1092,11 +1280,7 @@ class CcdGroups(Task[CcdGroupsParams]):
         existing = set()
         for spec in images.expand(params.images):
             name = str(spec)
-            hdul, hdu = images.open_hdu(spec)
-            try:
-                header = hdu.header.copy()
-            finally:
-                hdul.close()
+            header = images.read_header(spec)
             if wanted and _ccdtype_name(inst, header) != wanted:
                 continue
             try:

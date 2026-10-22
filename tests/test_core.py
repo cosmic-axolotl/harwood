@@ -36,6 +36,22 @@ def test_project_file_beats_default(tmp_path, monkeypatch):
     assert resolved["sigma"].origin == "project"
 
 
+def test_params_all_holds_for_every_task_that_has_the_parameter(tmp_path, monkeypatch):
+    """How a reduction says once that it wants ERR, or IRAF's format: under
+    params.all. A task's own entry still wins, and a task without the
+    parameter is not bothered by it."""
+    monkeypatch.chdir(tmp_path)
+    params.write_project(tmp_path / params.PROJECT_FILE,
+                         {"all": {"sigma": 6.0, "uncertainty": "ERR"},
+                          "other": {"sigma": 2.0}})
+    resolved = params.resolve("demo", DemoParams)
+    assert resolved["sigma"].value == 6.0 and resolved["sigma"].origin == "project"
+    assert "uncertainty" not in resolved
+    assert params.resolve("other", DemoParams)["sigma"].value == 2.0
+    ccdproc = params.resolve("ccdproc", get_task("ccdproc").Params)
+    assert ccdproc["uncertainty"].value == "ERR"
+
+
 def test_command_line_beats_everything(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     params.write_project(tmp_path / params.PROJECT_FILE, {"demo": {"sigma": 5.0}})

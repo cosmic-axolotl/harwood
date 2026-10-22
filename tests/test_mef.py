@@ -68,7 +68,7 @@ def test_a_task_reading_sci_still_sees_the_exposure(tmp_path, image):
     np.testing.assert_array_equal(data, image.plane.sci)
     assert header["EXPTIME"] == 60.0 and header["FILTER"] == "V"
     assert header["CRPIX1"] == 8.0
-    assert header["EXTNAME"] == "SCI"
+    assert "EXTNAME" not in header, "a task writing it out must not make an extension"
 
 
 def test_the_plane_wins_where_both_headers_have_a_card():

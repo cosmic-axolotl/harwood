@@ -31,6 +31,38 @@ What changes is the cl around them.
 | `cl < night.cl` | a Python script calling `harwood.run`, or a shell script ([Python](page:concepts/python)) |
 | `ccdproc` with `output=""` (in place) | a new directory per run, unless `--inplace` ([outputs](page:concepts/outputs)) |
 
+## Images go both ways
+
+A harwood image is three planes in one FITS file: `SCI`, the data; `VAR`,
+its variance; and `DQ`, a number per pixel saying why it should not be
+trusted -- saturated, a cosmic ray, a bad column -- in the bits DRAGONS uses.
+IRAF keeps one number per pixel, so the two are not the same file, and
+harwood is careful that neither direction is a dead end:
+
+- **From IRAF.** Any IRAF image is read as it is. `obj.fits` with one HDU is
+  the data; its `BPM` mask becomes the DQ. There is no variance until a task
+  that knows the gain makes one -- harwood never invents a gain.
+- **To IRAF.** **`--format iraf`** writes the data alone, in one HDU, as
+  IRAF reads it, and the DQ as a FITS mask named by `BPM` that IRAF's
+  `ccdproc`, `fixpix` and `imcombine` use. The run says what stayed behind --
+  the variance -- rather than dropping it quietly. `ccdproc` has it now; the
+  other tasks that write images get it as they learn to carry the variance
+  (design contract, section 12.2), and until then write one HDU anyway.
+- **Halfway.** IRAF opens a harwood file directly: `imstat obj.fits[SCI]`,
+  `hselect obj.fits[SCI] OBJECT,EXPTIME yes`. The extensions carry
+  `INHERIT = T`, so the exposure's keywords are there too.
+- **For a whole reduction** that goes back to IRAF, say it once in
+  `harwood.yaml`: `params: {all: {format: iraf}}`. The same place takes
+  `uncertainty: ERR` for a standard deviation instead of a variance, or
+  `UNCERT` for astropy's `CCDData` layout.
+
+| in IRAF | in harwood |
+|---|---|
+| `obj.fits` | `obj.fits` (reads `SCI`), or `obj.fits[SCI]`, `[VAR]`, `[DQ]` |
+| `BPM` keyword, `.pl` mask | the `DQ` plane; `--format iraf` writes it back as a `BPM` mask |
+| `ccdproc` | the same steps, and the variance from `GAIN` and `RDNOISE` |
+| results to take back | `--format iraf` on the task that writes them |
+
 ## Things harwood does that IRAF did not
 
 - `--plan` and `--explain` on every task: the steps with real values, and

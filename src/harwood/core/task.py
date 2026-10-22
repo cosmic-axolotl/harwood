@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 from typing import Annotated, Any, ClassVar, Generic, TypeVar
 
-from pydantic import BaseModel, BeforeValidator
+from pydantic import BaseModel, BeforeValidator, Field
 
 from . import provenance
 
@@ -58,6 +58,24 @@ class TaskParams(BaseModel):
         "validate_assignment": True,
         "populate_by_name": True,
     }
+
+
+def uncertainty_field():
+    """--uncertainty, for every task that writes an image (section 12)."""
+    return Field(
+        "VAR", description="How the uncertainty is written: VAR, the variance (the "
+                           "default); ERR, its square root; UNCERT, astropy's CCDData "
+                           "layout. Set it once for a reduction under params.all in "
+                           "harwood.yaml.")
+
+
+def format_field():
+    """--format, for every task that writes an image (section 12)."""
+    return Field(
+        "harwood", description="harwood writes SCI, VAR and DQ. iraf writes one HDU, "
+                               "as IRAF reads it, with the DQ as a mask named by BPM -- "
+                               "for taking the work back to IRAF; the variance stays "
+                               "behind, and the run says so.")
 
 
 P = TypeVar("P", bound=TaskParams)

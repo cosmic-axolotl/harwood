@@ -90,12 +90,16 @@ def load_project(start: Path | None = None) -> tuple[dict[str, Any], Path | None
 
 
 def project_params(task: str, start: Path | None = None) -> tuple[dict[str, Any], Path | None]:
-    """The project file's parameters for one task."""
+    """The project file's parameters for one task: its own, over those under
+    `params.all`, which hold for every task that has the parameter -- how a
+    reduction says once that it wants its uncertainties as ERR."""
     data, path = load_project(start)
+    every = (data.get("params") or {}).get("all") or {}
     params = (data.get("params") or {}).get(task) or {}
-    if not isinstance(params, dict):
-        raise ValueError(f"{path}: params.{task} should be a mapping of name to value")
-    return dict(params), path
+    for name, value in (("all", every), (task, params)):
+        if not isinstance(value, dict):
+            raise ValueError(f"{path}: params.{name} should be a mapping of name to value")
+    return {**every, **params}, path
 
 
 def resolve(
@@ -186,6 +190,9 @@ def write_project(
     body["params"] = params or {}
     text = "\n".join(lines) + yaml.safe_dump(body, sort_keys=False, allow_unicode=False)
     if not body["params"]:
-        text += "  # imcombine:\n  #   reject: ccdclip\n  #   rdnoise: 6.5\n"
+        text += ("  # imcombine:\n  #   reject: ccdclip\n  #   rdnoise: 6.5\n"
+                 "  # all:                 # for every task that has the parameter\n"
+                 "  #   uncertainty: ERR    # VAR (default), ERR or UNCERT\n"
+                 "  #   format: iraf        # write images as IRAF reads them\n")
     path.write_text(text, encoding="utf-8")
     return path

@@ -302,6 +302,17 @@ def read(spec: ImageSpec | str) -> tuple[Any, Any]:
     return data, header
 
 
+def read_header(spec: ImageSpec | str):
+    """The header images.read would give, without the pixels: the
+    extension's over the primary's when it says INHERIT = T."""
+    spec = parse(spec) if not isinstance(spec, ImageSpec) else spec
+    hdul, hdu = open_hdu(spec)
+    try:
+        return inherited(hdul, hdu)
+    finally:
+        hdul.close()
+
+
 def inherited(hdul, hdu):
     """The extension's header, with the primary's underneath when it says
     INHERIT = T -- as harwood's SCI/VAR/DQ files do (core/mef.py), so a task
@@ -312,7 +323,9 @@ def inherited(hdul, hdu):
     if hdu is hdul[0] or not hdu.header.get("INHERIT", False):
         return header
     out = mef.merged(hdul[0].header, header)
-    for key in ("BITPIX", "NAXIS", "NAXIS1", "NAXIS2", "NAXIS3", "EXTNAME", "EXTVER"):
+    # Its shape, but not its name: a task that writes this header into a
+    # file of its own must not make that file claim to be an extension.
+    for key in ("BITPIX", "NAXIS", "NAXIS1", "NAXIS2", "NAXIS3"):
         if key in header:
             out[key] = header[key]
     return out

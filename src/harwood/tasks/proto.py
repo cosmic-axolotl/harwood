@@ -107,7 +107,7 @@ class Fixpix(Task[FixpixParams]):
         for number, spec in enumerate(specs):
             hdul, hdu = images.open_hdu(spec)
             try:
-                data, header = np.array(hdu.data), hdu.header.copy()
+                data, header = np.array(hdu.data), images.inherited(hdul, hdu)
             finally:
                 hdul.close()
             mask_name = params.masks[0 if len(params.masks) == 1 else number]

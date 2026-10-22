@@ -91,7 +91,7 @@ class ImHeader(Task[ImHeaderParams]):
         for spec in images.expand(params.input):
             hdul, hdu = images.open_hdu(spec)
             try:
-                header = hdu.header
+                header = images.inherited(hdul, hdu)
                 if params.keywords:
                     row = {key: header.get(key) for key in params.keywords}
                 elif params.longheader:
@@ -151,11 +151,7 @@ class HSelect(Task[HSelectParams]):
         expr = _iraf_words(params.expr)
         matched, lines, absent, skipped = [], [], set(), 0
         for spec in images.expand(params.input):
-            hdul, hdu = images.open_hdu(spec)
-            try:
-                header = hdu.header.copy()
-            finally:
-                hdul.close()
+            header = images.read_header(spec)
             label = str(spec)
             getop = _Edit(header, label, "", False, False, [], [])._getop(label)[0]
             try:
@@ -1373,11 +1369,7 @@ class ImGets(Task[ImGetsParams]):
         spec = images.parse(params.image)
         if params.extension is not None and spec.extension is None:
             spec.extension = params.extension
-        hdul, hdu = images.open_hdu(spec)
-        try:
-            header = hdu.header.copy()
-        finally:
-            hdul.close()
+        header = images.read_header(spec)
         value = image_parameter(header, str(spec.path), params.param)
         found = value is not None
         answer = value if found else params.default

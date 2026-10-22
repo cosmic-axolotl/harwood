@@ -264,7 +264,8 @@ def test_saying_nothing_writes_to_the_runs_own_directory(night):
 
     assert (night / "o010.fits").read_bytes() == before, "the input is untouched"
     assert result.outputs[0].parent.name.startswith("hrwd_ccdproc_")
-    assert not result.warnings, "nothing to warn about when nothing was lost"
+    assert not any("in place" in str(w) for w in result.warnings), \
+        "nothing to warn about the originals when they were kept"
 
 
 def test_setinstrument_applies_the_instruments_settings(tmp_path):
