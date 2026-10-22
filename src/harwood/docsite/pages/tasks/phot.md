@@ -43,6 +43,19 @@ itself, which in a crowded field is the largest of the three and is the one
 a simple implementation leaves out. A star whose flux comes out negative has
 an undefined magnitude, as in IRAF.
 
+**When the image carries a variance** -- as it does once
+[ccdproc](task:ccdproc) knew the gain -- `merr` comes from it instead: the
+variance of every pixel in the aperture, weighted as the sum is, plus the
+uncertainty of the mean sky as before. That knows what the noise model
+cannot: a flat-fielded pixel in a vignetted corner stands for fewer photons
+than its counts suggest, and there IRAF's error, built from `--epadu` and
+the sky alone, comes out short -- by √0.6 on a test field whose corner the
+flat cuts to 0.6. IRAF's error is kept beside it as `merr_model`, for
+comparing with an IRAF reduction, `ferr` holds the flux error, and the
+table's metadata says which `merr` is which. With the image's DQ, `pdq`
+holds the bits of the pixels each aperture took -- saturated, a cosmic ray
+-- and the run names the stars that have any.
+
 The table is ECSV, with the 1-based convention recorded in it; it opens in
 the window's [Files](page:app/files) panel, in astropy, or in a spreadsheet.
 

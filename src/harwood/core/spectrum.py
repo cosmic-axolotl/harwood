@@ -35,16 +35,18 @@ from . import advice
 EXTNAME = "SPEC"
 
 #: Columns a spectrum may carry, in the order they are written.
-COLUMNS = ("pixel", "wavelength", "flux", "error", "sky", "raw")
+COLUMNS = ("pixel", "wavelength", "flux", "error", "sky", "raw", "dq")
 
 #: What each column is, for the header and for anyone reading the text dump.
 MEANING = {
     "pixel": "position along the dispersion axis, 1-based",
     "wavelength": "wavelength, when a dispersion solution has been applied",
     "flux": "extracted flux, background subtracted",
-    "error": "uncertainty on the flux (IRAF's sigma band; variance weights only)",
+    "error": "uncertainty on the flux: from the frame's variance when it has one, "
+             "else IRAF's sigma band (variance weights only)",
     "sky": "background summed over the aperture, as subtracted (IRAF's background band)",
     "raw": "unweighted, uncleaned aperture sum, background subtracted (IRAF's raw band)",
+    "dq": "DQ bits of the frame's pixels the aperture took on this line (core/dq.py)",
 }
 
 
@@ -62,6 +64,7 @@ class Aperture:
     sky: Any = None
     raw: Any = None
     wavelength: Any = None
+    dq: Any = None
     trace: Any = field(default=None, repr=False)   #: centre against dispersion
     title: str = ""
     meta: dict = field(default_factory=dict)

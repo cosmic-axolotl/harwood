@@ -554,8 +554,9 @@ class Extracted:
     spec: np.ndarray            # the spectrum
     raw: np.ndarray | None      # unweighted, uncleaned (variance weighting)
     sky: np.ndarray | None      # the background summed over the aperture
-    sigma: np.ndarray | None    # IRAF's sigma (variance weighting)
+    sigma: np.ndarray | None    # IRAF's sigma, or the frame's variance's (section 12)
     log: list[str] = field(default_factory=list)
+    dq: np.ndarray | None = None  # each line's DQ bits, with the frame's DQ
 
 
 def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none",
@@ -563,8 +564,12 @@ def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none
             clean: bool = False, saturation: float | None = None,
             readnoise: float = 0.0, gain: float = 1.0, lsigma: float = 4.0,
             usigma: float = 4.0, nclean: float = 0.5,
-            niterate: int = 5) -> list[Extracted]:
-    """ap_extract on a [dispersion, aperture] frame."""
+            niterate: int = 5, variance: np.ndarray | None = None,
+            quality: np.ndarray | None = None) -> list[Extracted]:
+    """ap_extract on a [dispersion, aperture] frame. With the frame's
+    `variance` (same orientation), sigma is what it gives through the same
+    weights -- for a plain sum too, where IRAF has none; with its `quality`,
+    each line's DQ is the bits of the pixels the aperture took."""
     if clean:
         weights = "variance"
     if weights == "variance" and pfit != "fit1d":
@@ -593,6 +598,8 @@ def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none
         cmaxs.append(cmax)
     amin, amax = min(a1), max(a2)
     dbuf = np.asarray(data[:, amin - 1:amax], dtype=f32)
+    vbuf = None if variance is None else np.asarray(variance[:, amin - 1:amax], dtype=float)
+    qbuf = None if quality is None else np.asarray(quality[:, amin - 1:amax])
     if weights == "variance" and gain_used != 1.0:
         dbuf = (dbuf * f32(gain_used)).astype(f32)
     c1 = amin
@@ -614,6 +621,7 @@ def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none
             sbuf, svar, specsky = skyeval(ap, dbuf, c1, xs, na1, background, skybox,
                                           rdnoise)
         log: list[str] = []
+        record: list | None = [] if vbuf is not None else None
         if weights == "none":
             spec = _sum(ap, dbuf, c1, xs, sbuf, na1)
             raw = sigma = None
@@ -622,15 +630,206 @@ def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none
                                clean, lsigma, usigma, niterate, log)
             spec, raw, sigma = _variance(ap, dbuf, c1, xs, sbuf, svar, profile, na1,
                                          rdnoise, saturation, clean, lsigma, usigma,
-                                         nclean, log)
+                                         nclean, log, record)
             if gain_used != 1.0:
                 g = f32(gain_used)
                 spec, raw, sigma = (spec / g).astype(f32), (raw / g).astype(f32), \
                     (sigma / g).astype(f32)
                 if specsky is not None:
                     specsky = (specsky / g).astype(f32)
-        results.append(Extracted(spec, raw, specsky, sigma, log))
+        if vbuf is not None:
+            level = (None if background == "none" else
+                     _sky_level_variance(ap, vbuf, c1, xs, background, skybox))
+            from_var = _error_from_variance(ap, dbuf, vbuf, c1, xs, level, record)
+            # IRAF's -1 (no extraction on that line) stays; its sign for a
+            # saturated line too.
+            sigma = (from_var if sigma is None
+                     else np.where(sigma == -1, -1.0,
+                                   np.where(sigma < 0, -from_var, from_var))).astype(f32)
+        lines_dq = None if qbuf is None else _line_quality(ap, qbuf, c1, xs, nb)
+        results.append(Extracted(spec, raw, specsky, sigma, log, lines_dq))
     return results
+
+
+def _error_from_variance(ap, dbuf, vbuf, c1, xs, level, record):
+    """sigma from the frame's variance, through the weights the spectrum was
+    made with: the edge fractions of a plain sum, or variance weighting's
+    final weights (`record`); plus the subtracted sky level's own
+    uncertainty, (sum of the weights)^2 times its variance."""
+    nb, nc = dbuf.shape
+    out = np.zeros(nb)
+    if record is not None and record:
+        for iy, kept, weights in record:
+            x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
+            vpix, _ = _line_interp(vbuf[iy - 1].astype(f32), nc, c1, xs[iy - 1],
+                                   x2 + f32(xs[iy - 1] - c1))
+            v = sum(w * w * float(vpix[ix]) for w, ix in zip(weights, kept, strict=True))
+            if level is not None:
+                v += float(np.sum(weights)) ** 2 * level[iy - 1]
+            out[iy - 1] = np.sqrt(max(v, 0.0))
+        return out
+    for iy in range(1, nb + 1):
+        x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
+        if x2 <= x1:
+            continue
+        pix, asi = _line_interp(dbuf[iy - 1], nc, c1, xs[iy - 1], x2 + f32(xs[iy - 1] - c1))
+        vpix, _ = _line_interp(vbuf[iy - 1].astype(f32), nc, c1, xs[iy - 1],
+                               x2 + f32(xs[iy - 1] - c1))
+        ix1, ix2 = nint(x1), nint(x2)
+        wt1, wt2 = edge_weights(asi, x1 + 1, x2 + 1)
+        weights = {ix1: float(wt1)}
+        weights[ix2] = weights.get(ix2, 0.0) + float(wt2)
+        for ix in range(ix1 + 1, ix2):
+            weights[ix] = 1.0
+        v = sum(w * w * float(vpix[ix]) for ix, w in weights.items())
+        if level is not None:
+            v += sum(weights.values()) ** 2 * level[iy - 1]
+        out[iy - 1] = np.sqrt(max(v, 0.0))
+    return out
+
+
+def _sky_level_variance(ap, vbuf, c1, xs, background, skybox):
+    """The variance of the background skyeval subtracts under the aperture,
+    line by line, propagated through what skyeval actually does: for 'fit',
+    the linearly interpolated points it fits, grouped as icfit groups them
+    (rg_wtbin, which drops a short last group) and fitted by weighted least
+    squares, evaluated at the aperture's centre; for 'average', the integral
+    of the interpolant over the sample, which weights its end pixels by the
+    part of them inside; for 'median', the sample's mean variance over its
+    number, times the lower median's inefficiency. Medians of groups
+    (naverage below -1) are taken as means, times that inefficiency -- a
+    little too much, the grouped points being interpolated and so correlated,
+    which errs on the side of a larger error. Divided by skybox when lines
+    were averaged."""
+    from .combine import MEDIAN_EFFICIENCY
+
+    # amedr, which skyeval's median and icfit's grouped medians both use, is
+    # the lower median: of an even count it takes the lower middle value.
+    table = MEDIAN_EFFICIENCY["lmedian"]
+
+    def inefficiency(n):
+        return table[n - 1] if 1 <= n <= len(table) else np.pi / 2
+
+    nb, nc = vbuf.shape
+    centre = f32(ap.centre)
+    bx1, bx2 = ap.background_limits(10 ** 9)
+    xmin = f32(centre + f32(min(ap.low, bx1)))
+    xmax = f32(centre + f32(max(ap.high, bx2)))
+    samples = _samples(ap.background.sample, ap.centre) or [(xmin, xmax)]
+    out = np.zeros(nb)
+    for iy in range(1, nb + 1):
+        s = f32(ap.trace(iy))
+        ix1 = max(c1, nint(f32(xmin + s)) - 1)
+        ix2 = min(c1 + nc - 1, nint(f32(xmax + s)) + 1)
+        nfit = ix2 - ix1 + 1
+        if nfit < 3:
+            continue
+        line = vbuf[iy - 1, ix1 - c1:ix2 - c1 + 1]
+        ranges = [(f32(max(f32(ix1), f32(a + s)) - f32(ix1) + f32(1)),
+                   f32(min(f32(ix2), f32(b + s)) - f32(ix1) + f32(1))) for a, b in samples]
+        weights = np.zeros(nfit)
+        factor = 1.0
+        if background == "fit":
+            weights = _fit_weights(ap, ix1, nfit, s)
+            if ap.background.naverage < -1:
+                factor = inefficiency(-ap.background.naverage)
+        elif background == "average":
+            length = 0.0
+            for a, b in ranges:
+                if b - a > 0:
+                    length += float(b - a)
+                    for k in range(1, nfit + 1):
+                        weights[k - 1] += _hat_integral(k, float(a), float(b))
+            if length <= 0:
+                continue
+            weights /= length
+        else:                                       # median, minimum
+            members = [j for a, b in ranges for j in range(nint(a), nint(b) + 1)
+                       if 1 <= j <= nfit]
+            if not members:
+                continue
+            for j in members:
+                weights[j - 1] += 1.0 / len(members)
+            if background == "median":
+                factor = inefficiency(len(members))
+        out[iy - 1] = factor * float(np.sum(weights ** 2 * line)) / max(1, skybox)
+    return out
+
+
+def _hat_integral(k: int, a: float, b: float) -> float:
+    """The integral over (a, b) of the linear interpolant's hat at sample k:
+    how much pixel k weighs in asigrl's integral of a linear interpolant."""
+
+    def cumulative(x):
+        if x <= k - 1:
+            return 0.0
+        if x <= k:
+            return (x - k + 1) ** 2 / 2
+        if x <= k + 1:
+            return 1.0 - (k + 1 - x) ** 2 / 2
+        return 1.0
+
+    return cumulative(b) - cumulative(a)
+
+
+def _fit_weights(ap, ix1, nfit, s) -> np.ndarray:
+    """How much each pixel of [ix1, ix1 + nfit) weighs in the fitted
+    background at the aperture's centre, as skyeval fits it: points
+    interpolated a fraction of a pixel off, grouped by icfit, fitted by
+    weighted least squares (a spline taken as its constant term)."""
+    spec = ap.background
+    c = f32(f32(ap.centre) + s)
+    a = f32(f32(ix1) + c - f32(int(c)))
+    xv, rows = [], []
+    for _ in range(nfit - 1):
+        xv.append(nint(f32(1000.0) * f32(a - c)) / 1000.0)
+        position = float(f32(a - f32(ix1) + f32(1)))         # 1-based into the line
+        j = int(np.floor(position))
+        frac = position - j
+        row = np.zeros(nfit)
+        if 1 <= j <= nfit:
+            row[j - 1] += 1.0 - frac
+        if 1 <= j + 1 <= nfit and frac > 0:
+            row[j] += frac
+        rows.append(row)
+        a = f32(a + f32(1))
+    xv = np.array(xv)
+    rows = np.array(rows)
+    groups = icfit._groups(icfit._runs(icfit.parse_sample(spec.sample, xv)), spec.naverage)
+    if not groups:
+        return np.zeros(nfit)
+    xb = np.array([xv[g].mean() for g in groups])
+    wb = np.array([float(g.size) for g in groups])
+    gb = np.array([rows[g].mean(axis=0) for g in groups])  # each group, in pixels
+    lo, hi = ap.background_limits(10 ** 9)
+    order = 1 if spec.function in ("spline1", "spline3") else max(1, int(spec.order))
+    order = min(order, len(groups))
+    scale = (hi - lo) / 2 if hi > lo else 1.0
+    t = (xb - (hi + lo) / 2) / scale
+    t0 = (0.0 - (hi + lo) / 2) / scale
+    vander = (np.polynomial.chebyshev.chebvander if spec.function == "chebyshev"
+              else np.polynomial.legendre.legvander)
+    design = vander(t, order - 1)
+    at_centre = vander(np.array([t0]), order - 1)[0]
+    normal = design.T @ (design * wb[:, None])
+    coefficients = at_centre @ np.linalg.pinv(normal) @ (design.T * wb)  # per group
+    return coefficients @ gb
+
+
+def _line_quality(ap, qbuf, c1, xs, nb):
+    """Each line's DQ: the bits of every pixel the aperture touched."""
+    nc = qbuf.shape[1]
+    out = np.zeros(nb, dtype=np.int64)
+    for iy in range(1, nb + 1):
+        x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
+        if x2 <= x1:
+            continue
+        first = max(0, nint(x1) + xs[iy - 1] - c1 - 1)
+        last = min(nc - 1, nint(x2) + xs[iy - 1] - c1 - 1)
+        if last >= first:
+            out[iy - 1] = int(np.bitwise_or.reduce(qbuf[iy - 1, first:last + 1]
+                                                    .astype(np.int64)))
+    return out
 
 
 def _edges(ap, nc, c1, xs_line, line):
@@ -1010,8 +1209,11 @@ def _ncoeff(fit) -> int:
 
 
 def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, clean,
-              lsigma, usigma, nclean, log):
-    """ap_variance: the variance-weighted spectrum, the raw one and sigma."""
+              lsigma, usigma, nclean, log, record=None):
+    """ap_variance: the variance-weighted spectrum, the raw one and sigma.
+    `record`, a list, gets each line's final weights -- (line, pixels,
+    weights normalised as the spectrum is) -- for the error the image's own
+    variance gives (section 12)."""
     nb, nc = dbuf.shape
     rd2 = f32(rdnoise) ** 2
     sat = None if saturation is None else f32(saturation)
@@ -1126,6 +1328,11 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
         nreject += nrej
         total1 = f32(total1 + sum1)
         total2 = f32(total2 + sum2)
+        if record is not None:
+            kept = [ix for ix in span if eplot[ix] > 0]
+            w = np.array([float(prof[ix - 1]) / float(eplot[ix]) ** 2 for ix in kept])
+            norm = float(np.sum(w * np.array([float(prof[ix - 1]) for ix in kept])))
+            record.append((iy, kept, w / norm if norm > 0 else np.zeros_like(w)))
         if saturated:
             sigma[iy - 1] = -sigma[iy - 1]
 

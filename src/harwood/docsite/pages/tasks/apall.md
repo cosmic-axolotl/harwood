@@ -89,7 +89,16 @@ for the trace.
 
 One FITS file with a binary table per aperture, `sp0019.ms.fits[SPEC,1]`,
 `[SPEC,2]`…, rather than IRAF's multispec image: the columns are `pixel`,
-`flux`, `error` (variance weights only), `raw` (the unweighted sum), `sky`
-when there was a background, and `wavelength` once
-[dispcor](task:dispcor) has run. Every number is in the file, so nothing has
+`flux`, `error`, `raw` (the unweighted sum), `sky` when there was a
+background, `dq` when the frame has one, and `wavelength` once
+[dispcor](task:dispcor) has run.
+
+`error` comes from the frame's variance when it has one -- through the same
+weights the flux was made with, the edge fractions of a plain sum or the
+final weights of optimal extraction, plus the uncertainty of the sky that
+was subtracted, propagated through the fit as skyeval makes it. So a plain
+sum has an error too, which IRAF never gave, and it includes the flat and
+the bias, which IRAF's noise model does not. Without a variance, `error` is
+IRAF's sigma, for variance weights only. `dq` is each line's bits of the
+pixels the aperture took, and dispcor carries it onto the wavelength grid. Every number is in the file, so nothing has
 to be recomputed to read it; [wspectext](task:wspectext) writes it as text.

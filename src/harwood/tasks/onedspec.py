@@ -600,6 +600,10 @@ class DispCor(Task[DispCorParams]):
                         values, inverse, w1, dw, nw, params.flux, params.blank,
                         params.interp, params.log).astype(float))
                 wave = w1 + np.arange(nw) * dw
+                if getattr(aperture, "dq", None) is not None:
+                    before = s.dispersion(np.asarray(aperture.pixel, float))
+                    aperture.dq = _resampled_dq(aperture.dq, before,
+                                                10 ** wave if params.log else wave)
                 aperture.wavelength = 10 ** wave if params.log else wave
                 aperture.pixel = np.arange(1.0, nw + 1.0)
             out_header = _dclog(header)
@@ -908,6 +912,38 @@ def _global_grids(table, inputs, params, cache, samedisp: bool) -> None:
         if grid.nwmax:
             grid.w1, grid.w2, grid.dw, grid.nw = dispcor.defaults(
                 grid.wmin, grid.wmax, grid.nwmax, grid.w1, grid.w2, grid.dw, grid.nw)
+
+
+def _resampled_dq(quality, before, after):
+    """The DQ on the new grid: each output pixel takes the bits of every input
+    pixel its wavelength interval overlaps, as its value was interpolated
+    from them; one beyond the input's range is no data."""
+    import numpy as np
+
+    from ..core import dq
+
+    def edges(centres):
+        centres = np.asarray(centres, dtype=float)
+        middle = (centres[1:] + centres[:-1]) / 2
+        return np.concatenate(([2 * centres[0] - middle[0]], middle,
+                               [2 * centres[-1] - middle[-1]]))
+
+    quality = np.asarray(quality, dtype=np.int64)
+    order = np.argsort(before)
+    lo_in = np.minimum(edges(before)[:-1], edges(before)[1:])[order]
+    hi_in = np.maximum(edges(before)[:-1], edges(before)[1:])[order]
+    bits_in = quality[order]
+    out_edges = edges(after)
+    out = np.zeros(len(after), dtype=np.int64)
+    for j in range(len(after)):
+        lo, hi = sorted((out_edges[j], out_edges[j + 1]))
+        first = np.searchsorted(hi_in, lo, side="right")
+        last = np.searchsorted(lo_in, hi, side="left")
+        if last <= first:
+            out[j] = dq.NO_DATA
+        else:
+            out[j] = int(np.bitwise_or.reduce(bits_in[first:last]))
+    return out.astype(np.int32)
 
 
 def _dclog(header):

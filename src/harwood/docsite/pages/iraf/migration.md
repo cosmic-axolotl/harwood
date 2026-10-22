@@ -64,6 +64,8 @@ harwood is careful that neither direction is a dead end:
 | `BPM` keyword, `.pl` mask | the `DQ` plane; `--format iraf` writes it back as a `BPM` mask |
 | `ccdproc` | the same steps, and the variance from `GAIN` and `RDNOISE` |
 | results to take back | `--format iraf` on the task that writes them |
+| `phot`'s `merr` | from the image's `VAR` when it has one; IRAF's own, from `epadu` and the sky, as `merr_model` |
+| `apall`'s sigma band | `error`, from the `VAR` when there is one -- for a plain sum too |
 
 ## Things harwood does that IRAF did not
 

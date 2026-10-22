@@ -29,7 +29,11 @@ pytestmark = pytest.mark.skipif(
 #: From the exercise: the frames are 1024 along the dispersion by 101 across
 #: after trimming, with the overscan in columns 102 to 133.
 BIASSEC, TRIMSEC = "[102:133,1:1024]", "[1:101,1:1024]"
-GAIN, RDNOISE = 3.0, 5.0
+# The detector's, from every header (GAIN, RDNOISE). This test used to guess
+# 3 and 5: the extraction's own model agreed with itself, and only the
+# variance ccdproc carries, made from the header's gain, showed the errors
+# sitting 0.75 below a photon limit computed with the guess -- sqrt(3/5.4).
+GAIN, RDNOISE = 5.4, 3.5
 
 
 @pytest.fixture(scope="module")

@@ -256,7 +256,7 @@ class ApAll(Task[ApAllParams]):
     def execute(self, params: ApAllParams) -> TaskResult:
         import numpy as np
 
-        from ..core import apextract, database, icfit, images, output, spectrum
+        from ..core import apextract, database, icfit, images, mef, output, spectrum
 
         data, header = images.read(params.input)
         if data.ndim != 2:
@@ -270,6 +270,10 @@ class ApAll(Task[ApAllParams]):
             advice.fail(f"DISPAXIS is {dispaxis}; it must be 1 or 2.",
                         "give --dispaxis 1 or 2")
         frame = apextract.frame(data, dispaxis)
+        _, _, variance, quality = mef.load(params.input)
+        if variance is not None:
+            variance = apextract.frame(variance, dispaxis).astype(float)
+        quality = apextract.frame(quality, dispaxis) if np.any(quality) else None
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
 
@@ -362,7 +366,7 @@ class ApAll(Task[ApAllParams]):
                 weights=params.weights, pfit=params.pfit, clean=params.clean,
                 saturation=params.saturation, readnoise=readnoise, gain=gain,
                 lsigma=params.lsigma, usigma=params.usigma, nclean=params.nclean,
-                niterate=params.niterate)
+                niterate=params.niterate, variance=variance, quality=quality)
             pixel = np.arange(1.0, frame.shape[0] + 1.0)
             written = []
             for aperture, result in zip(apertures, extracted, strict=True):
@@ -374,12 +378,15 @@ class ApAll(Task[ApAllParams]):
                            else np.asarray(result.sigma, dtype=float)),
                     sky=None if result.sky is None else np.asarray(result.sky, dtype=float),
                     raw=None if result.raw is None else np.asarray(result.raw, dtype=float),
+                    dq=None if result.dq is None else np.asarray(result.dq, dtype=np.int32),
                     trace=aperture.centre_at(pixel),
                     title=str(header.get("OBJECT", "")),
                     meta={"EXPTIME": float(header.get("EXPTIME", 0.0)),
                           "EPADU": gain, "RDNOISE": readnoise,
                           "WEIGHTS": "variance" if params.clean else params.weights,
-                          "BACKGRND": params.background, "CLEAN": params.clean}))
+                          "BACKGRND": params.background, "CLEAN": params.clean,
+                          "ERRSRC": "VAR" if variance is not None
+                          else ("model" if first_sigma(params) else "none")}))
             destination = params.output or output.named_for(params.input, ".ms.fits")
             spectrum.write(destination, written, header=header, source=str(params.input))
             outputs.append(destination)
@@ -454,6 +461,11 @@ class ApAll(Task[ApAllParams]):
                             ylabel="offset from the aperture centre (pixels)")
             aperture.trace = apextract.Trace(
                 fit, *icfit.cv_range(points.positions, fit.spec, (1.0, float(length))))
+
+
+def first_sigma(params) -> bool:
+    """Whether IRAF gives this extraction a sigma at all: variance weights only."""
+    return params.clean or params.weights == "variance"
 
 
 def _header_value(text: float | str, header, what: str) -> float:

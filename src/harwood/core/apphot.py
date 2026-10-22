@@ -165,6 +165,20 @@ class Apertures:
     mag: np.ndarray = field(repr=False)
     merr: np.ndarray = field(repr=False)
     ier: int = APERT_OK
+    #: With the image's variance and DQ (section 12): the variance of each
+    #: aperture's sum, sum of weight^2 x VAR, and the DQ bits of its pixels.
+    sumvar: np.ndarray | None = field(default=None, repr=False)
+    dq: np.ndarray | None = field(default=None, repr=False)
+
+    def flux_error(self, sky, k: int) -> float:
+        """The flux error of aperture k from the image's variance: its pixels'
+        variance, sky photons and all, plus the uncertainty of the sky level
+        subtracted under it -- sigma^2 area^2 / nsky, as IRAF has it."""
+        if self.sumvar is None or not np.isfinite(self.flux[k]):
+            return float("nan")
+        level = (sky.sigma ** 2 * self.areas[k] ** 2 / sky.nsky
+                 if sky.nsky > 0 and np.isfinite(sky.sigma) else 0.0)
+        return float(np.sqrt(self.sumvar[k] + level))
 
 
 def _trunc(value: float) -> int:
@@ -619,13 +633,19 @@ def fitsky(data: np.ndarray, x: float, y: float, pars: SkyPars | None = None,
 
 
 def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky,
-              zmag: float = 25.0, dpars: DataPars | None = None) -> Apertures:
+              zmag: float = 25.0, dpars: DataPars | None = None,
+              variance: np.ndarray | None = None,
+              quality: np.ndarray | None = None) -> Apertures:
     """apmag: the sums, areas, magnitudes and errors of a set of apertures.
 
     A pixel at distance r from the centre counts with weight
     clip(radius - (r - 0.5), 0, 1): whole inside, nothing outside, and a
     linear share across the last pixel -- IRAF's approximation to the area
     of the pixel that the circle covers.
+
+    With the image's `variance`, each sum's variance is the same weights,
+    squared, over it; with its `quality`, each aperture's DQ is the bits of
+    the pixels it touches. IRAF's own error, merr, is untouched.
     """
     dpars = dpars or DataPars()
     radii = sorted(float(r) for r in radii)
@@ -644,8 +664,10 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
                 and y - half >= 0.5 and y + half <= ny + 0.5):
             nmax = k
             break
+    sumvar = None if variance is None else np.full(nap, np.nan)
+    bits = None if quality is None else np.zeros(nap, dtype=np.int64)
     if nmax == 0:
-        return Apertures(radii, sums, areas, flux, mag, merr, APERT_NOAPERT)
+        return Apertures(radii, sums, areas, flux, mag, merr, APERT_NOAPERT, sumvar, bits)
     half = scaled[nmax - 1]
     c1 = _trunc(max(1.0, min(float(nx), x - half)))
     c2 = _trunc(min(float(nx), max(1.0, x + half + 0.5)))
@@ -657,18 +679,26 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
     low = -np.inf if dpars.datamin is None else dpars.datamin
     high = np.inf if dpars.datamax is None else dpars.datamax
     nmin = nmax + 1
+    vbox = (None if variance is None
+            else np.asarray(variance, dtype=np.float64)[l1 - 1:l2, c1 - 1:c2])
+    qbox = None if quality is None else np.asarray(quality)[l1 - 1:l2, c1 - 1:c2]
     for k in range(nmax):
         weight = np.clip(scaled[k] - r, 0.0, 1.0) * (r <= scaled[k])
         sums[k] = float((weight * box).sum())
         areas[k] = float(weight.sum())
         covered = weight > 0
+        if vbox is not None:
+            sumvar[k] = float((weight ** 2 * vbox).sum())
+        if qbox is not None:
+            bits[k] = int(np.bitwise_or.reduce(qbox[covered].astype(np.int64))) \
+                if covered.any() else 0
         inside = box[covered]
         if nmin > nmax and ((inside < low) | (inside > high) | ~np.isfinite(inside)).any():
             nmin = k + 1
 
     ier = APERT_OK if nmax == nap else APERT_OUTOFBOUNDS
     if not np.isfinite(sky.value):
-        return Apertures(radii, sums, areas, flux, mag, merr, APERT_NOSKYMODE)
+        return Apertures(radii, sums, areas, flux, mag, merr, APERT_NOSKYMODE, sumvar, bits)
     if ier == APERT_OK and nmin <= nmax:
         ier = APERT_BADDATA
     usable = min(nmin - 1, nmax)
@@ -683,4 +713,4 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
             err += sigma ** 2 * areas[k] ** 2 / sky.nsky
         merr[k] = 1.0857 * np.sqrt(err) / f if err > 0 else 0.0
         mag[k] = zmag - 2.5 * np.log10(f) + 2.5 * np.log10(dpars.itime)
-    return Apertures(radii, sums, areas, flux, mag, merr, ier)
+    return Apertures(radii, sums, areas, flux, mag, merr, ier, sumvar, bits)

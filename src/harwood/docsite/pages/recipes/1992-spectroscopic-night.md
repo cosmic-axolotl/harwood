@@ -171,8 +171,10 @@ Three things worth knowing about what that command did:
   more. It earns its keep on a faint spectrum, where the read noise at the
   edges of the profile is what a plain sum is throwing away: fifty times
   fainter, the plain sum scatters 48 per cent more, measured as scatter
-  about a known answer rather than as a claimed error bar. It is also the
-  only extraction with an uncertainty for every point.
+  about a known answer rather than as a claimed error bar. Either way the
+  `error` column comes from the variance ccdproc carried: through these
+  weights, or through a plain sum's -- which IRAF gave no uncertainty at
+  all.
 - **The trace.** The spectrum does not sit on one column; the camera has
   distortion and the instrument flexes. Here it drifts −1.51 pixels end to end,
   fitted to 0.017 pixels rms (`--explain` prints both). The trace goes to

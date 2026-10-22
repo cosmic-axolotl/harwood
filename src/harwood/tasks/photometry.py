@@ -795,11 +795,12 @@ class Phot(Task[PhotParams]):
         import numpy as np
         from astropy.table import Table
 
-        from ..core import apphot, catalog, images, output, provenance
+        from ..core import apphot, catalog, images, mef, output, provenance
 
         if params.interactive or params.icommands:
             return _by_cursor(self, params, "phot")
         data, header = images.read(params.image)
+        _, _, variance, quality = mef.load(params.image)
         catalogue = catalog.read(_need_coords(params))
         x0, y0 = catalog.coordinates(catalogue, params.coords)
         dpars = _datapars(params, header)
@@ -813,7 +814,8 @@ class Phot(Task[PhotParams]):
             s = apphot.fitsky(data, c.x, c.y, spars, dpars, cursor, skyfile)
             centres.append(c)
             skies.append(s)
-            measured.append(apphot.apertures(data, c.x, c.y, radii, s, params.zmag, dpars))
+            measured.append(apphot.apertures(data, c.x, c.y, radii, s, params.zmag, dpars,
+                                             variance, quality))
 
         out = Table({"id": _ids(catalogue, len(x0)), "xinit": x0, "yinit": y0,
                      "x": [c.x for c in centres], "y": [c.y for c in centres],
@@ -831,12 +833,26 @@ class Phot(Task[PhotParams]):
                 name = {"sums": "sum", "areas": "area"}.get(column, column)
                 out[f"{name}{suffix}"] = [getattr(m, column)[k] for m in measured]
             out[f"pier{suffix}"] = [m.ier for m in measured]
+            if variance is not None:
+                # Section 12: the error the image's own variance gives, flat
+                # field and all; IRAF's, from epadu and the sky alone, is kept
+                # beside it for anyone comparing with an IRAF reduction.
+                ferr = [m.flux_error(sky, k) for m, sky in zip(measured, skies, strict=True)]
+                out[f"merr_model{suffix}"] = out[f"merr{suffix}"]
+                out[f"ferr{suffix}"] = ferr
+                out[f"merr{suffix}"] = [
+                    1.0857 * e / m.flux[k] if np.isfinite(e) and m.flux[k] > 0 else np.nan
+                    for m, e in zip(measured, ferr, strict=True)]
+            if quality is not None and np.any(quality):
+                out[f"pdq{suffix}"] = [int(m.dq[k]) for m in measured]
 
         destination = params.output or output.named_for(params.image, ".mag")
         catalog.write(out, destination,
                       harwood_image=str(params.image),
                       harwood_itime=dpars.itime,
                       harwood_zmag=params.zmag,
+                      harwood_merr="the image's VAR" if variance is not None
+                      else "IRAF's model: epadu and the sky",
                       harwood_call=provenance.current_stamp() or "")
 
         first = "" if len(radii) == 1 else f"_{radii[0]:g}"
@@ -867,6 +883,23 @@ class Phot(Task[PhotParams]):
         warnings = (_flags(out["cier"], "cier", _CENTER_FIX)
                     + _flags(out["sier"], "sier", _SKY_FIX)
                     + _flags(out[f"pier{first}"], "pier", _APERT_FIX))
+        if f"pdq{first}" in out.colnames:
+            touched = np.asarray(out[f"pdq{first}"]) != 0
+            if touched.any():
+                from ..core import dq
+
+                example = int(np.asarray(out[f"pdq{first}"])[touched][0])
+                warnings.append(advice.warn(
+                    f"{int(touched.sum())} of {len(out)} stars have pixels the DQ "
+                    f"flags inside the aperture -- for one, {dq.describe(example)}. "
+                    "Their magnitudes are measured on values that are not all "
+                    "measurements.",
+                    "look at the pdq column; a saturated star needs a shorter "
+                    "exposure, and a cosmic ray can be cleaned (cosmicrays) or "
+                    "left out by combining frames (imcombine)."))
+        if variance is None:
+            by_action["measure"].measured["errors"] = (
+                "IRAF's model (epadu and the sky): the image has no VAR")
         return TaskResult(
             outputs=[destination], steps=steps, warnings=warnings,
             data={"stars": len(out), "measured": int(good.sum()),
