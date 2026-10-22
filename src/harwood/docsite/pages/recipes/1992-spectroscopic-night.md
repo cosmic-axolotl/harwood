@@ -15,7 +15,7 @@ where the answer actually comes from.
 data      ~/iraf/exercises/spec/fsp0001 .. fsp0025
 detector  Tektronix 1024 (te1k), 133 x 1024 raw
 site      Kitt Peak, coudé feed
-gain      5.4 e-/ADU, read noise 5 e-   (from the header, not assumed)
+gain      5.4 e-/ADU, read noise 3.5 e-   (GAIN and RDNOISE, in every header)
 ```
 
 ---
@@ -96,6 +96,15 @@ Twelve frames: the flats, both arcs, and all six object exposures. Each comes
 out 101 x 1024, with `OVERSCAN`, `TRIM` and `ZEROCOR` marks in its header so
 running this again corrects nothing twice.
 
+Each also comes out with its uncertainty beside it. A harwood image holds
+three planes -- `SCI`, the data; `VAR`, its variance; `DQ`, why a pixel is not
+to be trusted -- and the variance is born here: with the overscan and the bias
+off, what is left counts the electrons each pixel collected, so its variance is
+data/gain + (read noise/gain)², worked out from `GAIN` and `RDNOISE` in the
+header. Everything downstream carries it. To take the frames to IRAF instead,
+`--format iraf` writes the data alone in one HDU, as IRAF reads it, and says
+that the variance stayed behind.
+
 ## 4. When each exposure happened
 
 ```console
@@ -140,8 +149,8 @@ rounding error.
 
 ```console
 $ harwood apall p/sp0019.fits sp0019.ms.fits \
-      --gain 5.4 --readnoise 5 --nsum 20 --t-step 20 --weights variance
-ok apall in 1.35s
+      --gain GAIN --readnoise RDNOISE --nsum 20 --t-step 20 --weights variance
+ok apall in 0.58s
   apertures: 1
   centres: 53.95
   limits: -2.90:+2.87
@@ -156,7 +165,7 @@ Three things worth knowing about what that command did:
 - **`--weights variance`** is Horne's optimal extraction: the spatial profile
   is modelled along the dispersion, and each row across the slit is then
   weighted by that profile and by its variance rather than simply summed.
-  These are 1200-second exposures at a signal-to-noise of 88 per pixel: the
+  These are 1200-second exposures at a signal-to-noise of 89 per pixel: the
   noise is photons, and there is little for the weighting to recover -- on a
   synthetic spectrum that bright, the plain sum scatters under one per cent
   more. It earns its keep on a faint spectrum, where the read noise at the
@@ -168,9 +177,12 @@ Three things worth knowing about what that command did:
   distortion and the instrument flexes. Here it drifts −1.51 pixels end to end,
   fitted to 0.017 pixels rms (`--explain` prints both). The trace goes to
   `database/apsp0019`.
-- **`--gain 5.4`** comes from the header. Guessing it -- 3 is a common default
-  -- would leave every uncertainty in the file overstated by 35 per cent, and
-  nothing would look wrong.
+- **`--gain GAIN --readnoise RDNOISE`** names the header keywords rather
+  than copying numbers out of them: 5.4 e-/ADU and 3.5 e-. Guessing the gain
+  -- 3 is a common default -- would leave every uncertainty in the file
+  overstated by 35 per cent, and nothing would look wrong. (An earlier
+  version of this recipe typed `--readnoise 5`, "from the header"; the header
+  says 3.5. Naming the keyword is how that mistake stops being possible.)
 
 To set the apertures by hand first:
 
@@ -395,15 +407,16 @@ $ harwood lineid sp0019.w.fits --features absorption
 
 | wavelength | species | line | offset |
 |---|---|---|---|
-| 4470.77 | He I | He I 4471 | -0.708 |
-| 4471.43 | He I | He I 4471 | -0.052 |
-| 4540.94 | He II | He II 4541.59 | -0.646 |
+| 4471.43 | He I | He I 4471 | -0.053 |
+| 4541.17 | He II | He II 4541.59 | -0.422 |
 | 4541.85 | He II | He II 4541.59 | 0.262 |
 
-DH Cep shows helium, neutral and ionised: an O star. Each line is found twice,
-under an Ångström apart, and that is not two stars: these lines are four or
-five Ångströms wide, and at a signal-to-noise of 90 the bottom of a line that
-broad can show two minima from the noise alone.
+DH Cep shows helium, neutral and ionised: an O star. He II comes out twice,
+0.7 Å apart, and that is not two stars: these lines are four or five
+Ångströms wide, and at a signal-to-noise of 89 the bottom of a line that broad
+can show two minima from the noise alone. The proof is how fragile it is: with
+the read noise mistyped as 5 e- the extraction weights moved a little, and He I
+split in two while He II's minima moved by a quarter of an Ångström.
 
 AH Cep's first exposure is a different matter:
 

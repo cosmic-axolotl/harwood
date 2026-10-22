@@ -18,9 +18,9 @@ apertures and traces go to `database/ap<image>`, as in IRAF, where the next
 frame can reuse them.
 
 ```console
-$ harwood apall p/sp0019.fits sp0019.ms.fits --gain 5.4 --readnoise 5 \
+$ harwood apall p/sp0019.fits sp0019.ms.fits --gain GAIN --readnoise RDNOISE \
       --nsum 20 --t-step 20 --weights variance
-ok apall in 0.24s
+ok apall in 0.58s
   apertures: 1
   centres: 53.95
   limits: -2.90:+2.87
@@ -69,7 +69,7 @@ not.
   scatter about a known answer: on a bright synthetic spectrum the plain sum
   scatters under one per cent more than the optimal one, and on one fifty
   times fainter, 48 per cent more. The 1992 frames, at a signal-to-noise of
-  88 per pixel, are of the bright kind. `--clean` also replaces the pixels
+  89 per pixel, are of the bright kind. `--clean` also replaces the pixels
   the profile says are cosmic rays.
 - **`--background`** fits the sky across the slit in `--b-sample`, either
   side of the aperture, at every line, and subtracts it under the aperture.
