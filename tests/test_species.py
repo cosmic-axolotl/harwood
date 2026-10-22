@@ -257,6 +257,34 @@ def test_lineid_says_when_the_object_is_shifted(calibrated_star):
         150.0, abs=10.0)
 
 
+def test_lines_a_pixel_apart_at_rest_are_not_called_misidentified(tmp_path, monkeypatch):
+    """A star at rest whose line centres scatter by a pixel is a measurement,
+    not 'a set of misidentifications': the check used to compare the scatter
+    with the shift itself, and a shift near zero made any scatter a problem.
+    (DH Cep's He II, two minima 0.7 A apart, was flagged that way.)"""
+    from harwood.core import spectrum
+    from harwood.core.registry import get_task
+
+    monkeypatch.chdir(tmp_path)
+    wavelength = np.linspace(6500.0, 6800.0, 1500)            # 0.2 A, 9 km/s a pixel
+    flux = np.full(wavelength.size, 1000.0)
+    # Two of the confident lines a pixel to the red, two to the blue: the
+    # shift is zero, the scatter a pixel. (Li I is ambiguous and stays out.)
+    for centre, nudge in ((6562.80, 0.2), (6678.15, -0.2), (6613.6, -0.2),
+                          (6716.44, 0.2), (6707.76, 0.0)):
+        flux -= 400.0 * np.exp(-0.5 * ((wavelength - centre - nudge) / 0.9) ** 2)
+    ap = spectrum.Aperture(number=1, centre=50.0, low=-8.0, high=8.0,
+                           pixel=np.arange(1.0, wavelength.size + 1.0),
+                           wavelength=wavelength, flux=flux,
+                           error=np.full(wavelength.size, 4.0))
+    spectrum.write(tmp_path / "rest.fits", [ap])
+    result = get_task("lineid").run(input="rest.fits", output=tmp_path / "r.csv",
+                                    features="absorption", tolerance=1.0)
+    step, = [item for item in result.steps if item.action == "velocity"]
+    assert float(step.measured["scatter"].split()[0]) > 3.0, "it does scatter"
+    assert not any("do not agree on a shift" in str(w) for w in result.warnings)
+
+
 def test_lineid_writes_a_table_that_explains_its_own_columns(calibrated_star):
     from harwood.core.registry import get_task
 

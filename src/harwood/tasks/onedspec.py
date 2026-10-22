@@ -1987,8 +1987,12 @@ class LineId(Task[LineIdParams]):
             }
             # Lines that agree on a shift are a measurement; lines scattered
             # over hundreds of km/s are a set of misidentifications wearing a
-            # median. Which of the two this is has to be said.
-            if scatter > 3.0 * max(abs(median), 1.0):
+            # median. Which of the two this is has to be said. A pixel is the
+            # least a line centre can scatter by: a star at rest, its lines a
+            # pixel apart, is not a set of misidentifications.
+            pixel_kms = 299792.458 * float(np.median(np.abs(np.diff(wave)))
+                                           / np.median(wave))
+            if scatter > 3.0 * max(abs(median), pixel_kms, 1.0):
                 warnings.append(advice.problem(
                     f"the identified lines do not agree on a shift: "
                     f"{median:+.1f} km/s with a scatter of {scatter:.1f}. Lines "
