@@ -480,3 +480,18 @@ def test_indef_is_irafs_no_value_on_the_command_line(run, tmp_path, monkeypatch)
     assert replay.command("autoidentify", cls.Params, values) == \
         "harwood autoidentify arc.fits INDEF INDEF"
     assert "FLOAT OR INDEF" in run("daofind", "--help").output
+
+
+def test_a_number_or_a_keyword_takes_either_at_the_command_line():
+    """--gain 5.4 and --gain GAIN: apall's and ccdproc's gain and read noise
+    are a number or the header keyword holding it. The command line used to
+    take only the number."""
+    import click
+
+    from harwood.cli.build import parameters_for
+    from harwood.core.registry import get_task
+
+    for task in ("apall", "ccdproc"):
+        options = {p.name: p for p in parameters_for(get_task(task).Params)}
+        for name in ("gain", "readnoise"):
+            assert options[name].type is click.STRING, (task, name)

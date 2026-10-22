@@ -38,6 +38,11 @@ def _unwrap(annotation: Any) -> tuple[Any, bool]:
         args = [a for a in get_args(annotation) if a is not type(None)]
         if len(args) == 1:
             return args[0], True
+        # A number or a keyword (--gain 5.4 or --gain GAIN): taken as text,
+        # which the task reads as a number when it is one. Taking the first
+        # type alone turned the keyword away at the command line.
+        if str in args:
+            return str, type(None) in get_args(annotation)
         return args[0], type(None) in get_args(annotation)
     return annotation, False
 
