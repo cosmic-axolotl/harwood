@@ -22,7 +22,7 @@ class HeadlessDisplay:
     def show(self, data: Any, header: Any = None, frame: int = 1,
              name: str = "", scale: str = "zscale",
              window: tuple[float, float] | None = None, stretch: str | None = None,
-             table: Any = None) -> None:
+             table: Any = None, quality: Any = None) -> None:
         self._frames[frame] = (data, name, scale, window, stretch, table)
         self._render(frame)
 

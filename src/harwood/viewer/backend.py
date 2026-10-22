@@ -34,9 +34,9 @@ class NativeDisplay:
     def show(self, data: Any, header: Any = None, frame: int = 1,
              name: str = "", scale: str = "zscale",
              window: tuple[float, float] | None = None, stretch: str | None = None,
-             table: Any = None) -> None:
+             table: Any = None, quality: Any = None) -> None:
         self.window.load(data, header, frame=frame, name=name, scale=scale,
-                         window=window, stretch=stretch, table=table)
+                         window=window, stretch=stretch, table=table, quality=quality)
         self._pump()
 
     def mark(self, markers: list[Marker], frame: int = 1) -> None:

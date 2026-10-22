@@ -501,12 +501,17 @@ def _in_window(session, data, header, params) -> None:
         return ""
 
     window.key_hook, window.colon_hook = key, colon
+    from ..core import photsession
+
+    window.set_task_keys(session.task, photsession.HELP)
     window.log(f"{session.task}: space measures and writes, n the next star, l the "
-               "rest, :annulus 12 sets a parameter, q ends.")
+               "rest, :annulus 12 sets a parameter, q ends -- the Keys panel has "
+               "them all.")
     try:
         window.wait_for_examine()
     finally:
         window.key_hook = window.colon_hook = None
+        window.set_task_keys(None)
 
 
 def _sky_sources(params):

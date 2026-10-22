@@ -32,7 +32,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import apextract
-from . import theme
+from . import keyguide, theme
 from ._qt import application, on_main
 from .theme import palette as _c
 
@@ -90,9 +90,7 @@ class AperturePanel(QtWidgets.QWidget):
         self.status.setObjectName("status")
         layout.addWidget(self.status)
 
-        self.keys = QtWidgets.QLabel(
-            "   ".join(f"[{key}] {what}" for key, what in HELP[:5]))
-        self.keys.setObjectName("keys")
+        self.keys = keyguide.strip(HELP)
         layout.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()
@@ -207,7 +205,7 @@ class AperturePanel(QtWidgets.QWidget):
             self.plot.autoRange(padding=0.02)
             self.redraw()
         elif key == "?":
-            self.keys.setText("   ".join(f"[{k}] {w}" for k, w in HELP))
+            self.keys.show()                      # every key is listed already
         elif key == "q":
             self.finished.emit()
         elif key == ":":

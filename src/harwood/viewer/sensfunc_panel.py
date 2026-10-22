@@ -14,7 +14,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import sensfunc as sf
-from . import theme
+from . import keyguide, theme
 from ._qt import on_main
 from .theme import palette as _c
 
@@ -45,7 +45,7 @@ class SensfuncPanel(QtWidgets.QWidget):
         self.status = QtWidgets.QLabel("")
         self.status.setObjectName("status")
         layout.addWidget(self.status)
-        keys = QtWidgets.QLabel("   ".join(f"[{k}] {what}" for k, what in HELP))
+        keys = keyguide.strip(HELP)
         keys.setObjectName("keys")
         keys.setWordWrap(True)
         layout.addWidget(keys)

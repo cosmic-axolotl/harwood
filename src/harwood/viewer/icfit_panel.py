@@ -30,7 +30,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import icfit
-from . import theme
+from . import keyguide, theme
 from ._qt import on_main
 from .theme import palette as _c
 
@@ -43,8 +43,8 @@ HELP = [
     ("y", "cycle the vertical axis: data, residuals, ratio"),
     ("r", "redraw"),
     ("q", "accept this fit and leave"),
-    (":order 3", "any icfit parameter: function, order, sample,"),
-    ("", "naverage, niterate, low, high, grow"),
+    (":order 3", "any icfit parameter: function, order, sample, naverage, "
+                 "niterate, low, high, grow"),
 ]
 
 
@@ -91,9 +91,7 @@ class IcfitPanel(QtWidgets.QWidget):
         self.status.setObjectName("status")
         layout.addWidget(self.status)
 
-        self.keys = QtWidgets.QLabel(
-            "  ".join(f"[{key}] {what}" for key, what in HELP[:6] if key))
-        self.keys.setObjectName("keys")
+        self.keys = keyguide.strip(HELP)
         layout.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()
@@ -198,8 +196,7 @@ class IcfitPanel(QtWidgets.QWidget):
             self.redraw()
         elif key == "?":
             self.command.setText("")
-            self.keys.setText("   ".join(f"[{k}] {what}" if k else what
-                                         for k, what in HELP))
+            self.keys.show()                      # every key is listed already
         elif key == "q":
             self.finished.emit()
         elif key == ":":

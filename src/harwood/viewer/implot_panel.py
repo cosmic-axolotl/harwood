@@ -18,7 +18,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import implot
-from . import theme
+from . import keyguide, theme
 from ._qt import on_main
 from .theme import palette as _c
 
@@ -71,9 +71,7 @@ class ImplotPanel(QtWidgets.QWidget):
         self.status.setObjectName("status")
         layout.addWidget(self.status)
 
-        self.keys = QtWidgets.QLabel(
-            "   ".join(f"[{key}] {what}" for key, what in HELP[:5]))
-        self.keys.setObjectName("keys")
+        self.keys = keyguide.strip(HELP)
         layout.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()
@@ -145,7 +143,7 @@ class ImplotPanel(QtWidgets.QWidget):
             self.command.setText(":")
             return True
         if key == "?":
-            self.keys.setText("   ".join(f"[{k}] {w}" for k, w in HELP))
+            self.keys.show()                      # every key is listed already
             return True
         self.engine.status = []
         self.engine.key(key, *self._cursor)

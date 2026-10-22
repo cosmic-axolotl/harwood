@@ -39,9 +39,9 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from ..core import examine, logfile, pixels, render
+from ..core import dq, examine, logfile, pixels, render
 from ..core.display import Marker
-from . import theme
+from . import keyguide, theme
 from .theme import palette as _c
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=False)
@@ -68,7 +68,14 @@ KEYS = {
     "?": "list these keys",
     "q": "end imexamine, when it is running as a task",
     "Z": "reset the view to the whole image",
+    "D": "show or hide the DQ layer",
 }
+
+#: The colour each DQ reason is drawn in, as a theme token -- the hover text
+#: and the legend name it too, so the colour is never all there is.
+DQ_COLOURS = {dq.BAD_PIXEL: "problem", dq.NON_LINEAR: "band", dq.SATURATED: "warning",
+              dq.COSMIC_RAY: "note", dq.NO_DATA: "muted", dq.OVERLAP: "accent",
+              dq.UNILLUMINATED: "line"}
 
 
 def _wireframe(plot: dict) -> list[tuple[np.ndarray, np.ndarray]]:
@@ -99,8 +106,12 @@ class Frame:
     """One loaded image and how it is being shown."""
 
     def __init__(self, data: np.ndarray, header: Any = None, name: str = "",
-                 window: tuple[float, float] | None = None, table: Any = None) -> None:
+                 window: tuple[float, float] | None = None, table: Any = None,
+                 quality: Any = None) -> None:
         self.data = np.asarray(data, dtype=float)
+        #: the image's DQ (section 12), when it has a flagged pixel
+        self.quality = (np.asarray(quality) if quality is not None and np.any(quality)
+                        and np.shape(quality) == self.data.shape else None)
         self.header = header
         self.name = name or "image"
         #: z1 and z2 as the display task worked them out, shown under "z1 z2"
@@ -193,6 +204,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._build_image()
         self._build_tasks()
         self._build_examine()
+        self._build_keys()
         self._build_params()
         self._build_work()
         self._build_files()
@@ -201,6 +213,13 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._build_status()
         self._build_panels_menu()
 
+        # The Keys strip goes above the command line, the window's width,
+        # rather than beside it at half.
+        if hasattr(self, "session_dock"):
+            self.splitDockWidget(self.keys_dock, self.session_dock,
+                                 QtCore.Qt.Orientation.Vertical)
+            self.resizeDocks([self.keys_dock], [self.key_guide.wanted_height()],
+                             QtCore.Qt.Orientation.Vertical)
         self._build_shortcuts()
         self._default_state = self.saveState()
 
@@ -208,8 +227,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         set_window(self)
 
-        self.log("harwood viewer. Hover for coordinates; press ? over the image "
-                 "for the examine keys.")
+        self.log("harwood viewer. Hover for coordinates; the Keys panel under the "
+                 "image lists what each key does (F2 hides it).")
         self.log("Ctrl+ and Ctrl- resize the text, Ctrl+0 resets it. "
                  "F11 full screen, Ctrl+M maximise, Ctrl+Shift+R puts the "
                  "panels back where they started.")
@@ -432,6 +451,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 action.setText("Files (the text editor)")
             if dock is getattr(self, "docs_dock", None):
                 action.setText("Documentation (F1)")
+            if dock is getattr(self, "keys_dock", None):
+                action.setText("Keys (what works on the image now)")
+                action.setShortcut(QtGui.QKeySequence("F2"))
             panels.addAction(action)
         panels.addAction("Go to the prompt", self.go_to_prompt, QtGui.QKeySequence("Ctrl+L"))
         panels.addSeparator()
@@ -604,7 +626,13 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.view.setMenuEnabled(False)
         self.image_item = pg.ImageItem()
         self.view.addItem(self.image_item)
+        # The DQ layer sits between the pixels and the marks; D hides it.
+        self.dq_item = pg.ImageItem()
+        self.dq_item.setZValue(1)
+        self.view.addItem(self.dq_item)
+        self.show_dq = True
         self.overlay = pg.ItemGroup()
+        self.overlay.setZValue(2)
         self.view.addItem(self.overlay)
 
         self.graphics.scene().sigMouseMoved.connect(self._mouse_moved)
@@ -669,6 +697,58 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         dock.setWidget(body)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
         self.examine_dock = dock
+
+    def _build_keys(self) -> None:
+        """The keys that work on the image now, always in view (F2)."""
+        dock = QtWidgets.QDockWidget("Keys")
+        dock.setObjectName("keys")
+        self.key_guide = keyguide.KeyGuide()
+        dock.setWidget(self.key_guide)
+        # Under the image, the width of the window, above the command line:
+        # a strip to glance down at, not a list to scroll.
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        self.keys_dock = dock
+        #: (task, its keys) while a task holds the lower case ones
+        self._task_keys: tuple[str, Any] | None = None
+        self._refresh_keys()
+
+    def set_task_keys(self, task: str | None, keys: Any = None) -> None:
+        """A task takes the lower case keys (tvmark, phot's cursor mode), or
+        gives them back with None; the Keys panel follows."""
+        self._task_keys = (task, keys) if task else None
+        self._refresh_keys()
+
+    def _refresh_keys(self) -> None:
+        if not hasattr(self, "key_guide"):
+            return
+        frame = self.frames.get(self.current)
+        if self._task_keys is not None:
+            task, keys = self._task_keys
+            title = f"{task}: the keys at the cursor"
+            first = (f"{task} (lower case)", keys)
+        elif frame is not None:
+            title = "imexamine: the keys at the cursor"
+            first = ("measure (lower case)",
+                     {**examine.KEYS, "q": "end imexamine, when it runs as a task"})
+        else:
+            title = "Display an image to measure it"
+            first = ("measure, once an image is shown", examine.KEYS)
+        legend = []
+        if frame is not None and frame.quality is not None:
+            bits = frame.quality.astype(np.int64)
+            for bit, name in dq.NAMES.items():
+                count = int(np.count_nonzero(bits & bit))
+                if count:
+                    legend.append((getattr(_c(), DQ_COLOURS[bit]), name,
+                                   f"{count} px" + ("" if self.show_dq else ", hidden")))
+        changed = title != self.key_guide.title
+        self.key_guide.show_keys(title, [first, ("the window (upper case)", keyguide.WINDOW),
+                                         ("the mouse", keyguide.MOUSE)], legend)
+        if changed and hasattr(self, "session_dock") and self.keys_dock.isVisible():
+            # A new set of keys gets the height it needs; between changes the
+            # strip keeps whatever height it was dragged to.
+            self.resizeDocks([self.keys_dock], [self.key_guide.wanted_height()],
+                             QtCore.Qt.Orientation.Vertical)
 
     def _build_params(self) -> None:
         """The parameter editor, section 5: it explains rather than just accepts."""
@@ -907,10 +987,12 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def load(self, data, header=None, frame: int = 1, name: str = "",
              scale: str = "zscale", window: tuple[float, float] | None = None,
-             stretch: str | None = None, table: Any = None) -> None:
+             stretch: str | None = None, table: Any = None, quality: Any = None) -> None:
         """Show an image in a frame. With `window`, the limits are those z1
-        and z2 (the display task's), listed as "z1 z2" in the scale box."""
-        self.frames[frame] = Frame(data, header, name, window=window, table=table)
+        and z2 (the display task's), listed as "z1 z2" in the scale box;
+        with `quality`, its DQ, drawn as a layer D shows and hides."""
+        self.frames[frame] = Frame(data, header, name, window=window, table=table,
+                                   quality=quality)
         self.current = frame
         labels = [f"{n}  {f.name}" for n, f in sorted(self.frames.items())]
         self.frame_box.blockSignals(True)
@@ -974,9 +1056,27 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         shown = self.rendered(frame)[::-1]
         self.image_item.setImage(shown, autoLevels=False, levels=(0, 255))
 
+        self._draw_dq(frame)
         self._draw_overlay(frame)
+        self._refresh_keys()
         if reset_view:
             self.view.autoRange(padding=0.02)
+
+    def _draw_dq(self, frame: Frame) -> None:
+        """The flagged pixels in their reason's colour, half transparent; a
+        pixel with several reasons takes the first, and the hover text names
+        them all."""
+        if frame.quality is None or not self.show_dq:
+            self.dq_item.clear()
+            return
+        bits = frame.quality.astype(np.int64)
+        rgba = np.zeros(bits.shape + (4,), dtype=np.ubyte)
+        for bit in reversed(list(dq.NAMES)):
+            hit = (bits & bit) != 0
+            if hit.any():
+                colour = QtGui.QColor(getattr(_c(), DQ_COLOURS[bit]))
+                rgba[hit] = (colour.red(), colour.green(), colour.blue(), 150)
+        self.dq_item.setImage(rgba[::-1], autoLevels=False)
 
     def _draw_overlay(self, frame: Frame) -> None:
         for item in list(self.overlay.childItems()):
@@ -1037,6 +1137,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         row, col = int(round(y)) - 1, int(round(x)) - 1
         inside = 0 <= row < frame.data.shape[0] and 0 <= col < frame.data.shape[1]
         value = f"{frame.data[row, col]:.1f}" if inside else "-"
+        reason = ""
+        if inside and frame.quality is not None and frame.quality[row, col]:
+            reason = f"    DQ = {dq.describe(int(frame.quality[row, col]))}"
 
         sky = ""
         if frame.wcs is not None and inside:
@@ -1047,7 +1150,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             except Exception:
                 sky = ""
         self.status.setText(
-            f"  x = {x:8.2f}   y = {y:8.2f}   (1-based)    value = {value:>10}{sky}"
+            f"  x = {x:8.2f}   y = {y:8.2f}   (1-based)    value = {value:>10}{sky}{reason}"
         )
         self._cursor = (x, y)
 
@@ -1068,6 +1171,15 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 self.view.autoRange(padding=0.02)
                 self.log("  [Z] view reset")
                 return True
+            if key == "D":
+                self.show_dq = not self.show_dq
+                if frame is not None:
+                    self._draw_dq(frame)
+                self._refresh_keys()
+                self.log(f"  [D] DQ layer {'shown' if self.show_dq else 'hidden'}"
+                         + ("" if frame is not None and frame.quality is not None
+                            else " -- this frame has no flagged pixel"))
+                return True
             return False
 
         if self.key_hook is not None:
@@ -1077,7 +1189,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 return False
             return self.key_hook(key, *position)
         if key == "?":
-            for name, what in KEYS.items():
+            for name, what in self.key_guide.entries():
                 self.log(f"  [{name}] {what}")
             return True
         if key == "q":

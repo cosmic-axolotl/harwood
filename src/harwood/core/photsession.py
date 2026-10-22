@@ -23,6 +23,19 @@ from dataclasses import dataclass, field, fields
 
 from . import apphot
 
+#: The keys, as the window's Keys panel lists them (the docstring above, key
+#: by key).
+HELP = [("space", "centre, sky and magnitudes at the cursor, written"),
+        ("f", "the same, not written"), ("c", "centre at the cursor"),
+        ("t", "sky at the cursor"), ("s", "sky at the centre"),
+        ("a", "average the sky over several positions: t each, q ends"),
+        ("p", "magnitudes with the sky as it is"), ("o", "the same, written"),
+        ("m", "move to the next star of the list"), ("n", "measure the next star"),
+        ("l", "measure all the rest"), ("r", "rewind the list"),
+        ("e", "the last errors"), ("q", "quit"),
+        (":m N  :n N", "move to, measure star N"),
+        (":name value", "set a parameter: :annulus 12, :apertures 3,5")]
+
 
 @dataclass
 class Row:

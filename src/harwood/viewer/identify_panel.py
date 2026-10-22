@@ -24,7 +24,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import arc, icfit
-from . import theme
+from . import keyguide, theme
 from ._qt import on_main
 from .icfit_panel import IcfitPanel
 from .theme import palette as _c
@@ -89,9 +89,7 @@ class IdentifyPanel(QtWidgets.QWidget):
         self.fit_panel.command.hide()
         layout.addWidget(self.fit_panel, stretch=2)
 
-        self.keys = QtWidgets.QLabel(
-            "   ".join(f"[{key}] {what}" for key, what in HELP[:4]))
-        self.keys.setObjectName("keys")
+        self.keys = keyguide.strip(HELP)
         layout.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()
@@ -188,7 +186,7 @@ class IdentifyPanel(QtWidgets.QWidget):
         elif key == ".":
             self._list()
         elif key == "?":
-            self.keys.setText("   ".join(f"[{k}] {w}" for k, w in HELP))
+            self.keys.show()                      # every key is listed already
         elif key == "q":
             self.finished.emit()
         elif key == ":":

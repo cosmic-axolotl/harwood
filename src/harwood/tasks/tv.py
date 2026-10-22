@@ -222,16 +222,22 @@ class Display(Task[DisplayParams]):
         return steps
 
     def execute(self, params: DisplayParams) -> TaskResult:
-        from ..core import catalog, display, images
+        import numpy as np
+
+        from ..core import catalog, display, images, mef
 
         data, header = images.read(params.image)
+        _, _, _, quality = mef.load(params.image)
         z1, z2, table, notes = display_limits(params, data, header)
         steps = self.plan(params)
         steps[1].measured = {"z1": z1, "z2": z2}
+        if quality.any():
+            steps[1].measured["flagged in the DQ"] = int(np.count_nonzero(quality))
         screen = display.get(params.backend or None)
         stretch = {"linear": None, "log": "log", "none": "none", "user": "user"}[params.ztrans]
         screen.show(data, header, frame=params.frame, name=str(params.image),
-                    window=(z1, z2), stretch=stretch, table=table)
+                    window=(z1, z2), stretch=stretch, table=table,
+                    quality=quality if quality.any() else None)
 
         if params.coords:
             table_xy = catalog.read(params.coords)
@@ -489,11 +495,19 @@ def _interactive(screen, engine, params) -> None:
         return answer
 
     window.key_hook, window.colon_hook = key, colon
-    window.log("tvmark: point and press a key; ? lists them, q ends.")
+    window.set_task_keys("tvmark", tvmark_keys())
+    window.log("tvmark: point and press a key -- the Keys panel lists them; q ends.")
     try:
         window.wait_for_examine()
     finally:
         window.key_hook = window.colon_hook = None
+        window.set_task_keys(None)
+
+
+def tvmark_keys():
+    from ..core import tvmark
+
+    return tvmark.HELP
 
 
 def _write_snaps(engine, params, data, header, window) -> list[Path]:
