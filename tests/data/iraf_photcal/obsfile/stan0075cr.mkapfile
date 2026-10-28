@@ -1,0 +1,7 @@
+# Magnitudes corrected to aperture 11
+
+#                 Image      Filter   Exptime Airmass        Otime   Xcenter   Ycenter      Mag     Merr  Radius  Obj
+
+        stan0075cr.fits           V    120.00   1.216    1:37:36.0    430.99    459.04   -6.501    0.040   4.000  1s
+        stan0075cr.fits           V    120.00   1.216    1:37:36.0    283.60    484.04   -8.543    0.011   9.000  2s
+        stan0075cr.fits           V    120.00   1.216    1:37:36.0    231.54    275.44   -6.931    0.043   4.000  3s

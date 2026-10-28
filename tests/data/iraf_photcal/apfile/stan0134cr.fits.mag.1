@@ -1,0 +1,147 @@
+#K IRAF       = CommunityIRAFV2.18.1    version    %-23s     
+#K USER       = costamands              name       %-23s     
+#K HOST       = costa.mands             computer   %-23s     
+#K DATE       = 2026-10-21              yyyy-mm-dd %-23s     
+#K TIME       = 15:49:55                hh:mm:ss   %-23s     
+#K PACKAGE    = apphot                  name       %-23s     
+#K TASK       = phot                    name       %-23s     
+#
+#K SCALE      = 1.                      units      %-23.7g   
+#K FWHMPSF    = 6.5                     scaleunit  %-23.7g   
+#K EMISSION   = yes                     switch     %-23b     
+#K DATAMIN    = INDEF                   counts     %-23.7g   
+#K DATAMAX    = INDEF                   counts     %-23.7g   
+#K EXPOSURE   = EXPTIME                 keyword    %-23s     
+#K AIRMASS    = AIRMASS                 keyword    %-23s     
+#K FILTER     = FILTERS                 keyword    %-23s     
+#K OBSTIME    = TIME                    keyword    %-23s     
+#
+#K NOISE      = poisson                 model      %-23s     
+#K SIGMA      = 120.                    counts     %-23.7g   
+#K GAIN       = GAIN                    keyword    %-23s     
+#K EPADU      = 10.                     e-/adu     %-23.7g   
+#K CCDREAD    = RDNOISE                 keyword    %-23s     
+#K READNOISE  = 0.                      e-         %-23.7g   
+#
+#K CALGORITHM = centroid                algorithm  %-23s     
+#K CBOXWIDTH  = 8.                      scaleunit  %-23.7g   
+#K CTHRESHOLD = 0.                      sigma      %-23.7g   
+#K MINSNRATIO = 1.                      number     %-23.7g   
+#K CMAXITER   = 10                      number     %-23d     
+#K MAXSHIFT   = 1.                      scaleunit  %-23.7g   
+#K CLEAN      = no                      switch     %-23b     
+#K RCLEAN     = 1.                      scaleunit  %-23.7g   
+#K RCLIP      = 2.                      scaleunit  %-23.7g   
+#K KCLEAN     = 3.                      sigma      %-23.7g   
+#
+#K SALGORITHM = mode                    algorithm  %-23s     
+#K ANNULUS    = 30.                     scaleunit  %-23.7g   
+#K DANNULUS   = 10.                     scaleunit  %-23.7g   
+#K SKYVALUE   = 0.                      counts     %-23.7g   
+#K KHIST      = 3.                      sigma      %-23.7g   
+#K BINSIZE    = 0.1                     sigma      %-23.7g   
+#K SMOOTH     = no                      switch     %-23b     
+#K SMAXITER   = 10                      number     %-23d     
+#K SLOCLIP    = 0.                      percent    %-23.7g   
+#K SHICLIP    = 0.                      percent    %-23.7g   
+#K SNREJECT   = 50                      number     %-23d     
+#K SLOREJECT  = 3.                      sigma      %-23.7g   
+#K SHIREJECT  = 3.                      sigma      %-23.7g   
+#K RGROW      = 0.                      scaleunit  %-23.7g   
+#
+#K WEIGHTING  = constant                model      %-23s     
+#K APERTURES  = 1.,2.,3.,4.,5.,6.,7.,8. scaleunit  %-23s     
+#K ZMAG       = 0.                      zeropoint  %-23.7g   
+#
+#N IMAGE               XINIT     YINIT     ID    COORDS                 LID    \
+#U imagename           pixels    pixels    ##    filename               ##     \
+#F %-23s               %-10.3f   %-10.3f   %-6d  %-23s                  %-6d    
+#
+#N XCENTER    YCENTER    XSHIFT  YSHIFT  XERR    YERR            CIER CERROR   \
+#U pixels     pixels     pixels  pixels  pixels  pixels          ##   cerrors  \
+#F %-14.3f    %-11.3f    %-8.3f  %-8.3f  %-8.3f  %-15.3f         %-5d %-9s      
+#
+#N MSKY           STDEV          SSKEW          NSKY   NSREJ     SIER SERROR   \
+#U counts         counts         counts         npix   npix      ##   serrors  \
+#F %-18.7g        %-15.7g        %-15.7g        %-7d   %-9d      %-5d %-9s      
+#
+#N ITIME          XAIRMASS       IFILTER                OTIME                  \
+#U timeunit       number         name                   timeunit               \
+#F %-18.7g        %-15.7g        %-23s                  %-23s                   
+#
+#N RAPERT   SUM           AREA       FLUX          MAG    MERR   PIER PERROR   \
+#U scale    counts        pixels     counts        mag    mag    ##   perrors  \
+#F %-12.2f  %-14.7g       %-11.7g    %-14.7g       %-7.3f %-6.3f %-5d %-9s      
+#
+stan0134cr.fits        335.001   371.872   1     stan0134cr.fits.coo.1  1      \
+   335.199    371.790    0.198   -0.082  0.004   0.003          0    NoError   \
+   4261.92        28.88521       8.550496       2187   7        0    NoError   \
+   300.           1.354          B                      05:12:02               \
+   1.00     21739.22      3.401747   7241.247      -3.457 0.009 0    NoError  *\
+   2.00     80890.03      12.81526   26272.41      -4.856 0.005 0    NoError  *\
+   3.00     173581.1      28.60825   51655.06      -5.590 0.004 0    NoError  *\
+   4.00     289026.4      50.57332   73486.97      -5.973 0.003 0    NoError  *\
+   5.00     423279.3      78.79066   87479.85      -6.162 0.003 0    NoError  *\
+   6.00     577731.2      113.3366   94699.62      -6.248 0.004 0    NoError  *\
+   7.00     755106.       154.1235   98243.8       -6.288 0.004 0    NoError  *\
+   8.00     958668.1      201.4072   100286.6      -6.310 0.005 0    NoError  *\
+   9.00     1187385.      254.766    101592.8      -6.324 0.005 0    NoError  *\
+   10.00    1442454.      314.4512   102287.7      -6.332 0.006 0    NoError  *\
+   12.00    2032029.      452.6011   103079.4      -6.340 0.007 0    NoError  *\
+   14.00    2729620.      615.9967   104291.4      -6.353 0.009 0    NoError  *\
+   16.00    3534410.      804.6205   105181.7      -6.362 0.010 0    NoError  *\
+   18.00    4444213.      1018.056   105341.       -6.364 0.012 0    NoError  *\
+   20.00    5462741.      1256.87    106060.       -6.371 0.013 0    NoError  *\
+   22.00    6588020.      1520.719   106838.4      -6.379 0.015 0    NoError  *\
+   24.00    7820356.      1809.726   107447.4      -6.385 0.017 0    NoError  *\
+   26.00    9161137.      2124.114   108334.3      -6.394 0.019 0    NoError  *\
+   28.00    10607405.     2463.371   108713.9      -6.398 0.021 0    NoError  *\
+   30.00    12159582.     2827.524   108902.4      -6.400 0.023 0    NoError  * 
+stan0134cr.fits        187.714   396.727   2     stan0134cr.fits.coo.1  2      \
+   187.960    396.599    0.246   -0.128  0.002   0.002          0    NoError   \
+   4299.868       27.77011       -7.97449       2191   10       0    NoError   \
+   300.           1.354          B                      05:12:02               \
+   1.00     42996.8       3.51137    27898.37      -4.921 0.003 0    NoError  *\
+   2.00     150187.       12.64422   95818.49      -6.261 0.002 0    NoError  *\
+   3.00     312912.9      28.7033    189492.5      -7.001 0.001 0    NoError  *\
+   4.00     484315.2      50.46662   267315.4      -7.375 0.001 0    NoError  *\
+   5.00     654970.2      78.69042   316611.7      -7.559 0.001 0    NoError  *\
+   6.00     831059.4      113.565    342744.8      -7.645 0.001 0    NoError  *\
+   7.00     1017381.      153.8712   355755.1      -7.685 0.001 0    NoError  *\
+   8.00     1230527.      201.7651   362963.4      -7.707 0.001 0    NoError  *\
+   9.00     1461027.      254.4646   366863.3      -7.718 0.001 0    NoError  *\
+   10.00    1721804.      314.4724   369614.4      -7.727 0.002 0    NoError  *\
+   12.00    2317511.      452.2729   372796.9      -7.736 0.002 0    NoError  *\
+   14.00    3020923.      615.5012   374349.5      -7.740 0.002 0    NoError  *\
+   16.00    3834515.      804.5641   374995.3      -7.742 0.003 0    NoError  *\
+   18.00    4755373.      1018.567   375668.5      -7.744 0.003 0    NoError  *\
+   20.00    5782376.      1257.398   375729.       -7.744 0.004 0    NoError  *\
+   22.00    6914118.      1520.656   375498.2      -7.744 0.004 0    NoError  *\
+   24.00    8154325.      1809.203   374989.       -7.742 0.005 0    NoError  *\
+   26.00    9505920.      2123.482   375225.8      -7.743 0.005 0    NoError  *\
+   28.00    10967929.     2463.433   375491.8      -7.744 0.006 0    NoError  *\
+   30.00    12537058.     2828.373   375426.       -7.744 0.006 0    NoError  * 
+stan0134cr.fits        135.533   188.177   3     stan0134cr.fits.coo.1  3      \
+   135.704    188.179    0.171   0.002   0.005   0.003          0    NoError   \
+   4269.423       29.61752       8.715659       2197   6        0    NoError   \
+   300.           1.354          B                      05:12:02               \
+   1.00     20266.56      3.422098   5656.173      -3.189 0.011 0    NoError  *\
+   2.00     74411.21      12.78033   19846.56      -4.551 0.006 0    NoError  *\
+   3.00     160371.2      28.5798    38351.97      -5.267 0.005 0    NoError  *\
+   4.00     269638.       50.55898   53780.31      -5.634 0.005 0    NoError  *\
+   5.00     399614.8      78.80521   63162.        -5.808 0.005 0    NoError  *\
+   6.00     552209.       113.3908   68095.91      -5.890 0.005 0    NoError  *\
+   7.00     728684.3      154.1209   70677.04      -5.930 0.006 0    NoError  *\
+   8.00     931922.9      201.3933   72089.76      -5.952 0.007 0    NoError  *\
+   9.00     1160848.      254.7077   73392.95      -5.971 0.007 0    NoError  *\
+   10.00    1416316.      314.3946   74032.49      -5.981 0.008 0    NoError  *\
+   12.00    2007019.      452.6575   74433.32      -5.987 0.010 0    NoError  *\
+   14.00    2704520.      615.8846   75048.36      -5.996 0.012 0    NoError  *\
+   16.00    3510843.      804.5514   75872.42      -6.007 0.014 0    NoError  *\
+   18.00    4423369.      1018.217   76169.97      -6.012 0.016 0    NoError  *\
+   20.00    5443507.      1256.994   76868.        -6.022 0.019 0    NoError  *\
+   22.00    6570314.      1520.752   77581.38      -6.032 0.021 0    NoError  *\
+   24.00    7804529.      1809.73    78027.02      -6.038 0.024 0    NoError  *\
+   26.00    9146237.      2123.877   78509.13      -6.044 0.026 0    NoError  *\
+   28.00    10596624.     2463.307   79723.98      -6.061 0.029 0    NoError  *\
+   30.00    12153380.     2827.841   80131.92      -6.067 0.032 0    NoError  * 

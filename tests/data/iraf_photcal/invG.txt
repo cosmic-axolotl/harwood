@@ -1,0 +1,30 @@
+
+# Fri 18:59:55 23-Oct-2026
+# List of observations files:
+#		obs2.txt
+# Number of catalog files:
+#		catalogo.mkcatalog
+# Config:	configuration.mkconfig
+# Parameters:	fitG.txt
+#
+# Computed indices for program objects only
+#
+# Columns: 
+#	1	object id
+#	2	V
+#	3	error(V)
+#	4	B
+#	5	error(B)
+
+
+1          10.931  0.015   11.419  0.024  
+2          11.495  0.012   12.118  0.038  
+3          11.590  0.040   12.324  0.021  
+4          11.754  0.022   12.516  0.014  
+5          12.446  0.027   13.090  0.016  
+6          12.426  0.025   13.064  0.036  
+7          13.051  0.011   13.608  0.018  
+8          12.624  0.012   13.611  0.015  
+9          12.960  0.010   13.535  0.025  
+4s         14.138  0.011   14.536  0.011  
+10         INDEF   INDEF   INDEF   INDEF  

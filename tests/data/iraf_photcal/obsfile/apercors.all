@@ -1,0 +1,36 @@
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+data0097cr.fits -2.563058 0.1571104
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+data0098cr.fits -2.483713 0.1496096
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0051cr.fits -2.855866 0.1650443
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0052cr.fits -2.742651 0.1640343
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0057cr.fits -2.784636 0.1604248
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0058cr.fits -2.729876 0.1624031
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0074cr.fits -2.610629 0.1581511
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0075cr.fits -2.44418 0.1520131
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0091cr.fits -2.71959 0.1593227
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0092cr.fits -2.594747 0.1580376
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0134cr.fits -2.805207 0.1590564
+# The aperture correction from apertures 1 to 11 in magnitudes
+
+stan0135cr.fits -2.938092 0.1680171

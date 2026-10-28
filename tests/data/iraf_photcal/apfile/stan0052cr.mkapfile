@@ -1,0 +1,7 @@
+# Magnitudes corrected to aperture 11
+
+#                 Image      Filter   Exptime Airmass        Otime   Xcenter   Ycenter      Mag     Merr  Radius
+
+        stan0052cr.fits           V    120.00   1.904   23:18:06.0    469.53    554.20   -6.330    0.010   6.000
+        stan0052cr.fits           V    120.00   1.904   23:18:06.0    322.14    579.19   -8.399    0.004  12.000
+        stan0052cr.fits           V    120.00   1.904   23:18:06.0    270.12    370.61   -6.746    0.020   5.000

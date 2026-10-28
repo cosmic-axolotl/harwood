@@ -1,0 +1,9 @@
+PG1 : stan0051cr.fits stan0052cr.fits
+ : stan0057cr.fits stan0058cr.fits
+X : stan0074cr.fits
+Y : INDEF stan0075cr.fits
+Z : stan0091cr.fits stan0092cr.fits stan0134cr.fits
+W stan0135cr.fits
+# a comment
+dup : stan0051cr.fits stan0052cr.fits
+L : data0097cr.fits data0098cr.fits

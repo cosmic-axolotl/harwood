@@ -1,0 +1,7 @@
+# Declare the catalog variables
+#
+# ID     V        error(V)  B        error(B)
+
+1s       15.1820  0.0057    15.1160  0.0042     # PG2331+055 SIMBAD 2009AJ....137.4186L
+2s       13.0510  0.0020    13.7920  0.0020     # PG2331+055A SIMBAD 1992AJ....104..340L
+3s       14.7440  0.0035    15.5630  0.0035     # PG2331+055B SIMBAD 2009AJ....137.4186L

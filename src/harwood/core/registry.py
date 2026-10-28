@@ -31,6 +31,7 @@ _MODULES = (
     "harwood.tasks.immatch",
     "harwood.tasks.ccdred",
     "harwood.tasks.photometry",
+    "harwood.tasks.photcal",
     "harwood.tasks.onedspec",
     "harwood.tasks.apextract",
     "harwood.tasks.astutil",

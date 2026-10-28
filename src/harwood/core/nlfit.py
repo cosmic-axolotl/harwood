@@ -161,16 +161,22 @@ class NLFit:
                 break
         return ier
 
-    def fit(self, x, z, w=None) -> int:
+    def fit(self, x, z, w=None, scatter: bool = False) -> int:
         """nlfitr: DONE, SINGULAR, NO_DEG_FREEDOM or NOT_DONE. Without `w` the
         weights are uniform (WTS_UNIFORM); with it they are the user's
-        (WTS_USER)."""
+        (WTS_USER), or with `scatter` the user's with a scatter term fitted
+        and added to their variances as the fit goes (WTS_SCATTER). The
+        weights used, so altered, are left in self.w and the scatter in
+        self.scatter."""
         z = np.asarray(z, dtype=f32)
         self.w = (np.ones(len(z), dtype=f32) if w is None
                   else np.asarray(w, dtype=f32).copy())
         self.iter = 0
         self.lam = f32(0.001)
         self.refsq = f32(0.0)
+        self.scatter = f32(0.0)
+        miniter = MINITER + 1 if scatter else MINITER
+        total = f32(0.0)
         stat = NOT_DONE
         while True:
             ier = self._iterate(x, z, self.w)
@@ -178,7 +184,7 @@ class NLFit:
             stat = ier
             if stat == NO_DEG_FREEDOM:
                 break
-            if self.iter < MINITER:
+            if self.iter < miniter:
                 stat = NOT_DONE
             elif self.sumsq <= f32(10.0) * EPSILONR:
                 stat = DONE
@@ -194,25 +200,45 @@ class NLFit:
                 break
             if self.lam <= 0:
                 break
-            if self.iter >= MINITER and self.iter >= self.itmax:
+            if self.iter >= miniter and self.iter >= self.itmax:
                 break
+            if scatter:
+                dscatter = self._scatter(x, z)
+                if self.iter >= MINITER and dscatter >= f32(10.0) * EPSILONR:
+                    good = self.w > 0
+                    self.w[~good] = 0
+                    self.w[good] = f32(1.0) / (f32(1.0) / self.w[good] + dscatter)
+                    total = f32(total + dscatter)
             self.refsq = min(self.oldsq, self.sumsq)
+        self.scatter = f32(self.scatter + total)
         return stat
+
+    def _scatter(self, x, z) -> np.float32:
+        """nlscatter: half the variance in excess of the weights' account."""
+        variance, chisqr, _ = self.statistics(z, self.vector(x), self.w)
+        if chisqr <= 0 or variance <= 0:
+            return f32(0.0)
+        return f32(f32(f32(f32(0.5) * variance) * f32(chisqr - f32(1.0))) / chisqr)
 
     def vector(self, x) -> np.ndarray:
         return np.array([self.func(v, self.param) for v in x], dtype=f32)
 
     def errors(self, z, zfit) -> np.ndarray:
         """nlerrorsr: the parameters' errors (0 for those not fitted)."""
+        return self.statistics(z, zfit, self.w)[2]
+
+    def statistics(self, z, zfit, w) -> tuple[np.float32, np.float32, np.ndarray]:
+        """nlerrorsr with the weights given: the variance and reduced
+        chi-squared of the fit, and the parameters' errors."""
         z = np.asarray(z, dtype=f32)
         n = 0
         variance = chisqr = f32(0.0)
         for i in range(len(z)):
-            if self.w[i] <= 0:
+            if w[i] <= 0:
                 continue
             factor = f32(f32(z[i] - zfit[i]) ** 2)
             variance = f32(variance + factor)
-            chisqr = f32(chisqr + f32(factor * self.w[i]))
+            chisqr = f32(chisqr + f32(factor * w[i]))
             n += 1
         nfree = n - self.nfit
         if nfree > 0:
@@ -232,4 +258,4 @@ class NLFit:
             cov = chslv(self.chofac, self.nfit, self.nfit, cov)
             errors[self.plist[i]] = (np.sqrt(f32(cov[i] * factor)) if cov[i] >= 0
                                      else f32(0.0))
-        return errors
+        return variance, chisqr, errors

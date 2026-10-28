@@ -1,0 +1,4 @@
+# image filter itime airmass otime
+stan0051cr.fits B 300 2.0 23.5
+data0097cr.fits V 10 1.2 3.4
+stan0074cr.fits INDEF INDEF 1.7 INDEF

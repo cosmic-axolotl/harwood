@@ -1,0 +1,106 @@
+
+#FRI 18:59:55 23-OCT-2026
+
+#UNMATCHED OBJECTS
+
+File: observations.obsfile  Object: 1 was unmatched
+File: observations.obsfile  Object: 2 was unmatched
+File: observations.obsfile  Object: 3 was unmatched
+File: observations.obsfile  Object: 4 was unmatched
+File: observations.obsfile  Object: 5 was unmatched
+File: observations.obsfile  Object: 6 was unmatched
+File: observations.obsfile  Object: 7 was unmatched
+File: observations.obsfile  Object: 8 was unmatched
+File: observations.obsfile  Object: 9 was unmatched
+
+#EQUATION: VFIT
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.02817725
+reduced chi         0.6723391
+average error      0.04190928
+average scatter            0.
+RMS                 0.0252025
+
+parameter            value           error
+v1             -21.8954773       0.0602665    (fit)
+v2               0.0306627       0.0275236    (fit)
+v3               0.1982427       0.0406282    (fit)
+v4               0.0100000       0.0000000    (constant)
+
+#RESULTS: VFIT
+
+
+#      objectid       function            fit      residuals          sigma
+             1S          -6.33      -6.339303    0.009303093          0.048
+             2S         -8.399      -8.430194     0.03119373          0.048
+             3S         -6.746      -6.733316    -0.01268339          0.048
+             1S         -6.396      -6.389292   -0.006708145     0.04528797
+             2S         -8.467      -8.482224      0.0152235     0.04528797
+             3S         -6.828      -6.785544    -0.04245615     0.04528797
+             1S         -6.501       -6.47524     -0.0257597      0.0401995
+             2S         -8.543      -8.571683     0.02868271      0.0401995
+             3S         -6.931      -6.875342    -0.05565834      0.0401995
+             1S         -6.475      -6.488478     0.01347828     0.03935734
+             2S          -8.55      -8.585461     0.03546047     0.03935734
+             3S          -6.89      -6.889173   -8.268356E-4     0.03935734
+             1S         -6.443      -6.443627    6.275177E-4     0.04214261
+             2S         -8.525      -8.538778     0.01377869     0.04214261
+             3S         -6.846      -6.842313   -0.003687382     0.04214261
+
+#EQUATION: BFIT
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        5
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.01741072
+reduced chi         0.8705361
+average error            0.02
+average scatter            0.
+RMS                0.01557262
+
+parameter            value           error
+b1             -21.8850975       0.0259598    (fit)
+b2              -0.0909610       0.0129074    (fit)
+b3               0.3099132       0.0166274    (fit)
+
+#RESULTS: BFIT
+
+
+#      objectid       function            fit      residuals          sigma
+             1S         -6.147      -6.150705    0.003705502           0.02
+             2S         -7.539      -7.548111    0.009110928           0.02
+             3S         -5.809      -5.784206    -0.02479362           0.02
+             1S         -6.233      -6.237481    0.004481316           0.02
+             2S         -7.625      -7.634887    0.009886742           0.02
+             3S         -5.874      -5.870982   -0.003017902           0.02
+             1S         -6.402      -6.382521    -0.01947927           0.02
+             2S         -7.762      -7.779926     0.01792622           0.02
+             3S         -6.054      -6.016022    -0.03797817           0.02
+             1S         -6.416      -6.407313   -0.008686543           0.02
+             2S         -7.792      -7.804719     0.01271915           0.02
+             3S         -6.038      -6.040814    0.002814293           0.02
+             1S         -6.329      -6.343472     0.01447153           0.02
+             2S         -7.728      -7.740877     0.01287699           0.02
+             3S         -5.971      -5.976973    0.005972385           0.02
+

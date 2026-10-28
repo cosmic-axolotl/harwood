@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 44, partial: 9, planned: 302, replaced: 94, wontport: 161
+#   available: 45, partial: 13, planned: 297, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -626,7 +626,8 @@ tasks:
   evalfit: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   findpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
-  fitparams: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  fitparams: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: fitparams,
+    note: "the configuration language, the three weightings with the scatter term, rejection and the log, ported and checked against IRAF's output to the last digit; the interactive graph is not ported"}
   fitpsf: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
   fitsky: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp,
     note: "centroid, mode, median, mean, gauss, ofilter, crosscor and constant, with region growing, the percentile clips and histogram smoothing, ported and checked against IRAF's output; histplot and radplot marked in the window or from gcommands (not compared: IRAF needs a graphics terminal), file through phot's skyfile, with IRAF's error codes"}
@@ -634,17 +635,21 @@ tasks:
     note: "absorbed into the task's Pydantic parameter model"}
   group: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   grpselect: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
-  invertfit: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  invertfit: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: invertfit,
+    note: "IRAF's inversion and both error methods, ported and checked against IRAF's output to the seventh decimal"}
   istable: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
-  mkapfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkapfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkapfile,
+    note: "DAOGROW: the curve-of-growth model, the adopted curves, the corrections, the best magnitudes and the log, byte for byte IRAF's on twelve images alone and together; the interactive graphs and the obsparams airmass file are not ported"}
   mkcatalog: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   mkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
-  mkimsets: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkimsets: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkimsets,
+    note: "the image list from the photometry or the headers, sorted, grouped (imgroup) and written byte for byte as IRAF does, names from a list or a header keyword; the editor sessions are not ported"}
   mknobsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   mkobsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   mkphotcors: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   nstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
-  obsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  obsfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: obsfile,
+    note: "matching by position or by order, the corrections, shifts and obsparams, byte for byte IRAF's output, format file, messages and warnings; typing the sets, shifts or corrections at the terminal is not ported"}
   pcalc: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   pconcat: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   pconvert: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
