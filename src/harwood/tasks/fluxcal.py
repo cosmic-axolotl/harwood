@@ -509,11 +509,10 @@ class SensFunc(Task[SensFuncParams]):
     def execute(self, params: SensFuncParams) -> TaskResult:
         import getpass
         import platform
-        import time
 
         import numpy as np
 
-        from ..core import database, flux, ranges, stdfile
+        from ..core import database, flux, iraffmt, ranges, stdfile
         from ..core import sensfunc as sf
 
         if not Path(params.standards).exists():
@@ -548,7 +547,7 @@ class SensFunc(Task[SensFuncParams]):
 
         from ..core.provenance import _version
         system = (f"harwood {_version()} {getpass.getuser()}@{platform.node()} "
-                  f"{time.strftime('%a %H:%M:%S %d-%b-%Y')}")
+                  f"{iraffmt.cnvtime()}")
         mode = "ask" if params.interactive else "no"
         cursor = None
         if params.interactive:

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 
 NDIGITS_RP = 7          # mach.h: significant digits of a real
 NDIGITS_DP = 16         # ... and of a double
@@ -25,6 +26,20 @@ EPSILOND = 2.220446049250313e-16
 SZ_OBUF = 1024
 #: IRAF's INDEF; a single-precision INDEFR (1.6e38 rounded) counts too.
 INDEF = 1.5999e38
+
+
+_DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
+           "Nov", "Dec")
+
+
+def cnvtime(when: float | None = None) -> str:
+    """IRAF's cnvtime, local time: Wed 15:49:56 21-Oct-2026. The names are
+    IRAF's, in English whatever the locale -- strftime's %a and %b follow it,
+    and a Portuguese desktop would write qua and out."""
+    t = time.localtime(when)
+    return (f"{_DAYS[t.tm_wday]} {t.tm_hour:02d}:{t.tm_min:02d}:{t.tm_sec:02d} "
+            f"{t.tm_mday:02d}-{_MONTHS[t.tm_mon - 1]}-{t.tm_year}")
 
 
 def g(value: float, double: bool = False, decpl: int | None = None) -> str:
