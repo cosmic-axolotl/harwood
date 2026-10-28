@@ -44,18 +44,22 @@ def night(tmp_path_factory):
                  "fsp0022", "fsp0023"):
         (work / f"{name[1:]}.fits").write_bytes((SPEC / name).read_bytes())
 
-    ccdproc = get_task("ccdproc")
-    ccdproc.run(input=[str(work / "sp000[123].fits")], output=str(work / "b"),
-                overscan=True, trim=True, biassec=BIASSEC, trimsec=TRIMSEC)
-    get_task("zerocombine").run(
-        input=[str(work / "b" / "sp000*.fits")], output=work / "Zero.fits",
-        reject="minmax", nlow=0, nhigh=1)
+    # ccdproc keeps its subsets file in the working directory: run there, or
+    # it lands in whatever directory pytest was started from.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.chdir(work)
+        ccdproc = get_task("ccdproc")
+        ccdproc.run(input=[str(work / "sp000[123].fits")], output=str(work / "b"),
+                    overscan=True, trim=True, biassec=BIASSEC, trimsec=TRIMSEC)
+        get_task("zerocombine").run(
+            input=[str(work / "b" / "sp000*.fits")], output=work / "Zero.fits",
+            reject="minmax", nlow=0, nhigh=1)
 
-    for name in ("sp0019", "sp0020", "sp0022", "sp0023"):
-        ccdproc.run(input=[str(work / f"{name}.fits")],
-                    output=str(work / f"p{name}.fits"), overscan=True, trim=True,
-                    zerocor=True, zero=work / "Zero.fits",
-                    biassec=BIASSEC, trimsec=TRIMSEC)
+        for name in ("sp0019", "sp0020", "sp0022", "sp0023"):
+            ccdproc.run(input=[str(work / f"{name}.fits")],
+                        output=str(work / f"p{name}.fits"), overscan=True, trim=True,
+                        zerocor=True, zero=work / "Zero.fits",
+                        biassec=BIASSEC, trimsec=TRIMSEC)
     return work
 
 
