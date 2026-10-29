@@ -215,6 +215,95 @@ def test_the_automatico_s_observations_are_what_fitparams_was_given():
     assert (OBSFILE / "obsA").read_text() == (DATA / "observations.obsfile").read_text()
 
 
+# ----------------------------------------------------- harwood's own phot
+
+NATIVE = DATA / "native"
+
+
+def _native_chain(tmp_path, monkeypatch, rounded: bool):
+    """harwood's phot output for the twelve images (as harwood phot wrote
+    it, with the automatico's settings) through mkapfile, obsfile,
+    fitparams and invertfit. `rounded` rounds positions, magnitudes and
+    errors to the three decimals IRAF's .mag file keeps."""
+    from harwood.core import iraffmt
+    from harwood.core.photcal import photfiles
+
+    if rounded:
+        original = photfiles.read
+
+        def read(path):
+            table = original(path)
+            for name in table.colnames:
+                if name.startswith(("MAG", "MERR", "XCENTER", "YCENTER")):
+                    table[name] = [float(iraffmt.printf(float(v), "f", 3))
+                                   if np.isfinite(v) else np.nan for v in table[name]]
+            return table
+
+        monkeypatch.setattr(photfiles, "read", read)
+    files = []
+    for name in (NATIVE / "mkapfile.lista").read_text().split():
+        root = name.removesuffix(".mkapfile")
+        out = tmp_path / name
+        apfile.apfile(apfile.read_photfiles([str(NATIVE / f"{root}.fits.mag")], 20), 20,
+                      str(tmp_path / f"{root}.apercors"), 1, 11, magfile=str(out),
+                      names=True)
+        files.append(str(out))
+    obs.obsfile(files, "1,6,7,2,3,4,5,8,9,11", "B,V", str(OBSFILE / "imsets.mkimsets"),
+                str(tmp_path / "obs"), tolerance=8.0)
+    cfg = config.parse(str(DATA / "configuration.mkconfig"))
+    fit.fitparams(cfg, [str(tmp_path / "obs")], [str(DATA / CATALOG)], str(tmp_path / "fit"))
+    invert.invertfit(cfg, [str(tmp_path / "obs")], str(tmp_path / "fit"),
+                     str(tmp_path / "cal"), catalogs=[str(DATA / CATALOG)])
+    return tmp_path
+
+
+def _body(path):
+    return [line for line in Path(path).read_text().splitlines()
+            if not line.startswith("#")]
+
+
+def test_harwood_s_phot_rounded_as_iraf_writes_it_gives_the_automatico_s_night(
+        tmp_path, monkeypatch):
+    """The whole chain in harwood, from its own phot: with the numbers
+    rounded where IRAF's file rounds them, every file the automatico wrote
+    comes out the same -- the observations, the coefficients and the
+    calibrated magnitudes."""
+    out = _native_chain(tmp_path, monkeypatch, rounded=True)
+    assert (out / "obs").read_text() == (DATA / "observations.obsfile").read_text()
+    assert _body(out / "fit") == _body(NATIVE / "fitfile.fitparams")
+    assert _body(out / "cal") == _body(NATIVE / "observations.magcalibrada")
+
+
+def test_harwood_s_phot_at_full_precision_calibrates_the_night_too(tmp_path, monkeypatch):
+    """At full precision the chain differs from the automatico's by what
+    IRAF's rounding did. Its errors of 0.001-0.002 mag in the small
+    apertures, rounded to 0.001, change a star's weight up to twofold, and
+    with three stars an image's aperture correction moves by up to 0.12 mag
+    (stan0058, against its own error of 0.16). No offset overall."""
+    out = _native_chain(tmp_path, monkeypatch, rounded=False)
+    ours = [line.split() for line in _body(out / "cal") if line.strip()]
+    iraf = [line.split() for line in _body(NATIVE / "observations.magcalibrada")
+            if line.strip()]
+    assert [r[0] for r in ours] == [r[0] for r in iraf]
+    dv = np.array([float(a[1]) - float(b[1]) for a, b in zip(ours, iraf, strict=True)])
+    db = np.array([float(a[4]) - float(b[4]) for a, b in zip(ours, iraf, strict=True)])
+    assert abs(dv.mean()) < 0.01 and abs(db.mean()) < 0.01
+    assert np.abs(dv).max() < 0.11 and np.abs(db).max() < 0.035
+
+
+def test_an_iraf_coo_edited_by_hand_still_reads_as_iraf_s():
+    """The automatico rewrote its .coo.1 files with names in the ID column
+    and its own spacing: the #N names still name the columns, the #K IRAF
+    line still says 1-based, and .1 is IRAF's version number."""
+    from harwood.core import catalog
+
+    path = NATIVE / "stan0051cr.fits.coo.1"
+    table = catalog.read(path)
+    assert list(table["ID"]) == ["1s", "2s", "3s"]
+    x, _ = catalog.coordinates(table, path)
+    assert x[0] == pytest.approx(471.056)
+
+
 # ------------------------------------------------------------- the language
 
 

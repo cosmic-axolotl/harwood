@@ -7,8 +7,9 @@ $ harwood mkimsets @imsets.lista B,V imsets.mkimsets
 ```
 
 **Where the filters come from.** By default from the photometry files
-(phot's `.mag`), which carry each image's filter, exposure time, airmass
-and time; with `--input images`, from the image headers, the filter from
+(phot's `.mag`, harwood's or IRAF's), which carry each image's filter,
+exposure time, airmass and time -- with harwood's phot, name the header
+keywords with `--filter`, `--airmass` and `--obstime` there; with `--input images`, from the image headers, the filter from
 `--filter` (`FILTER`).
 
 **How the sets are made.** The images are listed with their filters,

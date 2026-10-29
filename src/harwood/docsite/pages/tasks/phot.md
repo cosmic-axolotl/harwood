@@ -18,10 +18,11 @@ output: |
 |---|---|
 | `--apertures 4,6` | aperture radii, pixels; several at once |
 | `--annulus`, `--dannulus` | the sky annulus: inner radius and width |
-| `--epadu` | the gain, electrons per ADU: it sets the photon noise in the errors |
-| `--readnoise` | electrons |
+| `--epadu` | the gain, electrons per ADU: it sets the photon noise in the errors; `--gain GAIN` reads it from the header |
+| `--readnoise` | electrons; `--ccdread RDNOISE` reads it from the header |
 | `--zmag` | the zero point of the instrumental magnitudes, arbitrary until standards tie it down |
 | `--exposure EXPTIME` | the header keyword with the exposure time, so magnitudes are per second |
+| `--filter`, `--airmass`, `--obstime` | the header keywords with the filter, airmass and time of the exposure, written with every star (`--ifilter`, `--xairmass`, `--otime` when there are none) |
 | `--datamax` | the saturation level: a star with a pixel above it is flagged |
 | `--calgorithm`, `--cbox` | how stars are recentred ([center](task:center)) |
 | `--salgorithm` | how the sky is estimated ([fitsky](task:fitsky)) |
@@ -29,7 +30,8 @@ output: |
 The radius trades light against noise: too small, and a change of seeing
 moves the answer; too large, and the noise of the sky under the extra area
 swamps the star. An aperture that reaches into the sky annulus is refused,
-since the sky would then be measured over the star.
+since the sky would then be measured over the star; one that ends where the
+annulus starts is fine.
 
 ## The table
 
@@ -37,7 +39,10 @@ IRAF's columns: the starting and final positions, the shift and its error,
 the sky (`msky`, `stdev`, `sskew`, `nsky`, `nsrej`), and for each aperture
 the sum, area, flux, `mag` and `merr` -- with `cier`, `sier` and `pier`
 saying what, if anything, went wrong at the centring, the sky and the
-aperture. The error has three parts: the photon noise of the star, the
+aperture; and the exposure's `itime`, `ifilter`, `xairmass` and `otime`,
+which [mkimsets](task:mkimsets) and [mkapfile](task:mkapfile) read to take
+the night on to standard magnitudes. The star's `id` is the coordinate
+list's, so names given there (`1s`, `PG2331+055A`) travel with it. The error has three parts: the photon noise of the star, the
 noise of the sky over the aperture, and the uncertainty in the mean sky
 itself, which in a crowded field is the largest of the three and is the one
 a simple implementation leaves out. A star whose flux comes out negative has

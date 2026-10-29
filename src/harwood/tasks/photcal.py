@@ -313,6 +313,10 @@ class MkapfileParams(TaskParams):
     rgescale: float = Field(0.9, ge=0.0, description="Initial ratio of the exponential "
                                                      "to the Gaussian radial scale.")
     xwings: float = Field(0.0, description="Initial change of the wings with airmass.")
+    names: bool = Field(False, description="Add each star's name from the photometry "
+                                           "to magfile as an eleventh column, Obj, for "
+                                           "obsfile (incolumns ...,11). IRAF's file has "
+                                           "ten.")
 
 
 WHY.update({
@@ -386,7 +390,7 @@ class Mkapfile(Task[MkapfileParams]):
                 params.largeap, magfile=params.magfile, logfile=params.logfile,
                 params=(params.swings, params.pwings, params.pgauss, params.rgescale,
                         params.xwings),
-                nparams=params.nparams, append=params.append)
+                nparams=params.nparams, append=params.append, names=params.names)
         except ValueError as error:
             advice.fail(str(error).removeprefix("Error: "),
                         "with no star measured in at least two apertures there is "

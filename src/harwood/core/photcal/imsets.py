@@ -18,6 +18,10 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+
+from .. import iraffmt
+from . import photfiles
 from .io import words
 from .obsfile import getlabels
 
@@ -62,8 +66,23 @@ def text_records(path: str | Path) -> list[dict[str, str]]:
 def photfile_rows(paths: list[str], fields: list[str]) -> list[list[str]]:
     """pdump IMAGE,IFILTER,ITIME,XAIRMASS,OTIME,fields of apphot files."""
     names = ["IMAGE", "IFILTER", "ITIME", "XAIRMASS", "OTIME"] + fields
-    return [[record.get(name, "INDEF") for name in names]
-            for path in paths for record in text_records(path)]
+    rows = []
+    for path in paths:
+        if photfiles.is_ecsv(path):
+            # harwood's phot: the same fields, printed as IRAF prints them.
+            table = photfiles.read(path)
+            rows += [[_text(row[name]) if name in table.colnames else "INDEF"
+                      for name in names] for row in table]
+        else:
+            rows += [[record.get(name, "INDEF") for name in names]
+                     for record in text_records(path)]
+    return rows
+
+
+def _text(value) -> str:
+    if isinstance(value, (float, np.floating)):
+        return "INDEF" if np.isnan(value) else iraffmt.g(float(value))
+    return str(value).strip() or "INDEF"
 
 
 def image_rows(paths: list[str], filter_key: str, fields: list[str]) -> list[list[str]]:

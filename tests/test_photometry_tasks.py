@@ -210,3 +210,38 @@ def test_absorption_features_centre_as_iraf_centres_them():
                                                 cthreshold=float(threshold)),
                               apphot.DataPars(fwhmpsf=3.0, sigma=3.0, emission=False))
             assert (round(c.x, 3), round(c.y, 3)) == (ix, iy), key
+
+
+def test_phot_records_the_filter_airmass_and_time_as_iraf_does(frame):
+    """datapars' airmass, filter and obstime keywords: each star carries
+    them, as IFILTER, XAIRMASS and OTIME do in IRAF's file, for photcal."""
+    with fits.open(frame / "field.fits", mode="update") as hdul:
+        hdul[0].header.update(FILTERS="B       ", AIRMASS=1.976, TIME="23:13:04",
+                              GAIN=10.0)
+    result = get_task("phot").run(image=str(frame / "field.fits"),
+                                  coords=frame / "field.coo", output=frame / "a.mag",
+                                  gain="GAIN", airmass="AIRMASS", filter="FILTERS",
+                                  obstime="TIME", apertures=[3, 5])
+    table = catalog.read(frame / "a.mag")
+    assert list(table["ifilter"][:2]) == ["B", "B"]
+    assert table["xairmass"][0] == pytest.approx(1.976)
+    assert table["otime"][0] == "23:13:04"
+    assert table.meta["harwood_apertures"] == [3.0, 5.0]
+    assert not result.warnings
+    # A keyword named but missing: the value instead, and a note saying so.
+    result = get_task("phot").run(image=str(frame / "field.fits"),
+                                  coords=frame / "field.coo", output=frame / "b.mag",
+                                  airmass="SECZ", xairmass=1.5)
+    assert catalog.read(frame / "b.mag")["xairmass"][0] == pytest.approx(1.5)
+    assert any("SECZ" in w.message for w in result.warnings)
+
+
+def test_phot_lets_the_largest_aperture_reach_the_sky_annulus(frame):
+    """IRAF's own setup for the Skinakas night: apertures to 30 px, the sky
+    from 30 px out. They touch; they do not overlap."""
+    get_task("phot").run(image=str(frame / "field.fits"), coords=frame / "field.coo",
+                         output=frame / "a.mag", apertures=[3, 10], annulus=10)
+    with pytest.raises(ValueError, match="over the star"):
+        get_task("phot").run(image=str(frame / "field.fits"),
+                             coords=frame / "field.coo", output=frame / "b.mag",
+                             apertures=[3, 11], annulus=10)

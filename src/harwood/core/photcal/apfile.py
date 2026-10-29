@@ -75,6 +75,7 @@ class Star:
     rap: np.ndarray
     mag: np.ndarray       # the first, then differences
     merr: np.ndarray
+    name: str = ""        # the star's name in the photometry, when it has one
 
 
 def _real(text) -> np.float32:
@@ -106,12 +107,12 @@ def read_photfiles(paths: list[str], naperts: int, maglim: float = 0.10,
                    notes: list[str] | None = None) -> list[Image]:
     """ph_amkimtable over txdump of apphot files: the images in the order
     they first appear, each with its stars in order."""
-    from astropy.table import Table
+    from .photfiles import read
 
     images: dict[str, Image] = {}
     notes = notes if notes is not None else []
     for path in paths:
-        table = Table.read(str(path), format="ascii.daophot")
+        table = read(path)
         for row in table:
             name = str(row["IMAGE"]).strip()
             image = images.get(name)
@@ -141,6 +142,8 @@ def read_photfiles(paths: list[str], naperts: int, maglim: float = 0.10,
                 [_real(row[f"MERR{k}"]) for k in range(1, naperts + 1)], maglim)
             if star is None:
                 continue
+            if "ID" in table.colnames:
+                star.name = "".join(str(row["ID"]).split())
             image.stars.append(star)
             star.id = len(image.stars)
             if star.id == 1:
@@ -604,13 +607,15 @@ def _g15(value: float) -> str:
     return iraffmt.printf(value, "g", 7, double=True).rjust(15)
 
 
-def magfile_header(largeap: int) -> str:
+def magfile_header(largeap: int, names: bool = False) -> str:
     stops = [(19, "Image"), (30, "Filter"), (39, "Exptime"), (47, "Airmass"),
              (62, "Otime"), (70, "Xcenter"), (80, "Ycenter"), (93, "Mag"),
              (101, "Merr"), (107, "Radius")]
     line = "#"
     for column, text in stops:
         line = line.ljust(column - 1) + text
+    if names:
+        line += "  Obj"
     return f"# Magnitudes corrected to aperture {largeap}\n\n{line}\n\n"
 
 
@@ -625,9 +630,12 @@ class Result:
 def apfile(images: list[Image], naperts: int, apercors: str, smallap: int = 1,
            largeap: int = 0, magfile: str = "", logfile: str = "",
            params: tuple = (1.2, 0.1, 0.5, 0.9, 0.0), nparams: int = 3,
-           append: bool = False) -> Result:
+           append: bool = False, names: bool = False) -> Result:
     """t_apfile after the input: fit, evaluate, and write the corrections,
-    the best magnitudes and the log."""
+    the best magnitudes and the log. With `names`, each best magnitude also
+    carries the star's name from the photometry as an eleventh column, Obj
+    -- what obsfile needs to write the stars under the names the standards
+    catalog knows them by; IRAF's file has ten columns."""
     smallap = max(1, min(naperts, smallap))
     largeap = naperts if largeap <= 0 else max(1, min(naperts, largeap))
     if largeap <= smallap:
@@ -667,7 +675,7 @@ def apfile(images: list[Image], naperts: int, apercors: str, smallap: int = 1,
     corrections, best = {}, {}
     apcat = [f"# The aperture correction from apertures {smallap} to {largeap} "
              "in magnitudes", ""]
-    mags = [magfile_header(largeap)] if magfile else []
+    mags = [magfile_header(largeap, names)] if magfile else []
     if not fit.ok:
         if logfile:
             ishow()
@@ -698,7 +706,8 @@ def apfile(images: list[Image], naperts: int, apercors: str, smallap: int = 1,
                     f"{image.name:>23.23}  {image.ifilter:>10.10}  "
                     f"{_f(image.itime, 8, 2)}  {_f(image.xairmass, 6, 3)}  "
                     f"{_hours(image.otime):>11}  {_f(star.x, 8, 2)}  {_f(star.y, 8, 2)}  "
-                    f"{_f(mag, 7, 3)}  {_f(merr, 7, 3)}  {_f(radius, 6, 3)}\n")
+                    f"{_f(mag, 7, 3)}  {_f(merr, 7, 3)}  {_f(radius, 6, 3)}"
+                    + (f"  {star.name or star.id}" if names else "") + "\n")
             if not np.isnan(image.ro):
                 tave = (tave + curve.ave).astype(f32)
                 tresid = (tresid + curve.resid).astype(f32)

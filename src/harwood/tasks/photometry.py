@@ -271,6 +271,23 @@ class _DataPars(TaskParams):
         "", description="Header keyword with the exposure time. Empty uses itime, "
                         "as IRAF does; name EXPTIME to put magnitudes per second.")
     itime: float = Field(1.0, gt=0, description="Exposure time when no keyword is named.")
+    gain: str = Field("", description="Header keyword with the gain, in electrons "
+                                      "per ADU; empty uses epadu.")
+    ccdread: str = Field("", description="Header keyword with the read noise; empty "
+                                         "uses readnoise.")
+    airmass: str = Field("", description="Header keyword with the airmass, recorded "
+                                         "with each star for photcal; empty uses "
+                                         "xairmass.")
+    xairmass: float | None = Field(None, gt=0, description="Airmass when no keyword is "
+                                                           "named. Empty is INDEF.")
+    filter: str = Field("", description="Header keyword with the filter, recorded "
+                                        "with each star; empty uses ifilter.")
+    ifilter: str = Field("INDEF", description="Filter when no keyword is named.")
+    obstime: str = Field("", description="Header keyword with the time of the "
+                                         "observation, recorded with each star; empty "
+                                         "uses otime.")
+    otime: str = Field("INDEF", description="Time of the observation when no keyword "
+                                            "is named.")
     emission: bool = Field(True, description="The features are above the sky. Off "
                                              "(IRAF's emission=no), center finds dips.")
     noise: Literal["poisson", "constant"] = Field(
@@ -359,11 +376,50 @@ def _datapars(params, header):
                         "name the keyword that holds the exposure time, or leave "
                         "exposure empty and give itime")
         itime = float(header[params.exposure])
+    epadu, readnoise = params.epadu, params.readnoise
+    for keyword, what in ((params.gain, "gain"), (params.ccdread, "read noise")):
+        if keyword and keyword not in header:
+            advice.fail(f"the header has no '{keyword}'",
+                        f"name the keyword that holds the {what}, or leave it empty "
+                        "and give the value")
+    if params.gain:
+        epadu = float(header[params.gain])
+    if params.ccdread:
+        readnoise = float(header[params.ccdread])
     return apphot.DataPars(scale=params.scale, fwhmpsf=params.fwhmpsf,
                            sigma=params.sigma, datamin=params.datamin,
-                           datamax=params.datamax, epadu=params.epadu,
-                           readnoise=params.readnoise, itime=itime, noise=params.noise,
+                           datamax=params.datamax, epadu=epadu,
+                           readnoise=readnoise, itime=itime, noise=params.noise,
                            emission=params.emission)
+
+
+def _observed(params, header) -> tuple[dict, list[str]]:
+    """The filter, airmass and time of the exposure, from the keywords
+    datapars names or else its values -- what IRAF writes with every star
+    (IFILTER, XAIRMASS, OTIME), and photcal reads to group the images and
+    correct for the atmosphere. A keyword named but missing falls back to
+    the value, with a note, as in IRAF."""
+    notes = []
+
+    def get(keyword, default):
+        if not keyword:
+            return default
+        if keyword not in header:
+            notes.append(f"the header has no '{keyword}'; {default} used")
+            return default
+        return header[keyword]
+
+    airmass = get(params.airmass, params.xairmass)
+    try:
+        airmass = float(airmass) if airmass is not None else float("nan")
+    except (TypeError, ValueError):
+        notes.append(f"'{params.airmass}' is not a number; the airmass is INDEF")
+        airmass = float("nan")
+    if not airmass > 0:
+        airmass = float("nan")
+    ifilter = "".join(str(get(params.filter, params.ifilter)).split()) or "INDEF"
+    otime = "".join(str(get(params.obstime, params.otime)).split()) or "INDEF"
+    return {"ifilter": ifilter, "xairmass": airmass, "otime": otime}, notes
 
 
 def _centerpars(params):
@@ -431,6 +487,8 @@ def _by_cursor(task, params, kind: str) -> TaskResult:
                            ("nsky", "nsky"), ("nsrej", "nreject"), ("sier", "ier")):
             out[name] = [getattr(r.sky, attr) for r in rows]
         out["itime"] = np.full(len(rows), dpars.itime)
+        for name, value in _observed(params, header)[0].items():
+            out[name] = [value] * len(rows)
         every = sorted({radius for r in rows for radius in r.radii})
         for radius in every:
             suffix = "" if len(every) == 1 else f"_{radius:g}"
@@ -749,7 +807,7 @@ class PhotParams(_DataPars, _CenterPars, _SkyPars, _Interactive):
     @model_validator(mode="after")
     def _check_radii(self) -> PhotParams:
         if self.salgorithm not in ("constant", "file") and \
-                max(self.apertures) >= self.annulus:
+                max(self.apertures) > self.annulus:
             raise ValueError(
                 f"the sky annulus starts at {self.annulus} px but the largest aperture "
                 f"is {max(self.apertures)} px: the sky would be measured over the star. "
@@ -832,6 +890,9 @@ class Phot(Task[PhotParams]):
                      "sskew": [s.skew for s in skies], "nsky": [s.nsky for s in skies],
                      "nsrej": [s.nreject for s in skies], "sier": [s.ier for s in skies],
                      "itime": np.full(len(x0), dpars.itime)})
+        observed, observed_notes = _observed(params, header)
+        for name, value in observed.items():
+            out[name] = [value] * len(x0)
         for k, radius in enumerate(radii):
             suffix = "" if len(radii) == 1 else f"_{radius:g}"
             for column in ("sums", "areas", "flux", "mag", "merr"):
@@ -856,6 +917,7 @@ class Phot(Task[PhotParams]):
                       harwood_image=str(params.image),
                       harwood_itime=dpars.itime,
                       harwood_zmag=params.zmag,
+                      harwood_apertures=[float(r) for r in radii],
                       harwood_merr="the image's VAR" if variance is not None
                       else "IRAF's model: epadu and the sky",
                       harwood_call=provenance.current_stamp() or "")
@@ -881,13 +943,18 @@ class Phot(Task[PhotParams]):
         if good.any():
             by_action["calibrate"].measured = {
                 "itime": f"{dpars.itime:g}",
+                "filter, airmass, time": f"{observed['ifilter']}, "
+                                         f"{observed['xairmass']:.3f}, {observed['otime']}",
                 "magnitudes": f"{magnitudes[good].min():.2f} to {magnitudes[good].max():.2f}",
                 "best error": f"{np.nanmin(errors[good]) * 1000:.0f} mmag",
                 "median error": f"{np.nanmedian(errors[good]) * 1000:.0f} mmag"}
 
         warnings = (_flags(out["cier"], "cier", _CENTER_FIX)
                     + _flags(out["sier"], "sier", _SKY_FIX)
-                    + _flags(out[f"pier{first}"], "pier", _APERT_FIX))
+                    + _flags(out[f"pier{first}"], "pier", _APERT_FIX)
+                    + [advice.warn(n, "name the keyword the headers use, or give the "
+                                      "value (xairmass, ifilter, otime).")
+                       for n in observed_notes])
         if f"pdq{first}" in out.colnames:
             touched = np.asarray(out[f"pdq{first}"]) != 0
             if touched.any():
@@ -926,4 +993,6 @@ _APERT_FIX = ("look at the flagged rows (pier); a star near the edge loses its "
 
 
 def _ids(table, n):
-    return table["id"] if "id" in table.colnames else list(range(1, n + 1))
+    """The stars' ids from the coordinates -- IRAF's .coo calls the column ID."""
+    name = next((c for c in table.colnames if c.lower() == "id"), None)
+    return table[name] if name else list(range(1, n + 1))
