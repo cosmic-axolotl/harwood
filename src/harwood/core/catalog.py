@@ -49,7 +49,11 @@ def read(path: Path | str) -> Any:
         raise FileNotFoundError(f"catalogue '{path}' does not exist")
 
     attempts: list[tuple[str, dict]] = [("ascii.ecsv", {})]
-    if path.suffix.lower() not in IRAF_SUFFIXES:
+    if _iraf_database(path):
+        # An apphot/daophot text database names its columns in #N lines;
+        # read as plain text it would be col1, col2 ... and lose them.
+        attempts.append(("ascii.daophot", {}))
+    if _suffix(path) not in IRAF_SUFFIXES:
         attempts.append(("", {}))                      # let astropy guess
     attempts.append(("ascii", {}))
     attempts.append(("ascii.daophot", {}))
@@ -57,13 +61,57 @@ def read(path: Path | str) -> Any:
     errors = []
     for fmt, options in attempts:
         try:
-            return Table.read(str(path), **({"format": fmt} if fmt else {}), **options)
+            table = Table.read(str(path), **({"format": fmt} if fmt else {}), **options)
         except Exception as error:
             errors.append(f"{fmt or 'auto'}: {type(error).__name__}")
+            continue
+        if fmt == "ascii" and _iraf_database(path):
+            # Written by hand or by a script, the columns no longer sit
+            # where #F says; split on blanks and keep #N's names.
+            names = _iraf_names(path)
+            if len(names) == len(table.colnames):
+                table.rename_columns(table.colnames, names)
+        if _iraf_database(path, signed=True) and "harwood_convention" not in table.meta:
+            # IRAF's own tasks wrote it (#K IRAF, #N names): 1-based.
+            table.meta["harwood_convention"] = CONVENTION
+        return table
     raise ValueError(
         f"cannot read '{path}' as a catalogue. Tried {', '.join(errors)}. "
         "harwood writes ECSV; if this came from IRAF, check it is a text table."
     )
+
+
+def _suffix(path: Path) -> str:
+    """The suffix, past IRAF's version number: obj.coo.1 is a .coo."""
+    suffixes = [x.lower() for x in path.suffixes]
+    while suffixes and suffixes[-1][1:].isdigit():
+        suffixes.pop()
+    return suffixes[-1] if suffixes else ""
+
+
+def _iraf_database(path: Path, signed: bool = False) -> bool:
+    """An IRAF text database: #N lines naming the columns; `signed`, also
+    the #K IRAF line IRAF's tasks put at the top."""
+    names = iraf = False
+    try:
+        with open(path, errors="replace") as handle:
+            for _, line in zip(range(400), handle, strict=False):
+                names = names or line.startswith("#N ")
+                iraf = iraf or line.startswith("#K IRAF ")
+                if line.strip() and not line.startswith("#"):
+                    break
+    except OSError:
+        return False
+    return names and (iraf or not signed)
+
+
+def _iraf_names(path: Path) -> list[str]:
+    """The column names of a single-line-record IRAF text database."""
+    names = []
+    for line in Path(path).read_text(errors="replace").splitlines():
+        if line.startswith("#N "):
+            names += line[3:].replace("\\", " ").split()
+    return names
 
 
 def coordinates(table: Any, path: Path | str) -> tuple[Any, Any]:
