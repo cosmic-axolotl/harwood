@@ -35,10 +35,12 @@ from pathlib import Path
 import numpy as np
 
 from .. import iraffmt
+from ..jit import jit
 from .config import ctor
 from .io import cnvtime
 
 f32 = np.float32
+f64 = np.float64       # in numba, float() of a float32 stays a float32
 EPSILONR = f32(1.192e-7)
 MAX_REAL = f32(3.4028235e38)
 DEF_AIROFFSET = f32(1.25)
@@ -152,20 +154,30 @@ def read_photfiles(paths: list[str], naperts: int, maglim: float = 0.10,
 
 
 # ------------------------------------------------------------------ model
+#
+# The fit is the slow part -- the model is evaluated some thirty thousand
+# times for twelve images -- so it is written as kernels over arrays, which
+# numba compiles when it is installed (core.jit); without it they run as
+# they are, to the same numbers.
+
+D001 = float(f32(0.001))          # the parameter steps, a real in IRAF
+D002 = float(f32(0.002))
+CONVERGED = float(f32(3.0e-4))
 
 
+@jit
 def dmag(r1, r2, x, r0, p) -> float:
     """ph_dmag: the model's magnitude difference between two radii."""
-    bpex = p[1] + p[4] * float(x)
+    bpex = p[1] + p[4] * f64(x)
     pm1 = p[0] - 1.0
-    x1 = float(f32(f32(r1) / f32(r0)))
-    x2 = float(f32(f32(r2) / f32(r0)))
-    x1sq = x1 ** 2
-    x2sq = x2 ** 2
+    x1 = f64(f32(f32(r1) / f32(r0)))
+    x2 = f64(f32(f32(r2) / f32(r0)))
+    x1sq = x1 * x1
+    x2sq = x2 * x2
     x1 = x1 / p[3]
     x2 = x2 / p[3]
-    d1 = 1.0 + float(f32(f32(r1) * f32(r1)))
-    d2 = 1.0 + float(f32(f32(r2) * f32(r2)))
+    d1 = 1.0 + f64(f32(f32(r1) * f32(r1)))
+    d2 = 1.0 + f64(f32(f32(r2) * f32(r2)))
     i1 = (bpex * (1.0 - 1.0 / d1 ** pm1) + (1.0 - bpex)
           * (p[2] * (1.0 - math.exp(-0.5 * x1sq)) + (1.0 - p[2])
              * (1.0 - (1.0 + x1) * math.exp(-x1))))
@@ -175,6 +187,7 @@ def dmag(r1, r2, x, r0, p) -> float:
     return -2.5 * (LOG10E * math.log(i2 / i1))       # libf2c's d_lg10
 
 
+@jit
 def _pow_ri(x: float, n: int) -> float:
     """libf2c pow_ri: a real to an integer power, in double."""
     result = 1.0
@@ -190,7 +203,8 @@ def _pow_ri(x: float, n: int) -> float:
     return result
 
 
-def _weight(diff, merr, power: int, constant: bool) -> np.float32:
+@jit
+def _weight(diff, merr, power, constant):
     """1 / (1 + |diff / 2 merr| ** power). For a constant exponent f2c
     writes the power inline and it stays in single precision; for a
     variable one it calls pow_ri, which returns a double, and the sum and
@@ -201,9 +215,10 @@ def _weight(diff, merr, power: int, constant: bool) -> np.float32:
         for _ in range(power - 1):
             p = f32(p * q)
         return f32(f32(1.0) / f32(p + f32(1.0)))
-    return f32(1.0 / (_pow_ri(float(q), power) + 1.0))
+    return f32(1.0 / (_pow_ri(f64(q), power) + 1.0))
 
 
+@jit
 def dinver(a: np.ndarray, n: int) -> int:
     """dinvers.f: invert the n by n leading part of a in place, no pivoting;
     1 when a diagonal element is zero."""
@@ -234,22 +249,66 @@ class Fit:
 
 
 def fit_model(images: list[Image], params0: list[float], lterms: int) -> Fit:
-    """ph_amfit: each image's seeing radius, and the model's parameters."""
-    params = list(params0)
-    perrors = [0.0] * MAX_MTERMS
-    pclamps = [0.2] * MAX_MTERMS
+    """ph_amfit: each image's seeing radius, and the model's parameters.
+    The images and their stars go to the kernel as arrays."""
+    nimg = len(images)
+    naperts = max((len(i.stars[0].rap) for i in images if i.stars), default=1)
+    allstars = [s for image in images for s in image.stars]
+    rap = np.zeros((nimg, naperts), dtype=f32)
+    start = np.zeros(nimg + 1, dtype=np.int64)
+    ngood = np.zeros(nimg, dtype=np.int64)
+    for k, image in enumerate(images):
+        start[k + 1] = start[k] + len(image.stars)
+        if image.stars:
+            rap[k, :len(image.stars[0].rap)] = image.stars[0].rap
+            # IRAF counts the good points of the first stars of all,
+            # not this image's.
+            ngood[k] = sum(max(0, allstars[i].nap - 1) for i in range(len(image.stars)))
+    nstars = len(allstars)
+    mag = np.zeros((nstars, naperts), dtype=f32)
+    merr = np.ones((nstars, naperts), dtype=f32)
+    nap = np.zeros(nstars, dtype=np.int64)
+    for i, star in enumerate(allstars):
+        mag[i, :star.nap] = star.mag[:star.nap]
+        merr[i, :star.nap] = star.merr[:star.nap]
+        nap[i] = star.nap
+    nxair = np.array([image.nxairmass for image in images], dtype=f32)
+    ro = np.array([image.ro for image in images], dtype=f32)
+    first_rap = allstars[0].rap[0] if allstars else f32(0.0)
+    params = np.array(params0, dtype=np.float64)
+    perrors = np.zeros(MAX_MTERMS)
+    ok, nterms = _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, f32(first_rap),
+                        params, perrors, lterms)
+    for image, r in zip(images, ro, strict=True):
+        image.ro = f32(r)
+    return Fit([float(v) for v in params], [float(v) for v in perrors], int(nterms),
+               bool(ok))
+
+
+@jit
+def _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, first_rap, params, perrors,
+           lterms):
+    """ph_amfit's iterations, on arrays: ro and params are updated in place.
+    Returns whether the fit converged, and the number of terms fitted."""
+    nimg, naperts = rap.shape
+    pclamps = np.full(MAX_MTERMS, 0.2)
     pclamps[3] = 0.5
-    pold = [0.0] * lterms
+    pold = np.zeros(lterms)
     ipow, nterms = 1, 0
     gain = f32(0.0)
     old = 0.0                         # static, zero in a fresh process
-    allstars = [s for image in images for s in image.stars]
-    first_rap = allstars[0].rap[0] if allstars else f32(0.0)
     sumn = 0.0
     u = np.zeros((lterms, lterms))
+    v = np.zeros(lterms)
+    dp = np.zeros(lterms)
+    dm = np.zeros(naperts)
+    dddr = np.zeros(naperts)
+    t = np.zeros((lterms, naperts))
     niter = 1
     while niter <= AGR_ITMAX:
-        sumd = sumw = sumn = 0.0
+        sumd = 0.0
+        sumw = 0.0
+        sumn = 0.0
         n = 1
         if nterms >= 1 and gain <= f32(0.04):
             n = 2
@@ -260,101 +319,96 @@ def fit_model(images: list[Image], params0: list[float], lterms: int) -> Fit:
                     if nterms >= 4 and gain <= f32(0.0025):
                         n = 5
         nterms = min(n, lterms)
-        u = np.zeros((lterms, lterms))
-        v = np.zeros(lterms)
-        for k, image in enumerate(images):
-            if not image.stars:
-                image.ro = NAN
-                continue
-            # IRAF counts the good points of the first stars of all,
-            # not this image's.
-            ngood = sum(max(0, allstars[i].nap - 1) for i in range(len(image.stars)))
-            if ngood <= 0:
-                image.ro = NAN
+        u[:, :] = 0.0
+        v[:] = 0.0
+        for k in range(nimg):
+            if start[k + 1] == start[k] or ngood[k] <= 0:
+                ro[k] = NAN
                 continue
             if niter == 1:
-                if k > 0 and not np.isnan(images[k - 1].ro):
-                    image.ro = images[k - 1].ro
+                if k > 0 and not np.isnan(ro[k - 1]):
+                    ro[k] = ro[k - 1]
                 else:
-                    image.ro = f32(f32(0.5) * first_rap)
-            rap = image.stars[0].rap
-            naperts = len(rap)
+                    ro[k] = f32(f32(0.5) * first_rap)
+            x = nxair[k]
             rold = f32(0.0)
-            rclamp = f32(image.ro / f32(4.0))
+            rclamp = f32(ro[k] / f32(4.0))
             ntimes = 0
-            dm = [0.0] * naperts
+            dm[:] = 0.0
             while True:
-                sumr = sumy = 0.0
-                dddr = [0.0] * naperts
+                sumr = 0.0
+                sumy = 0.0
+                dddr[:] = 0.0
                 for i in range(1, naperts):
-                    dm[i] = dmag(rap[i - 1], rap[i], image.nxairmass, image.ro, params)
+                    dm[i] = dmag(rap[k, i - 1], rap[k, i], x, ro[k], params)
                     dddr[i] = 500.0 * (
-                        dmag(rap[i - 1], rap[i], image.nxairmass,
-                             f32(image.ro - f32(0.001)), params)
-                        - dmag(rap[i - 1], rap[i], image.nxairmass,
-                               f32(image.ro + f32(0.001)), params))
-                for star in image.stars:
-                    if star.nap <= 1:
+                        dmag(rap[k, i - 1], rap[k, i], x, f32(ro[k] - f32(0.001)), params)
+                        - dmag(rap[k, i - 1], rap[k, i], x, f32(ro[k] + f32(0.001)),
+                               params))
+                for s in range(start[k], start[k + 1]):
+                    if nap[s] <= 1:
                         continue
                     wprev = f32(1.0)
-                    for j in range(1, star.nap):
-                        diff = f32(float(star.mag[j]) - dm[j])
-                        w = min(_weight(diff, star.merr[j], ipow, False), wprev)
+                    for j in range(1, nap[s]):
+                        diff = f32(f64(mag[s, j]) - dm[j])
+                        w = min(_weight(diff, merr[s, j], ipow, False), wprev)
                         wprev = w
-                        wt = f32(w / f32(star.merr[j] * star.merr[j]))
-                        sumr = sumr + float(f32(wt * diff)) * dddr[j]
-                        sumy = sumy + float(wt) * dddr[j] ** 2
+                        wt = f32(w / f32(merr[s, j] * merr[s, j]))
+                        sumr = sumr + f64(f32(wt * diff)) * dddr[j]
+                        sumy = sumy + f64(wt) * dddr[j] ** 2
                 if sumy > 0.0:
                     dr = f32(sumr / sumy)
                     if f32(dr * rold) < 0:
                         rclamp = f32(f32(0.5) * rclamp)
-                    image.ro = f32(image.ro - f32(dr / f32(abs(f32(dr / rclamp))
-                                                          + f32(1.0))))
-                    if image.ro <= EPSILONR:
-                        image.ro = NAN
-                        return Fit(params, perrors, nterms, False)
+                    ro[k] = f32(ro[k] - f32(dr / f32(abs(f32(dr / rclamp)) + f32(1.0))))
+                    if ro[k] <= EPSILONR:
+                        ro[k] = NAN
+                        return False, nterms
                     rold = dr
-                    if abs(float(f32(dr / image.ro))) <= float(f32(3.0e-4)):
+                    if abs(f64(f32(dr / ro[k]))) <= CONVERGED:
                         break
                 else:
-                    image.ro = NAN
+                    ro[k] = NAN
                     break
                 ntimes += 1
                 if ntimes >= 100:
-                    image.ro = NAN
-                    return Fit(params, perrors, nterms, False)
+                    ro[k] = NAN
+                    return False, nterms
             # ph_adp: the parameter derivatives at the new radius
-            t = np.zeros((lterms, naperts))
+            t[:, :] = 0.0
             for j in range(1, naperts):
-                dm[j] = dmag(rap[j - 1], rap[j], image.nxairmass, image.ro, params)
+                dm[j] = dmag(rap[k, j - 1], rap[k, j], x, ro[k], params)
                 for i in range(nterms):
-                    params[i] = params[i] - float(f32(0.001))
-                    lower = dmag(rap[j - 1], rap[j], image.nxairmass, image.ro, params)
-                    params[i] = params[i] + float(f32(0.002))
-                    t[i, j] = 500.0 * (lower - dmag(rap[j - 1], rap[j], image.nxairmass,
-                                                    image.ro, params))
-                    params[i] = params[i] - float(f32(0.001))
+                    params[i] = params[i] - D001
+                    lower = dmag(rap[k, j - 1], rap[k, j], x, ro[k], params)
+                    params[i] = params[i] + D002
+                    t[i, j] = 500.0 * (lower - dmag(rap[k, j - 1], rap[k, j], x, ro[k],
+                                                    params))
+                    params[i] = params[i] - D001
             # ph_aaccum
-            for star in image.stars:
-                if star.nap <= 1:
+            for s in range(start[k], start[k + 1]):
+                if nap[s] <= 1:
                     continue
                 wprev = f32(1.0)
-                for j in range(1, star.nap):
-                    diff = f32(float(star.mag[j]) - dm[j])
-                    w = min(_weight(diff, star.merr[j], ipow, False), wprev)
+                for j in range(1, nap[s]):
+                    diff = f32(f64(mag[s, j]) - dm[j])
+                    w = min(_weight(diff, merr[s, j], ipow, False), wprev)
                     wprev = w
-                    wt = f32(w / f32(star.merr[j] * star.merr[j]))
-                    sumd = sumd + float(f32(wt * f32(diff * diff)))
-                    sumw = sumw + float(wt)
-                    sumn = sumn + float(w)
-                    wd = float(f32(wt * diff))
+                    wt = f32(w / f32(merr[s, j] * merr[s, j]))
+                    sumd = sumd + f64(f32(wt * f32(diff * diff)))
+                    sumw = sumw + f64(wt)
+                    sumn = sumn + f64(w)
+                    wd = f64(f32(wt * diff))
                     for ll in range(nterms):
                         v[ll] = v[ll] + wd * t[ll, j]
                         for m in range(nterms):
-                            u[ll, m] = u[ll, m] + float(wt) * t[ll, j] * t[m, j]
+                            u[ll, m] = u[ll, m] + f64(wt) * t[ll, j] * t[m, j]
         if dinver(u, nterms):
-            return Fit(params, perrors, nterms, False)
-        dp = [sum(u[j, i] * v[j] for j in range(nterms)) for i in range(nterms)]
+            return False, nterms
+        for i in range(nterms):
+            dp[i] = 0.0
+            for j in range(nterms):
+                dp[i] += u[j, i] * v[j]
         # ph_apsolve
         for i in range(nterms):
             if dp[i] * pold[i] < 0.0:
@@ -369,7 +423,8 @@ def fit_model(images: list[Image], params0: list[float], lterms: int) -> Fit:
                     dp[2] / (pclamps[2] * params[2] * (1.0 - params[2]))))
                 if ipow == 1:
                     ipow = 2
-                    pclamps[0] = pclamps[1] = 0.1
+                    pclamps[0] = 0.1
+                    pclamps[1] = 0.1
                 if nterms >= 4:
                     params[3] = params[3] - dp[3] / (1.0 + abs(
                         dp[3] / (pclamps[3] * params[3])))
@@ -385,14 +440,14 @@ def fit_model(images: list[Image], params0: list[float], lterms: int) -> Fit:
             continue
         if ipow <= 2:
             ipow = 3
-            pclamps[:4] = [0.1] * 4
+            pclamps[:4] = 0.1
             continue
         break
     if niter > AGR_ITMAX:
-        return Fit(params, perrors, nterms, False)
+        return False, nterms
     for k in range(nterms):
         perrors[k] = sumn * math.sqrt(u[k, k]) if u[k, k] > 0.0 else 0.0
-    return Fit(params, perrors, nterms, True)
+    return True, nterms
 
 
 # --------------------------------------------------------------- evaluate
@@ -418,6 +473,7 @@ class Curve:
 
 def evaluate(image: Image, params: list[float], naperts: int) -> Curve:
     """ph_rinit, ph_tinit, ph_taccum and ph_tcum."""
+    params = np.asarray(params, dtype=np.float64)
     rap = image.stars[0].rap if image.stars else np.full(naperts, NAN, dtype=f32)
     z = lambda: np.zeros(naperts, dtype=f32)  # noqa: E731
     rbar, theo, obs = z(), z(), z()

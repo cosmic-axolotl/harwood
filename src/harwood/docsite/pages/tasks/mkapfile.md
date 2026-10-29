@@ -61,7 +61,10 @@ and the log are byte for byte IRAF's on the twelve Skinakas images, alone
 and together. One habit of IRAF's is kept: the first fit's convergence test
 starts from a value left by the previous fit in the same IRAF process, so
 IRAF run twice in one session gives a slightly different second answer.
-harwood always gives the first, which is what a fresh IRAF gives. The
+harwood always gives the first, which is what a fresh IRAF gives. With
+numba installed (`harwood[fast]`) the fit is compiled: twelve images
+together take a twentieth of a second instead of one to three, to the
+same digits. The
 interactive graphs and the `obsparams` file (airmasses from a separate
 table) are not ported; set the airmass in the headers with
 [setairmass](task:setairmass) before phot.
