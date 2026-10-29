@@ -354,7 +354,8 @@ E : x = p * log(x)
 def test_a_syntax_error_is_reported_as_iraf_reports_it():
     with pytest.raises(config.ConfigError) as error:
         config.parse_text("observations\nx 1\ntransformation\nE : x = = 2\n")
-    assert "syntax error at '='" in error.value.messages[0]
+    assert error.value.messages == ["** Error near line 4: E : x = = 2\n"
+                                    "Cannot continue parsing at '='"]
     with pytest.raises(config.ConfigError) as error:
         config.parse_text("observations\nx 1\ntransformation\nE : x = y\n")
     assert "Undefined identifier in expression [y]" in str(error.value)
@@ -443,3 +444,177 @@ def test_mkimsets_names_the_sets_from_the_headers(tmp_path, monkeypatch):
     assert (tmp_path / "sets").read_text() == (
         "PG2331+055 :  im0.fits  im1.fits\nSA113 :  im2.fits  im3.fits\n")
     assert not result.warnings
+
+
+# --------------------------------------------------------------- chkconfig
+
+CHKCONFIG = DATA / "chkconfig"
+CHKCASES = sorted(p.stem for p in CHKCONFIG.glob("*.cfg"))
+
+
+@pytest.mark.parametrize("case", CHKCASES)
+@pytest.mark.parametrize("verbose", [False, True])
+def test_chkconfig_says_what_iraf_says(case, verbose):
+    """The skinakas and lang configurations, one for each catalog of the
+    standards directory as mkconfig puts it together (landolt ... ukirt),
+    and e*, f*: every message the parser has, each where IRAF places it --
+    on the line after an equation when it had to read on, on the line past
+    the end for what pr_exit finds -- syntax errors at the end of the file,
+    a file without its last newline, an empty one."""
+    from harwood.core.photcal import check
+
+    report = check.check(CHKCONFIG / f"{case}.cfg", verbose)
+    assert report.text == (CHKCONFIG / f"{case}.{'v' if verbose else 'q'}").read_text()
+    err = CHKCONFIG / f"{case}.err"
+    assert report.stderr == (err.read_text() if err.exists() else "")
+
+
+def test_a_last_comment_without_its_newline_does_not_hang():
+    """IRAF loops for ever on a file ending in '#' with no newline: the
+    comment sends the lexer to the last character, which is the '#'."""
+    from harwood.core.photcal import check
+
+    text = "catalog\nV 2\nobservations\nmV 3\ntransformation\nfit v1 = 25.0\n" \
+           "VFIT : mV = V + v1 #"
+    report = check.check("t.cfg", text=text)
+    assert report.nerrors == 1 and report.stderr == "syntax error\n"
+
+
+def test_chkconfig_as_a_task():
+    from harwood import run
+
+    result = run("chkconfig", config=CHKCONFIG / "skinakas.cfg", verbose=True)
+    assert "\n".join(result.stdout) + "\n" == (CHKCONFIG / "skinakas.v").read_text()
+    assert result.data == {"errors": 0, "warnings": 0} and not result.warnings
+    result = run("chkconfig", config=CHKCONFIG / "e1.cfg")
+    assert result.data == {"errors": 3, "warnings": 2} and result.warnings
+
+
+# --------------------------------------------------------------- mkcatalog
+
+MKCATALOG = DATA / "mkcatalog"
+CATCASES = {
+    "c1": (["ID", "V", "error(V)", "B", "R", "error(R)"], [15, 10, 8, 10, 12, 10],
+           [["PG2331+055", "15.182", "0.0057", "15.116", "14.0", "0.01"], [],
+            ["92_336", "8.046", "INDEF", "9.031"],
+            ["AVERYLONGIDENTIFIERNAME", "1.23456789012345", "0.1", "2", "3", "4"]]),
+    "c3": (["NAME", "V", "error(V)", "UB"], [15, 10, 10, 5], [["x1", "1", "2", "3"]]),
+}
+
+
+@pytest.mark.parametrize("case", CATCASES)
+def test_mkcatalog_writes_what_iraf_writes(tmp_path, monkeypatch, case):
+    """IRAF's catalog task was given c*.cols at its prompts, which made the
+    header (c*.hdr) and the format file, then c*.recs, which added the
+    records (c*): a blank id is a blank line, a missing value INDEF, a long
+    one cut to its column."""
+    from harwood.core.photcal import catalog
+
+    names, widths, records = CATCASES[case]
+    monkeypatch.chdir(tmp_path)
+    made = catalog.mkcatalog(case, names, widths)
+    assert Path(case).read_text() == (MKCATALOG / f"{case}.hdr").read_text()
+    assert Path(f"f{case}.dat").read_text() == (MKCATALOG / f"f{case}.dat").read_text()
+    assert made.created and made.format_file == f"f{case}.dat"
+    added = catalog.mkcatalog(case, records=records)
+    assert Path(case).read_text() == (MKCATALOG / case).read_text()
+    assert not added.created and added.nrecords == sum(map(bool, records))
+    assert catalog.read_header(case) == (case, names, widths)
+
+
+def test_a_record_longer_than_a_line_goes_on_continuation_lines():
+    """Fourteen columns of 77 do not fit in IRAF's 1022 characters. IRAF's
+    own header (c4.hdr) has the eleventh name blank -- its buffer of names is
+    reallocated under a pointer it keeps -- so that is what is compared;
+    harwood names the column."""
+    from harwood.core.photcal import catalog
+
+    names = ["ID"] + [f"C{i}" for i in range(2, 15)]
+    widths = [30] + [77] * 13
+    iraf = names.copy()
+    iraf[10] = ""
+    assert catalog.header("c4", iraf, widths) == (MKCATALOG / "c4.hdr").read_text()
+    record = catalog.data_record(["star"] + [f"{i}.25" for i in range(2, 15)], widths)
+    first, second = record.split("\n")[:2]
+    assert len(first) == 982 and second.startswith("* 14.25")
+
+
+def test_mkcatalog_refuses_what_it_cannot_write(tmp_path, monkeypatch):
+    from harwood.core.photcal import catalog
+
+    monkeypatch.chdir(tmp_path)
+    for names, widths, match in [(["ID"], None, "no data columns"),
+                                 (["ID", "U_B"], None, "not a legal column name: U_B"),
+                                 (["ID", "V"], [15], "2 columns but 1 widths"),
+                                 (["ID", "V"], [15, 90], "width must be")]:
+        with pytest.raises(ValueError, match=match):
+            catalog.mkcatalog("cat", names, widths)
+    catalog.mkcatalog("cat", ["ID", "V"])
+    with pytest.raises(ValueError, match="3 values for 2 columns"):
+        catalog.mkcatalog("cat", records=[["a", "1", "2"]])
+    with pytest.raises(ValueError, match="already has the columns ID, V"):
+        catalog.mkcatalog("cat", ["ID", "B"])
+    Path("other").write_text("x 1 2\n")
+    with pytest.raises(ValueError, match="was not created with mkcatalog"):
+        catalog.mkcatalog("other", records=[["a"]])
+
+
+def test_mkcatalog_as_a_task(tmp_path, monkeypatch):
+    from harwood import run
+
+    monkeypatch.chdir(tmp_path)
+    Path("recs").write_text("# id V error(V) B error(B)\n"
+                            "PG2331+055  15.182 0.0057 15.116 0.0042\n92_336 8.046\n\n")
+    result = run("mkcatalog", catalog="stds", columns=["ID", "V", "error(V)", "B",
+                                                       "error(B)"], records="recs")
+    assert result.data["records"] == 2 and result.data["created"]
+    assert Path("stds").read_text().endswith(
+        "  92_336           8.046       INDEF       INDEF       INDEF     \n")
+    result = run("mkcatalog", catalog="stds", records="recs")
+    assert not result.data["created"]
+    assert Path("stds").read_text().count("PG2331+055") == 2
+
+
+# ---------------------------------------------------------------- mkconfig
+
+MKCONFIG = DATA / "mkconfig"
+
+
+def test_mkconfig_puts_the_sections_together_as_iraf_does(tmp_path, monkeypatch):
+    """m1: Landolt's format file and template from the standards directory,
+    the observations' format file obsfile wrote; m2: a catalog's format file
+    from mkcatalog (fc1.dat) and a template of one's own (tmine.dat)."""
+    from harwood.core.photcal import mkconfig
+
+    monkeypatch.chdir(tmp_path)
+    for name in ("fc1.dat", "tmine.dat"):
+        Path(name).write_bytes((MKCONFIG / name).read_bytes())
+    Path("fobsA.dat").write_bytes((OBSFILE / "fobsA.dat").read_bytes())
+    found = mkconfig.mkconfig("m1", "landolt", "obsA", "landolt")
+    assert Path("m1").read_bytes() == (MKCONFIG / "m1").read_bytes()
+    assert found.catalog.endswith("data/iraf/catalogs/flandolt.dat")
+    mkconfig.mkconfig("m2", "c1", "obsA", "mine")
+    assert Path("m2").read_bytes() == (MKCONFIG / "m2").read_bytes()
+    assert mkconfig.mkconfig("m3", template="m1") is None
+    assert Path("m3").read_bytes() == Path("m1").read_bytes()
+    with pytest.raises(FileExistsError, match="The configuration file m1 already exists"):
+        mkconfig.mkconfig("m1", "landolt", "obsA", "landolt")
+    with pytest.raises(FileNotFoundError, match="nosuch in current or standards"):
+        mkconfig.mkconfig("m4", "nosuch", "obsA", "landolt")
+    with pytest.raises(FileNotFoundError, match="nosuch in current directory"):
+        mkconfig.mkconfig("m5", "landolt", "nosuch", "landolt")
+
+
+def test_mkconfig_as_a_task_checks_what_it_wrote(tmp_path, monkeypatch):
+    from harwood import run
+
+    monkeypatch.chdir(tmp_path)
+    Path("fobsA.dat").write_bytes((OBSFILE / "fobsA.dat").read_bytes())
+    Path("tbv.dat").write_text("transformation\n\nfit v1=0, v2=0.17, v3=0\n"
+                               "VFIT : mV = V + v1 + v2 * XV + v3 * BV\n")
+    result = run("mkconfig", config="bv.cfg", catalog="landolt", observations="obsA",
+                 transform="bv")
+    assert result.data == {"errors": 0, "warnings": 0} and not result.warnings
+    result = run("mkconfig", config="ubvri.cfg", catalog="landolt",
+                 observations="obsA", transform="landolt")
+    assert result.data["errors"] == 9 and result.warnings

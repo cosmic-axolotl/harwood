@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 45, partial: 13, planned: 297, replaced: 94, wontport: 161
+#   available: 46, partial: 15, planned: 294, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -615,7 +615,8 @@ tasks:
     note: "every algorithm -- centroid, gauss (through IRAF's nlfit), ofilter, none -- the symmetry clean and absorption features (emission = no), ported and checked against IRAF's output; interactive mode in the window or from icommands, its rows identical to IRAF's"}
   centerpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
-  chkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  chkconfig: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: chkconfig,
+    note: "IRAF's output byte for byte, every parser message where IRAF places it; a file ending in '#' without its newline, on which IRAF loops for ever, is a syntax error"}
   daoedit: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   daofind: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: daofind,
     note: "IRAF's kernel, density, detection, sharpness, sround, ground and centres, ported and checked against IRAF's output; sigma is measured from the image when not given, where IRAF would detect at zero"}
@@ -640,8 +641,10 @@ tasks:
   istable: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   mkapfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkapfile,
     note: "DAOGROW: the curve-of-growth model, the adopted curves, the corrections, the best magnitudes and the log, byte for byte IRAF's on twelve images alone and together; the interactive graphs and the obsparams airmass file are not ported"}
-  mkcatalog: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
-  mkconfig: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkcatalog: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkcatalog,
+    note: "header, records and format file byte for byte, the columns and records given at once instead of at prompts; the review of old records and the editor are not ported"}
+  mkconfig: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkconfig,
+    note: "the sections from format files and templates, IRAF's standards directory shipped as photcal$catalogs/, byte for byte, then chkconfig; the prompting for a section with no file and the editor are not ported"}
   mkimsets: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkimsets,
     note: "the image list from the photometry or the headers, sorted, grouped (imgroup) and written byte for byte as IRAF does, names from a list or a header keyword; the editor sessions are not ported"}
   mknobsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}

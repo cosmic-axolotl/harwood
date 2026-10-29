@@ -1,0 +1,11 @@
+# CATALOG: c1
+# NCOLS: 6
+# HDRLENGTH: 75
+# 
+# ID               V           error(V)  B           R             error(R)  
+# 15               10          8         10          12            10        
+
+  PG2331+055       15.182      0.0057    15.116      14.0          0.01      
+
+  92_336           8.046       INDEF     9.031       INDEF         INDEF     
+  AVERYLONGIDENTI  1.23456789  0.1       2           3             4         

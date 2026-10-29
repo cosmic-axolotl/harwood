@@ -662,6 +662,228 @@ class Obsfile(Task[ObsfileParams]):
                                 "notes": notes})
 
 
+class ChkconfigParams(TaskParams):
+    config: Path = Field(..., description="The configuration file to check.",
+                         json_schema_extra={"positional": True})
+    verbose: bool = Field(False, description="Also list the variables, parameters "
+                                             "and equations it declares.")
+
+
+WHY.update({
+    "compile": "The file is compiled as fitparams compiles it: each error and "
+               "warning names the line the parser had reached, which is the "
+               "line after the culprit when the parser had to read on to know "
+               "a statement had ended -- after an equation, or an empty "
+               "section. The declarations are only listed when there are no "
+               "errors, as IRAF lists them.",
+})
+
+
+@register
+class Chkconfig(Task[ChkconfigParams]):
+    """IRAF's chkconfig: its output, byte for byte, on the standard output."""
+
+    name = "chkconfig"
+    package = "photcal"
+    description = "Check a photcal configuration file for errors."
+    Params = ChkconfigParams
+
+    def plan(self, params: ChkconfigParams) -> list[Step]:
+        return [Step("compile", str(params.config), why=WHY["compile"])]
+
+    def execute(self, params: ChkconfigParams) -> TaskResult:
+        from ..core.photcal import check
+
+        try:
+            report = check.check(params.config, params.verbose)
+        except OSError as error:
+            advice.fail(f"cannot read the configuration: {error}", "check the path.")
+        steps = self.plan(params)
+        steps[0].measured = {"errors": report.nerrors, "warnings": report.nwarnings}
+        warnings = []
+        if report.nerrors:
+            warnings.append(advice.warn(
+                f"{params.config}: {report.nerrors} errors; fitparams and invertfit "
+                f"will not read it.", "fix the line each message names, from the "
+                                      "first: one error can cause the next."))
+        return TaskResult(steps=steps, warnings=warnings,
+                          stdout=report.text.rstrip("\n").split("\n"),
+                          data={"errors": report.nerrors, "warnings": report.nwarnings})
+
+
+class MkconfigParams(TaskParams):
+    config: Path = Field(..., description="The configuration file to write; it "
+                                          "must not exist.",
+                         json_schema_extra={"positional": True})
+    catalog: str = Field("", description="The catalog section: a format file "
+                                         "f<catalog>.dat here or in catdir -- "
+                                         "landolt, nlandolt, elias, ukirt ... -- "
+                                         "or the file itself. Empty for none.",
+                         json_schema_extra={"positional": True})
+    observations: str = Field("", description="The observation section: "
+                                              "f<observations>.dat as obsfile "
+                                              "writes it, or the file itself.",
+                              json_schema_extra={"positional": True})
+    transform: str = Field("", description="The transformation section: a "
+                                           "template t<transform>.dat here or "
+                                           "in catdir, or the file itself.",
+                           json_schema_extra={"positional": True})
+    template: str = Field("", description="Copy this configuration instead.")
+    catdir: str = Field("photcal$catalogs/",
+                        description="The standards directory; photcal$catalogs/ "
+                                    "is the copy of IRAF's that comes with harwood.")
+    check: bool = Field(True, description="Check the new file as chkconfig does.")
+    verbose: bool = Field(False, description="With --check, list what it declares.")
+
+
+WHY.update({
+    "assemble": "The three sections are copied one after the other, as IRAF's "
+                "mkconfig copies them, from a format file for the catalog (each "
+                "standards catalog has one, and mkcatalog writes one), the "
+                "observations' format file obsfile wrote, and a template of the "
+                "equations. Edit the result: the template's equations are a "
+                "starting point -- the initial values, which terms to fit -- "
+                "not a calibration.",
+})
+
+
+@register
+class Mkconfig(Task[MkconfigParams]):
+    """A configuration file from its sections' files, as IRAF's mkconfig
+    makes it without the prompting and the editor."""
+
+    name = "mkconfig"
+    package = "photcal"
+    description = "Make a photcal configuration file from format files and a template."
+    Params = MkconfigParams
+
+    def plan(self, params: MkconfigParams) -> list[Step]:
+        what = (f"copy of {params.template}" if params.template else
+                ", ".join(f"{k} {v}" for k, v in (("catalog", params.catalog),
+                                                  ("observations", params.observations),
+                                                  ("transform", params.transform)) if v))
+        steps = [Step("assemble", f"{params.config} from {what}", why=WHY["assemble"])]
+        if params.check:
+            steps.append(Step("compile", str(params.config), why=WHY["compile"]))
+        return steps
+
+    def execute(self, params: MkconfigParams) -> TaskResult:
+        from ..core.photcal import check, mkconfig
+
+        if not params.template and not (params.observations and params.transform):
+            advice.fail("no observations or transform given.",
+                        "name the observations' format file and a transformation "
+                        "template (landolt, or your own t<name>.dat), or a "
+                        "--template configuration to copy.")
+        try:
+            found = mkconfig.mkconfig(params.config, params.catalog or None,
+                                      params.observations, params.transform,
+                                      params.template, params.catdir)
+        except FileExistsError as error:
+            advice.fail(str(error), "choose another name, or remove it first.",
+                        kind=FileExistsError)
+        except FileNotFoundError as error:
+            advice.fail(str(error), "a format file is looked for as f<name>.dat and "
+                                    "a template as t<name>.dat, here and in catdir; "
+                                    "or give the file's own name.",
+                        kind=FileNotFoundError)
+        steps = self.plan(params)
+        if found is not None:
+            steps[0].measured = {k: v for k, v in (("catalog", found.catalog),
+                                                   ("observations", found.observations),
+                                                   ("transform", found.transform)) if v}
+        warnings, data = [], {}
+        if params.check:
+            report = check.check(params.config, params.verbose)
+            steps[1].measured = {"errors": report.nerrors, "warnings": report.nwarnings}
+            data = {"errors": report.nerrors, "warnings": report.nwarnings}
+            if report.nerrors or report.nwarnings:
+                warnings.append(advice.warn(
+                    f"{params.config}: {report.nerrors} errors, {report.nwarnings} "
+                    f"warnings.", f"harwood chkconfig {params.config} lists them by "
+                                  f"line; a template's equations name every filter "
+                                  f"of its system, so drop or edit those you did "
+                                  f"not observe."))
+        return TaskResult(outputs=[params.config], steps=steps, warnings=warnings,
+                          data=data)
+
+
+class MkcatalogParams(TaskParams):
+    catalog: Path = Field(..., description="The catalog to make, or to add to.",
+                          json_schema_extra={"positional": True})
+    columns: list[str] = Field(
+        default_factory=list,
+        description="A new catalog's columns, the id first: ID,V,error(V),BV,error(BV).")
+    widths: list[int] = Field(
+        default_factory=list,
+        description="Their widths; 15 for the id and 10 for the rest if not given.")
+    records: str = Field("", description="A file of records to add, one star per "
+                                         "line, its values separated by blanks; "
+                                         "values missing at the end are INDEF.")
+
+
+WHY.update({
+    "catalog": "A catalog made by mkcatalog says in its header what its columns "
+               "are and how wide, so more stars can be added to it later; the "
+               "format file next to it, f<catalog>.dat, is its section of the "
+               "configuration, for mkconfig.",
+})
+
+
+@register
+class Mkcatalog(Task[MkcatalogParams]):
+    """A standard star catalog in IRAF's mkcatalog format, from the columns
+    and records given at once instead of typed at prompts."""
+
+    name = "mkcatalog"
+    package = "photcal"
+    description = "Make a catalog of standard stars, or add stars to one."
+    Params = MkcatalogParams
+
+    def plan(self, params: MkcatalogParams) -> list[Step]:
+        what = (f"columns {', '.join(params.columns)}" if params.columns
+                else "the columns in its header")
+        return [Step("catalog", f"{params.catalog} with {what}"
+                                + (f", records from {params.records}" if params.records
+                                   else ""), why=WHY["catalog"])]
+
+    def execute(self, params: MkcatalogParams) -> TaskResult:
+        from ..core.photcal import catalog as mkcat
+
+        records = []
+        if params.records:
+            try:
+                text = Path(params.records).read_text(errors="replace")
+            except OSError as error:
+                advice.fail(f"cannot read the records: {error}", "check the path.")
+            records = [line.split() for line in text.split("\n")
+                       if not line.lstrip().startswith("#")]
+            while records and not records[-1]:
+                records.pop()
+        try:
+            cat = mkcat.mkcatalog(str(params.catalog), params.columns or None,
+                                  params.widths or None, records)
+        except ValueError as error:
+            advice.fail(str(error), "a new catalog needs --columns, the id column "
+                                    "first, names of letters and digits or "
+                                    "error(name); to add to one, leave them out.")
+        steps = self.plan(params)
+        steps[0].measured = {"columns": ", ".join(f"{n} ({w})" for n, w in
+                                                  zip(cat.names, cat.widths, strict=True)),
+                             "records added": cat.nrecords}
+        warnings = []
+        if cat.truncated:
+            warnings.append(advice.warn(
+                f"{len(cat.truncated)} values were cut to their column's width, as "
+                f"IRAF cuts them: {', '.join(cat.truncated[:6])}"
+                + (" ..." if len(cat.truncated) > 6 else ""),
+                "make the catalog again with wider --widths."))
+        outputs = [params.catalog] + ([Path(cat.format_file)] if cat.created else [])
+        return TaskResult(outputs=outputs, steps=steps, warnings=warnings,
+                          data={"columns": cat.names, "widths": cat.widths,
+                                "created": cat.created, "records": cat.nrecords})
+
+
 def _files(items: list[str]) -> list[str]:
     """Text files named as images are: @lists, commas and patterns."""
     from ..core import images

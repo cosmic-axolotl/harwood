@@ -21,7 +21,9 @@ VFIT : mV = V + v1 + v2 * (B - V) + v3 * XV
 `const` fixes a parameter, `delta` sets the step of its numerical
 derivative, `set` names an expression to use in the others, and
 `derivative`, `error` and `weight` equations do what IRAF's do. The same
-file works in IRAF and in harwood, both ways.
+file works in IRAF and in harwood, both ways. [mkconfig](task:mkconfig) makes one
+from a standards catalog's format file and a template of equations, and
+[chkconfig](task:chkconfig) says what is wrong with one, line by line.
 
 **Matching.** Each observation is paired with its star in the catalog by
 the id in the first column, upper-cased and reduced to letters, digits, `+`,

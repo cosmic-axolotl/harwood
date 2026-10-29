@@ -281,17 +281,28 @@ class Token:
     kind: str
     text: str
     line: int
-    source: str
+    source: str                   # the line it is on, newline and all
     value: float | None = None
 
 
 def _tokens(text: str) -> list[Token]:
-    """pr_lexer over the whole file."""
+    """pr_lexer over the whole file. A last line without its newline ends
+    in the end of string, which the lexer takes for an illegal character:
+    IRAF cannot parse such a file."""
     out = []
     lines = text.split("\n")
-    for number, line in enumerate(lines, start=1):
-        pos, n = 0, len(line)
-        while pos < n:
+    for number, body in enumerate(lines, start=1):
+        last = number == len(lines)
+        if last and not body:
+            break
+        line = body if last else body + "\n"
+        pos, n = 0, len(body)
+        while True:
+            if pos >= n:
+                if last:
+                    out.append(Token("ERR", "", number, line))
+                    return out
+                break
             ch = line[pos]
             if ch in " \t\r\f\v":
                 pos += 1
@@ -332,13 +343,18 @@ def _tokens(text: str) -> list[Token]:
                     pos += 1
                 continue
             if ch == "#":
-                break
+                # pos = strlen (line): the newline, or the comment's last
+                # character when there is none.
+                if not last:
+                    break
+                pos = n if pos == n - 1 else n - 1
+                continue
             if ch in _PUNCTUATION:
                 out.append(Token(_PUNCTUATION[ch], ch, number, line))
             else:
                 out.append(Token("ERR", ch, number, line))
             pos += 1
-    out.append(Token("EOFILE", "EOF", len(lines), ""))
+    out.append(Token("EOFILE", out[-1].text if out else "", len(lines), ""))
     return out
 
 
@@ -362,6 +378,8 @@ class _Parser:
         self.k = 0
         self.cfg = Config(path)
         self.errors: list[str] = []
+        self.messages: list[str] = []      # errors and warnings as printed
+        self.syntax_error = False
         self.section = None
         self._tables()
 
@@ -392,15 +410,25 @@ class _Parser:
     def _at(self, *kinds: str) -> bool:
         return self.tok.kind in kinds
 
-    def _where(self) -> str:
-        token = self.tokens[max(self.k - 1, 0)]
-        return f"near line {token.line}: {token.source.strip()}"
+    def _where(self, at: str) -> str:
+        """Where pr_error says it is: the line of the last token the lexer
+        read. That is the token just taken, unless the grammar had to look
+        at the next one to know the rule had ended ("next") -- after any
+        expression, an empty or missing section -- or the parse is over
+        ("end")."""
+        k = {"last": self.k - 1, "next": self.k, "end": len(self.tokens) - 1}[at]
+        token = self.tokens[max(k, 0)]
+        return f"near line {token.line}: {token.source}"
 
-    def error(self, message: str) -> None:
-        self.errors.append(f"** Error {self._where()}: {message}")
+    def error(self, message: str, at: str = "last") -> None:
+        text = f"** Error {self._where(at)}{message}"
+        self.errors.append(text)
+        self.messages.append(text)
 
-    def warning(self, message: str) -> None:
-        self.cfg.warnings.append(f"** Warning {self._where()}: {message}")
+    def warning(self, message: str, at: str = "last") -> None:
+        text = f"** Warning {self._where(at)}{message}"
+        self.cfg.warnings.append(text)
+        self.messages.append(text)
 
     # -- the grammar
     def parse(self) -> Config:
@@ -414,14 +442,14 @@ class _Parser:
             self._transform()
             self._expect("EOFILE")
         except _SyntaxError:
-            token = self.tok
-            self.errors.append(f"** Error near line {token.line}: "
-                               f"{token.source.strip()}syntax error at '{token.text}'")
-            self.errors.append("** Error: Cannot continue parsing")
+            # yyerror's "syntax error" goes to the standard error; the
+            # lexer has read the token it failed on.
+            self.syntax_error = True
+            self.error(f"Cannot continue parsing at '{self.tok.text}'", at="next")
         if not self.errors:
             self._exit()
         if self.errors:
-            raise ConfigError(self.errors + self.cfg.warnings)
+            raise ConfigError(self.messages)
         return self.cfg
 
     def _columns(self, kind: str) -> int:
@@ -447,27 +475,35 @@ class _Parser:
             return
         self._next()
         self.cfg.mincol = 2
-        if not self._columns("cat"):
-            self.warning("The catalog section is empty")
+        empty = not self._columns("cat")
         if self._at("SEMICOLON"):
             self._next()
+            if empty:
+                self.warning("The catalog section is empty")
+        elif empty:
+            self.warning("The catalog section is empty", at="next")
 
     def _observation(self) -> None:
         if not self._at("OBSSECT"):
-            self.warning("The observation section is undefined")
+            self.warning("The observation section is undefined", at="next")
             return
         self._next()
-        if not self._columns("obs"):
-            self.warning("The observation section is empty")
+        empty = not self._columns("obs")
         if self._at("SEMICOLON"):
             self._next()
+            if empty:
+                self.warning("The observation section is empty")
+        elif empty:
+            self.warning("The observation section is empty", at="next")
 
     def _transform(self) -> None:
         self._expect("TRNSECT")
-        if self._at("SEMICOLON", "EOFILE"):
+        if self._at("SEMICOLON"):
+            self._next()
             self.warning("The transformation section is empty")
-            if self._at("SEMICOLON"):
-                self._next()
+            return
+        if self._at("EOFILE"):
+            self.warning("The transformation section is empty", at="next")
             return
         while not self._at("EOFILE"):
             self._statement()
@@ -707,7 +743,7 @@ class _Parser:
 
     def _seteq(self, name: str, eq: Expr) -> None:
         if name in self.cfg.symbols:
-            self.error(f"Set equation declared more than once [{name}]")
+            self.error(f"Set equation declared more than once [{name}]", at="next")
             return
         seq = SetEquation(name, len(self.cfg.sets) + 1, eq)
         self.cfg.sets.append(seq)
@@ -715,7 +751,7 @@ class _Parser:
 
     def _treq(self, name: str, ref: Expr, fit: Expr) -> None:
         if name in self.cfg.symbols:
-            self.error(f"Transformation equation [{name}] declared more than once")
+            self.error(f"Transformation equation [{name}] declared more than once", at="next")
             return
         params = list(self.tpar)
         plist = [k for k, p in enumerate(params, start=1) if p.kind == "fit"]
@@ -732,61 +768,66 @@ class _Parser:
     def _derivative(self, name: str, param: str, eq: Expr) -> None:
         symp = self.cfg.symbols.get(param)
         if symp is None:
-            self.error(f"Derivative with respect of undefined parameter [{param}]")
+            self.error(f"Derivative with respect of undefined parameter [{param}]", at="next")
             return
         if not isinstance(symp, Param):
-            self.error(f"Derivative with respect of non-parameter [{param}]")
+            self.error(f"Derivative with respect of non-parameter [{param}]", at="next")
             return
         syme = self.cfg.symbols.get(name)
         if syme is None:
-            self.error(f"Derivative of undefined equation [{name}]")
+            self.error(f"Derivative of undefined equation [{name}]", at="next")
         elif not isinstance(syme, Equation):
-            self.error(f"Derivative of non-transformation equation [{name}]")
+            self.error(f"Derivative of non-transformation equation [{name}]", at="next")
         elif symp in syme.params:
             syme.derivatives[syme.params.index(symp)] = eq
         else:
-            self.warning(f"Derivative with respect to unappropiate parameter [{param}]")
+            self.warning(f"Derivative with respect to unappropiate parameter [{param}]",
+                         at="next")
 
     def _plot(self, name: str, x: Expr, y: Expr) -> None:
         sym = self.cfg.symbols.get(name)
         if isinstance(sym, Equation):
             sym.xplot, sym.yplot = x, y
         elif sym is None:
-            self.error(f"Plot of undefined equation [{name}]")
+            self.error(f"Plot of undefined equation [{name}]", at="next")
         else:
-            self.error(f"Plot of non-transformation equation [{name}]")
+            self.error(f"Plot of non-transformation equation [{name}]", at="next")
 
     def _limits(self, error: bool, name: str, eq: Expr, low, high) -> None:
         sym = self.cfg.symbols.get(name)
         which = "Error" if error else "Weight"
         if sym is None:
-            self.error(f"{which} of undefined equation [{name}]")
+            self.error(f"{which} of undefined equation [{name}]", at="next")
         elif not isinstance(sym, Equation | SetEquation):
-            self.error(f"{which} of non transformation or set equation [{name}]")
+            self.error(f"{which} of non transformation or set equation [{name}]", at="next")
         elif error:
             sym.error, sym.errmin, sym.errmax = eq, low, high
         else:
             sym.weight, sym.wtsmin, sym.wtsmax = eq, low, high
 
     def _exit(self) -> None:
-        """pr_exit: column checks and the default deltas."""
+        """pr_exit: column checks and the default deltas. Its tables hold
+        the symbols last declared first, which orders the warnings and
+        decides which of two equations sharing a parameter sees the
+        default delta already set."""
         for table in (self.cfg.catvars, self.cfg.obsvars):
-            self._excol(table)
-        for eq in self.cfg.equations:
+            self._excol(table[::-1])
+        for eq in self.cfg.equations[::-1]:
             for k, param in enumerate(eq.params):
                 if param.delta is None:
                     param.delta = DEF_PFITDELTA
                 elif eq.derivatives[k] is not None:
                     self.warning(f"Parameter delta and derivative defined for "
-                                 f"[{param.name}] in equation [{eq.name}]")
+                                 f"[{param.name}] in equation [{eq.name}]", at="end")
 
     def _excol(self, table: list[Variable]) -> None:
+        """pr_excol, which never checks the last row against itself."""
         for i, one in enumerate(table[:-1]):
             if one.spare:
                 continue
             cols = [c for c in (one.errcol, one.wtscol) if c is not None]
             if one.column in cols or (len(cols) == 2 and cols[0] == cols[1]):
-                self.warning(f"Duplicate column for input variable [{one.name}]")
+                self.warning(f"Duplicate column for input variable [{one.name}]", at="end")
             for two in table[i + 1:]:
                 if two.spare:
                     continue
@@ -796,7 +837,7 @@ class _Parser:
                                                                           two.errcol)
                 if one.column == two.column or shared_error or shared_weight:
                     self.warning(f"Duplicate column for input variables "
-                                 f"[{one.name}] and [{two.name}]")
+                                 f"[{one.name}] and [{two.name}]", at="end")
 
 
 def parse(path: str | Path) -> Config:

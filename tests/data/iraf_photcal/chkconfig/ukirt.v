@@ -1,0 +1,87 @@
+
+
+** Beginning of compilation **
+
+
+** End of compilation **
+
+
+CATALOG VARIABLES, COLUMNS, AND ERROR COLUMNS:
+
+ 1  K	2	3
+ 3  JK	4	5
+ 5  HK	6	7
+
+OBSERVATIONAL VARIABLES, COLUMNS, AND ERROR COLUMNS:
+
+ 1  TH	3	INDEF
+ 2  XH	4	INDEF
+ 3  xH	5	INDEF
+ 4  yH	6	INDEF
+ 5  mH	7	8
+ 7  TJ	10	INDEF
+ 8  XJ	11	INDEF
+ 9  xJ	12	INDEF
+10  yJ	13	INDEF
+11  mJ	14	15
+13  TK	17	INDEF
+14  XK	18	INDEF
+15  xK	19	INDEF
+16  yK	20	INDEF
+17  mK	21	22
+
+FIT AND CONSTANT PARAMETER VALUES:
+
+ 1  j1	0.	
+ 2  j2	0.05	
+ 3  j3	0.	
+ 4  h1	0.	
+ 5  h2	0.05	
+ 6  h3	0.	
+ 7  k1	0.	
+ 8  k2	0.05	
+ 9  k3	0.	
+
+TRANSFORMATION EQUATIONS:
+
+ 1 JFIT:  mJ = (K+JK)+j1+j2*XJ+j3*JK
+   delta(JFIT, j1) = 0.1
+   delta(JFIT, j2) = 0.1
+   delta(JFIT, j3) = 0.1
+   error = ,  min = ,  max = 
+   weight = ,  min = ,  max = 
+   plot  x = ,  y = 
+
+ 2 HFIT:  mH = (K+HK)+h1+h2*XH+h3*HK
+   delta(HFIT, h1) = 0.1
+   delta(HFIT, h2) = 0.1
+   delta(HFIT, h3) = 0.1
+   error = ,  min = ,  max = 
+   weight = ,  min = ,  max = 
+   plot  x = ,  y = 
+
+ 3 KFIT:  mK = K+k1+k2*XK+k3*HK
+   delta(KFIT, k1) = 0.1
+   delta(KFIT, k2) = 0.1
+   delta(KFIT, k3) = 0.1
+   error = ,  min = ,  max = 
+   weight = ,  min = ,  max = 
+   plot  x = ,  y = 
+
+
+Catalog input variables         = 6
+First catalog column            = 2
+Last catalog column             = 7
+
+Observational input variables   = 18
+First observational column      = 3
+Last observational column       = 22
+
+Fitting parameters              = 9
+Constant parameters             = 0
+
+Auxiliary (set) equations       = 0
+Transformation equations        = 3
+
+Warnings                        = 0
+Errors                          = 0
