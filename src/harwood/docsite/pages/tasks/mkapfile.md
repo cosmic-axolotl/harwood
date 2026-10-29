@@ -49,8 +49,8 @@ moves by 0.12 mag (its stated error is 0.16). From 6 pixels the stated
 error falls to 0.006 mag, but the same rounding still moves a correction by
 0.06: the fit itself, not only the small aperture, is that sensitive with
 three stars. harwood's phot keeps full precision, so its numbers are not
-rounded; rounded as IRAF rounds them, they give IRAF's corrections to the
-last digit. Fitting the night's images together, which share the model,
+rounded; written with `phot --format iraf`, rounded as IRAF rounds them,
+they give IRAF's corrections to the last digit. Fitting the night's images together, which share the model,
 gives each more stars than it has: the twelve fitted at once, the same
 rounding moves a correction by 0.03 mag at most, and by 0.011 from 6
 pixels.

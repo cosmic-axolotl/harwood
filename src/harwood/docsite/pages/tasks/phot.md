@@ -42,7 +42,17 @@ saying what, if anything, went wrong at the centring, the sky and the
 aperture; and the exposure's `itime`, `ifilter`, `xairmass` and `otime`,
 which [mkimsets](task:mkimsets) and [mkapfile](task:mkapfile) read to take
 the night on to standard magnitudes. The star's `id` is the coordinate
-list's, so names given there (`1s`, `PG2331+055A`) travel with it. The error has three parts: the photon noise of the star, the
+list's, so names given there (`1s`, `PG2331+055A`) travel with it.
+
+**IRAF's own file.** `--format iraf` writes the `.mag` text file IRAF's
+phot writes -- its parameter block, its column headers, a record of four
+lines and one per aperture -- which IRAF's txdump, pdump and photcal read.
+It is IRAF's file byte for byte, but for the lines saying who wrote it and
+when: on the Skinakas night's twelve images, and on test fields whose stars
+meet bad pixels and the image's edge, where every error code IRAF writes
+per aperture comes up. Like IRAF's, it keeps three decimals of each
+magnitude and error; the ECSV keeps them all, and the
+[mkapfile](task:mkapfile) manual shows a night where that matters. The error has three parts: the photon noise of the star, the
 noise of the sky over the aperture, and the uncertainty in the mean sky
 itself, which in a crowded field is the largest of the three and is the one
 a simple implementation leaves out. A star whose flux comes out negative has

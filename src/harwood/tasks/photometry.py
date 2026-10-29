@@ -803,6 +803,10 @@ class PhotParams(_DataPars, _CenterPars, _SkyPars, _Interactive):
         "", description="Sky values for salgorithm file: one 'x y msky stdev sskew nsky "
                         "nsrej' line per star, in the order of the coordinates -- a "
                         "fitsky .sky table's columns.")
+    format: Literal["harwood", "iraf"] = Field(
+        "harwood", description="harwood writes an ECSV table at full precision; iraf "
+                               "writes IRAF's own .mag text file, which IRAF's tasks "
+                               "read -- rounded as IRAF rounds it.")
 
     @model_validator(mode="after")
     def _check_radii(self) -> PhotParams:
@@ -913,14 +917,18 @@ class Phot(Task[PhotParams]):
                 out[f"pdq{suffix}"] = [int(m.dq[k]) for m in measured]
 
         destination = params.output or output.named_for(params.image, ".mag")
-        catalog.write(out, destination,
-                      harwood_image=str(params.image),
-                      harwood_itime=dpars.itime,
-                      harwood_zmag=params.zmag,
-                      harwood_apertures=[float(r) for r in radii],
-                      harwood_merr="the image's VAR" if variance is not None
-                      else "IRAF's model: epadu and the sky",
-                      harwood_call=provenance.current_stamp() or "")
+        if params.format == "iraf":
+            _write_iraf(destination, params, dpars, observed, centres, skies, measured,
+                        x0, y0)
+        else:
+            catalog.write(out, destination,
+                          harwood_image=str(params.image),
+                          harwood_itime=dpars.itime,
+                          harwood_zmag=params.zmag,
+                          harwood_apertures=[float(r) for r in radii],
+                          harwood_merr="the image's VAR" if variance is not None
+                          else "IRAF's model: epadu and the sky",
+                          harwood_call=provenance.current_stamp() or "")
 
         first = "" if len(radii) == 1 else f"_{radii[0]:g}"
         magnitudes = np.asarray(out[f"mag{first}"], dtype=float)
@@ -990,6 +998,30 @@ _SKY_FIX = ("look at the flagged rows (sier); widen --dannulus, or move "
             "--annulus away from a neighbour")
 _APERT_FIX = ("look at the flagged rows (pier); a star near the edge loses its "
               "largest apertures, and bad pixels follow --datamin/--datamax")
+
+
+def _write_iraf(destination, params, dpars, observed, centres, skies, measured, x0, y0):
+    """IRAF's .mag text file: what IRAF's phot writes for the same stars. Its
+    errors are IRAF's model (epadu and the sky), whatever the image carries,
+    and everything is rounded where IRAF's formats round it."""
+    from ..core import apphot_text
+
+    p = params.model_dump()
+    p.update(epadu=dpars.epadu, readnoise=dpars.readnoise,
+             apertures=",".join(f"{r:g}" for r in params.apertures))
+    stars = []
+    for k, (c, sky, m) in enumerate(zip(centres, skies, measured, strict=True), start=1):
+        stars.append(apphot_text.Star(
+            xinit=float(x0[k - 1]), yinit=float(y0[k - 1]), id=k, lid=k,
+            x=c.x, y=c.y, xshift=c.xshift, yshift=c.yshift, xerr=c.xerr, yerr=c.yerr,
+            cier=c.ier, msky=sky.value, stdev=sky.sigma, sskew=sky.skew, nsky=sky.nsky,
+            nsrej=sky.nreject, sier=sky.ier, itime=dpars.itime,
+            xairmass=observed["xairmass"], ifilter=observed["ifilter"],
+            otime=observed["otime"], radii=list(m.radii), sums=list(m.sums),
+            areas=list(m.areas), flux=list(m.flux), mag=list(m.mag), merr=list(m.merr),
+            pier=m.ier, nmin=m.nmin, nmax=m.nmax))
+    apphot_text.write(destination, "phot", p, Path(params.image).name,
+                      Path(params.coords).name if params.coords else "", stars)
 
 
 def _ids(table, n):

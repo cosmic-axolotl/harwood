@@ -169,6 +169,11 @@ class Apertures:
     #: aperture's sum, sum of weight^2 x VAR, and the DQ bits of its pixels.
     sumvar: np.ndarray | None = field(default=None, repr=False)
     dq: np.ndarray | None = field(default=None, repr=False)
+    #: IRAF's AP_NMAXAP and AP_NMINAP: the largest aperture on the image,
+    #: and the first with a bad pixel (nmax + 1 when none) -- they set each
+    #: aperture's code in IRAF's file.
+    nmax: int = 0
+    nmin: int = 1
 
     def flux_error(self, sky, k: int) -> float:
         """The flux error of aperture k from the image's variance: its pixels'
@@ -673,9 +678,20 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
     c2 = _trunc(min(float(nx), max(1.0, x + half + 0.5)))
     l1 = _trunc(max(1.0, min(float(ny), y - half)))
     l2 = _trunc(min(float(ny), max(1.0, y + half + 0.5)))
-    box = data[l1 - 1:l2, c1 - 1:c2].astype(np.float64)
-    j, i = np.mgrid[l1:l2 + 1, c1:c2 + 1]
-    r = np.sqrt((i - x) ** 2 + (j - y) ** 2) - 0.5
+    box = data[l1 - 1:l2, c1 - 1:c2].astype(np.float32).astype(np.float64)
+    # apmeasure: the distances in single precision from the box's own
+    # corner, the square root in double rounded once, the sums in double --
+    # so the areas and sums agree with IRAF's to the last digit it prints.
+    f32 = np.float32
+    xc = f32(f32(x) - f32(c1 - 1))
+    yc = f32(f32(y) - f32(l1 - 1))
+    jj, ii = np.mgrid[1:l2 - l1 + 2, 1:c2 - c1 + 2]
+    dx = (ii.astype(f32) - xc).astype(f32)
+    dy = (jj.astype(f32) - yc).astype(f32)
+    r2 = (dx * dx + dy * dy).astype(f32)
+    r = (np.sqrt(r2.astype(np.float64)) - 0.5).astype(f32)
+    apmaxsq = f32(f32(f32(scaled[nmax - 1]) + f32(0.5)) ** 2)
+    inside_max = r2 <= apmaxsq
     low = -np.inf if dpars.datamin is None else dpars.datamin
     high = np.inf if dpars.datamax is None else dpars.datamax
     nmin = nmax + 1
@@ -683,7 +699,8 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
             else np.asarray(variance, dtype=np.float64)[l1 - 1:l2, c1 - 1:c2])
     qbox = None if quality is None else np.asarray(quality)[l1 - 1:l2, c1 - 1:c2]
     for k in range(nmax):
-        weight = np.clip(scaled[k] - r, 0.0, 1.0) * (r <= scaled[k])
+        weight = (np.clip((f32(scaled[k]) - r).astype(f32), 0.0, 1.0)
+                  * ((r <= f32(scaled[k])) & inside_max)).astype(np.float64)
         sums[k] = float((weight * box).sum())
         areas[k] = float(weight.sum())
         covered = weight > 0
@@ -698,7 +715,8 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
 
     ier = APERT_OK if nmax == nap else APERT_OUTOFBOUNDS
     if not np.isfinite(sky.value):
-        return Apertures(radii, sums, areas, flux, mag, merr, APERT_NOSKYMODE, sumvar, bits)
+        return Apertures(radii, sums, areas, flux, mag, merr, APERT_NOSKYMODE, sumvar, bits,
+                         nmax, nmin)
     if ier == APERT_OK and nmin <= nmax:
         ier = APERT_BADDATA
     usable = min(nmin - 1, nmax)
@@ -713,4 +731,4 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
             err += sigma ** 2 * areas[k] ** 2 / sky.nsky
         merr[k] = 1.0857 * np.sqrt(err) / f if err > 0 else 0.0
         mag[k] = zmag - 2.5 * np.log10(f) + 2.5 * np.log10(dpars.itime)
-    return Apertures(radii, sums, areas, flux, mag, merr, ier, sumvar, bits)
+    return Apertures(radii, sums, areas, flux, mag, merr, ier, sumvar, bits, nmax, nmin)

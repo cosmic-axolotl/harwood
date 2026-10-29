@@ -658,7 +658,7 @@ tasks:
   pexamine: {pkg: digiphot.ptools, domain: photometry, status: planned, milestone: later}
   pfmerge: {pkg: digiphot.daophot, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   phot: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: phot,
-    note: "IRAF's arithmetic, ported and checked against IRAF's output, with center's and fitsky's algorithms as listed there; absorption features, skyfile, and the interactive mode (every key of apphot.x, colon parameters) in the window or from icommands -- the same rows as IRAF's"}
+    note: "IRAF's arithmetic, ported and checked against IRAF's output, with center's and fitsky's algorithms as listed there; absorption features, skyfile, and the interactive mode (every key of apphot.x, colon parameters) in the window or from icommands -- the same rows as IRAF's; --format iraf writes IRAF's .mag file byte for byte, datapars' airmass, filter and obstime with each star"}
   photpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   polymark: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
