@@ -312,7 +312,7 @@ def test_mkapfile_as_a_task(tmp_path, monkeypatch):
     from harwood import run
 
     monkeypatch.chdir(APFILE)
-    result = run("mkapfile", photfiles=PHOTFILES[:2], naperts=20,
+    result = run("mkapfile", workdir=tmp_path, photfiles=PHOTFILES[:2], naperts=20,
                  apercors=tmp_path / "ap", largeap=11)
     assert result.data["converged"]
     assert set(result.data["images"]) == {"data0097cr.fits", "data0098cr.fits"}
@@ -535,8 +535,8 @@ def test_obsfile_as_a_task_reads_an_at_list(tmp_path, monkeypatch):
     from harwood import run
 
     monkeypatch.chdir(OBSFILE)
-    result = run("obsfile", photfiles=["@mkapfile.lista"], incolumns=OBSCASES["A"][1],
-                 idfilters="B,V", imsets="imsets.mkimsets",
+    result = run("obsfile", workdir=tmp_path, photfiles=["@mkapfile.lista"],
+                 incolumns=OBSCASES["A"][1], idfilters="B,V", imsets="imsets.mkimsets",
                  observations=tmp_path / "obs", tolerance=8.0)
     assert (tmp_path / "obs").read_text() == (OBSFILE / "obsA").read_text()
     assert [s["stars"] for s in result.data["sets"]] == [9, 3, 3, 3, 3, 3]

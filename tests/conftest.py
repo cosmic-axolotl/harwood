@@ -8,9 +8,35 @@ empty config directory of its own and the default look. The same for the
 state harwood keeps (~/.local/state/harwood): a test typing at the prompt
 must not end up in the up arrow of a real session, and a test's runs must
 not become the timings a real estimate is made from.
+
+The directory too. A task finds harwood.yaml by walking up from where it
+runs, as git does, so a test run from anywhere under a home with a project
+file in it read that instrument and those parameters, and failed or passed
+by what somebody had last reduced. Every test runs in a directory of its
+own, away from all of that, and what it writes stays out of the repository.
 """
 
+import os
+
 import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _away_from_any_project(tmp_path_factory):
+    """Session-wide because a module's fixture runs before a test's: the
+    reductions that several tests share have to be made out here as well."""
+    from harwood.core import params
+
+    started = os.getcwd()
+    os.chdir(tmp_path_factory.mktemp("cwd"))
+    assert params.find_project() is None, "the temporary directory is under a project"
+    yield
+    os.chdir(started)
+
+
+@pytest.fixture(autouse=True)
+def _own_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
 
 
 @pytest.fixture(autouse=True)
