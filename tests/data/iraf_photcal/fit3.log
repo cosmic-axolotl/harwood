@@ -1,0 +1,149 @@
+
+#FRI 08:03:39 30-OCT-2026
+
+#UNMATCHED OBJECTS
+
+File: observations.obsfile  Object: 1 was unmatched
+File: observations.obsfile  Object: 2 was unmatched
+File: observations.obsfile  Object: 3 was unmatched
+File: observations.obsfile  Object: 4 was unmatched
+File: observations.obsfile  Object: 5 was unmatched
+File: observations.obsfile  Object: 6 was unmatched
+File: observations.obsfile  Object: 7 was unmatched
+File: observations.obsfile  Object: 8 was unmatched
+File: observations.obsfile  Object: 9 was unmatched
+
+#EQUATION: VFIT
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.02888321
+reduced chi        0.02888321
+average error              1.
+average scatter            0.
+RMS                0.02583393
+
+parameter            value           error
+v1              21.9036331       0.0403183    (fit)
+v2              -0.0484888       0.0215379    (fit)
+v3              -0.1990030       0.0266317    (fit)
+
+#RESULTS: VFIT
+
+
+#      objectid       function            fit      residuals          sigma
+             1S         15.182       15.18586   -0.003858566             1.
+             2S         13.051       13.08403    -0.03303146             1.
+             3S         14.744        14.7333     0.01070309             1.
+             1S         15.182       15.17118     0.01082516             1.
+             2S         13.051       13.06725    -0.01625156             1.
+             3S         14.744       14.70082     0.04317951             1.
+             1S         15.182       15.15585     0.02615452             1.
+             2S         13.051       13.08078    -0.02977657             1.
+             3S         14.744       14.68812     0.05587864             1.
+             1S         15.182       15.19712    -0.01511669             1.
+             2S         13.051       13.08822    -0.03722382             1.
+             3S         14.744       14.74367    3.337860E-4             1.
+             1S         15.182       15.18128    7.228851E-4             1.
+             2S         13.051       13.06616    -0.01515961             1.
+             3S         14.744       14.74138    0.002624512             1.
+
+#EQUATION: BFIT
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.01694761
+reduced chi        0.01694761
+average error              1.
+average scatter            0.
+RMS                0.01515841
+
+parameter            value           error
+b1              21.8853836       0.0219830    (fit)
+b2               0.1056052       0.0126378    (fit)
+b3              -0.3230278       0.0141768    (fit)
+
+#RESULTS: BFIT
+
+
+#      objectid       function            fit      residuals          sigma
+             1S         15.116       15.11941   -0.003407478             1.
+             2S         13.792        13.7989   -0.006901741             1.
+             3S         15.563       15.53703      0.0259676             1.
+             1S         15.116       15.12174   -0.005742073             1.
+             2S         13.792       13.80145   -0.009448051             1.
+             3S         15.563       15.56428   -0.001276016             1.
+             1S         15.116       15.09716     0.01883984             1.
+             2S         13.792       13.80918     -0.0171833             1.
+             3S         15.563       15.52732     0.03567791             1.
+             1S         15.116       15.10478     0.01122284             1.
+             2S         13.792        13.8026    -0.01059628             1.
+             3S         15.563       15.56652   -0.003522873             1.
+             1S         15.116       15.13104     -0.0150423             1.
+             2S         13.792       13.80417    -0.01217079             1.
+             3S         15.563       15.56941   -0.006408691             1.
+
+#EQUATION: CFIT
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.05169455
+reduced chi        0.05169455
+average error              1.
+average scatter            0.
+RMS                0.04812501
+
+parameter            value           error
+c1              -0.1974845       0.0269154    (fit)
+c2               1.1400138       0.0383117    (fit)
+
+#RESULTS: CFIT
+
+
+#      objectid       function            fit      residuals          sigma
+             1S    -0.06599998     0.01113817    -0.07713816             1.
+             2S      0.7410002      0.7829275    -0.04192734             1.
+             3S      0.8189993      0.8707082    -0.05170894             1.
+             1S    -0.06599998     -0.0116621    -0.05433789             1.
+             2S      0.7410002      0.7624072    -0.02140701             1.
+             3S      0.8189993      0.8900887    -0.07108939             1.
+             1S    -0.06599998    -0.08462312     0.01862314             1.
+             2S      0.7410002      0.6928664     0.04813373             1.
+             3S      0.8189993      0.8023081     0.01669121             1.
+             1S    -0.06599998     -0.1302236     0.06422365             1.
+             2S      0.7410002      0.6666465     0.07435369             1.
+             3S      0.8189993       0.773807     0.04519224             1.
+             1S    -0.06599998    -0.06752306    0.001523077             1.
+             2S      0.7410002      0.7111059     0.02989423             1.
+             3S      0.8189993      0.8000276     0.01897168             1.
+

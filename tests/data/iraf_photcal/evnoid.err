@@ -1,0 +1,4 @@
+IRAF stopped: Error running IRAF task evalfit
+IRAF task terminated abnormally
+ERROR (572, "Out of memory")
+

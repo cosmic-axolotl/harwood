@@ -571,6 +571,21 @@ def default_format(getid: bool, ncols: int) -> str:
     return "".join(parts)
 
 
+def print_list(cfg: Config, names: list[str]) -> list[tuple]:
+    """ph_mkplist: (name, row index, None) for a catalog or observed variable,
+    (name, None, the equation) for a set equation; any other name is left out."""
+    printed = []
+    for name in names:
+        sym = cfg.symbols.get(name)
+        if sym is None:
+            continue
+        if hasattr(sym, "column") and sym.kind in ("cat", "obs"):
+            printed.append((name, cfg.column_map(sym.kind)[sym.column][0], None))
+        elif hasattr(sym, "eq") and not hasattr(sym, "fit"):
+            printed.append((name, None, sym))
+    return printed
+
+
 def _fields(fmt: str) -> int:
     """ph_ofields: the % fields, %% not counted."""
     return len(_FIELD.findall(fmt.replace("%%", "")))
@@ -588,16 +603,7 @@ def invertfit(cfg: Config, observations: list[str], parameters: str, calib: str,
     nobs, ncat = cfg.nobs, cfg.ncat
     getid = cfg.mincol > 1
     matchid = getid and bool(catalogs)
-    printed = []
-    for name in print_vars:
-        sym = cfg.symbols.get(name)
-        if sym is None:
-            continue
-        if hasattr(sym, "column") and sym.kind in ("cat", "obs"):
-            index = cfg.column_map(sym.kind)[sym.column][0]
-            printed.append((name, index, None))
-        elif hasattr(sym, "eq") and not hasattr(sym, "fit"):
-            printed.append((name, None, sym))
+    printed = print_list(cfg, print_vars)
     residuals = (not getid) or (matchid and objects != "program")
 
     head = ["", f"# {io.cnvtime()}", "# List of observations files:"]

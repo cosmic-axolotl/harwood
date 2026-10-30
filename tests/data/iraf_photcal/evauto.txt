@@ -1,0 +1,45 @@
+
+# Fri 08:03:39 30-Oct-2026
+# List of observations files:
+#		observations.obsfile
+# List of catalog files:
+#		catalogo.mkcatalog
+# Config:	configuration.mkconfig
+# Parameters:	fit1.txt
+#
+# Computed indices for program and standard objects
+#
+# Columns:
+#	1	object id
+#	2	mV
+#	3	error(mV)
+#	4	resid(mV)
+#	5	mB
+#	6	error(mB)
+#	7	resid(mB)
+
+
+1                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+2                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+3                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+4                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+5                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+6                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+7                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+8                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+9                   INDEF          INDEF          INDEF          INDEF          INDEF          INDEF
+1s             -6.3353243      0.0000000      0.0053244     -6.1507020      0.0000000      0.0037022
+2s             -8.4303722      0.0000000      0.0313721     -7.5481057      0.0000000      0.0091057
+3s             -6.7338967      0.0000000     -0.0121031     -5.7842011      0.0000000     -0.0247989
+1s             -6.3873496      0.0000000     -0.0086503     -6.2374783      0.0000000      0.0044785
+2s             -8.4823980      0.0000000      0.0153980     -7.6348820      0.0000000      0.0098820
+3s             -6.7859221      0.0000000     -0.0420780     -5.8709774      0.0000000     -0.0030227
+1s             -6.4768004      0.0000000     -0.0241995     -6.3825188      0.0000000     -0.0194812
+2s             -8.5718479      0.0000000      0.0288477     -7.7799225      0.0000000      0.0179224
+3s             -6.8753729      0.0000000     -0.0556273     -6.0160179      0.0000000     -0.0379820
+1s             -6.4905777      0.0000000      0.0155778     -6.4073124      0.0000000     -0.0086875
+2s             -8.5856256      0.0000000      0.0356255     -7.8047161      0.0000000      0.0127163
+3s             -6.8891501      0.0000000     -0.0008497     -6.0408115      0.0000000      0.0028114
+1s             -6.4438992      0.0000000      0.0008993     -6.3434696      0.0000000      0.0144696
+2s             -8.5389471      0.0000000      0.0139475     -7.7408733      0.0000000      0.0128732
+3s             -6.8424716      0.0000000     -0.0035286     -5.9769688      0.0000000      0.0059686

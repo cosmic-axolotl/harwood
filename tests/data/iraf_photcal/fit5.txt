@@ -1,0 +1,22 @@
+begin	VFIT
+	status	0	(Solution converged)
+	variance	1.
+	stdeviation	1.
+	avsqerror	1.
+	averror		1.
+	avsqscatter	0.
+	avscatter	0.
+	chisqr		1.
+	msq		1.
+	rms		1.
+	reference	V
+	fitting		v1*sqrt(-10.71-mV)
+	weights		uniform
+	parameters	1
+		v1	(constant)
+	derivatives	1
+		0.
+	values	1
+		1.
+	errors	1
+		0.

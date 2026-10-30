@@ -1,0 +1,28 @@
+
+# Fri 08:03:39 30-Oct-2026
+# List of observations files:
+#		observations.obsfile
+# List of catalog files:
+#		catalogo.mkcatalog
+# Config:	configuration.mkconfig
+# Parameters:	fit1.txt
+#
+# Computed indices for program objects only
+#
+# Columns:
+#	1	object id
+#	2	mV
+#	3	error(mV)
+#	4	mB
+#	5	error(mB)
+
+
+1          INDEF   INDEF   INDEF   INDEF  
+2          INDEF   INDEF   INDEF   INDEF  
+3          INDEF   INDEF   INDEF   INDEF  
+4          INDEF   INDEF   INDEF   INDEF  
+5          INDEF   INDEF   INDEF   INDEF  
+6          INDEF   INDEF   INDEF   INDEF  
+7          INDEF   INDEF   INDEF   INDEF  
+8          INDEF   INDEF   INDEF   INDEF  
+9          INDEF   INDEF   INDEF   INDEF  

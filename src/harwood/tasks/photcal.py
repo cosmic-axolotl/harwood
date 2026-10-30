@@ -5,7 +5,8 @@ which column of the catalog and of the observations is which variable and
 writes the transformation equations; `fitparams`, which fits them to the
 standard stars and appends the coefficients to a parameters file; and
 `invertfit`, which turns them round to give every star its standard
-magnitudes; and before them `mkapfile`, the aperture corrections from the
+magnitudes; `evalfit`, which works out equations already written with the
+standard magnitude on the left; and before them `mkapfile`, the aperture corrections from the
 curve of growth. The files are IRAF's own, byte for byte, so a reduction can go
 back and forth between the two.
 
@@ -53,6 +54,13 @@ WHY = {
              "statistics are appended to the parameters file as a record "
              "named after the equation -- IRAF's text database, which "
              "invertfit and evalfit read, the last record of a name winning.",
+    "evaluate": "Each equation's right side is worked out for each star, with the "
+                "coefficients fitparams found, and nothing is solved. So the "
+                "equations have to be written with the catalog magnitude on the "
+                "left and only observed quantities on the right; a catalog "
+                "variable on the right is undefined for a program star, and so "
+                "is the result. Equations written the other way round are "
+                "invertfit's.",
     "invert": "The equations give the instrumental magnitude from the standard "
               "one; for a star of unknown magnitude they have to be solved "
               "the other way. With as many equations as unknowns this is a "
@@ -276,6 +284,85 @@ class Invertfit(Task[InvertfitParams]):
                 "a star needs a defined magnitude in every filter its equations use."))
         return TaskResult(outputs=[params.calib], steps=steps, warnings=warnings,
                           data={"stars": len(rows), "unsolved": undefined})
+
+
+class EvalfitParams(TaskParams):
+    observations: list[str] = Field(
+        ..., description="Observation files, standards and program stars.",
+        json_schema_extra={"positional": True})
+    config: str = Field(..., description="The configuration file.",
+                        json_schema_extra={"positional": True})
+    parameters: str = Field(..., description="The parameters file fitparams wrote.",
+                            json_schema_extra={"positional": True})
+    calib: Path = Field(..., description="The calibrated output file.",
+                        json_schema_extra={"positional": True})
+    catalogs: list[str] = Field(
+        default_factory=list,
+        description="Standard catalogs: with them the standards get a residual "
+                    "against the catalog.")
+    errors: Literal["undefined", "obserrors", "equations"] = Field(
+        "obserrors", description="How the errors are computed: from the "
+                                 "observations' errors, from the error equations, "
+                                 "or not at all.")
+    objects: Literal["all", "program", "standards"] = Field(
+        "all", description="Which stars to write, when there are catalogs.")
+    print: list[str] = Field(
+        default_factory=list,
+        description="Variables or set equations to write before the results.")
+    format: str = Field("", description="IRAF printf format of each line; left out, "
+                                        "%-10s then %-7.3f.")
+    append: bool = Field(False, description="Append to the output instead of "
+                                            "replacing it.")
+    catdir: str = Field("", description="Look for each catalog here as NAME.dat first.")
+
+
+@register
+class Evalfit(Task[EvalfitParams]):
+    """Standard magnitudes from instrumental ones, by evaluating the right side
+    of the fitted transformation equations, as IRAF's evalfit."""
+
+    name = "evalfit"
+    package = "photcal"
+    description = "Evaluate the fitted equations for each star, without inverting them."
+    Params = EvalfitParams
+
+    def plan(self, params: EvalfitParams) -> list[Step]:
+        return [Step("config", f"{params.config}, coefficients from {params.parameters}",
+                     why=WHY["config"]),
+                Step("evaluate", ", ".join(params.observations), why=WHY["evaluate"]),
+                Step("errors", params.errors, why=WHY["errors"]),
+                Step("write", str(params.calib))]
+
+    def execute(self, params: EvalfitParams) -> TaskResult:
+        from ..core.photcal import evalfit
+
+        cfg = _parse(params.config)
+        try:
+            done = evalfit.evalfit(
+                cfg, _files(params.observations), params.parameters, str(params.calib),
+                catalogs=_files(params.catalogs), catdir=params.catdir, errors=params.errors,
+                objects=params.objects, print_vars=params.print, format=params.format,
+                append=params.append)
+        except (ValueError, OSError) as error:
+            advice.fail(str(error), "check the name of the parameters file; "
+                                    "fitparams writes it.")
+        steps = self.plan(params)
+        steps[1].measured = {"stars": done.stars, "undefined": done.undefined}
+        warnings = [advice.warn(note, "check that fitparams converged for every "
+                                      "equation and wrote to this file.")
+                    for note in done.warnings]
+        if done.undefined:
+            inverted = [eq.name for eq in cfg.equations
+                        if any(var.kind == "cat" for var, _ in eq.fitvars)]
+            warnings.append(advice.warn(
+                f"{done.undefined} of {done.stars} stars have an equation that came "
+                "to INDEF.",
+                f"{', '.join(inverted)} have a catalog variable on the right side, "
+                "which a star not in a catalog does not have: use invertfit, or write "
+                "the catalog magnitude on the left." if inverted else
+                "a star needs a defined value for every variable its equations use."))
+        return TaskResult(outputs=[params.calib], steps=steps, warnings=warnings,
+                          data={"stars": done.stars, "undefined": done.undefined})
 
 
 class MkapfileParams(TaskParams):

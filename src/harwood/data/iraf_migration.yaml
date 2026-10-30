@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 46, partial: 15, planned: 294, replaced: 94, wontport: 161
+#   available: 47, partial: 15, planned: 293, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -624,7 +624,8 @@ tasks:
     note: "absorbed into the task's Pydantic parameter model"}
   datapars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
-  evalfit: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  evalfit: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: evalfit,
+    note: "ported and checked against IRAF's output to the seventh decimal"}
   findpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   fitparams: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: fitparams,

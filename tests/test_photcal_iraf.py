@@ -1,4 +1,4 @@
-"""fitparams and invertfit against IRAF's own output.
+"""fitparams, invertfit and evalfit against IRAF's own output.
 
 The data are the Skinakas night (PG2331+055 and its two comparison stars,
 five times through the night, and nine program stars in LSI+61 235), as the
@@ -7,7 +7,8 @@ configuration.mkconfig. config2.cfg exercises the rest of the language --
 a set equation, a constant, a delta, a derivative, weight equations with
 limits, error equations -- and obs2.txt has an INDEF magnitude, a standard
 missing from the catalog and a program star with an undefined magnitude.
-IRAF 2.18 ran each case (run.cl, run2.cl, run3.cl); its files are here.
+IRAF 2.18 ran each case (run.cl, run2.cl, run3.cl, run4.py); its files are here.
+config3.cfg is a system evalfit can evaluate, with the catalog on the left.
 
 The parameters files and the logs agree to the last digit IRAF prints; the
 calibrated magnitudes to the seventh decimal, but for one star in one case:
@@ -21,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from harwood.core.photcal import apfile, config, fit, invert
+from harwood.core.photcal import apfile, config, evalfit, fit, invert
 from harwood.core.photcal import obsfile as obs
 
 DATA = Path(__file__).parent / "data" / "iraf_photcal"
@@ -38,6 +39,7 @@ FITS = {
     "E": ("observations.obsfile", "config2.cfg", dict(weighting="equations")),
     "F": ("observations.obsfile", "config2.cfg", dict(weighting="photometric")),
     "G": ("obs2.txt", "configuration.mkconfig", dict(weighting="uniform")),
+    "3": ("observations.obsfile", "config3.cfg", dict(weighting="uniform")),
 }
 
 F6 = "%-10s %14.7f %14.7f %14.7f %14.7f %14.7f %14.7f\\n"
@@ -62,6 +64,48 @@ INVERTS = {
                     format="%-10s" + " %14.7f" * 9 + "\\n")),
     "invPG2": ("obs2.txt", "configuration.mkconfig", "fitG.txt",
                dict(errors="undefined", format="%-10s %14.7f %14.7f\\n")),
+}
+
+
+F9 = "%-10s" + " %14.7f" * 9 + "\\n"
+F6E = "%-10s" + " %14.7f" * 6 + "\\n"
+EVALS = {
+    "1": ("observations.obsfile", "config3.cfg", "fit3.txt", dict(catalogs=[CATALOG])),
+    "P": ("observations.obsfile", "config3.cfg", "fit3.txt",
+          dict(catalogs=[CATALOG], format=F9)),
+    "Pe": ("observations.obsfile", "config3.cfg", "fit3.txt",
+           dict(catalogs=[CATALOG], errors="equations", format=F9)),
+    "Pu": ("observations.obsfile", "config3.cfg", "fit3.txt",
+           dict(catalogs=[CATALOG], errors="undefined", format=F6E)),
+    "prog": ("observations.obsfile", "config3.cfg", "fit3.txt",
+             dict(catalogs=[CATALOG], objects="program", format=F6E)),
+    "std": ("observations.obsfile", "config3.cfg", "fit3.txt",
+            dict(catalogs=[CATALOG], objects="standards", format=F9)),
+    "nocat": ("observations.obsfile", "config3.cfg", "fit3.txt", dict(format=F6E)),
+    "print": ("observations.obsfile", "config3.cfg", "fit3.txt",
+              dict(catalogs=[CATALOG], objects="standards", errors="undefined",
+                   print_vars=["CI", "XV", "V", "nosuch", "VFIT", "v1", "error(mV)"])),
+    "G": ("obs2.txt", "config3.cfg", "fit3.txt", dict(catalogs=[CATALOG], format=F9)),
+    "Ge": ("obs2.txt", "config3.cfg", "fit3.txt",
+           dict(catalogs=[CATALOG], errors="equations", format=F9)),
+    "auto": ("observations.obsfile", "configuration.mkconfig", "fit1.txt",
+             dict(catalogs=[CATALOG], format=F6E)),
+    "autoprog": ("observations.obsfile", "configuration.mkconfig", "fit1.txt",
+                 dict(catalogs=[CATALOG], objects="program")),
+    "autonocat": ("observations.obsfile", "configuration.mkconfig", "fit1.txt", dict()),
+    "E": ("observations.obsfile", "config2.cfg", "fitE.txt",
+          dict(catalogs=[CATALOG], errors="equations", format=F6E)),
+    "Eo": ("observations.obsfile", "config2.cfg", "fitE.txt",
+           dict(catalogs=[CATALOG], print_vars=["BV"], objects="standards",
+                format="%-10s" + " %14.7f" * 7 + "\\n")),
+    "badfmt": ("observations.obsfile", "config3.cfg", "fit3.txt",
+               dict(catalogs=[CATALOG], format="%-10s %7.3f\\n")),
+    "missing": ("observations.obsfile", "config3.cfg", "fit3noB.txt",
+                dict(catalogs=[CATALOG])),
+    "stat": ("observations.obsfile", "config3.cfg", "fit3stat.txt",
+             dict(catalogs=[CATALOG])),
+    "noobs": ("nosuchobs.txt,observations.obsfile", "config3.cfg", "fit3.txt",
+              dict(catalogs=[CATALOG])),
 }
 
 
@@ -114,6 +158,106 @@ def test_invertfit_writes_what_iraf_writes(here, case):
 
         np.testing.assert_allclose(numbers(x[1:]), numbers(y[1:]), atol=2.5e-6, rtol=0)
     assert sum(a != b for a, b in zip(ours, iraf, strict=True)) <= 1
+
+
+@pytest.mark.parametrize("case", EVALS)
+def test_evalfit_writes_what_iraf_writes(here, case):
+    obs, cfgfile, parameters, kw = EVALS[case]
+    done = evalfit.evalfit(config.parse(cfgfile), obs.split(","), parameters, "out.cal", **kw)
+    assert _lines(here / "out.cal") == _lines(DATA / f"ev{case}.txt")
+    said = (DATA / f"ev{case}.err").read_text()
+    assert done.warnings == said.splitlines()
+
+
+def test_evalfit_on_the_automatico_equations(here):
+    """The automatico's equations have the catalog on the right: a standard gets
+    the instrumental magnitude predicted, and a program star has none."""
+    cfg = config.parse("configuration.mkconfig")
+    done = evalfit.evalfit(cfg, ["observations.obsfile"], "fit1.txt", "out.cal",
+                           catalogs=[CATALOG])
+    assert done.stars == 24 and done.undefined == 9
+
+
+def test_evalfit_appends(here):
+    cfg = config.parse("config3.cfg")
+    evalfit.evalfit(cfg, ["observations.obsfile"], "fit3.txt", "out.cal")
+    once = (here / "out.cal").read_text()
+    evalfit.evalfit(cfg, ["observations.obsfile"], "fit3.txt", "out.cal", append=True)
+    assert (here / "out.cal").read_text() == once + once
+
+
+def test_evalfit_without_the_parameters_writes_nothing(here):
+    """IRAF warns and leaves an empty file behind, which looks like a result."""
+    assert (DATA / "evnofile.err").read_text().startswith("Warning: Cannot open file")
+    assert (DATA / "evnofile.txt").read_text() == ""
+    with pytest.raises(evalfit.EvalError, match="Cannot open file"):
+        evalfit.evalfit(config.parse("config3.cfg"), ["observations.obsfile"],
+                        "nosuchfile.txt", "out.cal", catalogs=[CATALOG])
+    assert not (here / "out.cal").exists()
+
+
+def test_an_infinite_error_is_indef_rather_than_0_00E309(here):
+    """The one difference in the numbers: the first star's error takes the
+    square root out of its domain, IRAF's error is infinite, and it prints it
+    as a number nobody can read back."""
+    cfg = config.parse("config5.cfg")
+    format = "%-10s %14.7f %14.7f\\n"
+    evalfit.evalfit(cfg, ["observations.obsfile"], "fit5.txt", "out.cal", format=format)
+    ours, iraf = _lines(here / "out.cal"), _lines(DATA / "evdom.txt")
+    assert len(ours) == len(iraf)
+    different = [(a, b) for a, b in zip(ours, iraf, strict=True) if a != b]
+    assert len(different) == 1
+    a, b = different[0]
+    assert a.split()[:2] == b.split()[:2] == ["1", "0.0632433"]
+    assert a.split()[2] == "INDEF" and b.split()[2] == "0.000000000E309"
+
+
+def test_no_catalog_section_means_no_id(here):
+    """IRAF stops with Out of memory (evnoid.err), so this is t_evalfit.x's
+    meaning and not its output: column 1 is a variable, every star has a
+    residual, and the equation's value is the right side."""
+    assert "Out of memory" in (DATA / "evnoid.err").read_text()
+    cfg = config.parse("config4.cfg")
+    done = evalfit.evalfit(cfg, ["obs4.txt"], "fit3.txt", "out.cal",
+                           format="%14.7f %14.7f %14.7f\\n")
+    rows = [line.split() for line in _lines(here / "out.cal")
+            if line.strip() and not line.startswith("#")]
+    assert done.stars == 5 and done.undefined == 0
+    assert "#\t1\tmV" in _lines(here / "out.cal")
+    assert len(rows) == 5 and all(len(row) == 3 for row in rows)
+    fit_value, _, resid = (float(v) for v in rows[0])
+    assert fit_value + resid == pytest.approx(-10.714, abs=2e-6)
+    assert rows[3][2] == "INDEF", "mV undefined: a value from mB, but nothing to compare it to"
+
+
+def _cli(*args):
+    from click.testing import CliRunner
+
+    from harwood.cli.main import app
+
+    return CliRunner().invoke(app, list(args))
+
+
+def test_the_evalfit_task_runs_and_counts(here):
+    result = _cli("evalfit", "observations.obsfile", "config3.cfg", "fit3.txt", "out.cal",
+                  "--catalogs", CATALOG, "--format", F9)
+    assert result.exit_code == 0, result.output
+    assert _lines(here / "out.cal") == _lines(DATA / "evP.txt")
+    assert "stars: 24" in result.output and "came to" not in result.output
+
+
+def test_the_evalfit_task_says_when_the_equations_want_invertfit(here):
+    result = _cli("evalfit", "observations.obsfile", "configuration.mkconfig", "fit1.txt",
+                  "out.cal", "--catalogs", CATALOG)
+    said = " ".join(result.output.split())
+    assert result.exit_code == 0
+    assert "9 of 24 stars" in said and "VFIT, BFIT" in said and "invertfit" in said
+
+
+def test_the_evalfit_task_stops_without_its_parameters(here):
+    result = _cli("evalfit", "observations.obsfile", "config3.cfg", "nosuch.txt", "out.cal")
+    assert result.exit_code == 1 and "Cannot open file" in result.output
+    assert "fitparams" in result.output and not (here / "out.cal").exists()
 
 
 def test_the_automatico_night_is_reproduced(here):
