@@ -33,6 +33,7 @@ the habit transfers.
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -114,6 +115,8 @@ class Frame:
                         and np.shape(quality) == self.data.shape else None)
         self.header = header
         self.name = name or "image"
+        #: where `name`, if it is a file's, is relative to
+        self.folder = Path.cwd()
         #: z1 and z2 as the display task worked them out, shown under "z1 z2"
         self.window = window
         #: the lookup table of ztrans=user, for the "user" stretch
@@ -658,12 +661,13 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _shown_file(self) -> str:
         """The frame on display, when it came from a file that is still there."""
-        from pathlib import Path
-
         frame = self.frames.get(self.current)
         if frame is None or not frame.name:
             return ""
-        return frame.name if Path(frame.name.split("[", 1)[0]).is_file() else ""
+        if not (frame.folder / frame.name.split("[", 1)[0]).is_file():
+            return ""
+        # Its name is as it was typed; `cd` may have moved on since.
+        return frame.name if frame.folder == Path.cwd() else str(frame.folder / frame.name)
 
     def _to_prompt(self, line: str) -> None:
         """A form's command, put at the prompt to be changed by hand."""
@@ -1678,7 +1682,7 @@ def _on_window_thread(arguments: list[str]) -> bool:
     from ..core.registry import exists, get_class
 
     name = next((word for word in arguments if not word.startswith("-")), "")
-    if name in ("gui", "edit", "docs"):
+    if name in ("gui", "edit", "docs", "cd", "pwd"):
         return True
     return exists(name) and get_class(name).needs_window
 
@@ -1690,7 +1694,7 @@ def _invoke(arguments: list[str], stream: _Stream) -> bool:
 
     import click
 
-    from ..cli.main import app
+    from ..cli.main import SESSION, app
 
     try:
         with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream), \
@@ -1700,7 +1704,8 @@ def _invoke(arguments: list[str], stream: _Stream) -> bool:
             # a session log full of it is a session log nobody reads.
             warnings.filterwarnings("ignore", message=".*datfix.*")
             warnings.filterwarnings("ignore", message=".*FITSFixedWarning.*")
-            app.main(args=arguments, prog_name="harwood", standalone_mode=False)
+            app.main(args=arguments, prog_name="harwood", standalone_mode=False,
+                     obj=SESSION)
     except click.ClickException as error:
         stream.write(f"{error.format_message()}\n")
         return False

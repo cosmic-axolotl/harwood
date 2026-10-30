@@ -154,7 +154,9 @@ class FileEditor(QtWidgets.QWidget):
         opened, each with why."""
         refused = []
         for name in paths:
-            path = Path(name).expanduser()
+            # Absolute: a tab saves to where it was opened from, whatever
+            # `cd` has done since.
+            path = Path(name).expanduser().absolute()
             existing = next((tab for tab in self.files()
                              if tab.path.resolve() == path.resolve()), None)
             if existing is not None:

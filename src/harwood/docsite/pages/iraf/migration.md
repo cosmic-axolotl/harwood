@@ -14,7 +14,8 @@ What changes is the cl around them.
 
 | in IRAF | in harwood |
 |---|---|
-| `noao`, `digiphot`, `apphot` | nothing to load: every task is always there. `harwood list apphot` shows a package; the window's Tasks panel walks the tree |
+| `noao`, `digiphot`, `apphot` | nothing to load: every task is always there, and typing one says so. `harwood list digiphot` shows a package; the window's Tasks panel walks the tree |
+| `cd night1`, `path` | `cd night1`, `pwd` at the `hw>` prompt and in the window: tasks read and write there, with its `harwood.yaml` and log |
 | `bye` | nothing to unload; in the Tasks panel, *◀ Back* |
 | `epar daofind` | `harwood daofind --editpar`: every parameter explained, saved into the project |
 | `lpar daofind` | `harwood lpar daofind`, which also says where each value came from |
@@ -29,6 +30,7 @@ What changes is the cl around them.
 | `history`, `^` | `history`, the up arrow, Ctrl+R |
 | `logout` | `exit` |
 | `cl < night.cl` | a Python script calling `harwood.run`, or a shell script ([Python](page:concepts/python)) |
+| `output=Zero` makes `Zero.fits` | write it out, `Zero.fits`: the name is used as typed, and a note says when an image has no extension |
 | `ccdproc` with `output=""` (in place) | a new directory per run, unless `--inplace` ([outputs](page:concepts/outputs)) |
 
 ## Images go both ways

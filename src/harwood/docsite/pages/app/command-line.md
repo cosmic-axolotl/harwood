@@ -10,6 +10,38 @@ hw> help phot
 hw> daofind --plan red/obj001.fits
 ```
 
+## Which directory
+
+`cd` and `pwd` work as in a shell, and in the cl. Tasks read and write in the
+working directory, and its `harwood.yaml` and log are the ones in use, so each
+directory is a reduction:
+
+```text
+hw> cd ~/iraf/skinakas
+hw> pwd
+hw> imstatistics stan0051.fits
+hw> cd -
+```
+
+`cd` alone goes home, `cd -` goes back to the one before, and Tab completes
+directories. A `!cd` would change only the shell of its own that `!` runs in, so
+harwood does the `cd` itself. From a terminal, `harwood cd` refuses: the command
+ends at once and the directory would be forgotten, so use your shell's.
+
+## Naming what you write
+
+Name the output, and write an image's extension:
+
+```text
+hw> zerocombine bias*.fits Zero.fits
+hw> daofind stan0051.fits stan0051.coo --fwhmpsf 6.5
+```
+
+The name is used exactly as typed: `Zero` makes a file called `Zero`, which
+`*.fits` and `Zero.fits` do not find. With no name at all the result goes to
+[a directory for the run](page:concepts/outputs), where the next task does not
+look unless told. Both cases work, and a note after the run says so.
+
 ## Several commands on a line
 
 | between two commands | the second one runs |

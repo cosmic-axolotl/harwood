@@ -7,6 +7,8 @@ terminal and in the window, and a line typed in one is found by Up in the
 other.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -357,3 +359,60 @@ def test_the_command_line_is_a_panel_that_comes_back(window):
     names = [action.text() for action in window.menuBar().actions()
              if action.text() == "&Panels"][0:1]
     assert names, "the Panels menu is there"
+
+
+# ------------------------------------------------------------------- cd and pwd
+
+
+def test_tab_after_cd_offers_directories_and_cd_itself(tmp_path, monkeypatch):
+    (tmp_path / "night1").mkdir()
+    (tmp_path / "night.fits").write_text("")
+    monkeypatch.chdir(tmp_path)
+    assert _values("cd ni") == ["night1/"]
+    assert "cd" in _values("c") and "pwd" in _values("pw")
+    assert _values("pwd ") == []
+
+
+def test_cd_and_pwd_at_the_window_prompt(window, tmp_path, monkeypatch):
+    (tmp_path / "night").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    ok, printed = window.run_line("cd night")
+    assert ok and Path.cwd() == tmp_path.resolve() / "night"
+    ok, printed = window.run_line("pwd")
+    assert ok and printed.strip() == str(tmp_path.resolve() / "night")
+    ok, printed = window.run_line("cd nowhere")
+    assert not ok and "no directory" in printed
+    assert Path.cwd() == tmp_path.resolve() / "night"
+
+
+def test_the_window_knows_its_image_after_a_cd(window, tmp_path, monkeypatch):
+    """A form starts with the image on show, and its name was typed relative to
+    a directory the window may have left. In a new directory with a file of the
+    same name, it has to mean the one on show."""
+    from astropy.io import fits
+
+    (tmp_path / "night").mkdir()
+    fits.PrimaryHDU(np.ones((8, 8))).writeto(tmp_path / "night" / "a.fits")
+    monkeypatch.chdir(tmp_path)
+    window.load(np.zeros((8, 8)), None, frame=1, name="a.fits")
+    assert window._shown_file() == "a.fits"
+
+    window.run_line("cd night")
+    assert window._shown_file() == str(tmp_path.resolve() / "a.fits")
+    (tmp_path / "a.fits").unlink()
+    assert window._shown_file() == ""
+
+
+def test_a_file_tab_saves_where_it_was_opened_after_a_cd(window, tmp_path, monkeypatch):
+    (tmp_path / "night").mkdir()
+    (tmp_path / "list.txt").write_text("one\n")
+    monkeypatch.chdir(tmp_path)
+    window.run_line("edit list.txt")
+    tab = window.files.tabs.currentWidget()
+
+    window.run_line("cd night")
+    tab.setPlainText("two\n")
+    tab.save()
+    assert (tmp_path / "list.txt").read_text() == "two\n"
+    assert not (tmp_path / "night" / "list.txt").exists()

@@ -144,6 +144,32 @@ def find(path: str, root: Node | None = None) -> Node:
     return current
 
 
+def named(name: str, root: Node | None = None) -> Node | None:
+    """The package called `digiphot` or `noao.digiphot`, wherever it is; None
+    if IRAF has no such package."""
+    if not name:
+        return None
+
+    def walk(node: Node) -> Node | None:
+        for child in node.children:
+            if name in (child.name, child.path):
+                return child
+            found = walk(child)
+            if found is not None:
+                return found
+        return None
+
+    return walk(root or tree())
+
+
+def names_under(node: Node) -> set[str]:
+    """Every task of a package and of the packages inside it."""
+    names = {task.name for task in node.tasks}
+    for child in node.children:
+        names |= names_under(child)
+    return names
+
+
 def locate(task: str, root: Node | None = None) -> list[str]:
     """Every package path a task appears in."""
     root = root or tree()

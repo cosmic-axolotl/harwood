@@ -16,6 +16,7 @@ Nothing here knows about any particular task. Add a task, get a command.
 
 from __future__ import annotations
 
+import re
 import types
 import typing
 from pathlib import Path
@@ -51,6 +52,49 @@ def _unwrap(annotation: Any) -> tuple[Any, bool]:
 #: A marker rather than None, because None is what click passes for a value
 #: that was not typed at all, and collect() leaves those out.
 INDEF = type("Indef", (), {"__repr__": lambda self: "INDEF"})()
+
+
+#: A number, or IRAF's list of them: 5, -1.5, 1e3, 3,5,10.
+_NUMBERS = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?"
+                      r"(,[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?)*$")
+
+
+class TaskCommand(click.Command):
+    """A task's command: `--apertures 5 10` means the two apertures.
+
+    Click gives an option one value and leaves the next word to the positional
+    arguments, so that line used to measure in 5 alone and write the results to
+    a file called `10`, and say nothing. Only a list of numbers reads on: nothing
+    else on a command line is a bare number, whereas after a list of names the
+    next word could be anything.
+    """
+
+    def parse_args(self, ctx, args):
+        lists = {name for param in self.params if getattr(param, "number_list", False)
+                 for name in param.opts}
+        return super().parse_args(ctx, _spread_numbers(args, lists))
+
+
+def _spread_numbers(args: list[str], lists: set[str]) -> list[str]:
+    """['--apertures', '5', '10', 'a'] -> ['--apertures', '5', '--apertures', '10', 'a']"""
+    spread: list[str] = []
+    i = 0
+    while i < len(args):
+        word = args[i]
+        i += 1
+        spread.append(word)
+        if word == "--":
+            return spread + args[i:]
+        name = word.split("=", 1)[0]
+        if name not in lists:
+            continue
+        if "=" not in word and i < len(args):
+            spread.append(args[i])
+            i += 1
+        while i < len(args) and _NUMBERS.match(args[i]):
+            spread += [name, args[i]]
+            i += 1
+    return spread
 
 
 class _IndefNumber(click.ParamType):
@@ -151,7 +195,7 @@ def parameters_for(model: type) -> list[click.Parameter]:
             ))
             continue
 
-        params.append(click.Option(
+        option = click.Option(
             option_names(name),
             # A list option takes text, so that IRAF's '3,5,10' reaches
             # collect() to be split; the model checks each value's type.
@@ -161,7 +205,9 @@ def parameters_for(model: type) -> list[click.Parameter]:
             show_default=False,
             metavar=_metavar(click_type, multiple),
             help=help_text,
-        ))
+        )
+        option.number_list = multiple and click_type in (click.INT, click.FLOAT)
+        params.append(option)
     return params
 
 

@@ -15,6 +15,7 @@ shared with the window's prompt.
 
 from __future__ import annotations
 
+import re
 import shlex
 import sys
 
@@ -27,13 +28,17 @@ PROMPT = "hw> "
 
 console = Console()
 
+#: A `!cd` with nothing else for its shell to do.
+_BANG_CD = re.compile(r"!\s*cd(\s+[^;&|]+)?")
+
 
 def start() -> None:
     """Run the read-eval-print loop."""
     console.print("[bold]harwood[/bold] -- interactive session. "
                   "[dim]`list` to browse, `help <task>` for the manual, "
                   "`exit` to leave. Tab completes; `;` and `&&` put several "
-                  "commands on a line.[/dim]")
+                  "commands on a line; `cd` and `pwd` as in a shell. Name your "
+                  "outputs, images with their extension: Zero.fits.[/dim]")
     ask = _readline() or (lambda: console.input(f"[bold cyan]{PROMPT}[/bold cyan]"))
     _warm()
 
@@ -48,6 +53,11 @@ def start() -> None:
         history.add(line)
         if line in ("exit", "quit", "bye", "logout"):
             return
+        if _BANG_CD.fullmatch(line):
+            # It would change the directory of a shell that ends at once.
+            console.print("[dim]`!cd` would change only a shell of its own; doing "
+                          "`cd` here.[/dim]")
+            line = line[1:].strip()
         if line.startswith("!"):
             # The rest of the line is the shell's, `;` and all, as in the cl.
             import subprocess
@@ -71,7 +81,7 @@ def _run(line: str) -> bool:
     """One command; True when it worked."""
     import click
 
-    from .main import app
+    from .main import SESSION, app
 
     if line in ("exit", "quit", "bye", "logout"):
         raise _Leave
@@ -80,9 +90,14 @@ def _run(line: str) -> bool:
     except ValueError as error:
         console.print(f"[red]{error}[/red] -- unbalanced quotes?")
         return False
+    # Every message says `harwood list`, and copying it should work here too.
+    if args[:1] == ["harwood"]:
+        args = args[1:]
+        if not args:
+            return True
 
     try:
-        app.main(args=args, prog_name="harwood", standalone_mode=False)
+        app.main(args=args, prog_name="harwood", standalone_mode=False, obj=SESSION)
     except click.ClickException as error:
         error.show()
         return False

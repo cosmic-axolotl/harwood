@@ -19,6 +19,7 @@ the parameter models, and built only when asked for, so that `list` and
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -33,8 +34,15 @@ from . import build
 console = Console()
 error_console = Console(stderr=True)
 
+#: Where `cd -` goes.
+_previous_directory: str | None = None
+
 BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "history", "edit", "docs",
-            "gui")
+            "gui", "cd", "pwd")
+
+#: What the prompts pass as click's `obj`: this process goes on after the
+#: command, which is what `cd` needs to mean anything.
+SESSION = "session"
 
 
 class Harwood(click.Group):
@@ -53,14 +61,25 @@ class Harwood(click.Group):
 
         if exists(name):
             return _task_command(name)
+        from ..core import packages
+
+        # `noao`, `digiphot`, `apphot`: typed at the cl to load a package. There
+        # is nothing to load, which is an answer and not a failure, so that a
+        # line copied from an IRAF exercise goes on to its next command.
+        if packages.named(name) is not None:
+            return _package_command(name)
         return None
 
     def resolve_command(self, ctx, args):
         try:
             return super().resolve_command(ctx, args)
         except click.UsageError:
-            _explain_unknown(args[0] if args else "")
-            raise
+            if not args or args[0].startswith("-"):
+                raise
+            # The answer is the whole answer: click's usage and "No such
+            # command" under it only repeat it, less helpfully.
+            _explain_unknown(args[0])
+            raise click.exceptions.Exit(2) from None
 
 
 @click.group(cls=Harwood, invoke_without_command=True,
@@ -118,11 +137,20 @@ def list_cmd(package: str | None, iraf: bool, milestone: str | None) -> None:
     tasks = {n: c for n, c in list_tasks().items()
              if package is None or c.package == package}
     if not tasks:
+        from ..core import packages as tree
         from ..core.registry import packages
 
-        error_console.print(f"[red]No package '{package}'.[/red] "
-                            f"Known: {', '.join(sorted(packages()))}")
-        raise SystemExit(2)
+        # An IRAF package harwood does not keep as one of its own: `noao`, or
+        # `digiphot`, which holds apphot and photcal.
+        node = tree.named(package)
+        if node is None:
+            error_console.print(f"[red]No package '{package}'.[/red] "
+                                f"Known: {', '.join(sorted(packages()))}")
+            raise SystemExit(2)
+        tasks = {n: c for n, c in list_tasks().items() if n in tree.names_under(node)}
+        if not tasks:
+            _print_advice([_package_note(package)])
+            return
 
     table = Table(title=f"harwood tasks{f' in {package}' if package else ''}",
                   title_style="bold")
@@ -743,6 +771,64 @@ def docs_cmd(topic: str | None, browser: bool, out: Path | None,
     console.print(f"[dim]opened {escape(page.as_uri())}[/dim]")
 
 
+# ------------------------------------------------------- the working directory
+
+
+def _directories(ctx, param, incomplete: str) -> list:
+    """Tab after `cd`: cli/line.py fills in the names, directories only."""
+    from click.shell_completion import CompletionItem
+
+    return [CompletionItem(incomplete, type="dir")]
+
+
+@app.command("pwd")
+def pwd_cmd() -> None:
+    """Print the working directory, where tasks read and write."""
+    click.echo(os.getcwd())
+
+
+@app.command("cd")
+@click.argument("directory", required=False, shell_complete=_directories)
+@click.pass_obj
+def cd_cmd(session: str | None, directory: str | None) -> None:
+    """Change the working directory of the session. Alone, go home; `cd -` goes
+    back to the one before."""
+    global _previous_directory
+
+    from ..core.advice import Advice
+
+    if session != SESSION:
+        _print_advice([Advice(
+            "harwood ends with the command, so a directory changed here would be "
+            "forgotten at once",
+            "cd in your shell, or start the session with harwood and cd at hw>",
+            "problem")], where=error_console, label="cd")
+        raise SystemExit(2)
+
+    target = os.path.expanduser(os.path.expandvars(directory or "~"))
+    if target == "-":
+        if _previous_directory is None:
+            _print_advice([Advice("there is no directory to go back to yet",
+                                  "cd somewhere first", "problem")],
+                          where=error_console, label="cd")
+            raise SystemExit(1)
+        target = _previous_directory
+    before = os.getcwd()
+    try:
+        os.chdir(target)
+    except OSError as error:
+        reason = {FileNotFoundError: f"no directory '{target}' in {before}",
+                  NotADirectoryError: f"'{target}' is a file, not a directory",
+                  PermissionError: f"no permission to enter '{target}'"}
+        _print_advice([Advice(reason.get(type(error), str(error)),
+                              "Tab completes the directories that are here; pwd says "
+                              "where you are", "problem")],
+                      where=error_console, label="cd")
+        raise SystemExit(1) from None
+    _previous_directory = before
+    click.echo(os.getcwd())
+
+
 # ------------------------------------------------------------- the display
 
 
@@ -795,16 +881,49 @@ def _task_command(name: str) -> click.Command:
         if option.name not in declared
     ]
 
-    command = click.Command(
+    command = build.TaskCommand(
         name=name,
         callback=run,
         params=[*build.parameters_for(cls.Params), *harness],
-        help=(cls.description or "") + "\n\nSee `harwood help "
-             + name + "` for the manual and `harwood lpar " + name
-             + "` for effective values.",
+        help=(cls.description or "") + "\n\n" + _naming_help(name, cls)
+             + "See `harwood help " + name + "` for the manual and `harwood lpar "
+             + name + "` for effective values.",
         short_help=cls.description,
     )
     return command
+
+
+def _naming_help(name: str, cls: Any) -> str:
+    """The paragraph of --help that says how to name what a task writes."""
+    fields = cls.Params.model_fields
+    if "output" in fields and not fields["output"].is_required():
+        return (f"Name the output, and an image with its extension: Zero.fits, not "
+                f"Zero. Left unnamed it goes to output/hrwd_{name}_<date>/.\n\n")
+    if any(field in fields for field in _OUTPUT_FIELDS):
+        return "Write an image's extension: Zero.fits, not Zero.\n\n"
+    return ""
+
+
+def _package_command(name: str) -> click.Command:
+    """What an IRAF package name does when it is typed: says there is no need."""
+    return click.Command(name=name, add_help_option=False,
+                         context_settings={"ignore_unknown_options": True,
+                                           "allow_extra_args": True},
+                         callback=lambda: _print_advice([_package_note(name)]))
+
+
+def _package_note(name: str) -> Any:
+    from ..core import packages
+    from ..core.advice import Advice
+
+    node = packages.named(name)
+    if not node.available_count():
+        return Advice(f"'{name}' is an IRAF package, and none of its tasks is in "
+                      "harwood yet", "harwood list --iraf says what became of each",
+                      "note")
+    return Advice(f"'{name}' is an IRAF package, and there is nothing to load here: "
+                  "every task is always there", f"harwood list {name} shows its tasks",
+                  "note")
 
 
 def _run_task(name: str, kwargs: dict[str, Any]) -> None:
@@ -915,6 +1034,73 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     if folder is not None:
         console.print(f"  [dim]in {folder}"
                       + (", with run.yaml" if written else "") + "[/dim]")
+    _print_advice(_naming_notes(name, cls, prepared.validated, result, folder))
+
+
+#: The parameters in which a task is told the name of what it writes.
+_OUTPUT_FIELDS = ("output", "result", "outimage", "newnames")
+
+
+def _naming_notes(name: str, cls: Any, params: Any, result: Any,
+                  folder: Path | None) -> list[Any]:
+    """What to know about the names of what was just written.
+
+    At the command line only, where a person chose the name or left it out; a
+    script reads `result.outputs` and has nothing to be told. Neither is a
+    wrong result, so neither stops the run or goes into its record.
+    """
+    from ..core.advice import Advice
+
+    fields = cls.Params.model_fields
+    notes = []
+    written = [Path(path) for path in result.outputs]
+    if folder is not None and written and "output" in fields \
+            and not getattr(params, "output", None):
+        if len(written) == 1:
+            notes.append(Advice(
+                f"no output named, so it went to {written[0]}, and the next task will "
+                "not look for it there",
+                "name it, with its extension: "
+                + _with_output(name, fields, written[0].name), "note"))
+        else:
+            notes.append(Advice(
+                f"no output named, so the {len(written)} results went to {folder}, "
+                "under the names of their frames, and the next task has to be told "
+                "that directory",
+                f"read them from {folder}/, or name the output: harwood help {name}",
+                "note"))
+    if any(field in fields for field in _OUTPUT_FIELDS):
+        bare = [path for path in written if _is_bare_image(path)]
+        if bare:
+            shown = ", ".join(f"'{path}'" for path in bare[:3]) + (
+                f" and {len(bare) - 3} more" if len(bare) > 3 else "")
+            first = bare[0]
+            notes.append(Advice(
+                f"{shown}: a FITS image written as named, with no extension, so "
+                f"'*.fits' and {first.name}.fits will not find it",
+                f"write the extension when you name an image; for this one, "
+                f"imrename {first} {first}.fits", "note"))
+    return notes
+
+
+def _with_output(name: str, fields: dict, value: str) -> str:
+    """The task's command line with the output filled in and the rest as --help
+    names them: harwood phot IMAGE COORDS obj.mag."""
+    words = ["harwood", name]
+    for key, field in fields.items():
+        extra = field.json_schema_extra or {}
+        if field.is_required() or extra.get("positional"):
+            words.append(value if key == "output" else key.upper())
+    if value not in words:
+        words += ["--output", value]
+    return " ".join(words)
+
+
+def _is_bare_image(path: Path) -> bool:
+    if path.suffix or not path.is_file():
+        return False
+    with open(path, "rb") as handle:
+        return handle.read(6) == b"SIMPLE"
 
 
 def _print_advice(items: list[Any], where: Any = None, label: str = "") -> None:
@@ -1146,8 +1332,12 @@ def _explain_unknown(name: str) -> None:
         return
     import difflib
 
-    from ..core import migration
+    from ..core import migration, packages
     from ..core.registry import list_tasks
+
+    if packages.named(name) is not None:
+        _print_advice([_package_note(name)], where=error_console)
+        return
 
     explanation = migration.explain(name)
     if explanation:

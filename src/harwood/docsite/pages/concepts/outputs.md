@@ -25,6 +25,11 @@ output: |
   with run.yaml
 ```
 
+To use a result in the next task, name it, with its extension: `harwood
+daofind obj.fits obj.coo`, `harwood zerocombine @bias.lis Zero.fits`. A file in a
+run directory is found only by the path to it, and a note after the run says
+where it went.
+
 ## Three records
 
 | record | for | kept |

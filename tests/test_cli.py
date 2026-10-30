@@ -1,7 +1,11 @@
 """The command line: the four commands, and the shape section 3.1 fixes."""
 
 
+from pathlib import Path
+
+import numpy as np
 import pytest
+from astropy.io import fits
 from click.testing import CliRunner
 
 from harwood.cli.main import app
@@ -495,3 +499,215 @@ def test_a_number_or_a_keyword_takes_either_at_the_command_line():
         options = {p.name: p for p in parameters_for(get_task(task).Params)}
         for name in ("gain", "readnoise"):
             assert options[name].type is click.STRING, (task, name)
+
+
+# ---------------------------------------------------- cd, pwd and IRAF's packages
+
+
+def _hw(line):
+    """One command at the hw> prompt."""
+    from harwood.cli import session
+
+    return session._run(line)
+
+
+def test_cd_and_pwd_at_the_prompt(tmp_path, monkeypatch, capsys):
+    (tmp_path / "night").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    assert _hw("cd night")
+    assert Path.cwd() == tmp_path.resolve() / "night"
+    assert _hw("pwd")
+    assert capsys.readouterr().out.splitlines()[-1] == str(Path.cwd())
+
+    assert _hw("cd -")
+    assert Path.cwd() == tmp_path.resolve()
+    monkeypatch.setenv("HOME", str(tmp_path / "night"))
+    assert _hw("cd")
+    assert Path.cwd() == tmp_path.resolve() / "night"
+
+
+def test_cd_that_cannot_go_says_why_and_stays(tmp_path, monkeypatch, capsys):
+    (tmp_path / "a.fits").write_text("")
+    monkeypatch.chdir(tmp_path)
+
+    assert not _hw("cd nowhere")
+    assert "no directory 'nowhere'" in capsys.readouterr().err
+    assert not _hw("cd a.fits")
+    said = capsys.readouterr()
+    assert "is a file" in said.err and "Usage" not in said.err + said.out
+    assert Path.cwd() == tmp_path.resolve()
+
+
+def test_cd_from_the_shell_refuses_rather_than_pretending(run, tmp_path, monkeypatch):
+    """The process ends with the command; `harwood cd x && harwood ...` would
+    quietly run the second one in the first directory."""
+    (tmp_path / "night").mkdir()
+    monkeypatch.chdir(tmp_path)
+    result = run("cd", "night")
+    assert result.exit_code != 0 and "your shell" in result.output
+    assert Path.cwd() == tmp_path.resolve()
+    assert run("pwd").output.strip() == str(tmp_path.resolve())
+
+
+def test_a_later_command_works_in_the_new_directory(tmp_path, monkeypatch, capsys):
+    from harwood.cli import line as command_line
+
+    night = tmp_path / "night"
+    night.mkdir()
+    fits.PrimaryHDU(np.full((8, 8), 3.0)).writeto(night / "a.fits")
+    monkeypatch.chdir(tmp_path)
+
+    assert command_line.run("cd night && imstatistics a.fits --fields mean", _hw, print)
+    assert "mean" in capsys.readouterr().out
+
+
+def test_the_session_takes_harwood_in_front(tmp_path, monkeypatch, capsys):
+    """Every message says `harwood list`; copied to hw>, it said no task
+    called 'harwood'."""
+    monkeypatch.chdir(tmp_path)
+    assert _hw("harwood pwd")
+    assert capsys.readouterr().out.strip() == str(tmp_path.resolve())
+    assert _hw("harwood")           # already in it: not a session inside a session
+
+
+@pytest.mark.parametrize("name", ["noao", "imred", "digiphot", "apphot", "daophot",
+                                  "noao.digiphot"])
+def test_an_iraf_package_has_nothing_to_load(run, name):
+    """It answered "No task called 'noao', here or in IRAF"."""
+    result = run(name)
+    assert result.exit_code == 0, "a line from an exercise goes on to its next command"
+    assert "IRAF package" in result.output
+    assert "here or in IRAF" not in result.output
+
+
+def test_list_finds_an_iraf_package_it_keeps_no_package_for(run):
+    """The note after `digiphot` tells you to type this."""
+    result = run("list", "digiphot")
+    assert result.exit_code == 0
+    for task in ("daofind", "phot", "fitparams"):
+        assert task in result.output
+    assert "imcombine" not in result.output
+    assert run("list", "noao").exit_code == 0
+    assert "none of its tasks" in run("list", "daophot").output
+    assert run("list", "nosuchpackage").exit_code == 2
+
+
+def test_an_unknown_name_is_answered_once(run):
+    """Click's usage and "No such command" under the answer only repeated it."""
+    result = run("nosuchtask")
+    assert result.exit_code == 2
+    assert "No task called 'nosuchtask'" in result.output
+    assert "Usage" not in result.output and "No such command" not in result.output
+
+
+# ----------------------------------------------------------- a list of numbers
+
+
+def _params(task, *words):
+    from harwood.cli.main import _task_command
+
+    return _task_command(task).make_context(task, list(words)).params
+
+
+@pytest.mark.parametrize("words", [
+    ["i.fits", "c.coo", "m.mag", "--apertures", "5", "10"],
+    ["i.fits", "c.coo", "--apertures", "5", "10", "m.mag"],
+    ["--apertures", "5", "10", "i.fits", "c.coo", "m.mag"],
+    ["i.fits", "c.coo", "m.mag", "--apertures=5", "10"],
+    ["i.fits", "c.coo", "m.mag", "--apertures", "5", "--apertures", "10"],
+    ["i.fits", "c.coo", "m.mag", "--apertures", "5,10"],
+])
+def test_every_way_of_writing_two_apertures_is_two_apertures(words):
+    """`--apertures 5 10` measured in 5 alone and wrote a file called `10`,
+    and said nothing."""
+    params = _params("phot", *words)
+    assert [float(v) for item in params["apertures"] for v in item.split(",")] == [5, 10]
+    assert params["output"] == Path("m.mag")
+
+
+def test_only_numbers_read_on_after_a_list_of_them():
+    params = _params("phot", "i.fits", "c.coo", "--apertures", "-1.5", "1e1", "m.mag",
+                     "--annulus", "30")
+    assert params["apertures"] == ("-1.5", "1e1")
+    assert params["output"] == Path("m.mag") and params["annulus"] == 30
+    # A list of names takes one, as before: the next word could be anything.
+    assert _params("mkcatalog", "cat", "--columns", "ID,V")["columns"] == ("ID,V",)
+
+
+# --------------------------------------------------------- naming what is written
+
+
+def _image(path):
+    """A star on a flat sky, for daofind to find."""
+    y, x = np.mgrid[:40, :40]
+    star = 1000.0 * np.exp(-((x - 20.0) ** 2 + (y - 20.0) ** 2) / (2 * 1.5 ** 2))
+    fits.PrimaryHDU(100.0 + star).writeto(path)
+
+
+def _said(result):
+    """What was printed, whatever the width of the terminal did to it."""
+    return " ".join(result.output.split())
+
+
+def test_an_image_named_without_its_extension_says_so(run, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _image(tmp_path / "a.fits")
+    _image(tmp_path / "b.fits")
+
+    bare = run("imcombine", "a.fits", "b.fits", "Zero")
+    assert bare.exit_code == 0 and (tmp_path / "Zero").is_file()
+    assert "no extension" in _said(bare) and "imrename Zero Zero.fits" in _said(bare)
+
+    assert "no extension" not in _said(run("imcombine", "a.fits", "b.fits", "Zero.fits"))
+
+
+def test_a_text_table_needs_no_extension(run, tmp_path, monkeypatch):
+    """The note is about what cannot be found, and `obsA` is found as `obsA`."""
+    monkeypatch.chdir(tmp_path)
+    _image(tmp_path / "a.fits")
+    result = run("daofind", "a.fits", "coords", "--fwhmpsf", "3", "--sigma", "1")
+    assert result.exit_code == 0 and "no extension" not in _said(result)
+    assert "no output named" not in _said(result)
+
+
+def test_an_unnamed_output_says_where_it_went_and_how_to_name_it(run, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _image(tmp_path / "a.fits")
+    result = run("daofind", "a.fits", "--fwhmpsf", "3", "--sigma", "1")
+    assert result.exit_code == 0
+    assert "no output named" in _said(result)
+    assert "harwood daofind IMAGE a.coo" in _said(result)
+
+
+def test_several_unnamed_outputs_are_one_note(run, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _image(tmp_path / "a.fits")
+    _image(tmp_path / "b.fits")
+    result = run("ccdproc", "a.fits", "b.fits")
+    assert result.exit_code == 0
+    assert _said(result).count("no output named") == 1
+    assert "the 2 results" in _said(result)
+
+
+def test_a_task_writing_nothing_new_has_no_note_about_names(run, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _image(tmp_path / "a")
+    result = run("hedit", "a", "OBSERVER", "--value", "me", "--add", "--no-show")
+    assert result.exit_code == 0 and "no extension" not in _said(result)
+
+
+def test_a_script_is_not_told_about_names(tmp_path, monkeypatch):
+    """`harwood.run` hands back result.outputs; nothing goes into the record."""
+    import harwood
+
+    monkeypatch.chdir(tmp_path)
+    _image(tmp_path / "a.fits")
+    result = harwood.run("daofind", image="a.fits", fwhmpsf=3.0, sigma=1.0)
+    assert not [w for w in result.warnings if "no output named" in str(w)]
+
+
+def test_help_says_how_to_name_an_output(run):
+    assert "Left unnamed" in _said(run("daofind", "--help"))
+    assert "Zero.fits" in _said(run("imcombine", "--help"))
+    assert "Zero.fits" not in _said(run("imstatistics", "--help"))
