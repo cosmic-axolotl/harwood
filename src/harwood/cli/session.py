@@ -41,6 +41,9 @@ def start() -> None:
                   "outputs, images with their extension: Zero.fits.[/dim]")
     ask = _readline() or (lambda: console.input(f"[bold cyan]{PROMPT}[/bold cyan]"))
     _warm()
+    from .main import _tell_inherited_project
+
+    _tell_inherited_project()
 
     while True:
         try:

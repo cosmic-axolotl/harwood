@@ -18,7 +18,8 @@ When a task runs, each parameter takes the first value it finds here:
 
 1. **the command line** (or the form, or `harwood.run(...)`);
 2. **the project file**, `harwood.yaml`, in this directory or the nearest
-   one above it;
+   one above it, up to but not including your home directory, and a note says
+   when it is one above;
 3. **the preset**, for a task that is another with settings of its own --
    `zerocombine` is `imcombine` with `reject=minmax`, `nhigh=1`;
 4. **the task's default**.

@@ -77,6 +77,49 @@ def test_a_subdirectory_still_sees_the_reduction(tmp_path, monkeypatch):
     assert params.resolve("demo", DemoParams)["sigma"].value == 4.0
 
 
+def test_a_harwood_yaml_in_the_home_is_not_for_what_is_under_it(tmp_path, monkeypatch):
+    """A setinstrument run once in the home held for every night under it, in
+    silence, and a bias was a zero there only by that accident. The module
+    says nothing is read from the home directory, and now that is so."""
+    home = tmp_path / "home"
+    deep = home / "night" / "raw"
+    deep.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    params.write_project(home / params.PROJECT_FILE, {"demo": {"sigma": 4.0}})
+
+    monkeypatch.chdir(deep)
+    assert params.find_project() is None
+    assert params.resolve("demo", DemoParams)["sigma"].origin == "default"
+
+    monkeypatch.chdir(home)
+    assert params.resolve("demo", DemoParams)["sigma"].value == 4.0   # standing there
+
+
+def test_above_the_home_is_not_looked_at_either(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    params.write_project(tmp_path / params.PROJECT_FILE, {"demo": {"sigma": 4.0}})
+    monkeypatch.chdir(home)
+    assert params.find_project() is None
+
+
+def test_a_reduction_under_the_home_is_still_seen_from_below(tmp_path, monkeypatch):
+    night = tmp_path / "home" / "night"
+    raw = night / "raw"
+    raw.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    params.write_project(night / params.PROJECT_FILE, {"demo": {"sigma": 4.0}})
+    monkeypatch.chdir(raw)
+    assert params.resolve("demo", DemoParams)["sigma"].value == 4.0
+    assert params.inherited_project() == night.resolve() / params.PROJECT_FILE
+    assert "../harwood.yaml" in params.resolve("demo", DemoParams)["sigma"].describe()
+
+    monkeypatch.chdir(night)
+    assert params.inherited_project() is None
+    assert params.resolve("demo", DemoParams)["sigma"].describe() == "project: harwood.yaml"
+
+
 def test_a_typo_in_a_parameter_name_is_caught_by_name(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(KeyError, match="sgima"):

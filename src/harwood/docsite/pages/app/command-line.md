@@ -14,7 +14,9 @@ hw> daofind --plan red/obj001.fits
 
 `cd` and `pwd` work as in a shell, and in the cl. Tasks read and write in the
 working directory, and its `harwood.yaml` and log are the ones in use, so each
-directory is a reduction:
+directory is a reduction. A subdirectory sees the `harwood.yaml` of the
+reduction it is in, and a note says so; one in your home directory holds only
+when you are standing there:
 
 ```text
 hw> cd ~/iraf/skinakas

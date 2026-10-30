@@ -1000,6 +1000,9 @@ class SetInstrument(Task[SetInstrumentParams]):
         if params.review and (applied or skipped):
             data["rows"] = applied + skipped
         warnings = []
+        if store.in_home(project):
+            message, fix = store.HOME_NOTE
+            warnings.append(advice.note(message, fix))
         if skipped:
             warnings.append(advice.note(
                 f"{len(skipped)} of the instrument's settings have no harwood "

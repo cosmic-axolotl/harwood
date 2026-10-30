@@ -37,6 +37,9 @@ error_console = Console(stderr=True)
 #: Where `cd -` goes.
 _previous_directory: str | None = None
 
+#: (project, directory) already mentioned in this process.
+_inherited_told: set[tuple[Path, Path]] = set()
+
 BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "history", "edit", "docs",
             "gui", "cd", "pwd")
 
@@ -465,6 +468,9 @@ def init_cmd(directory: Path, instrument: str | None) -> None:
         raise SystemExit(1)
     store.write_project(path, instrument=instrument)
     console.print(f"[green]Created[/green] {path}")
+    if store.in_home(path):
+        _print_home_note()
+        return
     console.print("[dim]Parameters set there apply to every task run in this "
                   "directory and below. Nothing is stored in your home directory.[/dim]")
 
@@ -827,6 +833,7 @@ def cd_cmd(session: str | None, directory: str | None) -> None:
         raise SystemExit(1) from None
     _previous_directory = before
     click.echo(os.getcwd())
+    _tell_inherited_project()
 
 
 # ------------------------------------------------------------- the display
@@ -904,6 +911,31 @@ def _naming_help(name: str, cls: Any) -> str:
     return ""
 
 
+def _print_home_note() -> None:
+    from ..core import params as store
+    from ..core.advice import Advice
+
+    _print_advice([Advice(*store.HOME_NOTE, "note")])
+
+
+def _tell_inherited_project(task: str = "<task>") -> None:
+    """Say so when the parameters in use come from a directory above: nothing
+    in a task's output shows it, and a run should not depend on a file its
+    directory does not hold without saying. Once per directory in a session.
+    On stderr, so that it never lands in what a task prints for a pipe."""
+    from ..core import params as store
+    from ..core.advice import Advice
+
+    project = store.inherited_project()
+    if project is None or (project, Path.cwd()) in _inherited_told:
+        return
+    _inherited_told.add((project, Path.cwd()))
+    _print_advice([Advice(
+        f"using {os.path.relpath(project)}, from a directory above this one",
+        f"harwood lpar {task} shows what it sets; harwood init starts a project "
+        "of this directory's own", "note")], where=error_console)
+
+
 def _package_command(name: str) -> click.Command:
     """What an IRAF package name does when it is typed: says there is no need."""
     return click.Command(name=name, add_help_option=False,
@@ -960,6 +992,7 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         error_console.print(f"[red]{name}:[/red] {escape(str(error))}")
         raise SystemExit(2) from None
     expected = prepared.expected
+    _tell_inherited_project(name)
 
     if plan_only:
         console.print(f"\n[bold]{name}[/bold] would do this and nothing else:\n")
@@ -1289,6 +1322,8 @@ def _edit_parameters(name: str, cls: Any) -> None:
         console.print("[dim]Nothing changed.[/dim]")
         return
     console.print(f"[green]Saved to[/green] {project}")
+    if store.in_home(project):
+        _print_home_note()
     for field, (before, after) in sorted(changed.items()):
         console.print(f"  [bold]{field}[/bold]  {_show(before)} "
                       f"[dim]->[/dim] {_show(after)}")

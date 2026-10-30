@@ -711,3 +711,85 @@ def test_help_says_how_to_name_an_output(run):
     assert "Left unnamed" in _said(run("daofind", "--help"))
     assert "Zero.fits" in _said(run("imcombine", "--help"))
     assert "Zero.fits" not in _said(run("imstatistics", "--help"))
+
+
+# ------------------------------------------------- a project in a directory above
+
+
+def _night(tmp_path, monkeypatch):
+    """A reduction with a project file, and a directory below it, where we stand."""
+    night = tmp_path / "night"
+    (night / "raw").mkdir(parents=True)
+    (night / "harwood.yaml").write_text("params:\n  daofind:\n    sigma: 7.0\n")
+    _image(night / "raw" / "a.fits")
+    monkeypatch.chdir(night / "raw")
+    return night
+
+
+def test_a_task_says_when_its_parameters_come_from_above(run, tmp_path, monkeypatch):
+    _night(tmp_path, monkeypatch)
+    said = _said(run("imstatistics", "a.fits"))
+    assert "from a directory above this one" in said
+    assert "harwood lpar imstatistics" in said
+
+
+def test_a_task_in_the_project_s_own_directory_says_nothing(run, tmp_path, monkeypatch):
+    night = _night(tmp_path, monkeypatch)
+    monkeypatch.chdir(night)
+    _image(night / "b.fits")
+    assert "above this one" not in _said(run("imstatistics", "b.fits"))
+
+
+def test_the_note_is_once_per_directory_in_a_session(tmp_path, monkeypatch, capsys):
+    _night(tmp_path, monkeypatch)
+    assert _hw("imstatistics a.fits")
+    assert "above this one" in " ".join(capsys.readouterr().err.split())
+    assert _hw("imstatistics a.fits")
+    assert "above this one" not in " ".join(capsys.readouterr().err.split())
+
+
+def test_cd_into_a_directory_of_a_reduction_says_so(tmp_path, monkeypatch, capsys):
+    night = _night(tmp_path, monkeypatch)
+    monkeypatch.chdir(night)
+    assert _hw("cd raw")
+    assert "above this one" in " ".join(capsys.readouterr().err.split())
+
+
+def test_the_note_stays_out_of_what_a_task_prints_for_a_pipe(tmp_path, monkeypatch, capsys):
+    _night(tmp_path, monkeypatch)
+    assert _hw("hselect a.fits $I")
+    said = capsys.readouterr()
+    assert "above this one" not in said.out and "a.fits" in said.out
+    assert "above this one" in " ".join(said.err.split())
+
+
+def test_lpar_shows_a_project_above_as_above(run, tmp_path, monkeypatch):
+    _night(tmp_path, monkeypatch)
+    assert "../harwood.yaml" in _said(run("lpar", "daofind"))
+
+
+def test_setinstrument_in_the_home_says_it_will_not_reach_below(run, tmp_path, monkeypatch):
+    """Where the trap was set in the first place."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    result = run("setinstrument", "kpno/coude")
+    assert result.exit_code == 0, result.output
+    assert "in your home directory" in _said(result)
+    (tmp_path / "night").mkdir()
+    monkeypatch.chdir(tmp_path / "night")
+    from harwood.core.instrument import from_project
+
+    assert from_project().name != "coude"
+
+
+def test_init_in_the_home_says_it_will_not_reach_below(run, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    assert "in your home directory" in _said(run("init"))
+
+
+def test_setinstrument_in_a_night_has_no_such_note(run, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "night").mkdir()
+    monkeypatch.chdir(tmp_path / "night")
+    assert "in your home directory" not in _said(run("setinstrument", "kpno/coude"))

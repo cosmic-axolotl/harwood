@@ -18,6 +18,7 @@ Precedence, highest first::
 
     command line   --fwhm 3.8
     project file   harwood.yaml in this directory, or the nearest ancestor
+                   below the home directory
     preset         what makes zerocombine differ from imcombine
     task default   the Pydantic model
 
@@ -27,6 +28,7 @@ model: nothing is read from the user's home directory, ever.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -56,7 +58,9 @@ class Resolved:
             return self.origin
         source = self.source
         try:
-            source = str(Path(self.source).resolve().relative_to(Path.cwd()))
+            # ../harwood.yaml when it is above: the name alone would say it
+            # was here, which is exactly what someone checking needs to know.
+            source = os.path.relpath(Path(self.source).resolve(), Path.cwd())
         except (ValueError, OSError):
             source = Path(self.source).name
         return f"{self.origin}: {source}"
@@ -66,14 +70,48 @@ def find_project(start: Path | None = None) -> Path | None:
     """Find the project file for a reduction directory.
 
     Walks up from ``start`` so that a subdirectory of a reduction still sees
-    the reduction's parameters -- the same reason ``git`` looks upwards.
+    the reduction's parameters -- the same reason ``git`` looks upwards. It
+    stops below the home directory, and above it when it starts outside: a
+    harwood.yaml left in the home by a command run there would otherwise hold
+    for every night under it, the global place for parameters this module
+    exists to prevent. Standing in the home itself, it is that directory's.
     """
     here = (start or Path.cwd()).resolve()
+    home = home_directory()
     for directory in (here, *here.parents):
+        if directory == home and directory != here:
+            return None
         candidate = directory / PROJECT_FILE
         if candidate.is_file():
             return candidate
+        if directory == home:
+            return None
     return None
+
+
+def home_directory() -> Path | None:
+    try:
+        return Path.home().resolve()
+    except (RuntimeError, OSError):
+        return None
+
+
+#: What to say on writing a project file in the home: what happened, what to do.
+HOME_NOTE = ("this harwood.yaml is in your home directory, so it holds only for "
+             "commands run right there, and not in the directories under it",
+             "cd to the night's directory and do this there")
+
+
+def in_home(project: Path) -> bool:
+    return Path(project).resolve().parent == home_directory()
+
+
+def inherited_project(start: Path | None = None) -> Path | None:
+    """The project file in use, when it is in a directory above this one."""
+    path = find_project(start)
+    if path is None or path.parent == (start or Path.cwd()).resolve():
+        return None
+    return path
 
 
 def load_project(start: Path | None = None) -> tuple[dict[str, Any], Path | None]:
