@@ -28,4 +28,11 @@ CASES["thresholds"] = {"lthreshold": 50.0, "hthreshold": 600.0}
 CASES["blank"] = {"lthreshold": 1.0e6, "blank": 7.5}
 CASES["nkeep"] = {"reject": "sigclip", "lsigma": 1.0, "hsigma": 1.0, "nkeep": 5}
 CASES["mclip_no"] = {"reject": "sigclip", "mclip": "no"}
+CASES["mclip_no_keep"] = {"reject": "sigclip", "mclip": "no", "lsigma": 1.0, "hsigma": 1.0,
+                          "nkeep": 5}
+CASES["mclip_no_ccd"] = {"reject": "ccdclip", "mclip": "no", "rdnoise": "8.", "lsigma": 1.5,
+                         "hsigma": 1.5}
+CASES["mclip_no_cr"] = {"reject": "crreject", "mclip": "no", "rdnoise": "8.", "nkeep": 6}
+CASES["mclip_no_avs"] = {"reject": "avsigclip", "mclip": "no", "lsigma": 1.5, "hsigma": 1.5}
+CASES["mclip_no_scale"] = {"reject": "sigclip", "mclip": "no", "scale": "exposure"}
 CASES["section"] = {"images": "f0.fits[5:20,5:20],f1.fits[5:20,5:20],f2.fits[5:20,5:20]"}

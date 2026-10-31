@@ -85,34 +85,40 @@ def ic_mode(sorted_values: np.ndarray, zrange: float = 0.7) -> float:
     n = a.size
     if n < 10:
         return float(a[n // 2 - 1]) if n >= 2 else float(a[0])
-    i = int(1 + n * (1.0 - zrange) / 2.0)
-    j = int(1 + n * (1.0 + zrange) / 2.0)
-    z1, z2 = float(a[i - 1]), float(a[j - 1])
+    # All in real, and the bins' edges creep by rounding as they step. 1. - ZRANGE
+    # is folded by the compiler into one real: 0.2, so 2000 pixels start at 201.
+    # In double it is a hair less, and at 200 the mode is another.
+    real = np.float32
+    half = real(2.0)
+    i = int(real(real(1.0) + real(real(n) * real(1.0 - zrange)) / half))
+    j = int(real(real(1.0) + real(real(n) * real(1.0 + zrange)) / half))
+    z1, z2 = real(a[i - 1]), real(a[j - 1])
     if z1 == z2:
-        return z1
-    zstep = 0.01 * (z2 - z1)
-    zbin = 0.1 * (z2 - z1)
-    z1 = z1 - zstep
+        return float(z1)
+    span = real(z2 - z1)
+    zstep = real(real(0.01) * span)
+    zbin = real(real(0.1) * span)
+    z1 = real(z1 - zstep)
     k = i
     nmax = 0
     mode = z1
     while True:
-        z1 = z1 + zstep
-        z2 = z1 + zbin
-        while i < j and a[i - 1] < z1:
+        z1 = real(z1 + zstep)
+        z2 = real(z1 + zbin)
+        while i < j and real(a[i - 1]) < z1:
             i += 1
-        while k < j and a[k - 1] < z2:
+        while k < j and real(a[k - 1]) < z2:
             k += 1
         if k - i > nmax:
             nmax = k - i
-            mode = float(a[(i + k) // 2 - 1])
+            mode = real(a[(i + k) // 2 - 1])
         if k >= j:
             break
-    return mode
+    return float(mode)
 
 
 def ic_stat(frame: np.ndarray, section=None, lthresh=None, hthresh=None,
-            nmax: int = 100000, zrange: float = 0.7):
+            nmax: int = 100000, zrange: float = 0.7, sorted_first: bool = True):
     """ic_stat: the mode, median and mean of a sample of the image.
 
     IRAF steps through the section with the smallest stride, 1 to 10, that
@@ -133,10 +139,12 @@ def ic_stat(frame: np.ndarray, section=None, lthresh=None, hthresh=None,
         sample = sample[(sample >= low) & (sample <= high)]
     if sample.size < 1:
         raise ValueError("the statistics section contains no pixels")
-    ordered = np.sort(sample.astype(np.float32)).astype(np.float64)
+    real = np.float32
+    ordered = np.sort(sample.astype(real)).astype(np.float64)
+    summed = ordered.astype(real) if sorted_first else sample.astype(real)
     return {"mode": ic_mode(ordered, zrange),
             "median": float(ordered[max(ordered.size // 2 - 1, 0)]),
-            "mean": float(ordered.sum() / ordered.size)}
+            "mean": float(real(np.add.accumulate(summed)[-1] / real(summed.size)))}
 
 
 def ic_scale(stack, headers, scale="none", zero="none", weight="none",
@@ -156,6 +164,9 @@ def ic_scale(stack, headers, scale="none", zero="none", weight="none",
                         for h in headers])
 
     stats: dict[int, dict] = {}
+    # The sample is sorted for a mode or a median, and the mean is summed in real
+    # in whatever order it then lies.
+    sorted_first = "mode" in (scale, zero, weight) or "median" in (scale, zero, weight)
 
     def values(kind):
         if kind == "none":
@@ -166,7 +177,7 @@ def ic_scale(stack, headers, scale="none", zero="none", weight="none",
             if index not in stats:
                 stats[index] = ic_stat(stack[index], section, lthresh, hthresh,
                                        *((10000, 0.8) if flavor == "ccdred"
-                                         else (100000, 0.7)))
+                                         else (100000, 0.7)), sorted_first)
         return np.array([stats[index][kind] for index in range(nimages)])
 
     scales, zeros, wts = values(scale), values(zero), values(weight)
@@ -176,10 +187,19 @@ def ic_scale(stack, headers, scale="none", zero="none", weight="none",
     if np.any(scales <= 0):
         scales[:] = 1.0
 
+    # All of it in real, as ic_scale's scales[], zeros[] and wts[] are; asumr sums
+    # in order.
     ccdred = flavor == "ccdred"
-    scales = scales / (scales.mean() if ccdred else scales[0])
-    zeros = zeros / scales
-    reference = zeros.mean() if ccdred else zeros[0]
+    real = np.float32
+    ncombine = ncombine.astype(real)
+    scales, zeros, wts = scales.astype(real), zeros.astype(real), wts.astype(real)
+
+    def mean_of(values):
+        return real(np.add.accumulate(values)[-1] / real(nimages))
+
+    scales = (scales / (mean_of(scales) if ccdred else scales[0])).astype(real)
+    zeros = (zeros / scales).astype(real)
+    reference = mean_of(zeros) if ccdred else zeros[0]
     if weight != "none":
         if np.any(wts <= 0 if ccdred else wts < 0):
             wts = ncombine.copy()
@@ -189,11 +209,13 @@ def ic_scale(stack, headers, scale="none", zero="none", weight="none",
             wts = ncombine * wts
         else:
             wts = ncombine * wts * reference / zeros
-    zeros = zeros - reference
+    zeros = (zeros - reference).astype(real)
     if np.all(zeros[1:] == zeros[0]):
         zeros[:] = 0.0
-    total = wts.sum()
-    wts = wts / total if total > 0 else np.ones(nimages)
+    total = real(np.add.accumulate(wts.astype(real))[-1])
+    wts = (wts.astype(real) / total).astype(real) if total > 0 else np.ones(nimages, real)
+    scales, zeros, wts = (scales.astype(np.float64), zeros.astype(np.float64),
+                          wts.astype(np.float64))
 
     doscale = bool(np.any(scales[1:] != scales[0]))
     dozero = bool(np.any(zeros[1:] != zeros[0]))
@@ -368,6 +390,38 @@ def _trimmed(d, n1):
 
 
 @_jit
+def _trimmed_real(d, n1):
+    """_trimmed in real, the sum the average-based clippers return their mean from."""
+    low, high = np.float32(d[0]), np.float32(d[1])
+    if low > high:
+        low, high = high, low
+    total = np.float32(0.0)
+    for j in range(3, n1 + 1):
+        d1 = np.float32(d[j - 1])
+        if d1 < low:
+            total = np.float32(total + low)
+            low = d1
+        elif d1 > high:
+            total = np.float32(total + high)
+            high = d1
+        else:
+            total = np.float32(total + d1)
+    a = np.float32(total / np.float32(n1 - 2))
+    return a, np.float32(np.float32(total + low) + high)
+
+
+@_jit
+def _sum_real(d, n1, blank):
+    """The mean of the values in real, and for none the blank."""
+    if n1 <= 0:
+        return blank
+    total = np.float32(d[0])
+    for j in range(1, n1):
+        total = np.float32(total + np.float32(d[j]))
+    return float(np.float32(total / np.float32(n1)))
+
+
+@_jit
 def _swap_out(d, ids, j, n1):
     """Put the rejected value at position j at the end, the last in its place."""
     d1 = d[j - 1]
@@ -415,8 +469,9 @@ def ic_asigclip(d, ids, n, nkeep, lsigma, hsigma, doscale1, scales, zeros,
     n1 = max(0, n)
     maxkeep = _maxkeep(nkeep, n1)
     if n1 < max(3, maxkeep):
-        return n1
+        return n1, _sum_real(d, n1, blank)
     a, total = _trimmed(d, n1)
+    fa, ftotal = _trimmed_real(d, n1)
     n2 = n1
     while True:
         n2 = n1
@@ -448,16 +503,23 @@ def ic_asigclip(d, ids, n, nkeep, lsigma, hsigma, doscale1, scales, zeros,
                         # IRAF: wp is not stepped back with j, so the value
                         # swapped in is judged with the next position's weight.
                     total -= d1
+                    ftotal = np.float32(ftotal - np.float32(d1))
                     n1 -= 1
                 j += 1
                 wp += 1
         if n1 > 1:
             a = total / n1
+            fa = np.float32(ftotal / np.float32(n1))
         if n1 == n2 or n1 <= max(2, maxkeep):
             break
     if n1 < maxkeep:
+        was = n1
         n1, total, _ = _addback_unsorted(d, ids, n1, maxkeep, n2, resid, total)
-    return n1
+        for j in range(was, n1):
+            ftotal = np.float32(ftotal + np.float32(d[j]))
+        if n1 > 1:
+            fa = np.float32(ftotal / np.float32(n1))
+    return n1, float(fa)
 
 
 @_jit
@@ -471,15 +533,18 @@ def ic_accdclip(d, ids, n, nkeep, lsigma, hsigma, doscale1, scales, zeros,
     n1 = max(0, n)
     maxkeep = _maxkeep(nkeep, n1)
     if n1 <= max(1, maxkeep):
-        return n1
+        return n1, _sum_real(d, n1, blank)
     n2 = n1
     total = 0.0
+    ftotal = np.float32(0.0)
     while True:
         if n1 == 2:
             total = d[0] + d[1]
             a = total / 2.0
+            ftotal = np.float32(np.float32(d[0]) + np.float32(d[1]))
         else:
             a, total = _trimmed(d, n1)
+            ftotal = _trimmed_real(d, n1)[1]
         n2 = n1
         j = 1
         while j <= n1:
@@ -497,13 +562,17 @@ def ic_accdclip(d, ids, n, nkeep, lsigma, hsigma, doscale1, scales, zeros,
                     _swap_out(d, ids, j, n1)
                     j -= 1
                 total -= d1
+                ftotal = np.float32(ftotal - np.float32(d1))
                 n1 -= 1
             j += 1
         if n1 == n2 or n1 < max(2, maxkeep + 1):
             break
     if n1 < maxkeep:
+        was = n1
         n1, total, _ = _addback_unsorted(d, ids, n1, maxkeep, n2, resid, total)
-    return n1
+        for j in range(was, n1):
+            ftotal = np.float32(ftotal + np.float32(d[j]))
+    return n1, float(np.float32(ftotal / np.float32(n1))) if n1 > 0 else blank
 
 
 @_jit
@@ -690,9 +759,29 @@ def ic_mm(d, ids, n, flow, fhigh, copy_ids=False):
 
 @_jit
 def _select(values, k):
-    """The k-th smallest (1-based), the value IRAF's quickselect lands on."""
-    ordered = np.sort(values)
-    return ordered[k - 1]
+    """The k-th smallest (1-based) by Wirth's selection, in place as IRAF's: it
+    leaves the values in another order, and the sigma after it sums them so."""
+    lo, up = 0, values.size - 1
+    k -= 1
+    while lo < up:
+        temp = values[k]
+        i, j = lo, up
+        while True:
+            while values[i] < temp:
+                i += 1
+            while temp < values[j]:
+                j -= 1
+            if i <= j:
+                values[i], values[j] = values[j], values[i]
+                i += 1
+                j -= 1
+            if i > j:
+                break
+        if j < k:
+            lo = i
+        if k < i:
+            up = j
+    return values[k]
 
 
 @_jit
@@ -702,13 +791,16 @@ def ic_median(d, n1, mclip, medavg, blank):
     if mclip:
         j1 = n1 // 2 + 1
         if n1 % 2 == 0 and (medavg or n1 > 2):
-            return (d[j1 - 1] + d[n1 // 2 - 1]) / 2.0
+            return float(np.float32(np.float32(np.float32(d[j1 - 1])
+                                               + np.float32(d[n1 // 2 - 1])) / np.float32(2)))
         return d[j1 - 1]
     if n1 > 3:
         k = max(1, min(n1, (n1 + 1) // 2))
         median = _select(d[:n1], k)
         if n1 % 2 == 0 and (medavg or n1 > 2):
-            median = (median + _select(d[:n1], k + 1)) / 2.0
+            median = float(np.float32(np.float32(np.float32(median)
+                                                 + np.float32(_select(d[:n1], k + 1)))
+                                      / np.float32(2)))
         return median
     if n1 == 3:
         v1, v2, v3 = d[0], d[1], d[2]
@@ -753,27 +845,32 @@ def ic_average(d, ids, n1, wts, dowts, average, blank):
 
 @_jit
 def ic_sigma(d, ids, n1, wts, dowts, centre, blank):
+    """icsigma.gx, in real."""
     if n1 <= 0:
         return blank
+    real = np.float32
+    a = real(centre)
+    total = real(0.0)
     if dowts:
-        sigcor = n1 / (n1 - 1.0) if n1 > 1 else 1.0
-        total = 0.0
-        sumwt = 0.0
+        sigcor = real(real(n1) / real(n1 - 1)) if n1 > 1 else real(1.0)
+        sumwt = real(0.0)
         for j in range(n1):
-            wt = wts[ids[j]]
-            total += (d[j] - centre) ** 2 * wt
-            sumwt += wt
+            wt = real(wts[ids[j]])
+            r = real(real(d[j]) - a)
+            total = real(total + real(real(r * r) * wt))
+            sumwt = real(sumwt + wt)
         if sumwt > 0:
-            return np.sqrt(total / sumwt * sigcor)
-        total = 0.0
+            return float(real(np.sqrt(float(real(real(total / sumwt) * sigcor)))))
+        total = real(0.0)
         for j in range(n1):
-            total += (d[j] - centre) ** 2
-        return np.sqrt(total / n1 * sigcor)
-    sigcor = 1.0 / (n1 - 1.0) if n1 > 1 else 1.0
-    total = 0.0
+            r = real(real(d[j]) - a)
+            total = real(total + real(r * r))
+        return float(real(np.sqrt(float(real(real(total / real(n1)) * sigcor)))))
+    sigcor = real(real(1.0) / real(n1 - 1)) if n1 > 1 else real(1.0)
     for j in range(n1):
-        total += (d[j] - centre) ** 2
-    return np.sqrt(total * sigcor)
+        r = real(real(d[j]) - a)
+        total = real(total + real(r * r))
+    return float(real(np.sqrt(float(real(total * sigcor)))))
 
 
 # ------------------------------------------------------------- one line
@@ -788,7 +885,7 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
     data[nimages, npts] is the line already scaled; valid marks the pixels
     the thresholds and masks leave in. Writes out, sigma, how many values
     were used, and which (image, pixel) the rejection took; and for ccdred's
-    grow, the ids past n in their order (tail) and those before it (kept).
+    grow, the ids past n (tail) and those before it (kept), in their order.
     """
     nimages, npts = data.shape
     d = np.empty(nimages)
@@ -826,8 +923,10 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
                                      ccdred)
                 docombine = not is_median
             else:
-                n = ic_asigclip(d, ids, n, nkeep, lsigma, hsigma, doscale1, scales,
-                                zeros, blank, resid, w)
+                n, med = ic_asigclip(d, ids, n, nkeep, lsigma, hsigma, doscale1, scales,
+                                     zeros, blank, resid, w)
+                # The average it kept is the answer, unless it has to be weighted.
+                docombine = is_median or dowts or combine != AVERAGE
         elif (reject == CCDCLIP or reject == CRREJECT) and \
                 nimages >= max(2, maxkeep_all + 1):
             low = MAX_REAL if reject == CRREJECT else lsigma
@@ -837,8 +936,9 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
                                      resid, ccdred)
                 docombine = not is_median
             else:
-                n = ic_accdclip(d, ids, n, nkeep, low, hsigma, doscale1, scales,
-                                zeros, nm1, nm2, nm3, blank, resid)
+                n, med = ic_accdclip(d, ids, n, nkeep, low, hsigma, doscale1, scales,
+                                     zeros, nm1, nm2, nm3, blank, resid)
+                docombine = is_median or dowts or combine != AVERAGE
         elif reject == PCLIP and nimages >= max(3, maxkeep_all + 1):
             n, med = ic_pclip(d, ids, n, nkeep, lsigma, hsigma, pclip, is_median,
                               grow, blank, resid)
@@ -859,7 +959,7 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
             rejected[ids[j], i] = True
             tail[j - max(0, n), i] = ids[j]
         for j in range(max(0, n)):
-            kept[ids[j], i] = True
+            kept[j, i] = ids[j]
 
 
 @_jit
@@ -975,6 +1075,8 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
     else:
         # ic_aavsigclip
         sums = np.zeros(npts)
+        fsums = np.zeros(npts, dtype=np.float32)
+        fcentre = np.zeros(npts, dtype=np.float32)
         s = 0.0
         n2 = 0
         for i in range(npts):
@@ -993,6 +1095,7 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
             n2 += n1
             centre[i] = a
             sums[i] = total
+            fcentre[i], fsums[i] = _trimmed_real(d, n1)
         if n2 > 1:
             s = np.sqrt(s / (n2 - 1))
         for i in range(npts):
@@ -1006,9 +1109,12 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
                     for j in range(n1):
                         total += d[j]
                     centre[i] = total / n1
+                    fcentre[i] = np.float32(_sum_real(d, n1, blank))
                 continue
             a = centre[i]
             total = sums[i]
+            ftotal = fsums[i]
+            fa = fcentre[i]
             n2 = n1
             while True:
                 n2 = n1
@@ -1028,22 +1134,33 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
                                 _swap_out(d, ids, j, n1)
                                 j -= 1
                             total -= d1
+                            ftotal = np.float32(ftotal - np.float32(d1))
                             n1 -= 1
                         j += 1
                 if n1 > 1:
                     a = total / n1
+                    fa = np.float32(ftotal / np.float32(n1))
                 if n1 == n2 or n1 <= max(2, maxkeep):
                     break
             if n1 < maxkeep:
+                was = n1
                 n1, total, last = _addback_unsorted(d, ids, n1, maxkeep, n2, resid,
                                                     total)
+                for j in range(was, n1):
+                    ftotal = np.float32(ftotal + np.float32(d[j]))
                 # IRAF reuses `s` in this loop, so the line's pooled sigma is
                 # now the last residual compared, for every later pixel.
                 s = last
                 if n1 > 1:
                     a = total / n1
+                    fa = np.float32(ftotal / np.float32(n1))
             N[i] = n1
             centre[i] = a
+            fcentre[i] = fa
+        docombine = is_median or dowts or combine != AVERAGE
+        if not docombine:
+            for i in range(npts):
+                centre[i] = blank if N[i] <= 0 else float(fcentre[i])
 
     for i in range(npts):
         n = N[i]
@@ -1064,7 +1181,7 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
             rejected[ids[j], i] = True
             tail[j - max(0, n), i] = ids[j]
         for j in range(max(0, n)):
-            kept[ids[j], i] = True
+            kept[j, i] = ids[j]
 
 
 # ------------------------------------------------------------- the image
@@ -1135,14 +1252,14 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
         used = np.empty((ny, nx), dtype=np.int64)
         rej = np.zeros((nimages, ny, nx), dtype=bool)
         tails = np.full((nimages, ny, nx), -1, dtype=np.int64)
-        keeps = np.zeros((nimages, ny, nx), dtype=bool)
+        keeps = np.full((nimages, ny, nx), -1, dtype=np.int64)
         line_out = np.empty(nx)
         line_sig = np.empty(nx)
         line_used = np.empty(nx, dtype=np.int64)
         for y in range(ny):
             line_rej = np.zeros((nimages, nx), dtype=bool)
             line_tail = np.full((nimages, nx), -1, dtype=np.int64)
-            line_kept = np.zeros((nimages, nx), dtype=bool)
+            line_kept = np.full((nimages, nx), -1, dtype=np.int64)
             _line(np.ascontiguousarray(scaled[:, y, :]),
                   np.ascontiguousarray(valid_now[:, y, :]), line_out, line_sig,
                   line_used, line_rej, code, medavg, rcode_now, mclip, flow, fhigh,
@@ -1157,10 +1274,14 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
 
     out, sig, used, rejected, tails, keeps = run(valid, rcode, True)
     if grow >= 1.0 and rejected.any():
-        grown = (_grow_along_lines(tails, keeps, valid, int(grow), int(nkeep))
-                 if flavor == "ccdred" else _grow(rejected, grow))
+        if flavor == "ccdred":
+            order = _grow_along_lines(tails, keeps, int(grow), int(nkeep))
+            grown = valid & ~_members(order, valid.shape)
+        else:
+            order = None
+            grown = _grow(rejected, grow)
         out2, sig2, used2 = _second_pass(scaled, valid, grown, code, medavg, mclip,
-                                         scaling, dowts, blank)
+                                         scaling, dowts, blank, order)
         keep_first = (used2 == 0) & (nkeep > 0)
         out = np.where(keep_first, out, out2)
         sig, used = sig2, used2
@@ -1168,26 +1289,42 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
     return out, sig, used, rejected
 
 
-def _grow_along_lines(tails, keeps, valid, grow: int, nkeep: int) -> np.ndarray:
+def _grow_along_lines(tails, keeps, grow: int, nkeep: int) -> np.ndarray:
     """ccdred's own ic_grow: only along the line, in whole pixels, from the ids
     past n in the order they lie, and a neighbour goes only while its pixel
-    keeps more than nkeep. Returns what is not in the sum after it."""
-    keeps = keeps.copy()
-    nimages, ny, nx = keeps.shape
+    keeps more than nkeep, the last value into its place. Returns the ids
+    left at each pixel, in the order they then lie, and the sums depend on it."""
+    order = keeps.copy()
+    nimages, ny, nx = order.shape
     for y in range(ny):
-        n = keeps[:, y, :].sum(axis=0)
+        n = (order[:, y, :] >= 0).sum(axis=0)
         for i1 in range(nx):
             for k in tails[:, y, i1]:
                 if k < 0:
                     break
                 for i2 in range(max(0, i1 - grow), min(nx, i1 + grow + 1)):
-                    if i2 == i1 or not keeps[k, y, i2]:
+                    if i2 == i1:
                         continue
-                    keep = max(0, n[i2] + nkeep) if nkeep < 0 else min(n[i2], nkeep)
-                    if n[i2] > keep:
-                        keeps[k, y, i2] = False
-                        n[i2] -= 1
-    return valid & ~keeps
+                    n2 = n[i2]
+                    if n2 <= (max(0, n2 + nkeep) if nkeep < 0 else min(n2, nkeep)):
+                        continue
+                    line = order[:, y, i2]
+                    for j in range(n2):
+                        if line[j] == k:
+                            line[j] = line[n2 - 1]
+                            line[n2 - 1] = -1
+                            n[i2] = n2 - 1
+                            break
+    return order
+
+
+def _members(order, shape) -> np.ndarray:
+    """Which (image, y, x) are among the ids of `order`."""
+    out = np.zeros(shape, dtype=bool)
+    nimages, ny, nx = shape
+    j, y, x = np.nonzero(order >= 0)
+    out[order[j, y, x], y, x] = True
+    return out
 
 
 def _grow(rejected: np.ndarray, grow: float) -> np.ndarray:
@@ -1247,7 +1384,29 @@ def _second_line(data, valid, grown, out, sigma, used, code, medavg, mclip, wts,
         used[i] = n
 
 
-def _second_pass(scaled, valid, grown, code, medavg, mclip, scaling, dowts, blank):
+@_jit
+def _ordered_line(data, order, out, sigma, used, code, medavg, mclip, wts, dowts, blank):
+    """ccdred's combine after its grow: the values that are left, as they lie."""
+    nimages, npts = data.shape
+    d = np.empty(nimages)
+    ids = np.empty(nimages, dtype=np.int64)
+    for i in range(npts):
+        n = 0
+        while n < nimages and order[n, i] >= 0:
+            ids[n] = order[n, i]
+            d[n] = data[ids[n], i]
+            n += 1
+        if code == MEDIAN:
+            value = ic_median(d, n, mclip, medavg, blank)
+        else:
+            value = ic_average(d, ids, n, wts, dowts, code == AVERAGE, blank)
+        out[i] = value
+        sigma[i] = ic_sigma(d, ids, n, wts, dowts, value, blank)
+        used[i] = n
+
+
+def _second_pass(scaled, valid, grown, code, medavg, mclip, scaling, dowts, blank,
+                 order=None):
     nimages, ny, nx = scaled.shape
     out = np.empty((ny, nx))
     sig = np.empty((ny, nx))
@@ -1256,6 +1415,12 @@ def _second_pass(scaled, valid, grown, code, medavg, mclip, scaling, dowts, blan
     line_out, line_sig = np.empty(nx), np.empty(nx)
     line_used = np.empty(nx, dtype=np.int64)
     for y in range(ny):
+        if order is not None:
+            _ordered_line(np.ascontiguousarray(scaled[:, y, :]),
+                          np.ascontiguousarray(order[:, y, :]), line_out, line_sig,
+                          line_used, code, medavg, mclip, wts, dowts, float(blank))
+            out[y], sig[y], used[y] = line_out, line_sig, line_used
+            continue
         _second_line(np.ascontiguousarray(scaled[:, y, :]),
                      np.ascontiguousarray(valid[:, y, :]),
                      np.ascontiguousarray(grown[:, y, :]), line_out, line_sig,

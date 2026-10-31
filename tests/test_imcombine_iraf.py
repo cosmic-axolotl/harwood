@@ -8,16 +8,11 @@ weighting, threshold, grow and nkeep options, with its sigma images; and
 ccdred's zerocombine, darkcombine, flatcombine and combine, which run a
 separate copy of the code with scaling of their own.
 
-The tolerance is IRAF's float32 output: a quarter of a thousandth of a count
-on levels of a few hundred.
+The pixels must be the bits IRAF wrote: the sums, the scaling and the sigma all
+run in real, in the order IRAF has the values in.
 
-One known difference, kept visible: ccdred's mode. On these frames the
-installed IRAF 2.18.1 binary's flatcombine finds modes up to 0.2% away from
-what its own published source computes (iraf-community, noao/imred/ccdred/
-src/combine/icstat.gx, unchanged since 2017) -- the same source that, with
-imcombine's constants, reproduces images.imcombine's modes exactly. harwood
-follows the source. Everything else in flatcombine -- the avsigclip rejection
-with its slips, the scaling by exposure -- matches the binary.
+flatcombine's mode was once a difference, up to 0.2% away: 1. - 0.8 in double is a
+hair under 0.2, and 2000 pixels start the search at 200 instead of IRAF's 201.
 """
 
 import json
@@ -98,8 +93,8 @@ def test_imcombine_writes_what_iraf_writes(frames, case):
                               sigmas=where / f"{case}_sigma.fits", **params)
     ours = fits.getdata(where / f"{case}.fits").astype(float)
     sigma = fits.getdata(where / f"{case}_sigma.fits").astype(float)
-    assert np.abs(ours - REFERENCE[case]).max() < 2e-3
-    assert np.abs(sigma - REFERENCE[case + "__sigma"]).max() < 4e-3
+    assert np.array_equal(ours, REFERENCE[case])
+    assert np.array_equal(sigma, REFERENCE[case + "__sigma"])
 
 
 @pytest.mark.parametrize("task", ["zerocombine", "darkcombine"])
@@ -110,7 +105,7 @@ def test_the_ccdred_presets_are_iraf_s(frames, task):
     where, paths = frames
     out = where / f"P_{task}.fits"
     get_task(task).run(input=paths, output=out, ccdtype="", subsets=False)
-    assert np.abs(fits.getdata(out) - REFERENCE[f"P_{task}"]).max() < 2e-3
+    assert np.array_equal(fits.getdata(out).astype(float), REFERENCE[f"P_{task}"])
     header = fits.getheader(out)
     assert header["EXPTIME"] == pytest.approx(12.57143, abs=1e-4)
     assert header["NCOMBINE"] == 7
@@ -126,19 +121,15 @@ def test_ccdred_rejection_is_iraf_s(frames, case):
     out = where / f"{case}.fits"
     FlatCombine().run(input=paths, output=out, ccdtype="", subsets=False, blank=0.0,
                       **CCDRED[case])
-    assert np.abs(fits.getdata(out) - REFERENCE[case]).max() < 2e-3
+    assert np.array_equal(fits.getdata(out).astype(float), REFERENCE[case])
 
 
-def test_flatcombine_with_its_mode_scaling_stays_close(frames):
-    """The known difference: the installed binary's ccdred mode. The combined
-    flat agrees to within 1%, and in its median to 0.2%."""
+def test_flatcombine_with_its_mode_scaling_is_iraf_s(frames):
+    """The mode of each frame decides the scale, and these are the bits."""
     where, paths = frames
     out = where / "P_flatcombine.fits"
     get_task("flatcombine").run(input=paths, output=out, ccdtype="", subsets=False)
-    ours = fits.getdata(out).astype(float)
-    theirs = REFERENCE["P_flatcombine"].astype(float)
-    assert np.max(np.abs(ours / theirs - 1)) < 0.01
-    assert abs(np.median(ours / theirs) - 1) < 0.002
+    assert np.array_equal(fits.getdata(out).astype(float), REFERENCE["P_flatcombine"])
 
 
 def test_the_presets_have_no_grow_or_weight_as_in_iraf(frames):
@@ -184,7 +175,7 @@ def test_ccdred_combine_is_iraf_s(frames, case):
     out = where / f"combine_{case}.fits"
     get_task("combine").run(input=images, output=out, **params)
     wanted = expected["files"]["out.fits"]
-    assert np.abs(fits.getdata(out).astype(float).ravel() - wanted["pixels"]).max() < 2e-3
+    assert fits.getdata(out).astype(float).ravel().tolist() == wanted["pixels"]
     header = fits.getheader(out)
     assert header["NCOMBINE"] == int(wanted["cards"]["NCOMBINE"])
     assert header["EXPTIME"] == pytest.approx(float(wanted["cards"]["EXPTIME"]), abs=1e-4)
