@@ -62,6 +62,78 @@ def printf(value: float, fmt: str = "g", decpl: int | None = None, width: int | 
             return text
 
 
+def dtoc(value: float, decpl: int, fmt: str = "g", width: int = SZ_OBUF + 1) -> str:
+    """sys/fmtio/dtoc.x: dtoc3, and %h and %m, sexagesimal; %H and %M divide
+    by 15 first, degrees to hours."""
+    kind = fmt.lower()
+    if kind in "feg" or value is None or (isinstance(value, float) and math.isnan(value)):
+        return dtoc3(value, decpl, kind, width)
+    val = value / 15.0 if fmt.isupper() else value
+    neg = val < 0.0
+    val = abs(val)
+    h = 0
+    if kind == "h":
+        h = int(val)
+        val = (val - h) * 60.0
+    m = int(val)
+    val = (val - m) * 60.0
+    s = int(val)
+    val -= s
+    scale = int(10.0 ** decpl)
+    f = int(val * scale + 0.5)
+    while f >= scale:
+        f -= scale
+        s += 1
+    while s >= 60:
+        s -= 60
+        m += 1
+    while m >= 60:
+        m -= 60
+        h += 1
+    text = ("-" if neg else "") + (f"{h}:{m:02d}:" if kind == "h" else f"{h * 60 + m}:")
+    text += f"{s:02d}" + (f".{f:0{decpl}d}" if decpl > 0 else "")
+    return dtoc3(value, decpl, "g", width) if len(text) > abs(width) else text
+
+
+class Format:
+    """One of fmtio's printf formats and a double to go in it: %d, %f, %e, %g,
+    %s, %h, %m, %H, %M, with a width, a precision, - and 0. Text around it
+    goes through; without a % there is no number to print."""
+
+    _SPEC = re.compile(r"%(-?)(0?)(\d*)(?:\.(\d+))?([dfegshmHM])")
+
+    def __init__(self, text: str):
+        self.text = text
+        self.match = self._SPEC.search(text)
+        if self.match is None and "%" in text:
+            raise ValueError(f"cannot read the format '{text}': use one of %d %f %e %g "
+                             "%h %m %H %M, as in %8.2f")
+
+    def __call__(self, value: float) -> str:
+        if self.match is None:
+            return self.text
+        left, zero, width, decpl, kind = self.match.groups()
+        size = int(width) if width else None
+        places = None if decpl is None else int(decpl)
+        if kind == "d":
+            number = str(int(value))
+        elif kind in "hmHM":
+            number = dtoc(value, 1 if places is None else places, kind,
+                          SZ_OBUF + 1 if size is None else size)
+        elif kind == "f" and places == 0:
+            number = dtoc3(value, 0, "f")
+        else:
+            number = printf(value, "g" if kind == "s" else kind, places, size, double=True)
+        if size is not None:
+            if left:
+                number = number.ljust(size)
+            elif zero:
+                number = number.zfill(size)
+            else:
+                number = number.rjust(size)
+        return self.text[:self.match.start()] + number + self.text[self.match.end():]
+
+
 def _equal(x: float, y: float) -> bool:
     """dt_equald: equal to within 32 epsilon after normalising."""
     if x == y:

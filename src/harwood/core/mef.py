@@ -371,4 +371,5 @@ def load(spec, workdir: Path | str = ".") -> tuple[np.ndarray, Any, np.ndarray |
     plane = image.plane
     data = np.asarray(plane.sci, dtype=np.float64)
     var = None if plane.var is None else np.asarray(plane.var, dtype=np.float64)
-    return data, merged(image.primary, plane.header), var, np.asarray(plane.dq, dq.DTYPE)
+    header = images.forget_limits(merged(image.primary, plane.header))
+    return data, header, var, np.asarray(plane.dq, dq.DTYPE)

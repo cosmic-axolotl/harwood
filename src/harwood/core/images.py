@@ -294,12 +294,21 @@ def read(spec: ImageSpec | str) -> tuple[Any, Any]:
         header = inherited(hdul, hdu)
     finally:
         hdul.close()
+    forget_limits(header)
     if spec.section:
         slices = pixels.parse_section(spec.section, data.shape)
         pixels.section_header(header, pixels.section_geometry(slices, data.shape))
         data = data[slices]
         header["HRWDSECT"] = (spec.section, "section read by harwood, 1-based (x,y)")
     return data, header
+
+
+def forget_limits(header):
+    """What comes of pixels read to work on is a new image, and as IRAF's new
+    images it has no limits yet; minmax would believe these."""
+    for keyword in ("DATAMIN", "DATAMAX"):
+        header.remove(keyword, ignore_missing=True)
+    return header
 
 
 def read_header(spec: ImageSpec | str):
@@ -329,6 +338,22 @@ def inherited(hdul, hdu):
         if key in header:
             out[key] = header[key]
     return out
+
+
+def set_keywords(spec: ImageSpec | str, cards: dict) -> None:
+    """Change keywords of an image in place, its pixels left exactly as they
+    are on disk -- scaled integers stay scaled integers."""
+    from astropy.io import fits
+
+    spec = parse(spec) if not isinstance(spec, ImageSpec) else spec
+    with fits.open(str(spec.path), mode="update", memmap=False,
+                   do_not_scale_image_data=True) as hdul:
+        if spec.extension is None:
+            index = next((i for i, hdu in enumerate(hdul)
+                          if hdu.header.get("NAXIS", 0) > 0), 0)
+        else:
+            index = _resolve_extension(hdul, spec.extension)
+        hdul[index].header.update(cards)
 
 
 def read_stack(specs: list[ImageSpec | str]):

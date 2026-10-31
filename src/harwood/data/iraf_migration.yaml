@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 49, partial: 17, planned: 289, replaced: 94, wontport: 161
-#   milestone mvp: 57 (36 of them running), later: 298
+#   available: 52, partial: 17, planned: 286, replaced: 94, wontport: 161
+#   milestone mvp: 57 (39 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -198,7 +198,8 @@ tasks:
     note: "tape and raw-binary interchange: legacy hardware (S2)"}
   ldumpf: {pkg: mtlocal, domain: io-formats, status: wontport,
     note: "historical observatory formats (IDS/IRS, PDS, CAMERA, Cyber DUMPF): not portable, no data left to read"}
-  listpixels: {pkg: images.imutil, domain: io-formats, status: planned, milestone: mvp}
+  listpixels: {pkg: images.imutil, domain: io-formats, status: available, milestone: mvp, harwood: listpixels,
+    note: "IRAF's lines, in logical, physical or world coordinates and fmtio's formats, line by line"}
   mtexamine: {pkg: dataio, domain: io-formats, status: wontport,
     note: "tape and raw-binary interchange: legacy hardware (S2)"}
   r2df: {pkg: mtlocal, domain: io-formats, status: wontport,
@@ -305,7 +306,8 @@ tasks:
   imarith: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imarith}
   imdelete: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imdelete}
   imdivide: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
-  imexpr: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  imexpr: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imexpr,
+    note: "IRAF's types, functions and macros, the bits of each pixel checked in 591 expressions; no bwidth, which never acts in IRAF 2.18"}
   imfunction: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imhistogram: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imhistogram,
     note: "IRAF's bins, integer autoscale and histogram types, checked against IRAF's listout; plotted (line or box, logy) in the window, or to an SVG without a screen or with --device name.svg"}
@@ -320,7 +322,8 @@ tasks:
   imsum: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imtile: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   mimstatistics: {pkg: proto, domain: arithmetic, status: planned, milestone: mvp}
-  minmax: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: mvp}
+  minmax: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: minmax,
+    note: "IRAF's values, positions and limits, line by line; a section is always measured and NaN left out"}
   phistogram: {pkg: plot, domain: arithmetic, status: planned, milestone: later}
   pradprof: {pkg: plot, domain: arithmetic, status: planned, milestone: later}
   ringavg: {pkg: proto, domain: arithmetic, status: planned, milestone: later}

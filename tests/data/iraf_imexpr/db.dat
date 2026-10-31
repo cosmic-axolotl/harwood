@@ -1,0 +1,21 @@
+# A sample imexpr expression database, after the one in imexpr's help.
+
+# Constants.
+SQRTOF2=	1.4142135623730950488
+BASE_E=		2.7182818284590452353
+MYPI=		3.1415926535897932385
+BASE:		100.5
+GAMMA=		.57721566490153286061	# Euler's constant
+
+# Functions.
+div10(a)	((a) / 10)
+divz(a,b)	((abs(b) < .000001) ? 0 : a / b)
+
+div(a,b)	(div10(b) / a)
+sinx		(cos(I / 30.0))
+sinxy(a,b)	(cos (I / a) + cos (J / b))
+plus1(x)	(x + 1)
+mine		(a * b)
+cont(z)		((z) *
+		 2 +
+		 1)

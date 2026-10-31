@@ -66,6 +66,17 @@ WHY = {
             "decided: you look at where the illuminated pixels stop and the "
             "overscan begins, rather than trusting that the header is right "
             "about it.",
+    "expression": "The expression is evaluated once for each line of the output. An image "
+                  "with fewer lines starts over, so a line is applied to a whole frame, "
+                  "and a function of a vector, as median or hiv, is a function of a line.",
+    "expression_type": "The output's pixels are the expression's type: short * short wraps "
+                       "at 16 bits as it does in IRAF, and --intype real or --outtype say "
+                       "otherwise.",
+    "extremes": "The highest pixel says whether anything saturated, the lowest whether "
+                "a bias went wrong. They come from the header when it has them, "
+                "because reading every pixel of a night takes time.",
+    "list": "A pixel per line is what another program can read, or what a column of "
+            "numbers in a script needs. A section keeps it short.",
 }
 
 
@@ -1696,3 +1707,301 @@ class ImRename(Task[ImRenameParams]):
         return TaskResult(outputs=[new for _, new in pairs], steps=steps,
                           data={"rows": rows} if params.verbose
                           else {"renamed": len(pairs)})
+
+
+# ------------------------------------------------------------------ minmax
+
+class MinMaxParams(TaskParams):
+    images: list[str] = Field(
+        ..., description="Images to examine. Globs, @lists and sections work.",
+        json_schema_extra={"positional": True},
+    )
+    force: bool = Field(False, description="Look at the pixels even when the header "
+                                           "already has DATAMIN or DATAMAX.")
+    update: bool = Field(True, description="Write DATAMIN and DATAMAX in the header. "
+                                           "Never done for a section.")
+    verbose: bool = Field(True, description="Print each image's values.")
+
+
+def _kept_axes(spec, shape: tuple[int, ...]) -> list[int]:
+    """The FITS axes left of a section, as imio sees it: an axis cut down to
+    one pixel is no longer an axis."""
+    axes = list(range(1, len(shape) + 1))
+    if not spec.section:
+        return axes
+    return [axis for axis in axes if shape[len(shape) - axis] > 1] or [1]
+
+
+def _extremes(data, bitpix: int):
+    """im_vminmax: the values as the pixel type holds them and, for each, where
+    it is first met, line by line. Without a pixel with a value, None."""
+    import numpy as np
+
+    values = data.astype(np.float32) if bitpix == -32 else data
+    finite = np.isfinite(values)
+    if not finite.any():
+        return None, None, int(values.size)
+    low = int(np.argmin(np.where(finite, values, np.inf)))
+    high = int(np.argmax(np.where(finite, values, -np.inf)))
+    return (float(values.flat[low]), low), (float(values.flat[high]), high), \
+        int(values.size - finite.sum())
+
+
+def _pixel(index: int, shape: tuple[int, ...], axes: list[int]) -> str:
+    import numpy as np
+
+    where = np.unravel_index(index, shape)
+    return "[" + ",".join(str(int(where[len(shape) - axis]) + 1) for axis in axes) + "]"
+
+
+@register
+class MinMax(Task[MinMaxParams]):
+    """IRAF's minmax: the extreme pixels of an image and where they are, from
+    the pixels, or from DATAMIN and DATAMAX when the header has either."""
+
+    name = "minmax"
+    package = "imutil"
+    description = "Minimum and maximum pixel of an image, and where they are."
+    Params = MinMaxParams
+
+    def plan(self, params: MinMaxParams) -> list[Step]:
+        return [Step("measure", ", ".join(params.images), why=WHY["extremes"])]
+
+    def execute(self, params: MinMaxParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import images, iraffmt
+
+        f32 = np.float32
+        rows, lines, warnings, changed = [], [], [], []
+        for spec in images.expand(params.images):
+            if not spec.path.exists():
+                warnings.append(advice.warn(f"Cannot open image ({spec})",
+                                            "check the name; the others were examined"))
+                continue
+            header = images.read_header(spec)
+            row = {"image": str(spec), "minval": None, "maxval": None,
+                   "minpix": "", "maxpix": ""}
+            # Equal limits, or one missing and the other 0, say nothing to IRAF.
+            limits = header.get("DATAMIN", 0.0) != header.get("DATAMAX", 0.0)
+            if int(header.get("NAXIS", 0)) == 0:
+                pass
+            elif limits and not params.force and not spec.section:
+                # A real in IRAF's image header, whatever the card says.
+                row["minval"] = float(f32(header.get("DATAMIN", 0.0)))
+                row["maxval"] = float(f32(header.get("DATAMAX", 0.0)))
+            else:
+                data, read = images.read(spec)
+                low, high, bad = _extremes(data, int(read.get("BITPIX", -32)))
+                axes = _kept_axes(spec, data.shape)
+                if bad:
+                    warnings.append(advice.note(
+                        f"{spec}: {bad} pixels are NaN or infinite and were left out",
+                        "IRAF reads them as 0, so its minimum or maximum can be that 0"))
+                if low is not None:
+                    row.update(minval=low[0], maxval=high[0],
+                               minpix=_pixel(low[1], data.shape, axes),
+                               maxpix=_pixel(high[1], data.shape, axes))
+                    if params.update and not spec.section:
+                        try:
+                            # IRAF writes them with %E, seven figures.
+                            images.set_keywords(spec, {
+                                "DATAMIN": float(f"{float(f32(low[0])):.6e}"),
+                                "DATAMAX": float(f"{float(f32(high[0])):.6e}")})
+                            changed.append(spec.path)
+                        except PermissionError:
+                            pass
+            rows.append(row)
+            lines.append(f"    {spec} {row['minpix']} {iraffmt.g(row['minval'], True)} "
+                         f"{row['maxpix']} {iraffmt.g(row['maxval'], True)}")
+        last = rows[-1] if rows else {}
+        return TaskResult(data={"rows": rows, **{k: last[k] for k in last if k != "image"}},
+                          stdout=lines if params.verbose else [], warnings=warnings,
+                          outputs=changed, steps=self.plan(params))
+
+
+# -------------------------------------------------------------- listpixels
+
+class ListPixelsParams(TaskParams):
+    images: list[str] = Field(
+        ..., description="Images to list. Globs, @lists and sections work.",
+        json_schema_extra={"positional": True},
+    )
+    wcs: Literal["logical", "physical", "world", ""] = Field(
+        "logical", description="The coordinates to print: logical, the pixel in the image "
+                               "or section; physical, in the original image; world, what "
+                               "the header's WCS says.")
+    formats: str = Field(
+        "", description="A format for each axis, as in IRAF: '%8.2f %h'. An axis without "
+                        "one gets %0.15g, or the WCS's format when --wcs world.")
+    verbose: bool = Field(False, description="Print a line naming each image first.")
+
+
+@register
+class ListPixels(Task[ListPixelsParams]):
+    """IRAF's listpixels: one line for each pixel, its coordinates and value.
+    The lines go to standard output alone, for a file or another program."""
+
+    name = "listpixels"
+    package = "imutil"
+    description = "Each pixel of an image as a line of text: coordinates and value."
+    Params = ListPixelsParams
+
+    def plan(self, params: ListPixelsParams) -> list[Step]:
+        return [Step("list", f"{', '.join(params.images)} in {params.wcs or 'logical'}",
+                     why=WHY["list"])]
+
+    def execute(self, params: ListPixelsParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import images, iraffmt, mwcs
+        from ..core.implot import _wat_attributes
+
+        wcs = params.wcs or "logical"
+        words = params.formats.split()
+        given = [iraffmt.Format(word) for word in words]
+        specs = images.expand(params.images)
+        lines, warnings = [], []
+        for spec in specs:
+            if not spec.path.exists():
+                advice.fail(f"Cannot open image ({spec})", "check the name")
+            data, header = images.read(spec)
+            axes = _kept_axes(spec, data.shape)
+            if params.verbose:
+                lines += ["", f"#Image: {spec}  Wcs: {wcs}", ""]
+            grid = np.ones((data.ndim, data.size))
+            indices = np.indices(data.shape).reshape(data.ndim, -1) + 1.0
+            for axis in axes:
+                grid[axis - 1] = indices[data.ndim - axis]
+            coords = mwcs.transform(header, wcs, grid)
+            columns = []
+            for i, axis in enumerate(axes):
+                if i < len(given) and given[i].text:
+                    fmt = given[i]
+                else:
+                    own = wcs == "world" and _wat_attributes(header, axis).get("format")
+                    fmt = iraffmt.Format(own or "%0.15g")
+                cache: dict[float, str] = {}
+                columns.append([cache[c] if c in cache else cache.setdefault(c, fmt(c))
+                                for c in coords[axis - 1].tolist()])
+            double = int(header.get("BITPIX", -32)) == -64
+            values = data if double else data.astype(np.float32)
+            finite = np.isfinite(values)
+            if not finite.all():
+                warnings.append(advice.note(
+                    f"{spec}: {int(finite.size - finite.sum())} pixels are NaN or infinite, "
+                    "listed as INDEF",
+                    "IRAF reads them as 0, so its list has a 0 there"))
+            texts: dict[float, str] = {}
+            printed = []
+            for value in values.ravel().tolist():
+                printed.append(texts[value] if value in texts
+                               else texts.setdefault(value, iraffmt.g(value, double)))
+            lines += [" ".join(row) + "  " + text
+                      for row, text in zip(zip(*columns, strict=True), printed, strict=True)]
+        return TaskResult(data={"images": len(specs)}, stdout=lines, warnings=warnings,
+                          steps=self.plan(params))
+
+
+# ------------------------------------------------------------------ imexpr
+
+class ImExprParams(TaskParams):
+    expr: str = Field(
+        ..., description="The expression, or @file. a to z are the operands, I J K the "
+                         "pixel's coordinates.",
+        json_schema_extra={"positional": True},
+    )
+    output: str = Field(
+        ..., description="The output image; with a section, written into an existing image.",
+        json_schema_extra={"positional": True},
+    )
+    dims: str = Field("auto", description="The output's axes, as 512,512. By default "
+                                          "those the input images have in common.")
+    intype: str = Field("auto", description="The least type an input image is read as: int, "
+                                            "real, double. By default its own.")
+    outtype: str = Field("auto", description="The pixel type of the output: ushort, short, "
+                                             "int, long, real, double, ref, or by default "
+                                             "the expression's.")
+    refim: str = Field("auto", description="The operand whose header goes to the output. By "
+                                           "default the first image of most dimensions.")
+    rangecheck: bool = Field(True, description="Division by zero, and the log or root of what "
+                                               "has none, give 0 instead of stopping.")
+    exprdb: str = Field("none", description="A file of macros for the expression.")
+    a: str | None = Field(None, description="Operand a: an image, a number, or b.KEYWORD.")
+    b: str | None = Field(None, description="Operand b.")
+    c: str | None = Field(None, description="Operand c.")
+    d: str | None = Field(None, description="Operand d.")
+    e: str | None = Field(None, description="Operand e.")
+    f: str | None = Field(None, description="Operand f.")
+    g: str | None = Field(None, description="Operand g.")
+    h: str | None = Field(None, description="Operand h.")
+    i: str | None = Field(None, description="Operand i.")
+    j: str | None = Field(None, description="Operand j.")
+    k: str | None = Field(None, description="Operand k.")
+    l: str | None = Field(None, description="Operand l.")  # noqa: E741
+    m: str | None = Field(None, description="Operand m.")
+    n: str | None = Field(None, description="Operand n.")
+    o: str | None = Field(None, description="Operand o.")
+    p: str | None = Field(None, description="Operand p.")
+    q: str | None = Field(None, description="Operand q.")
+    r: str | None = Field(None, description="Operand r.")
+    s: str | None = Field(None, description="Operand s.")
+    t: str | None = Field(None, description="Operand t.")
+    u: str | None = Field(None, description="Operand u.")
+    v: str | None = Field(None, description="Operand v.")
+    w: str | None = Field(None, description="Operand w.")
+    x: str | None = Field(None, description="Operand x.")
+    y: str | None = Field(None, description="Operand y.")
+    z: str | None = Field(None, description="Operand z.")
+
+
+@register
+class ImExpr(Task[ImExprParams]):
+    """IRAF's imexpr: an image from an expression over images, numbers and keywords,
+    evaluated a line at a time with IRAF's types."""
+
+    name = "imexpr"
+    package = "imutil"
+    description = "An image computed from an expression, IRAF's types and functions."
+    Params = ImExprParams
+
+    def plan(self, params: ImExprParams) -> list[Step]:
+        return [Step("evaluate", params.expr, why=WHY["expression"]),
+                Step("write", params.output, why=WHY["expression_type"])]
+
+    def execute(self, params: ImExprParams) -> TaskResult:
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import evvexpr, images, imexpr, provenance
+
+        values = {c: getattr(params, c) for c in "abcdefghijklmnopqrstuvwxyz"}
+        try:
+            result = imexpr.run(params.expr, values, params.output, params.dims, params.intype,
+                                params.outtype, params.refim, params.rangecheck, params.exprdb)
+        except evvexpr.ExprError as e:
+            advice.fail(f"in the expression: {e}", f"the expression was: {params.expr}")
+        target = images.parse(params.output)
+        line = f"imexpr: {result.expression}"
+        if target.section:
+            with fits.open(str(target.path), mode="update", memmap=False) as hdul:
+                hdu = hdul[images._resolve_extension(hdul, target.extension)]
+                section = hdu.data[result.section]
+                hdu.data[result.section] = result.data.reshape(section.shape)
+                provenance.stamp_header(hdu.header, [line])
+        else:
+            header = fits.Header()
+            if result.header is not None:
+                from ..core import mef
+
+                header = mef.merged(*mef.split(result.header))
+                for keyword in ("BSCALE", "BZERO", "BLANK"):
+                    header.remove(keyword, ignore_missing=True)
+            provenance.stamp_header(header, [line])
+            target.path.parent.mkdir(parents=True, exist_ok=True)
+            fits.PrimaryHDU(np.asarray(result.data), header).writeto(target.path,
+                                                                     overwrite=True)
+        shape = "x".join(str(n) for n in reversed(result.data.shape))
+        return TaskResult(outputs=[target.path], steps=self.plan(params), history=[line],
+                          data={"expression": result.expression, "shape": shape,
+                                "type": result.type})
