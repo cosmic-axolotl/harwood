@@ -239,11 +239,10 @@ def test_a_panel_docks_into_the_window_when_there_is_one():
         assert _qt.window() is window, "the window announces itself"
         panel = ImplotPanel(np.zeros((10, 10)), "test")
         window.open_panel(panel, "implot")
-        assert window.work.count() == 1
-        assert window.work_dock.isVisibleTo(window)
+        assert window.views.count() == 2 and window.views.currentWidget() is panel
 
         window.close_panel(panel)
-        assert window.work.count() == 0
+        assert window.views.count() == 1
     finally:
         _qt.set_window(None)
         window.close()

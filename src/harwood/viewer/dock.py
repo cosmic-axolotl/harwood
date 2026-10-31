@@ -3,9 +3,8 @@
 Every interactive panel -- icfit, identify, implot, the parameter editor --
 has to work two ways. Run from a shell it is a window of its own and the
 command waits for it. Run inside `harwood gui` it belongs in the main window,
-beside the image it refers to, because looking at a radial profile in a
-separate window from the star it came from is most of what is wrong with
-working across three windows in IRAF.
+as a tab beside the image, because a little window of its own for every graph
+is most of what is wrong with working across three windows in IRAF.
 
 The panels do not know which of those is happening. They emit `finished` and
 this decides where they lived.
@@ -34,7 +33,7 @@ def show(panel: Any, title: str, size: tuple[int, int] = (1000, 640)) -> Any:
         loop = QtCore.QEventLoop()
         panel.finished.connect(loop.quit)
         loop.exec()
-        main.close_panel(panel)
+        main.finish_panel(panel)
         return panel
 
     dialog = QtWidgets.QDialog()

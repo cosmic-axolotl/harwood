@@ -36,6 +36,7 @@ class ImplotPanel(QtWidgets.QWidget):
     """One plot, and the keys that decide what it shows."""
 
     finished = QtCore.Signal()
+    keep_after_quit = True
 
     def __init__(self, data, name: str = "image", parent=None, images=None, line=None,
                  wcs: str = "logical", step: int = 0) -> None:

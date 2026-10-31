@@ -4,6 +4,9 @@ Section 8.2 keeps the analysis out of the window precisely so this file can
 exist: the `r` key and a task must agree, and neither needs Qt to be checked.
 """
 
+import os
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -288,3 +291,140 @@ def test_a_panel_dialog_can_be_resized_and_maximised():
     assert dialog.windowFlags() & QtCore.Qt.WindowType.WindowMaximizeButtonHint
     dialog.resize(560, 380)
     assert dialog.width() < 900
+
+
+# ------------------------------------------- graphs as tabs beside the image
+
+
+@pytest.fixture
+def tabs():
+    pytest.importorskip("PySide6")
+    pytest.importorskip("pyqtgraph")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from harwood.viewer import _qt
+    from harwood.viewer.window import HarwoodWindow
+
+    _qt.application()
+    window = HarwoodWindow()
+    yield window
+    _qt.set_window(None)
+    window.close()
+
+
+def _graph():
+    from harwood.core.graph import Graph
+
+    return Graph("a curve", "x", "y").line([1, 2, 3], [1, 4, 9])
+
+
+def _panel(kept=True):
+    from harwood.viewer.graph_panel import GraphPanel, MarkPanel
+
+    return GraphPanel(_graph()) if kept else MarkPanel(_graph(), 2.0)
+
+
+def test_with_only_the_image_there_is_no_tab_bar_to_take_room(tabs):
+    assert tabs.views.count() == 1 and tabs.views.currentWidget() is tabs.graphics
+    assert tabs.views.tabBarAutoHide()
+
+
+def test_each_new_graph_is_a_new_tab_in_front(tabs):
+    from PySide6 import QtWidgets
+
+    first, second = _panel(), _panel()
+    tabs.open_panel(first, "curve 1")
+    tabs.open_panel(second, "curve 2")
+    assert tabs.views.count() == 3 and tabs.views.currentWidget() is second
+    assert [tabs.views.tabText(i) for i in range(3)] == ["Image", "curve 1", "curve 2"]
+    assert not any(isinstance(w, QtWidgets.QDialog)
+                   for w in QtWidgets.QApplication.topLevelWidgets()
+                   if w.isVisible())
+
+
+def test_a_graph_takes_its_keys_as_soon_as_it_opens(tabs):
+    """Focus went to the panel and the keys are heard on the plot inside it,
+    so q did nothing until somebody clicked on the graph."""
+    panel = _panel()
+    assert panel.focusProxy() is panel.plot
+
+
+def test_a_graph_stays_after_q_and_its_x_closes_it(tabs):
+    panel = _panel()
+    tabs.open_panel(panel, "curve")
+    tabs.finish_panel(panel)
+    assert tabs.views.indexOf(panel) == 1 and not tabs._waiting
+    tabs._close_tab(1)
+    assert tabs.views.count() == 1
+
+
+def test_a_step_in_a_task_goes_at_q_and_the_view_returns(tabs):
+    graph = _panel()
+    tabs.open_panel(graph, "curve")
+    tabs.finish_panel(graph)
+    step = _panel(kept=False)
+    tabs.open_panel(step, "mark it")
+    tabs.finish_panel(step)
+    assert tabs.views.indexOf(step) < 0 and tabs.views.currentWidget() is graph
+
+
+def test_closing_a_tab_a_task_waits_on_is_q_there(tabs):
+    panel = _panel()
+    said = []
+    panel.finished.connect(lambda: said.append("q"))
+    tabs.open_panel(panel, "curve")
+    tabs._close_tab(1)
+    assert said == ["q"], "or the task would wait for ever"
+
+
+def test_the_image_tab_cannot_be_closed(tabs):
+    tabs._close_tab(0)
+    assert tabs.views.count() == 1 and tabs.views.widget(0) is tabs.graphics
+
+
+def test_a_new_image_brings_the_image_forward(tabs):
+    panel = _panel()
+    tabs.open_panel(panel, "curve")
+    tabs.finish_panel(panel)
+    tabs.load(np.zeros((8, 8)), name="a.fits")
+    assert tabs.views.currentWidget() is tabs.graphics
+
+
+def test_a_task_waiting_at_a_panel_keeps_it_in_front(tabs):
+    panel = _panel()
+    tabs.open_panel(panel, "curve")
+    tabs.load(np.zeros((8, 8)), name="a.fits")
+    assert tabs.views.currentWidget() is panel
+
+
+def test_the_keys_of_the_image_step_aside_for_a_graph(tabs):
+    tabs.show()
+    assert not tabs.keys_dock.isHidden()
+    panel = _panel()
+    tabs.open_panel(panel, "curve")
+    assert tabs.keys_dock.isHidden()
+    tabs.views.setCurrentWidget(tabs.graphics)
+    assert not tabs.keys_dock.isHidden()
+
+
+def test_ctrl_page_walks_the_tabs_round(tabs):
+    tabs.open_panel(_panel(), "curve")
+    assert tabs.views.currentIndex() == 1
+    tabs._step_view(+1)
+    assert tabs.views.currentIndex() == 0
+    tabs._step_view(-1)
+    assert tabs.views.currentIndex() == 1
+
+
+def test_a_whole_task_through_the_tab(tabs):
+    """dock.show, as a task reaches it: the graph opens, q ends the wait, and
+    the graph is still there."""
+    from PySide6 import QtCore
+
+    from harwood.viewer.dock import show
+
+    panel = _panel()
+    QtCore.QTimer.singleShot(0, panel.finished.emit)
+    assert show(panel, "curve") is panel
+    assert tabs.views.indexOf(panel) == 1 and not tabs._waiting
+
+

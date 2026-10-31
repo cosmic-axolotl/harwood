@@ -26,6 +26,19 @@ of theirs along their foot. The list is read from the same tables that
 answer the keys, so a key cannot be listed that does nothing. Hover over it
 for each key's full description; `?` writes them to the session log.
 
+## Graphs are tabs
+
+A graph opens as a tab beside the image, in the middle of the window, not in a
+little window of its own, and each new one is a new tab: `implot`, `graph`, the
+curve of growth of [mkapfile](task:mkapfile) and the fits of
+[fitparams](task:fitparams) stay after `q`, to go back to, until their × closes
+them. A panel that is a step in a task (icfit,
+identify, apedit...) closes when it ends and goes back to where you were.
+The tabs appear with the second view; **Ctrl+PgDown** and **Ctrl+PgUp** walk
+through them, and the Keys panel gives its room to the graph, whose own keys
+are at its foot. Closing a panel with a task still waiting on it is the same
+as `q`. Run from a shell, with no window open, a panel is a window of its own.
+
 ## The DQ on the image
 
 An image with a DQ plane (design contract, section 12) shows its flagged

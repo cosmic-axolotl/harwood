@@ -209,7 +209,6 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._build_examine()
         self._build_keys()
         self._build_params()
-        self._build_work()
         self._build_files()
         self._build_docs()
         self._build_session()
@@ -258,6 +257,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         bind(("F11",), self.toggle_full_screen)
         bind(("Ctrl+M",), self.toggle_maximised)
         bind(("Ctrl+Shift+R",), self.reset_layout)
+        bind(("Ctrl+PgDown",), lambda: self._step_view(+1))
+        bind(("Ctrl+PgUp",), lambda: self._step_view(-1))
 
     @property
     def text_scale(self) -> float:
@@ -641,7 +642,25 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.graphics.scene().sigMouseMoved.connect(self._mouse_moved)
         self.graphics.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.graphics.installEventFilter(self)
-        self.setCentralWidget(self.graphics)
+
+        # The middle of the window holds the image and every graph, in tabs:
+        # a new plot is a new tab, never a window of its own to lose behind
+        # this one. The bar only appears once there is something to choose.
+        self.views = QtWidgets.QTabWidget()
+        self.views.setDocumentMode(True)
+        self.views.setTabsClosable(True)
+        self.views.setTabBarAutoHide(True)
+        self.views.addTab(self.graphics, "Image")
+        bar = self.views.tabBar()
+        for side in (QtWidgets.QTabBar.ButtonPosition.LeftSide,
+                     QtWidgets.QTabBar.ButtonPosition.RightSide):
+            bar.setTabButton(0, side, None)     # the image is always there
+        self.views.tabCloseRequested.connect(self._close_tab)
+        self.views.currentChanged.connect(self._view_changed)
+        #: the panels a task is waiting on, and the tab each was opened from
+        self._waiting: dict[Any, Any] = {}
+        self._keys_were_shown = True
+        self.setCentralWidget(self.views)
 
     def _build_tasks(self) -> None:
         """The click-only way in: IRAF's package tree and a form per task,
@@ -824,32 +843,63 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
         self.resizeDocks([self.examine_dock, dock], [420, 300], QtCore.Qt.Orientation.Vertical)
 
-    def _build_work(self) -> None:
-        """Where an interactive panel goes when a task opens one.
-
-        A tab rather than a floating dialog: the whole reason for one window is
-        that a radial profile and the star it came from should be the same
-        glance apart. Hidden until something needs it, so an empty strip does
-        not sit there taking room.
-        """
-        self.work = QtWidgets.QTabWidget()
-        self.work.setDocumentMode(True)
-        self.work.setTabsClosable(False)
-        self.work_dock = QtWidgets.QDockWidget("Work")
-        self.work_dock.setObjectName("work")
-        self.work_dock.setWidget(self.work)
-        self.work_dock.hide()
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.work_dock)
-
     def open_panel(self, panel, title: str) -> None:
-        """Dock a panel into this window and bring it forward."""
-        index = self.work.addTab(panel, title)
-        self.work.setCurrentIndex(index)
-        self.work_dock.setWindowTitle(title)
-        self.work_dock.show()
-        self.resizeDocks([self.work_dock], [460], QtCore.Qt.Orientation.Vertical)
+        """A panel a task opens: a new tab beside the image, brought forward."""
+        self._waiting[panel] = self.views.currentWidget()
+        index = self.views.addTab(panel, title)
+        self.views.setTabToolTip(index, title)
+        self.views.setCurrentIndex(index)
         panel.setFocus()
         self.log(f"  {title} opened; press q there when you are done")
+
+    def finish_panel(self, panel) -> None:
+        """The task has what it wanted from the panel. A graph stays as a tab
+        to look back at, closed with its x. A fit that was a step in a task
+        goes, and the view returns to where it was, or a run with one fit per
+        aperture would leave a row of finished dialogues behind."""
+        came_from = self._waiting.pop(panel, None)
+        if getattr(panel, "keep_after_quit", False):
+            return
+        self.close_panel(panel)
+        if came_from is not None and self.views.indexOf(came_from) >= 0:
+            self.views.setCurrentWidget(came_from)
+
+    def _close_tab(self, index: int) -> None:
+        panel = self.views.widget(index)
+        if panel is self.graphics:
+            return
+        if panel in self._waiting:
+            # Closing what a task is waiting on is the same as q there.
+            panel.keep_after_quit = False
+            panel.finished.emit()
+            return
+        self.close_panel(panel)
+
+    def _view_changed(self, index: int) -> None:
+        """Focus goes with the tab, so its keys work at once. The Keys strip
+        speaks of the image, and each panel lists its own: it steps aside."""
+        panel = self.views.widget(index)
+        if panel is None:
+            return
+        panel.setFocus()
+        if not hasattr(self, "keys_dock"):
+            return
+        # The command line keeps its height either way: what the Keys strip
+        # gives up goes to the graph, which is what wanted the room.
+        session = getattr(self, "session_dock", None)
+        height = session.height() if session is not None else 0
+        if panel is self.graphics:
+            self.keys_dock.setVisible(self._keys_were_shown)
+            self._refresh_keys()
+        elif not self.keys_dock.isHidden():
+            self._keys_were_shown = True
+            self.keys_dock.hide()
+        if session is not None and not session.isHidden():
+            self.resizeDocks([session], [height], QtCore.Qt.Orientation.Vertical)
+
+    def _step_view(self, step: int) -> None:
+        count = self.views.count()
+        self.views.setCurrentIndex((self.views.currentIndex() + step) % count)
 
     def _build_files(self) -> None:
         """The text editor: lists, coordinates, tables, several in tabs. Beside
@@ -862,7 +912,6 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.files_dock.setObjectName("files")
         self.files_dock.setWidget(self.files)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.files_dock)
-        self.tabifyDockWidget(self.work_dock, self.files_dock)
         self.files_dock.hide()
 
     def _build_docs(self) -> None:
@@ -918,12 +967,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.files.choose()
 
     def close_panel(self, panel) -> None:
-        index = self.work.indexOf(panel)
+        self._waiting.pop(panel, None)
+        index = self.views.indexOf(panel)
         if index >= 0:
-            self.work.removeTab(index)
+            self.views.removeTab(index)
         panel.setParent(None)
-        if self.work.count() == 0:
-            self.work_dock.hide()
 
     def _build_session(self) -> None:
         dock = QtWidgets.QDockWidget("Command line")
@@ -995,6 +1043,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         """Show an image in a frame. With `window`, the limits are those z1
         and z2 (the display task's), listed as "z1 z2" in the scale box;
         with `quality`, its DQ, drawn as a layer D shows and hides."""
+        if not self._waiting:
+            self.views.setCurrentWidget(self.graphics)
         self.frames[frame] = Frame(data, header, name, window=window, table=table,
                                    quality=quality)
         self.current = frame
@@ -1583,10 +1633,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         name = running.task if running else arguments[0]
         expected = running.estimate if running else None
         bar = self.clock_bar
-        if self.work.count() and self.work_dock.isVisible():
+        if self._waiting:
             # A panel is open and the task is waiting for a person: counting
             # that as the task being slow would be the clock telling a lie.
-            panel = self.work.tabText(self.work.currentIndex())
+            panel = self.views.tabText(self.views.indexOf(list(self._waiting)[-1]))
             self.clock_label.setText(f"⏸ {name} is waiting for you in {panel}; "
                                      "press q there when you are done")
             bar.hide()

@@ -1,5 +1,5 @@
 """A core.graph.Graph on the screen: the same curves, axes and title as the
-SVG a task writes without a screen, in a panel that q closes."""
+SVG a task writes without a screen, in a panel, until q."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from .theme import palette as _c
 
 class GraphPanel(QtWidgets.QWidget):
     finished = QtCore.Signal()
+    #: A graph is worth going back to; see the window's finish_panel.
+    keep_after_quit = True
 
     def __init__(self, graph, parent=None) -> None:
         super().__init__(parent)
@@ -36,8 +38,9 @@ class GraphPanel(QtWidgets.QWidget):
             self.plot.plot(x, y, pen=pg.mkPen(_c().accent, width=1.4), connect="finite")
         self.plot.installEventFilter(self)
         self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
+        self.setFocusProxy(self.plot)
         layout.addWidget(self.plot, stretch=1)
-        hint = QtWidgets.QLabel("q closes")
+        hint = QtWidgets.QLabel("q when you are done")
         hint.setObjectName("readout")
         layout.addWidget(hint)
 
@@ -57,6 +60,7 @@ def run(graph, title: str) -> None:
 class MarkPanel(GraphPanel):
     """A graph to mark a value on: space (or a click) at the cursor marks,
     q ends -- histplot's and radplot's graphics cursor."""
+    keep_after_quit = False     # a step in a task, not a result
 
     def __init__(self, graph, start: float, parent=None) -> None:
         super().__init__(graph, parent)
