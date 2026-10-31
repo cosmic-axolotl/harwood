@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 48, partial: 16, planned: 291, replaced: 94, wontport: 161
-#   milestone mvp: 57 (34 of them running), later: 298
+#   available: 49, partial: 17, planned: 289, replaced: 94, wontport: 161
+#   milestone mvp: 57 (36 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -676,8 +676,10 @@ tasks:
   psf: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   psort: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   pstselect: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
-  qphot: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: mvp}
-  radprof: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: mvp}
+  qphot: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: qphot,
+    note: "phot with IRAF's fixed choices, the .mag file byte for byte IRAF's"}
+  radprof: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp, harwood: radprof,
+    note: "the fit, rejection, integral, FWHM and error codes to the digits IRAF writes; harwood's table for its .prf text, and no cursor or plots: imexamine r is the interactive way"}
   seepsf: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   setimpars: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   substar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}

@@ -1163,6 +1163,201 @@ def _write_iraf(destination, params, dpars, observed, centres, skies, measured, 
                       Path(params.coords).name if params.coords else "", stars)
 
 
+class QphotParams(TaskParams):
+    image: str = Field(..., description="Image to measure.",
+                       json_schema_extra={"positional": True})
+    cbox: float = Field(..., gt=0, description="Width of the centring box, in pixels.",
+                        json_schema_extra={"positional": True})
+    annulus: float = Field(..., gt=0, description="Inner radius of the sky annulus, in "
+                                                  "pixels.",
+                           json_schema_extra={"positional": True})
+    dannulus: float = Field(..., gt=0, description="Width of the sky annulus, in pixels.",
+                            json_schema_extra={"positional": True})
+    apertures: list[float] = Field(..., description="Aperture radii, in pixels.",
+                                   json_schema_extra={"positional": True})
+    coords: Path | None = Field(None, description="Coordinate catalogue, 1-based (x,y), "
+                                                  "from daofind. Optional with the cursor.")
+    output: Path | None = Field(
+        None, description="Photometry table to write. Left out, it goes to this run's "
+                          "own directory under output/, as obj.mag.")
+    zmag: float = Field(25.0, description="Zero point of the instrumental magnitude scale.")
+    exposure: str = Field("", description="Header keyword with the exposure time.")
+    airmass: str = Field("", description="Header keyword with the airmass.")
+    filter: str = Field("", description="Header keyword with the filter.")
+    obstime: str = Field("", description="Header keyword with the time of observation.")
+    epadu: float = Field(1.0, gt=0, description="Gain in electrons per count.")
+    interactive: bool = Field(False, description="Measure with the cursor in the window, "
+                                                 "with phot's keys.")
+    icommands: str = Field("", description="Those keys from a file, 'x y 1 key' per line.")
+    format: Literal["harwood", "iraf"] = Field(
+        "harwood", description="harwood writes an ECSV table at full precision; iraf "
+                               "writes IRAF's own .mag text file, rounded as IRAF rounds it.")
+
+
+@register
+class Qphot(Phot):
+    """IRAF's qphot: phot with what is to be decided already decided. Centroid
+    centring in the box given, the sky from the centroid of a smoothed histogram
+    of the annulus, a constant weight and poisson noise; everything else is at
+    phot's defaults, the same arithmetic and the same table."""
+
+    name = "qphot"
+    description = "Quick aperture photometry: phot with its choices made."
+    Params = QphotParams
+
+    @staticmethod
+    def _phot(params) -> PhotParams:
+        if isinstance(params, PhotParams):      # phot's own steps, on their way through
+            return params
+        return PhotParams(calgorithm="centroid", salgorithm="centroid", smooth=True,
+                          **params.model_dump())
+
+    def plan(self, params) -> list[Step]:
+        return super().plan(self._phot(params))
+
+    def execute(self, params: QphotParams) -> TaskResult:
+        return super().execute(self._phot(params))
+
+
+class RadprofParams(_DataPars, _CenterPars, _SkyPars):
+    image: str = Field(..., description="Image to measure.",
+                       json_schema_extra={"positional": True})
+    radius: float = Field(..., gt=0, description="How far out to fit the profile, in "
+                                                 "scale units.",
+                          json_schema_extra={"positional": True})
+    step: float = Field(..., gt=0, description="The step of the profile written, in scale "
+                                               "units.",
+                        json_schema_extra={"positional": True})
+    coords: Path | None = Field(None, description="Coordinate catalogue, 1-based (x,y), "
+                                                  "from daofind.")
+    output: Path | None = Field(
+        None, description="The table to write. Left out, it goes to this run's own "
+                          "directory under output/, as obj.prf.")
+    apertures: list[float] = Field([3.0], description="Aperture radii for the magnitudes, "
+                                                      "in scale units.")
+    zmag: float = Field(25.0, description="Zero point of the instrumental magnitude scale.")
+    order: int = Field(5, ge=1, description="Pieces of the spline fitted to the profile.")
+    kreject: float = Field(3.0, ge=0, description="Reject pixels beyond this many times "
+                                                  "the fit's rms; 0 rejects nothing.")
+    nreject: int = Field(1, ge=0, description="Most rejection passes.")
+
+
+RPWHY = {
+    "profile": "Every pixel within the radius, less the sky, is a point of intensity "
+               "against distance from the centre, so that a star is measured by all its "
+               "pixels and not along a cut. A spline through them is the profile; pixels "
+               "far from it, a neighbour or a cosmic ray, are taken out and it is fitted "
+               "again. Too many pieces follow the noise, too few miss the core.",
+    "fwhm": "The FWHM is twice the radius at which the fitted profile falls to half of "
+            "its value at the centre, in a straight line between the two steps on either "
+            "side: the step limits it, so keep it well under the FWHM.",
+}
+
+
+@register
+class Radprof(Task[RadprofParams]):
+    """IRAF's radprof: each star's centre, sky and magnitudes as in phot, and its
+    radial profile, the integral of it, and the FWHM."""
+
+    name = "radprof"
+    package = "apphot"
+    description = "The radial profile and FWHM of each star."
+    Params = RadprofParams
+
+    def plan(self, params: RadprofParams) -> list[Step]:
+        return [Step("read", f"{params.image} and {params.coords}", why=WHY["read"]),
+                Step("center", params.calgorithm, why=APWHY["center"]),
+                Step("sky", f"{params.salgorithm} over the annulus {params.annulus:g}.."
+                            f"{params.annulus + params.dannulus:g}" + _sky_extras(params),
+                     why=APWHY["sky"]),
+                Step("profile", f"a spline of {params.order} pieces out to "
+                                f"{params.radius:g}, rejecting at {params.kreject:g} sigma",
+                     why=RPWHY["profile"]),
+                Step("fwhm", f"from the profile, in steps of {params.step:g}",
+                     why=RPWHY["fwhm"]),
+                Step("write", str(params.output or "obj.prf in this run's directory"),
+                     why=WHY["write"])]
+
+    def execute(self, params: RadprofParams) -> TaskResult:
+        import numpy as np
+        from astropy.table import Table
+
+        from ..core import apphot, catalog, images, output, provenance, radprof
+
+        data, header = images.read(params.image)
+        if params.coords is None:
+            advice.fail("no coordinates to measure", "give the list daofind wrote, with "
+                                                     "--coords.")
+        catalogue = catalog.read(params.coords)
+        x0, y0 = catalog.coordinates(catalogue, params.coords)
+        dpars = _datapars(params, header)
+        cpars, spars = _centerpars(params), _skypars(params)
+        radii = sorted(params.apertures)
+        cursor, skyfile = _sky_sources(params)
+        fitter = radprof.Fitter(params.radius, params.step, params.order, params.kreject,
+                                params.nreject)
+        rows = []
+        for a, b in zip(x0, y0, strict=True):
+            c = apphot.center(data, a, b, cpars, dpars)
+            s = apphot.fitsky(data, c.x, c.y, spars, dpars, cursor, skyfile)
+            rows.append((c, s, fitter.fit(data, c.x, c.y, s, radii, params.zmag, dpars)))
+        npts = fitter.npts
+        blank = np.full(npts, np.nan)
+        out = Table({"id": _ids(catalogue, len(x0)), "xinit": x0, "yinit": y0,
+                     "x": [c.x for c, _, _ in rows], "y": [c.y for c, _, _ in rows],
+                     "cier": [c.ier for c, _, _ in rows],
+                     "msky": [s.value for _, s, _ in rows],
+                     "stdev": [s.sigma for _, s, _ in rows],
+                     "sier": [s.ier for _, s, _ in rows]})
+        none = np.full(len(radii), np.nan)
+        for k, radius in enumerate(radii):
+            suffix = "" if len(radii) == 1 else f"_{radius:g}"
+            found = [p.measured for _, _, p in rows]
+            out[f"mag{suffix}"] = [m.mag[k] if m else none[k] for m in found]
+            out[f"merr{suffix}"] = [m.merr[k] if m else none[k] for m in found]
+            out[f"pier{suffix}"] = [m.ier if m else apphot.APERT_NOAPERT for m in found]
+        out["pfwhm"] = [p.fwhm for _, _, p in rows]
+        out["inorm"] = [p.inorm for _, _, p in rows]
+        out["tinorm"] = [p.tinorm for _, _, p in rows]
+        out["rier"] = [p.ier for _, _, p in rows]
+        out["intensity"] = [p.intensity if p.intensity.size else blank for _, _, p in rows]
+        out["tintensity"] = [p.tintensity if p.tintensity.size else blank for _, _, p in rows]
+        destination = params.output or output.named_for(params.image, ".prf")
+        catalog.write(out, destination, harwood_image=str(params.image),
+                      harwood_radius=(np.arange(npts) * params.step).tolist(),
+                      harwood_apertures=[float(r) for r in radii],
+                      harwood_call=provenance.current_stamp() or "")
+
+        steps = self.plan(params)
+        by_action = {step.action: step for step in steps}
+        fwhm = np.asarray(out["pfwhm"], dtype=float)
+        good = np.isfinite(fwhm)
+        by_action["profile"].measured = {
+            "stars": len(out),
+            "pixels used": f"{np.median([p.ndata for _, _, p in rows]):.0f}",
+            "rejected": f"{np.median([p.nreject for _, _, p in rows]):.0f}"}
+        if good.any():
+            by_action["fwhm"].measured = {
+                "median": f"{np.median(fwhm[good]):.3f}",
+                "range": f"{fwhm[good].min():.3f} to {fwhm[good].max():.3f}"}
+        first = "" if len(radii) == 1 else f"_{radii[0]:g}"
+        warnings = (_flags(out["cier"], "cier", _CENTER_FIX)
+                    + _flags(out["sier"], "sier", _SKY_FIX)
+                    + _flags(out[f"pier{first}"], "pier", _APERT_FIX)
+                    + _flags(out["rier"], "rier", "a star whose profile failed needs a "
+                                                  "smaller --order, or is off the image; "
+                                                  "IRAF's code also stays set for the stars "
+                                                  "after it."))
+        if max(radii) > params.radius:
+            warnings.append(advice.warn(
+                f"an aperture ({max(radii):g}) is larger than the radius ({params.radius:g}): "
+                "its sum stops at the profile's box, as in IRAF, and is short of light.",
+                "raise radius, or keep the apertures within it."))
+        return TaskResult(outputs=[destination], steps=steps, warnings=warnings,
+                          data={"stars": len(out),
+                                "fwhm": float(np.median(fwhm[good])) if good.any() else None})
+
+
 def _ids(table, n):
     """The stars' ids from the coordinates -- IRAF's .coo calls the column ID."""
     name = next((c for c in table.colnames if c.lower() == "id"), None)

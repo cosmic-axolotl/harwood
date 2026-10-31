@@ -720,6 +720,12 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
     if ier == APERT_OK and nmin <= nmax:
         ier = APERT_BADDATA
     usable = min(nmin - 1, nmax)
+    _fill_magnitudes(flux, mag, merr, sums, areas, usable, sky, zmag, dpars)
+    return Apertures(radii, sums, areas, flux, mag, merr, ier, sumvar, bits, nmax, nmin)
+
+
+def _fill_magnitudes(flux, mag, merr, sums, areas, usable, sky, zmag, dpars) -> None:
+    """apcopmags: the first `usable` apertures' flux, magnitude and error."""
     sigma = sky.sigma if np.isfinite(sky.sigma) else None
     for k in range(usable):
         f = sums[k] - areas[k] * sky.value
@@ -731,4 +737,12 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
             err += sigma ** 2 * areas[k] ** 2 / sky.nsky
         merr[k] = 1.0857 * np.sqrt(err) / f if err > 0 else 0.0
         mag[k] = zmag - 2.5 * np.log10(f) + 2.5 * np.log10(dpars.itime)
-    return Apertures(radii, sums, areas, flux, mag, merr, ier, sumvar, bits, nmax, nmin)
+
+
+def magnitudes(radii, sums, areas, sky: Sky, zmag: float, dpars: DataPars, ier: int, nmax: int,
+               nmin: int) -> Apertures:
+    """Apertures from sums made elsewhere, as radprof makes them."""
+    nap = len(radii)
+    flux, mag, merr = (np.full(nap, np.nan) for _ in range(3))
+    _fill_magnitudes(flux, mag, merr, sums, areas, min(nmin - 1, nmax), sky, zmag, dpars)
+    return Apertures(radii, sums, areas, flux, mag, merr, ier, None, None, nmax, nmin)

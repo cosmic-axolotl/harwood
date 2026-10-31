@@ -1,0 +1,209 @@
+#K IRAF       = CommunityIRAFV2.18.1    version    %-23s     
+#K USER       = costamands              name       %-23s     
+#K HOST       = costa.mands             computer   %-23s     
+#K DATE       = 2026-10-31              yyyy-mm-dd %-23s     
+#K TIME       = 09:48:23                hh:mm:ss   %-23s     
+#K PACKAGE    = apphot                  name       %-23s     
+#K TASK       = radprof                 name       %-23s     
+#
+#K SCALE      = 1.                      units      %-23.7g   
+#K FWHMPSF    = 2.5                     scaleunit  %-23.7g   
+#K EMISSION   = yes                     switch     %-23b     
+#K DATAMIN    = INDEF                   counts     %-23.7g   
+#K DATAMAX    = INDEF                   counts     %-23.7g   
+#K EXPOSURE   = ""                      keyword    %-23s     
+#K AIRMASS    = ""                      keyword    %-23s     
+#K FILTER     = ""                      keyword    %-23s     
+#K OBSTIME    = ""                      keyword    %-23s     
+#
+#K NOISE      = poisson                 model      %-23s     
+#K SIGMA      = INDEF                   counts     %-23.7g   
+#K GAIN       = ""                      keyword    %-23s     
+#K EPADU      = 2.                      e-/adu     %-23.7g   
+#K CCDREAD    = ""                      keyword    %-23s     
+#K READNOISE  = 0.                      e-         %-23.7g   
+#
+#K CALGORITHM = centroid                algorithm  %-23s     
+#K CBOXWIDTH  = 5.                      scaleunit  %-23.7g   
+#K CTHRESHOLD = 0.                      sigma      %-23.7g   
+#K MINSNRATIO = 1.                      number     %-23.7g   
+#K CMAXITER   = 10                      number     %-23d     
+#K MAXSHIFT   = 1.                      scaleunit  %-23.7g   
+#K CLEAN      = no                      switch     %-23b     
+#K RCLEAN     = 1.                      scaleunit  %-23.7g   
+#K RCLIP      = 2.                      scaleunit  %-23.7g   
+#K KCLEAN     = 3.                      sigma      %-23.7g   
+#
+#K SALGORITHM = centroid                algorithm  %-23s     
+#K ANNULUS    = 10.                     scaleunit  %-23.7g   
+#K DANNULUS   = 10.                     scaleunit  %-23.7g   
+#K SKYVALUE   = 0.                      counts     %-23.7g   
+#K KHIST      = 3.                      sigma      %-23.7g   
+#K BINSIZE    = 0.1                     sigma      %-23.7g   
+#K SMOOTH     = no                      switch     %-23b     
+#K SMAXITER   = 10                      number     %-23d     
+#K SLOCLIP    = 0.                      percent    %-23.7g   
+#K SHICLIP    = 0.                      percent    %-23.7g   
+#K SNREJECT   = 50                      number     %-23d     
+#K SLOREJECT  = 3.                      sigma      %-23.7g   
+#K SHIREJECT  = 3.                      sigma      %-23.7g   
+#K RGROW      = 0.                      scaleunit  %-23.7g   
+#
+#K WEIGHTING  = constant                model      %-23s     
+#K APERTURES  = 3,5                     scaleunit  %-23s     
+#K ZMAG       = 25.                     zeropoint  %-23.7g   
+#
+#K RADIUS     = 6.                      scaleunit  %-23.7g   
+#K STEPSIZE   = 0.5                     scaleunit  %-23.7g   
+#K ORDER      = 1                       number     %-23d     
+#K KREJECT    = 3.                      sigma      %-23.7g   
+#K NREJECT    = 1                       number     %-23d     
+#
+#N IMAGE               XINIT     YINIT     ID    COORDS                 LID    \
+#U imagename           pixels    pixels    ##    filename               ##     \
+#F %-23s               %-10.3f   %-10.3f   %-6d  %-23s                  %-6d    
+#
+#N XCENTER    YCENTER    XSHIFT  YSHIFT  XERR    YERR            CIER CERROR   \
+#U pixels     pixels     pixels  pixels  pixels  pixels          ##   cerrors  \
+#F %-14.3f    %-11.3f    %-8.3f  %-8.3f  %-8.3f  %-15.3f         %-5d %-9s      
+#
+#N MSKY           STDEV          SSKEW          NSKY   NSREJ     SIER SERROR   \
+#U counts         counts         counts         npix   npix      ##   serrors  \
+#F %-18.7g        %-15.7g        %-15.7g        %-7d   %-9d      %-5d %-9s      
+#
+#N ITIME          XAIRMASS       IFILTER                OTIME                  \
+#U timeunit       number         name                   timeunit               \
+#F %-18.7g        %-15.7g        %-23s                  %-23s                   
+#
+#N RAPERT   SUM           AREA       FLUX          MAG    MERR   PIER PERROR   \
+#U scale    counts        pixels     counts        mag    mag    ##   perrors  \
+#F %-12.2f  %-14.7g       %-11.7g    %-14.7g       %-7.3f %-6.3f %-5d %-9s      
+#
+#N PFWHM     INORM          TINORM                               RIER RERROR   \
+#U Scale     counts         counts                               ##   rerrors  \
+#F %-13.3f   %-15.7f        %-36.7f                              %-5d %-9s      
+#
+#N PRADIUS   INTENSITY      TINTENSITY                                         \
+#U scale     counts         counts                                             \
+#F %-13.3f   %-15.7f        %-15.7f                                             
+#
+field.fits             41.000    45.000    1     field.coo              1      \
+   40.313     45.687     -0.687  0.687   0.004   0.004          0    NoError   \
+   100.2618       4.811933       -1.117142      940    2        0    NoError   \
+   1.             INDEF          INDEF                  INDEF                  \
+   3.00     35870.91      28.47753   33015.7       13.703 0.004 0    NoError  *\
+   5.00     42365.1       78.82523   34461.94      13.657 0.004 0    NoError  *\
+   1.616     7820.426       32993.63                            0    NoError   \
+   0.000     1.             0.                                                *\
+   0.500     0.6583477      0.1336284                                         *\
+   1.000     0.4011617      0.4202198                                         *\
+   1.500     0.2170584      0.6964028                                         *\
+   2.000     0.09465371     0.8898217                                         *\
+   2.500     0.02256417     0.9795363                                         *\
+   3.000     -0.01059443    0.98513                                           *\
+   3.500     -0.01620565    0.9481543                                         *\
+   4.000     -0.005653327   0.9155204                                         *\
+   4.500     0.009678602    0.9227664                                         *\
+   5.000     0.0184064      0.9758715                                         *\
+   5.500     0.009146377    1.03901                                           *\
+   6.000     -0.02948555    1.                                                * 
+field.fits             110.000   53.000    2     field.coo              2      \
+   110.557    52.293     0.557   -0.707  0.004   0.004          0    NoError   \
+   100.7483       4.701458       -0.5159144     940    3        0    NoError   \
+   1.             INDEF          INDEF                  INDEF                  \
+   3.00     51181.18      28.46524   48313.36      13.290 0.004 0    NoError  *\
+   5.00     65234.79      78.81603   57294.21      13.105 0.003 0    NoError  *\
+   1.943     7491.369       59045.86                            0    NoError   \
+   0.000     1.             0.                                                *\
+   0.500     0.7125863      0.07613047                                        *\
+   1.000     0.4872198      0.2513221                                         *\
+   1.500     0.3163736      0.4462967                                         *\
+   2.000     0.1925205      0.6192952                                         *\
+   2.500     0.1081341      0.7500322                                         *\
+   3.000     0.0556873      0.8363858                                         *\
+   3.500     0.02765327     0.8876825                                         *\
+   4.000     0.01650514     0.9188659                                         *\
+   4.500     0.01471599     0.9445361                                         *\
+   5.000     0.01475907     0.9726223                                         *\
+   5.500     0.00910747     0.999652                                          *\
+   6.000     -0.009765714   1.                                                * 
+field.fits             161.000   141.000   3     field.coo              3      \
+   160.228    140.864    -0.772  -0.136  0.005   0.005          0    NoError   \
+   100.1132       4.925986       1.64838        945    2        0    NoError   \
+   1.             INDEF          INDEF                  INDEF                  \
+   3.00     52524.85      28.58637   49662.98      13.260 0.003 0    NoError  *\
+   5.00     72638.21      78.87077   64742.2       12.972 0.003 0    NoError  *\
+   2.526     5356.926       67627.29                            0    NoError   \
+   0.000     1.             0.                                                *\
+   0.500     0.7713712      0.05063671                                        *\
+   1.000     0.5814728      0.1748499                                         *\
+   1.500     0.4266581      0.3290481                                         *\
+   2.000     0.3032804      0.4856752                                         *\
+   2.500     0.2076927      0.626518                                          *\
+   3.000     0.1362483      0.7421975                                         *\
+   3.500     0.08530033     0.8300046                                         *\
+   4.000     0.05120199     0.8921774                                         *\
+   4.500     0.03030647     0.9340653                                         *\
+   5.000     0.01896694     0.9623051                                         *\
+   5.500     0.01353659     0.983062                                          *\
+   6.000     0.01036862     1.                                                * 
+field.fits             60.000    151.000   4     field.coo              4      \
+   60.801     150.456    0.801   -0.544  0.006   0.005          0    NoError   \
+   103.7913       7.036379       5.292401       924    17       0    NoError   \
+   1.             INDEF          INDEF                  INDEF                  \
+   3.00     47110.33      28.5219    44150.        13.388 0.004 0    NoError  *\
+   5.00     80380.92      78.78816   72203.4       12.854 0.003 0    NoError  *\
+   4.004     3068.42        80824.28                            0    NoError   \
+   0.000     1.             0.                                                *\
+   0.500     0.8586094      0.02644562                                        *\
+   1.000     0.728065       0.09682287                                        *\
+   1.500     0.6085744      0.1956882                                         *\
+   2.000     0.5003451      0.3106889                                         *\
+   2.500     0.4035849      0.4312322                                         *\
+   3.000     0.3185016      0.5489053                                         *\
+   3.500     0.2453025      0.6574246                                         *\
+   4.000     0.1841954      0.752715                                          *\
+   4.500     0.1353881      0.8329397                                         *\
+   5.000     0.09908812     0.8986012                                         *\
+   5.500     0.07550307     0.9524029                                         *\
+   6.000     0.0648407      1.                                                * 
+field.fits             131.000   100.000   5     field.coo              5      \
+   130.095    100.603    -0.905  0.603   0.005   0.004          0    NoError   \
+   100.1784       4.823966       -1.922392      939    1        0    NoError   \
+   1.             INDEF          INDEF                  INDEF                  \
+   3.00     37199.8       28.65621   34329.06      13.661 0.004 0    NoError  *\
+   5.00     47130.32      78.72272   39244.        13.516 0.004 0    NoError  *\
+   1.866     5519.981       38441.16                            0    NoError   \
+   0.000     1.             0.                                                *\
+   0.500     0.7010493      0.08505782                                        *\
+   1.000     0.4688185      0.2780783                                         *\
+   1.500     0.2949831      0.4872989                                         *\
+   2.000     0.171218       0.6660768                                         *\
+   2.500     0.08919876     0.7935095                                         *\
+   3.000     0.04060024     0.8701025                                         *\
+   3.500     0.01709778     0.9094145                                         *\
+   4.000     0.01036662     0.9307418                                         *\
+   4.500     0.01208184     0.9516702                                         *\
+   5.000     0.01391875     0.9801171                                         *\
+   5.500     0.007552507    1.008547                                          *\
+   6.000     -0.01534168    1.                                                * 
+field.fits             96.000    170.000   6     field.coo              6      \
+   95.502     170.490    -0.498  0.490   0.011   0.011          0    NoError   \
+   100.0717       4.775057       -1.769193      943    5        0    NoError   \
+   1.             INDEF          INDEF                  INDEF                  \
+   3.00     8441.908      28.27997   5611.883      15.627 0.011 0    NoError  *\
+   5.00     14630.08      78.84947   6739.478      15.428 0.012 0    NoError  *\
+   2.055     786.9521       6891.993                            0    NoError   \
+   0.000     1.             0.                                                *\
+   0.500     0.7263852      0.06956825                                        *\
+   1.000     0.509215       0.2322392                                         *\
+   1.500     0.3418984      0.4185876                                         *\
+   2.000     0.2178441      0.5904056                                         *\
+   2.500     0.1304608      0.7274072                                         *\
+   3.000     0.07315738     0.8247933                                         *\
+   3.500     0.03934255     0.887913                                          *\
+   4.000     0.02242508     0.927682                                          *\
+   4.500     0.01581378     0.955874                                          *\
+   5.000     0.01291741     0.9801648                                         *\
+   5.500     0.007144795    1.000291                                          *\
+   6.000     -0.008095347   1.                                                * 

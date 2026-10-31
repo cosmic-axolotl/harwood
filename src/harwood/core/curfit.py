@@ -132,6 +132,11 @@ class Curve:
                     self.matrix[row, ii] = f32(self.matrix[row, ii]
                                                + f32(bw[i] * basis[j, i]))
 
+    def reject(self, x, y, w) -> None:
+        """cvrject: take points out of the sums, as accumulate put them in."""
+        self.accumulate(x, y, -np.asarray(w, f32))
+        self.npts -= 2 * np.asarray(x).size
+
     def solve(self) -> int:
         """cvsolve: Cholesky factorization and substitution, as cvchofac and
         cvchoslv do them; OK, SINGULAR or NO_DEG_FREEDOM."""
