@@ -42,6 +42,8 @@ from typing import Any
 
 import numpy as np
 
+from .nlfit import square
+
 FWHM_TO_SIGMA = 0.42467
 RMIN = 2.001
 MAX_REAL = 3.4028235e38
@@ -60,8 +62,8 @@ def kernel(fwhmpsf: float, ratio: float = 1.0, theta: float = 0.0,
     """ap_egparams and ap_egkernel."""
     f32 = np.float32
     sigma = f32(FWHM_TO_SIGMA) * f32(fwhmpsf) * f32(scale)
-    sx2 = sigma ** 2
-    sy2 = (f32(ratio) * sigma) ** 2
+    sx2 = sigma * sigma
+    sy2 = square(f32(ratio) * sigma)
     cost, sint = np.cos(np.radians(theta)), np.sin(np.radians(theta))
     f = nsigma ** 2 / 2.0
     a: float

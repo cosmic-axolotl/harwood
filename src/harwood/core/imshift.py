@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .nlfit import square
+
 INTERPOLANTS = ("nearest", "linear", "poly3", "poly5", "spline3", "sinc", "lsinc",
                 "drizzle")
 NSINC = 15              # half width of the default sinc (2 * NSINC + 1 = 31)
@@ -211,7 +213,7 @@ def _sinc_1d(nconv: int, dx) -> np.ndarray:
     normalised to sum to one, in single precision."""
     f32 = np.float32
     nsinc = (nconv - 1) // 2
-    sconst = f32((HALFPI / f32(nsinc)) ** 2)
+    sconst = square(HALFPI / f32(nsinc))
     a2, a4 = f32(-0.49670), f32(0.03705)
     sign = f32(1.0) if nsinc % 2 == 0 else f32(-1.0)
     x = f32(f32(-nsinc) - f32(dx))
@@ -427,9 +429,9 @@ def _grid(buf, x, y, interp):
             n = int(yy)
             s = f32(yy - f32(n))
             t = f32(1) - s
-            s2m1 = f32(s ** 2 - f32(1))
+            s2m1 = f32(s * s - f32(1))
             s2m4 = f32(s2m1 - f32(3))
-            t2m1 = f32(t ** 2 - f32(1))
+            t2m1 = f32(t * t - f32(1))
             t2m4 = f32(t2m1 - f32(3))
             k = n - nymin
             lm2, lm1, l0, l1, l2, l3 = (work[k + d] for d in (-2, -1, 0, 1, 2, 3))
@@ -449,8 +451,8 @@ def _grid(buf, x, y, interp):
         nymax = int(y[-1]) + 2
         # c[y, x] with datain[1, 1] at c[1, 1]
         rows = c[nymin:nymax + 1]
-        sx3 = (sx ** 3).astype(f32)
-        tx3 = (tx ** 3).astype(f32)
+        sx3 = sx * (sx * sx)
+        tx3 = tx * (tx * tx)
         bs = (f32(1) + sx * (f32(3) + sx * (f32(3) - f32(3) * sx))).astype(f32)
         bt = (f32(1) + tx * (f32(3) + tx * (f32(3) - f32(3) * tx))).astype(f32)
         work = (tx3 * rows[:, nxi - 1] + bt * rows[:, nxi] + bs * rows[:, nxi + 1]
@@ -460,7 +462,7 @@ def _grid(buf, x, y, interp):
             n = int(yy)
             s = f32(yy - f32(n))
             t = f32(1) - s
-            s3, t3 = f32(s ** 3), f32(t ** 3)
+            s3, t3 = s * (s * s), t * (t * t)
             bsy = f32(f32(1) + s * (f32(3) + s * (f32(3) - f32(3) * s)))
             bty = f32(f32(1) + t * (f32(3) + t * (f32(3) - f32(3) * t)))
             k = n - nymin

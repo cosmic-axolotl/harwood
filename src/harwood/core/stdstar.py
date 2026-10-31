@@ -29,6 +29,7 @@ import numpy as np
 
 from . import advice, flux
 from .gio import with_room
+from .nlfit import square
 
 f32 = np.float32
 f64 = np.float64
@@ -640,7 +641,7 @@ def record_lines(obj: Spectrum, sky: Spectrum | None, bands: Bands,
 def flambda_of(mag, wave, fnuzero=flux.FNUZERO) -> f32:
     """fnuzero * 10^(-0.4 mag) * c / wave^2, in single precision."""
     return f32(f64(f32(fnuzero)) * 10.0 ** f64(f32(f32(-0.4) * f32(mag)))
-               * f64(f32(flux.LIGHT)) / f64(f32(f32(wave) ** 2)))
+               * f64(f32(flux.LIGHT)) / f64(square(wave)))
 
 
 # --------------------------------------------------------- t_standard

@@ -4,9 +4,8 @@ tests/data/iraf_imalign.json holds what IRAF 2.18.1 did with the frames of
 tests/iraf_field.py: imshift over every interpolant, boundary and kind of
 shift (as sha256 of the output -- harwood's must be the same bytes); what
 imcentroid printed under five sets of parameters, one of them on the raw
-M92 tapes; and imalign's output images. spline3 differs from IRAF by an ulp
-of single precision, so a sample of its output is kept as numbers instead,
-in iraf_imshift_spline3.npz.
+M92 tapes; and imalign's output images. spline3's output is kept as numbers, in
+iraf_imshift_spline3.npz; it is the same to the last bit.
 """
 
 import hashlib
@@ -45,8 +44,7 @@ def test_imshift_is_iraf_s(case):
     if digest is not None:
         assert sha(ours) == digest, "not the bytes IRAF wrote"
     elif case in SPLINE3:
-        # One ulp of single precision on values of a few hundred to 4000.
-        assert np.abs(ours - SPLINE3[case]).max() < 1e-3
+        assert np.array_equal(ours, SPLINE3[case]), "not the numbers IRAF wrote"
 
 
 def test_imshift_moves_the_wcs_as_iraf_does(tmp_path):

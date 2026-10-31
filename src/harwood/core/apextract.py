@@ -34,6 +34,7 @@ import numpy as np
 from . import icfit
 from .asi import Interpolant
 from .center1d import center1d
+from .nlfit import square
 
 f32 = np.float32
 MAX_REAL = 3.4028235e38
@@ -1061,7 +1062,7 @@ def _profile(ap, dbuf, c1, xs, sbuf, svar, nx, rdnoise, saturation, clean, lsigm
              usigma, niterate, log):
     """ap_profile with ap_horne: the normalised profile, profile[line, ix]."""
     nb, nc = dbuf.shape
-    rd2 = f32(rdnoise) ** 2
+    rd2 = square(rdnoise)
     sat = None if saturation is None else f32(saturation)
     vmin = f32(1) if rd2 == 0 else rd2
     iters = niterate if clean else 0
@@ -1133,7 +1134,7 @@ def _profile(ap, dbuf, c1, xs, sbuf, svar, nx, rdnoise, saturation, clean, lsigm
                 predict = max(f32(0), f32(s * profile[iy - 1, ix - 1] + sky[ix - 1]))
                 var = max(vmin, f32(var0 + predict))
                 resid = f32((pix[ix] - predict) / np.sqrt(var, dtype=f32))
-                chisq = f32(chisq + resid ** 2)
+                chisq = f32(chisq + resid * resid)
                 p = wt1 if (ix1 == ix2 or ix == ix1) else (wt2 if ix == ix2 else f32(1))
                 if resid < -tfac * lsigma or resid > tfac * usigma:
                     spec[iy - 1] = f32(spec[iy - 1] - p * (pix[ix] - predict))
@@ -1183,7 +1184,7 @@ def _horne(ap, dbuf, c1, xs, spec, sbuf, svar, reject, profile, nx, rd2, vmin, x
                 var0 = f32(rd2 + svar[iy - 1]) if sbuf is not None else rd2
                 expected = f32(sp * profile[iy - 1, ix - 1] + sk)
                 var = max(vmin, f32(var0 + max(f32(0), expected)))
-                var = f32(sp ** 2 / var)
+                var = f32(square(sp) / var)
                 wmin = min(wmin, float(var))
                 w[iy - 1] = var
                 col = xs[iy - 1] - 1 + ix          # image pixel
@@ -1217,7 +1218,7 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
     weights normalised as the spectrum is) -- for the error the image's own
     variance gives (section 12)."""
     nb, nc = dbuf.shape
-    rd2 = f32(rdnoise) ** 2
+    rd2 = square(rdnoise)
     sat = None if saturation is None else f32(saturation)
     vmin = f32(1) if rd2 == 0 else rd2
     if clean:
@@ -1261,7 +1262,7 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
             eplot[ix] = var
             total = f32(total + w * (dat - sk))
             sw = f32(sw + w * prof[ix - 1])
-            swv = f32(swv + (w * var) ** 2)
+            swv = f32(swv + square(w * var))
         if sw > 0:
             spec[iy - 1] = f32(total / sw)
             sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
@@ -1282,7 +1283,7 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
             fplot[ix] = s
             total = f32(total + w * data1[ix])
             sw = f32(sw + w * prof[ix - 1])
-            swv = f32(swv + (w * var) ** 2)
+            swv = f32(swv + square(w * var))
         if sw > 0:
             spec[iy - 1] = f32(total / sw)
             sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
@@ -1316,10 +1317,10 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
                 sum1 = f32(sum1 + wt[ix] * data1[ix])
                 if eplot[ix] <= 0:
                     continue
-                w = f32(prof[ix - 1] / eplot[ix] ** 2)
+                w = f32(prof[ix - 1] / square(eplot[ix]))
                 total = f32(total + w * data1[ix])
                 sw = f32(sw + w * prof[ix - 1])
-                swv = f32(swv + (w * eplot[ix]) ** 2)
+                swv = f32(swv + square(w * eplot[ix]))
             if sw > 0:
                 spec[iy - 1] = f32(total / sw)
                 sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))

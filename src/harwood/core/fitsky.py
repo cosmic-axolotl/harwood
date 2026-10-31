@@ -604,7 +604,7 @@ def _hist_mode(x, hgm, maxfit):
     """ap_hist_mode: a skewed gaussian fitted to the histogram by nlfit."""
     nbins = hgm.size
     imax = int(np.argmax(hgm)) + 1
-    p = [hgm.max(), x[imax - 1], f32(abs(f32(f32(x[-1] - x[0]) / f32(6.0))) ** 2), f32(0.0)]
+    p = [hgm.max(), x[imax - 1], nlfit.square(f32(f32(x[-1] - x[0]) / f32(6.0))), f32(0.0)]
     fit = nlfit.NLFit(lambda v, q: _gausskew(v, q), _dgausskew, p, [0, 1, 2, 3],
                       0.001, maxfit)
     fier = fit.fit(x, hgm)

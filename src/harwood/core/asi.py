@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .nlfit import square
+
 f32 = np.float32
 
 
@@ -28,7 +30,7 @@ SINC_DX = f32(0.001)
 def _sinc_taper(nsinc: int) -> np.ndarray:
     """ii_sinc's cosine-bell taper with the sinc's alternating sign."""
     halfpi = 1.5707963267948966
-    sconst = f32((halfpi / nsinc) ** 2)
+    sconst = square(f32(halfpi) / f32(nsinc))
     a2, a4 = f32(-0.49670), f32(0.03705)
     w1 = f32(1.0) if nsinc % 2 == 0 else f32(-1.0)
     taper = np.zeros(2 * nsinc + 1, dtype=f32)

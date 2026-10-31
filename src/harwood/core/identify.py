@@ -1138,7 +1138,7 @@ def _ratio(xij, xjk, minr, maxr, sig, nv):
         return (f32(1000.0), f32(1000.0))
     if nv == 1:
         return (ratio, ratio)
-    err = f32(sig * f32(math.sqrt(f32(2 * (1 + ratio + ratio ** 2)))) / xjk)
+    err = f32(sig * f32(math.sqrt(f32(2 * (1 + ratio + ratio * ratio)))) / xjk)
     return (f32(ratio - err), f32(ratio + err))
 
 

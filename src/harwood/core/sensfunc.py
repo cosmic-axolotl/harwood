@@ -31,6 +31,7 @@ import numpy as np
 
 from . import advice, flux
 from .curfit import NO_DEG_FREEDOM, OK, SINGULAR, Curve
+from .nlfit import square
 
 f32 = np.float32
 f64 = np.float64
@@ -642,7 +643,7 @@ def residual_extinction(stars: list[Star], cv_args, ecv_order: int = 1,
         star.sens = star.sens + ecv.vector_at(star.waves) * star.airmass
     fit(stars, function, order_, xmin, xmax)
     rms2, _ = rms(stars)
-    r2 = f32(1) - f32(rms2) ** 2 / f32(rms1) ** 2
+    r2 = f32(1) - square(rms2) / square(rms1)
     sig = f32(r2 * f32(nwaves - 2) / max(f32(0.01), f32(1) - r2))
     sig = 0.0 if sig <= 0 else float(f32(math.sqrt(sig)))
     return Residual(ecv, sig, "")
@@ -1111,7 +1112,7 @@ class Session:
                 if kind == 1 and star.wts[j] != 0:
                     continue
                 x0, y0 = self._ndc(window, star.x[j], star.y[j])
-                r2 = f32(f32(f32(x0 - cx) ** 2) + f32(f32(y0 - cy) ** 2))
+                r2 = f32(square(x0 - cx) + square(y0 - cy))
                 if r2 < best:
                     best, found = r2, (i, j)
         return found

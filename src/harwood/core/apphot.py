@@ -37,6 +37,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from . import nlfit
+
 f32 = np.float32
 CONVERT = 0.424660900          # FWHM to sigma, as apfitcen.x has it
 SQRTOFPI = 1.7724538509055160273
@@ -326,10 +328,10 @@ def _clean(pix: np.ndarray, cxc: float, cyc: float, pars: CenterPars,
                 maxdat, ixc, jyc = v, i, j
     if abs(cxc - ixc) > pars.maxshift or abs(cyc - jyc) > pars.maxshift:
         ixc, jyc = int(cxc), int(cyc)
-    rclean2 = f32(f32(dpars.scale * pars.rclean) ** 2)
-    rclip2 = f32(f32(dpars.scale * pars.rclip) ** 2)
+    rclean2 = nlfit.square(dpars.scale * pars.rclean)
+    rclip2 = nlfit.square(dpars.scale * pars.rclip)
     ksigma = f32(f32(pars.kclean) * f32(sigma))
-    ksigma2 = f32(ksigma ** 2)
+    ksigma2 = ksigma * ksigma
     padu = f32(dpars.epadu)
     poisson = dpars.noise != "constant"
     for j in range(1, ny + 1):
@@ -376,7 +378,7 @@ def _expf(v) -> np.float32:
 
 def _cgauss1d(x, p):
     """cgauss1d: amplitude, centre, variance and a constant."""
-    r2 = f32(36.0) if p[2] == 0 else f32(f32(f32(x - p[1]) ** 2) / f32(f32(2.0) * p[2]))
+    r2 = f32(36.0) if p[2] == 0 else f32(nlfit.square(x - p[1]) / f32(f32(2.0) * p[2]))
     if abs(r2) > 25.0:
         return p[3]
     # C promotes from the exp on: one rounding, at the store.
@@ -401,7 +403,6 @@ def _alimr(a: np.ndarray) -> tuple[np.float32, np.float32, int, int]:
 def _gctr1d(pix: np.ndarray, sigma, maxiter: int):
     """ap_gctr1d: a gaussian of the PSF's sigma, plus a constant, fitted to
     each marginal by IRAF's nlfit."""
-    from . import nlfit
 
     ny, nx = pix.shape
     if nx < 3 or ny < 3:
@@ -414,7 +415,7 @@ def _gctr1d(pix: np.ndarray, sigma, maxiter: int):
     out, stats = [], []
     for m, n in ((xm, nx), (ym, ny)):
         lo, hi, _, imax = _alimr(m)
-        p = [f32(hi - lo), f32(imax), f32(sigma ** 2), lo]
+        p = [f32(hi - lo), f32(imax), nlfit.square(sigma), lo]
         fit = nlfit.NLFit(_cgauss1d, _cdgauss1d, p, [0, 1, 3], 0.001, maxiter)
         xs = np.arange(1, n + 1, dtype=f32)
         stats.append(fit.fit(xs, m))
@@ -450,9 +451,9 @@ def _lgctr1d(pix: np.ndarray, cx: float, cy: float, sigma, maxiter: int, norm: f
         else:
             # 4 sqrt(pi), folded by f2c into one single precision constant.
             constant = (f32(0.0) if skysigma is None else
-                        f32(f32(sigma * f32(4.0 * SQRTOFPI)) * f32(f32(skysigma) ** 2)))
+                        f32(f32(sigma * f32(4.0 * SQRTOFPI)) * nlfit.square(skysigma)))
             ratio = f32(constant / total)
-            spread = f32(f32(sigma ** 2) / f32(total * f32(norm)))
+            spread = f32(nlfit.square(sigma) / f32(total * f32(norm)))
             err = float(f32(math.sqrt(float(max(spread, f32(ratio * spread))))))
             if err > n:
                 err = float("nan")
@@ -690,7 +691,7 @@ def apertures(data: np.ndarray, x: float, y: float, radii: list[float], sky: Sky
     dy = (jj.astype(f32) - yc).astype(f32)
     r2 = (dx * dx + dy * dy).astype(f32)
     r = (np.sqrt(r2.astype(np.float64)) - 0.5).astype(f32)
-    apmaxsq = f32(f32(f32(scaled[nmax - 1]) + f32(0.5)) ** 2)
+    apmaxsq = nlfit.square(f32(scaled[nmax - 1]) + f32(0.5))
     inside_max = r2 <= apmaxsq
     low = -np.inf if dpars.datamin is None else dpars.datamin
     high = np.inf if dpars.datamax is None else dpars.datamax

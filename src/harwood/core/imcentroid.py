@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .nlfit import square
+
 f32 = np.float32
 MAX_REAL = 3.4028235e38
 
@@ -143,11 +145,11 @@ def _moment(a):
     for i, pix in enumerate(a):
         sumi = f32(sumi + pix)
         sumix = f32(sumix + pix * f32(i))
-        sumix2 = f32(sumix2 + pix * f32(i) ** 2)
+        sumix2 = f32(sumix2 + pix * f32(i * i))
     if sumi == 0:
         raise CentreError("zero marginal vector")
     centroid = f32(sumix / sumi)
-    err = f32(sumix2 / sumi - centroid ** 2)
+    err = f32(sumix2 / sumi - centroid * centroid)
     err = f32(np.sqrt(err / sumi)) if err > 0 else f32(0)
     return centroid, err
 
@@ -259,8 +261,8 @@ def _stats(images: list[Image], ref: Image) -> None:
             ys = f32(f32(rstar.y) - f32(star.y))
             xsum, ysum = f32(xsum + xs), f32(ysum + ys)
             xsum2, ysum2 = f32(xsum2 + xs * xs), f32(ysum2 + ys * ys)
-            xsig2 = f32(xsig2 + f32(rstar.xerr) ** 2 + f32(star.xerr) ** 2)
-            ysig2 = f32(ysig2 + f32(rstar.yerr) ** 2 + f32(star.yerr) ** 2)
+            xsig2 = f32(xsig2 + square(rstar.xerr) + square(star.xerr))
+            ysig2 = f32(ysig2 + square(rstar.yerr) + square(star.yerr))
             n += 1
         image.nstars = n
         if n == 0:
