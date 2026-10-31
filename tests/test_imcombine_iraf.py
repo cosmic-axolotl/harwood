@@ -20,6 +20,8 @@ follows the source. Everything else in flatcombine -- the avsigclip rejection
 with its slips, the scaling by exposure -- matches the binary.
 """
 
+import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -157,3 +159,32 @@ def test_grow_is_exercised_by_the_grow_cases(frames):
                                   **params)
         without = fits.getdata(where / f"{case}_nogrow.fits")
         assert np.abs(without - REFERENCE[case]).max() > 1.0, case
+
+
+COMBINE = json.loads((Path(__file__).parent / "data" / "iraf_ccdcombine"
+                      / "combine.json").read_text())
+
+
+@pytest.mark.parametrize("case", list(COMBINE))
+def test_ccdred_combine_is_iraf_s(frames, case):
+    """ccdred's combine itself: its defaults, every rejection, its scaling, and
+    what the *combine scripts leave out, weight and a grow only along the line."""
+    where, paths = frames
+    expected = COMBINE[case]
+    params = dict(expected["params"])
+    if "mclip" in params:
+        params["mclip"] = params["mclip"] == "yes"
+    for key in ("rdnoise", "gain"):
+        if key in params:
+            params[key] = float(params[key])
+    if expected["images"].startswith("@"):
+        images = paths
+    else:
+        images = [str(where / name) for name in re.split(r"(?<=\]),", expected["images"])]
+    out = where / f"combine_{case}.fits"
+    get_task("combine").run(input=images, output=out, **params)
+    wanted = expected["files"]["out.fits"]
+    assert np.abs(fits.getdata(out).astype(float).ravel() - wanted["pixels"]).max() < 2e-3
+    header = fits.getheader(out)
+    assert header["NCOMBINE"] == int(wanted["cards"]["NCOMBINE"])
+    assert header["EXPTIME"] == pytest.approx(float(wanted["cards"]["EXPTIME"]), abs=1e-4)

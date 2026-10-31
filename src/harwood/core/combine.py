@@ -608,8 +608,10 @@ def ic_pclip(d, ids, n, nkeep, lsigma, hsigma, pclip, is_median, grow, blank, re
 
 
 @_jit
-def ic_mm(d, ids, n, flow, fhigh):
-    """minmax: drop the nlow lowest and nhigh highest, in pairs first."""
+def ic_mm(d, ids, n, flow, fhigh, copy_ids=False):
+    """minmax: drop the nlow lowest and nhigh highest, in pairs first. ccdred's copy
+    (copy_ids) copies the ids where images.imcombine's swaps them, so what it
+    leaves past n are ids of pixels it kept: its grow then grows from those."""
     n1 = max(0, n)
     nlow = int(flow * n1 + 0.001)
     nhigh = int(fhigh * n1 + 0.001)
@@ -633,23 +635,27 @@ def ic_mm(d, ids, n, flow, fhigh):
                 d[jmax - 1] = d2
                 ident = ids[jmax - 1]
                 ids[jmax - 1] = ids[j - 1]
-                ids[j - 1] = ident
+                if not copy_ids:
+                    ids[j - 1] = ident
             else:
                 d[jmax - 1] = d1
                 ident = ids[jmax - 1]
                 ids[jmax - 1] = ids[n1 - 1]
-                ids[n1 - 1] = ident
+                if not copy_ids:
+                    ids[n1 - 1] = ident
         if jmin < j:
             if jmax != n1:
                 d[jmin - 1] = d1
                 ident = ids[jmin - 1]
                 ids[jmin - 1] = ids[n1 - 1]
-                ids[n1 - 1] = ident
+                if not copy_ids:
+                    ids[n1 - 1] = ident
             else:
                 d[jmin - 1] = d2
                 ident = ids[jmin - 1]
                 ids[jmin - 1] = ids[j - 1]
-                ids[j - 1] = ident
+                if not copy_ids:
+                    ids[j - 1] = ident
         n1 -= 2
     for _ in range(nlow):
         d1 = d[0]
@@ -662,7 +668,8 @@ def ic_mm(d, ids, n, flow, fhigh):
             d[jmin - 1] = d1
             ident = ids[jmin - 1]
             ids[jmin - 1] = ids[n1 - 1]
-            ids[n1 - 1] = ident
+            if not copy_ids:
+                ids[n1 - 1] = ident
         n1 -= 1
     for _ in range(nhigh):
         d1 = d[0]
@@ -675,7 +682,8 @@ def ic_mm(d, ids, n, flow, fhigh):
             d[jmax - 1] = d1
             ident = ids[jmax - 1]
             ids[jmax - 1] = ids[n1 - 1]
-            ids[n1 - 1] = ident
+            if not copy_ids:
+                ids[n1 - 1] = ident
         n1 -= 1
     return n1
 
@@ -725,21 +733,22 @@ def ic_average(d, ids, n1, wts, dowts, average, blank):
     if n1 <= 0:
         return blank
     if dowts and average:
-        total = 0.0
-        sumwt = 0.0
+        total = np.float32(0.0)
+        sumwt = np.float32(0.0)
         for j in range(n1):
-            total += d[j] * wts[ids[j]]
-            sumwt += wts[ids[j]]
+            wt = np.float32(wts[ids[j]])
+            total = np.float32(total + np.float32(np.float32(d[j]) * wt))
+            sumwt = np.float32(sumwt + wt)
         if sumwt > 0:
-            return total / sumwt
-        total = 0.0
+            return float(np.float32(total / sumwt))
+        total = np.float32(0.0)
         for j in range(n1):
-            total += d[j]
-        return total / n1
-    total = 0.0
+            total = np.float32(total + np.float32(d[j]))
+        return float(np.float32(total / np.float32(n1)))
+    total = np.float32(0.0)
     for j in range(n1):
-        total += d[j]
-    return total / n1 if average else total
+        total = np.float32(total + np.float32(d[j]))
+    return float(np.float32(total / np.float32(n1))) if average else float(total)
 
 
 @_jit
@@ -773,12 +782,13 @@ def ic_sigma(d, ids, n1, wts, dowts, centre, blank):
 @_jit
 def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mclip,
           flow, fhigh, nkeep, lsigma, hsigma, pclip, grow, blank, scales, zeros,
-          wts, dowts, doscale1, nm1, nm2, nm3, ccdred):
+          wts, dowts, doscale1, nm1, nm2, nm3, ccdred, tail, kept):
     """One image line: gather, reject, combine, sigma -- icomb.gx's loop body.
 
     data[nimages, npts] is the line already scaled; valid marks the pixels
     the thresholds and masks leave in. Writes out, sigma, how many values
-    were used, and which (image, pixel) the rejection took.
+    were used, and which (image, pixel) the rejection took; and for ccdred's
+    grow, the ids past n in their order (tail) and those before it (kept).
     """
     nimages, npts = data.shape
     d = np.empty(nimages)
@@ -792,7 +802,7 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
     if reject == AVSIGCLIP and nimages >= max(3, maxkeep_all + 1):
         _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg,
                         mclip, nkeep, lsigma, hsigma, grow, blank, scales, zeros,
-                        wts, dowts, doscale1, ccdred)
+                        wts, dowts, doscale1, ccdred, tail, kept)
         return
 
     for i in range(npts):
@@ -808,7 +818,7 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
         med = blank
         docombine = True
         if reject == MINMAX:
-            n = ic_mm(d, ids, n, flow, fhigh)
+            n = ic_mm(d, ids, n, flow, fhigh, ccdred and grow >= 1.0)
         elif reject == SIGCLIP and nimages >= max(3, maxkeep_all + 1):
             if mclip:
                 n, med = ic_msigclip(d, ids, n, nkeep, lsigma, hsigma, doscale1,
@@ -847,12 +857,15 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
         used[i] = max(0, n)
         for j in range(max(0, n), n_in):
             rejected[ids[j], i] = True
+            tail[j - max(0, n), i] = ids[j]
+        for j in range(max(0, n)):
+            kept[ids[j], i] = True
 
 
 @_jit
 def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mclip,
                     nkeep, lsigma, hsigma, grow, blank, scales, zeros, wts, dowts,
-                    doscale1, ccdred):
+                    doscale1, ccdred, tail, kept):
     nimages, npts = data.shape
     D = np.empty((npts, nimages))
     IDS = np.empty((npts, nimages), dtype=np.int64)
@@ -1049,6 +1062,9 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
         used[i] = max(0, n)
         for j in range(max(0, n), NIN[i]):
             rejected[ids[j], i] = True
+            tail[j - max(0, n), i] = ids[j]
+        for j in range(max(0, n)):
+            kept[ids[j], i] = True
 
 
 # ------------------------------------------------------------- the image
@@ -1103,8 +1119,11 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
         nm1[k] = max((rd[k] / gn[k]) ** 2, 1e4 / MAX_REAL)
         nm3[k] = sn[k]
 
-    scaled = (stack / scaling.scales[:, None, None]
-              - scaling.zeros[:, None, None]).astype(np.float64)
+    # ic_gdata, in real: d / a + b, with a and b reals.
+    real = np.float32
+    divided = np.asarray(stack, real) / scaling.scales[:, None, None].astype(real)
+    scaled = (divided.astype(real)
+              + (-scaling.zeros[:, None, None]).astype(real)).astype(real).astype(np.float64)
     dowts = scaling.dowts and code in (AVERAGE, SUM)
     lsig = MAX_REAL if lsigma is None else float(lsigma)
     hsig = MAX_REAL if hsigma is None else float(hsigma)
@@ -1115,25 +1134,31 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
         sig = np.empty((ny, nx))
         used = np.empty((ny, nx), dtype=np.int64)
         rej = np.zeros((nimages, ny, nx), dtype=bool)
+        tails = np.full((nimages, ny, nx), -1, dtype=np.int64)
+        keeps = np.zeros((nimages, ny, nx), dtype=bool)
         line_out = np.empty(nx)
         line_sig = np.empty(nx)
         line_used = np.empty(nx, dtype=np.int64)
         for y in range(ny):
             line_rej = np.zeros((nimages, nx), dtype=bool)
+            line_tail = np.full((nimages, nx), -1, dtype=np.int64)
+            line_kept = np.zeros((nimages, nx), dtype=bool)
             _line(np.ascontiguousarray(scaled[:, y, :]),
                   np.ascontiguousarray(valid_now[:, y, :]), line_out, line_sig,
                   line_used, line_rej, code, medavg, rcode_now, mclip, flow, fhigh,
                   int(nkeep), lsig, hsig, float(pclip), float(grow), float(blank),
                   scaling.scales.astype(np.float64), scaling.zeros.astype(np.float64),
                   scaling.weights.astype(np.float64), dowts, scaling.doscale1,
-                  nm1, nm2, nm3, flavor == "ccdred")
+                  nm1, nm2, nm3, flavor == "ccdred", line_tail, line_kept)
             out[y], sig[y], used[y] = line_out, line_sig, line_used
             rej[:, y, :] = line_rej
-        return out, sig, used, rej
+            tails[:, y, :], keeps[:, y, :] = line_tail, line_kept
+        return out, sig, used, rej, tails, keeps
 
-    out, sig, used, rejected = run(valid, rcode, True)
+    out, sig, used, rejected, tails, keeps = run(valid, rcode, True)
     if grow >= 1.0 and rejected.any():
-        grown = _grow(rejected, grow)
+        grown = (_grow_along_lines(tails, keeps, valid, int(grow), int(nkeep))
+                 if flavor == "ccdred" else _grow(rejected, grow))
         out2, sig2, used2 = _second_pass(scaled, valid, grown, code, medavg, mclip,
                                          scaling, dowts, blank)
         keep_first = (used2 == 0) & (nkeep > 0)
@@ -1141,6 +1166,28 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
         sig, used = sig2, used2
         rejected = rejected | (grown & valid)
     return out, sig, used, rejected
+
+
+def _grow_along_lines(tails, keeps, valid, grow: int, nkeep: int) -> np.ndarray:
+    """ccdred's own ic_grow: only along the line, in whole pixels, from the ids
+    past n in the order they lie, and a neighbour goes only while its pixel
+    keeps more than nkeep. Returns what is not in the sum after it."""
+    keeps = keeps.copy()
+    nimages, ny, nx = keeps.shape
+    for y in range(ny):
+        n = keeps[:, y, :].sum(axis=0)
+        for i1 in range(nx):
+            for k in tails[:, y, i1]:
+                if k < 0:
+                    break
+                for i2 in range(max(0, i1 - grow), min(nx, i1 + grow + 1)):
+                    if i2 == i1 or not keeps[k, y, i2]:
+                        continue
+                    keep = max(0, n[i2] + nkeep) if nkeep < 0 else min(n[i2], nkeep)
+                    if n[i2] > keep:
+                        keeps[k, y, i2] = False
+                        n[i2] -= 1
+    return valid & ~keeps
 
 
 def _grow(rejected: np.ndarray, grow: float) -> np.ndarray:

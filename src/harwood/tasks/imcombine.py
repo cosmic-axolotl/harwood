@@ -358,7 +358,8 @@ class ImCombine(Task[ImCombineParams]):
 
         from ..core import combine as engine
 
-        if self.flavor == "ccdred" and (params.grow > 0 or params.weight != "none"):
+        if self.flavor == "ccdred" and self.name != "combine" and (
+                params.grow > 0 or params.weight != "none"):
             from ..core import advice
 
             advice.fail(f"{self.name} has no grow or weight in IRAF -- ccdred's "
@@ -672,6 +673,14 @@ FlatCombine = _make_preset(
     "Preset of imcombine.",
     {"combine": "average", "reject": "avsigclip", "scale": "mode", "blank": 1.0,
      "ccdtype": "flat", "subsets": True},
+)
+
+
+CcdCombine = _make_preset(
+    "combine",
+    "ccdred's combine: images of a type, by subset if asked, with ccdred's scaling. "
+    "Preset of imcombine.",
+    {"combine": "average", "reject": "none", "ccdtype": "", "subsets": False},
 )
 
 

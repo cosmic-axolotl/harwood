@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 52, partial: 17, planned: 286, replaced: 94, wontport: 161
-#   milestone mvp: 57 (39 of them running), later: 298
+#   available: 55, partial: 17, planned: 283, replaced: 94, wontport: 161
+#   milestone mvp: 57 (42 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -189,7 +189,8 @@ tasks:
   i2sun: {pkg: proto.vol, domain: io-formats, status: wontport,
     note: "raster and text-image conversion: any image library does this. For pictures of an image as displayed (PNG, JPEG, TIFF, WebP), harwood has impicture"}
   imcopy: {pkg: images.imutil, domain: io-formats, status: available, milestone: mvp, harwood: imcopy}
-  imextensions: {pkg: proto, domain: io-formats, status: planned, milestone: mvp}
+  imextensions: {pkg: proto, domain: io-formats, status: available, milestone: mvp, harwood: imextensions,
+    note: "IRAF's lists, line by line; an ASCII table is not listed as an image"}
   import: {pkg: dataio, domain: io-formats, status: wontport,
     note: "raster and text-image conversion: any image library does this. For pictures of an image as displayed (PNG, JPEG, TIFF, WebP), harwood has impicture"}
   imtab: {pkg: utilities.nttools, domain: io-formats, status: wontport,
@@ -321,7 +322,8 @@ tasks:
   imstatistics: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imstatistics}
   imsum: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imtile: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
-  mimstatistics: {pkg: proto, domain: arithmetic, status: planned, milestone: mvp}
+  mimstatistics: {pkg: proto, domain: arithmetic, status: available, milestone: mvp, harwood: mimstatistics,
+    note: "IRAF's lines through masks, limits and clipping; the output mask is FITS until harwood writes .pl"}
   minmax: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: minmax,
     note: "IRAF's values, positions and limits, line by line; a section is always measured and NaN left out"}
   phistogram: {pkg: plot, domain: arithmetic, status: planned, milestone: later}
@@ -393,10 +395,8 @@ tasks:
 
   # --- combine (core, 10 tasks) ---------------------------------
   average: {pkg: lists, domain: combine, status: planned, milestone: later}
-  combine: {pkg: imred.ccdred, domain: combine, status: planned, milestone: mvp,
-    note: "the ccdred wrapper over imcombine that also knows image types and filter
-    subsets, so it can combine a night's flats per filter on its own. imcombine is
-    the engine and already runs; this is the preset that reads ccdtype"}
+  combine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: combine,
+    note: "ccdred's combine as a preset of imcombine, with ccdtype, subsets and ccdred's scaling"}
   crcombine: {pkg: imred.crutil, domain: combine, status: planned, milestone: later}
   darkcombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: darkcombine}
   flatcombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: flatcombine}
