@@ -107,6 +107,10 @@ CASES = {
     "eof": ([on(": show")], [], {}),
     "nocursor": ([], [], {}),
     "wkey": ([on("w"), on("q"), on(": show")], GO, {}),
+    # An axis with no width: the airmass of one image, at 1, under 1 and at 0.
+    **{name: ([on("g"), on("h"), on("g")],
+              ["h", "XV,fit", "h", "residuals,XB", *GO], {"observations": f"{name}.obsfile"})
+       for name in ("flat", "flathalf", "flatzero")},
 }
 for name, (cursor, answers, _) in CASES.items():
     Path(HERE / f"{name}.cur").write_text(

@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .. import iraffmt
+from ..gio import widened
 from .apfile import (
     MAX_MTERMS,
     Curve,
@@ -79,15 +80,6 @@ _LABELS = {"m": "radius", "r": "radius", "b": "mag[1]", "x": "x", "y": "y", "a":
 def _three_digits(value: float) -> str:
     """%.3g of a real, as the graphs' titles print the rms."""
     return "INDEF" if np.isnan(value) else iraffmt.g(value, decpl=3)
-
-
-def _widened(low: float, high: float) -> tuple[float, float]:
-    """What IRAF's graphics make of a window with no width: one star on the x
-    graph. The lines are drawn from the window before this."""
-    if low != high:
-        return low, high
-    half = 0.01 * max(abs(low), 1.0)
-    return low - half, high + half
 
 
 def _strdic(word: str, words: tuple[str, ...]) -> str | None:
@@ -403,7 +395,7 @@ class ApSession:
         ylabel = {"m": "Curve of Growth", "a": "Aperture Correction"}.get(kind, "Residuals")
         pack = lambda part: tuple(  # noqa: E731
             np.concatenate(p) if p else np.zeros(0) for p in part)
-        return Graph(title, xlabel, ylabel, (*_widened(*window[:2]), *_widened(*window[2:])),
+        return Graph(title, xlabel, ylabel, (*widened(*window[:2]), *widened(*window[2:])),
                      pack(kept), pack(dropped), lines)
 
     def _window(self, kind: str, ys: np.ndarray) -> tuple[float, float, float, float]:

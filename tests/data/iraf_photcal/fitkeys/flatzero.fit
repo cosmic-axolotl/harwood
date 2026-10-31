@@ -1,0 +1,64 @@
+# Sat 11:56:29 31-Oct-2026
+begin	VFIT
+	status	1	(Singular matrix)
+	variance	0.
+	stdeviation	0.
+	avsqerror	0.
+	averror		0.
+	avsqscatter	0.
+	avscatter	0.
+	chisqr		0.
+	msq		2.223601E-4
+	rms		0.01491174
+	reference	mV
+	fitting		V+v1+v2*(B-V)+v3*XV
+	weights		uniform
+	parameters	3
+		v1	(fit)
+		v2	(fit)
+		v3	(fit)
+	derivatives	3
+		0.1
+		0.1
+		0.1
+	values	3
+		-21.65244
+		0.04371471
+		0.18
+	errors	3
+		0.
+		0.
+		0.
+
+# Sat 11:56:29 31-Oct-2026
+begin	BFIT
+	status	1	(Singular matrix)
+	variance	0.
+	stdeviation	0.
+	avsqerror	0.
+	averror		0.
+	avsqscatter	0.
+	avscatter	0.
+	chisqr		0.
+	msq		2.160798E-5
+	rms		0.004648439
+	reference	mB
+	fitting		B+b1+b2*(B-V)+b3*XB
+	weights		uniform
+	parameters	3
+		b1	(fit)
+		b2	(fit)
+		b3	(fit)
+	derivatives	3
+		0.1
+		0.1
+		0.1
+	values	3
+		-21.53626
+		-0.07244036
+		0.3
+	errors	3
+		0.
+		0.
+		0.
+

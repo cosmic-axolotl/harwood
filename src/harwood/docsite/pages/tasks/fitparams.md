@@ -76,8 +76,10 @@ says which equations have no record.
 
 **Identical to IRAF.** The parameters file and the log agree with IRAF's
 to the last digit printed, in every weighting, with rejection, and with the
-whole configuration language exercised; so do thirty-three sessions by the keys,
-with the text they print on both streams. Three differences are deliberate.
+whole configuration language exercised; so do thirty-six sessions by the keys,
+with the text they print on both streams. What is drawn is held to IRAF's graphics
+metacode as well: 133 frames, windows, titles, labels and every mark. Three
+differences are deliberate.
 `:const 3` names the parameter, where IRAF prints whatever was in memory. `w` and
 the graphics cursor's `:.` and `:/` commands are not ported: the mouse zooms the
 panel. `?` lists the keys above instead of paging IRAF's help file. One IRAF

@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 
 from .. import iraffmt
+from ..gio import widened
 from ..nlfit import DONE
 from . import io
 from .config import Config, evaluate
@@ -750,8 +751,8 @@ def _window(xs: np.ndarray, ys: np.ndarray) -> tuple[float, float, float, float]
         if not values.size:
             return -1.0, 1.0
         lo, hi = float(values.min()), float(values.max())
-        room = 0.03 * (hi - lo) or 0.1
-        return lo - room, hi + room
+        room = 0.03 * (hi - lo)
+        return widened(lo - room, hi + room)
 
     return (*around(xs), *around(ys))
 

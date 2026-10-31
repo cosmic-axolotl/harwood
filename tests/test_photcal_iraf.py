@@ -490,18 +490,25 @@ def _written(path: Path) -> list[str]:
     return [line for line in _lines(path) if not line.startswith("# ")]
 
 
+def _fit_session(settings, output, session=fitsession.FitSession, **more):
+    settings = dict(settings)
+    cfgfile = settings.pop("config", "configuration.mkconfig")
+    if cfgfile == "cfgplot.cfg":
+        cfgfile = str(FITKEYS / cfgfile)
+    observations = settings.pop("observations", None)
+    observations = str(FITKEYS / observations) if observations else "observations.obsfile"
+    return session(config.parse(cfgfile), [observations], [CATALOG], output, **settings,
+                   **more)
+
+
 @pytest.mark.parametrize("case", FITCASES)
 def test_fitparams_by_the_keys_says_and_writes_what_iraf_does(here, case):
     """Each case is a cursor file and the answers to the prompts, as IRAF 2.18
     ran them (fitkeys/run_iraf.py): what it printed on both streams, the
     parameters file, the log, and what a colon command wrote to a file."""
     settings = yaml.safe_load((FITKEYS / "CASES.yaml").read_text())[case]
-    cfgfile = settings.pop("config", "configuration.mkconfig")
-    if cfgfile == "cfgplot.cfg":
-        cfgfile = str(FITKEYS / cfgfile)
-    session = fitsession.FitSession(
-        config.parse(cfgfile), ["observations.obsfile"], [CATALOG], "out.fit",
-        logfile="out.log", log_fit=True, log_results=True, **settings)
+    session = _fit_session(settings, "out.fit", logfile="out.log", log_fit=True,
+                           log_results=True)
     session.run_commands((FITKEYS / f"{case}.cur").read_text(),
                          (FITKEYS / f"{case}.ans").read_text())
     assert _named_by_memory(_said(session.stdout)) == _named_by_memory(
@@ -511,6 +518,50 @@ def test_fitparams_by_the_keys_says_and_writes_what_iraf_does(here, case):
     assert _written(here / "out.log") == _written(FITKEYS / f"{case}.log")
     if (FITKEYS / f"{case}.keep").exists():
         assert _lines(here / "keep.txt") == _lines(FITKEYS / f"{case}.keep")
+
+
+@pytest.mark.parametrize("case", FITCASES)
+def test_fitparams_draws_what_iraf_draws(here, case):
+    """IRAF's own metacode (fitkeys/run_iraf.py): each frame's window, title and
+    labels, its pluses, crosses, diamonds and boxes. A frame drawn over with o, in
+    IRAF, is the frame before it with more on it."""
+    class Recording(fitsession.FitSession):
+        drawn: list = []
+
+        def graph(self):
+            graph = super().graph()
+            self.drawn.append(graph)
+            return graph
+
+    Recording.drawn = []
+    settings = yaml.safe_load((FITKEYS / "CASES.yaml").read_text())[case]
+    session = _fit_session(settings, "out.fit", session=Recording)
+    session.run_commands((FITKEYS / f"{case}.cur").read_text(),
+                         (FITKEYS / f"{case}.ans").read_text())
+    drawn = []
+    for graph in Recording.drawn:
+        if graph.overplot and drawn:
+            drawn[-1].append(graph)
+        else:
+            drawn.append([graph])
+    frames = json.loads((FITKEYS / f"{case}.json").read_text())
+    assert len(drawn) == len(frames)
+    for number, (graphs, frame) in enumerate(zip(drawn, frames, strict=True)):
+        where = f"frame {number}"
+        graph = graphs[0]
+        width = abs(frame["window"][1] - frame["window"][0])
+        height = abs(frame["window"][3] - frame["window"][2])
+        assert graph.window[:2] == pytest.approx(frame["window"][:2], abs=1e-4 * width), where
+        assert graph.window[2:] == pytest.approx(frame["window"][2:4],
+                                                 abs=1e-4 * height), where
+        said = {graph.xlabel, graph.ylabel, *graph.title, *graph.params}
+        assert said <= set(frame["text"]), where
+        for kind, part in (("plus", "kept"), ("cross", "deleted"), ("diamond", "rejected"),
+                           ("box", "fit")):
+            mine = np.vstack([_on_screen(frame, *getattr(g, part)) for g in graphs])
+            assert len(mine) == len(frame[kind]), (where, kind)
+            assert not len(_unmatched(mine, frame[kind])), (where, kind)
+            assert not len(_unmatched(frame[kind], mine)), (where, kind)
 
 
 def _run_fitparams(tmp_path, case=None, **params):

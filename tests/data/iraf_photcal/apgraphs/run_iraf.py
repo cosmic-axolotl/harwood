@@ -2,7 +2,7 @@
 run_iraf.py NAME, from a directory holding this folder's NAME.cur, all.lis and the
 .mag.1 files of ../apfile, in a fresh process because the fit keeps a static.
 stdvdm writes the metacode to uparm$vdm and adds to it, so it goes first and is
-moved aside after; decode.py makes NAME.json of it."""
+moved aside after; ../decode_gki.py makes NAME.json of it."""
 import shutil
 import sys
 from pathlib import Path

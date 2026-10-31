@@ -13,6 +13,12 @@ equations:
 few: {}
 files: {}
 firstlast: {}
+flat:
+  observations: flat.obsfile
+flathalf:
+  observations: flathalf.obsfile
+flatzero:
+  observations: flatzero.obsfile
 go: {}
 goall: {}
 graphkeys: {}
