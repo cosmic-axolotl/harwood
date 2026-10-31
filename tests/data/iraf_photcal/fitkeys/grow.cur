@@ -1,0 +1,7 @@
+0 0 1 : nreject 1
+0 0 1 : low_reject 1.2
+0 0 1 : high_reject 1.2
+0 0 1 : grow 1.5
+0 0 1 f
+0 0 1 : errors
+0 0 1 q

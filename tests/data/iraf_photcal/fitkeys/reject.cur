@@ -1,0 +1,12 @@
+0 0 1 : nreject 2
+0 0 1 : low_reject 1.5
+0 0 1 : high_reject 1.5
+0 0 1 : show
+0 0 1 : errors
+0 0 1 f
+0 0 1 : errors
+0 0 1 : results
+0 0 1 h
+0 0 1 r
+0 0 1 t
+0 0 1 q

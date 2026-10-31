@@ -1,0 +1,24 @@
+
+#Sat 08:59:18 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+
+#      objectid       function            fit      residuals          sigma
+             1S          -6.33      -6.329194   -8.058548E-4             1.
+             2S         -8.399      -8.425949     0.02694893             1.
+             3S          INDEF          INDEF          INDEF          INDEF
+             1S         -6.396      -6.384948    -0.01105165             1.
+             2S         -8.467      -8.481703      0.0147028             1.
+             3S         -6.828      -6.785393    -0.04260731             1.
+             1S         -6.501       -6.48081    -0.02018976             1.
+             2S          INDEF          INDEF          INDEF          INDEF
+             3S         -6.931      -6.881255    -0.04974556             1.
+             1S         -6.475      -6.495575     0.02057505             1.
+             2S          -8.55       -8.59233     0.04232979             1.
+             3S          INDEF          INDEF          INDEF          INDEF
+             1S         -6.443       -6.44555    0.002550602             1.
+             2S         -8.525      -8.542306     0.01730633             1.
+             3S         -6.846      -6.845995   -5.245209E-6             1.
+
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

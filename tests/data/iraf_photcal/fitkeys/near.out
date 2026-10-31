@@ -1,0 +1,6 @@
+4 1S x=-6.396 y=-0.008648396 func=-6.396 fit=-6.387352, resid=-0.008648396
+4 1S x=-6.396 y=-6.387352 func=-6.396 fit=-6.387352, resid=-0.008648396
+4 1S x=-6.396 y=1.001354 func=-6.396 fit=-6.387352, resid=-0.008648396
+4 1S x=23.70944 y=-0.008648396 func=-6.396 fit=-6.387352, resid=-0.008648396
+6 3S x=23.70944 y=-0.04207611 func=-6.828 fit=-6.785924, resid=-0.04207611
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

@@ -1,0 +1,64 @@
+# Sat 08:59:28 31-Oct-2026
+begin	VFIT
+	status	0	(Solution converged)
+	variance	8.796263E-4
+	stdeviation	0.02965849
+	avsqerror	9.987735E-4
+	averror		0.03160338
+	avsqscatter	1.917744E-4
+	avscatter	0.01384826
+	chisqr		0.8807065
+	msq		6.911350E-4
+	rms		0.02628945
+	reference	mV
+	fitting		V+v1+v2*(B-V)+v3*XV
+	weights		photometric
+	parameters	3
+		v1	(fit)
+		v2	(fit)
+		v3	(fit)
+	derivatives	3
+		0.1
+		0.1
+		0.1
+	values	3
+		-21.91946
+		0.05127278
+		0.2166733
+	errors	3
+		0.0337112
+		0.01459255
+		0.02117476
+
+# Sat 08:59:28 31-Oct-2026
+begin	BFIT
+	status	0	(Solution converged)
+	variance	4.078224E-4
+	stdeviation	0.02019461
+	avsqerror	4.791892E-4
+	averror		0.02189039
+	avsqscatter	0.
+	avscatter	0.
+	chisqr		0.8510676
+	msq		3.262580E-4
+	rms		0.01806261
+	reference	mB
+	fitting		B+b1+b2*(B-V)+b3*XB
+	weights		photometric
+	parameters	3
+		b1	(fit)
+		b2	(fit)
+		b3	(fit)
+	derivatives	3
+		0.1
+		0.1
+		0.1
+	values	3
+		-21.88328
+		-0.07494068
+		0.3076817
+	errors	3
+		0.01266986
+		0.008791551
+		0.007427268
+

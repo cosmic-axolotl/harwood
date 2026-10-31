@@ -1,0 +1,52 @@
+
+#Sat 08:59:21 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Too few points
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        0
+total_points       15
+rejected           0
+deleted            13
+standard deviation         0.
+reduced chi                0.
+average error              0.
+average scatter            0.
+RMS                  46.80728
+
+parameter            value           error
+v1              25.0000000       0.0000000    (fit)
+v2              -0.0300000       0.0000000    (fit)
+v3               0.1800000       0.0000000    (fit)
+
+
+#Sat 08:59:21 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Too few points
+
+
+#      objectid       function            fit      residuals          sigma
+             1S          INDEF          INDEF          INDEF          INDEF
+             2S          INDEF          INDEF          INDEF          INDEF
+             3S          INDEF          INDEF          INDEF          INDEF
+             1S          INDEF          INDEF          INDEF          INDEF
+             2S          INDEF          INDEF          INDEF          INDEF
+             3S          INDEF          INDEF          INDEF          INDEF
+             1S          INDEF          INDEF          INDEF          INDEF
+             2S          INDEF          INDEF          INDEF          INDEF
+             3S          INDEF          INDEF          INDEF          INDEF
+             1S          INDEF          INDEF          INDEF          INDEF
+             2S          INDEF          INDEF          INDEF          INDEF
+             3S          INDEF          INDEF          INDEF          INDEF
+             1S          INDEF          INDEF          INDEF          INDEF
+             2S         -8.525       38.27645      -46.80145             1.
+             3S         -6.846       39.96711      -46.81311             1.
+
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

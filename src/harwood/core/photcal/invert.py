@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 
 from .. import iraffmt
-from ..nlfit import DONE
+from ..nlfit import DONE, square
 from . import io
 from .config import INDEF, Config, evaluate
 
@@ -145,7 +145,7 @@ class _Solver:
     def _sumsq(self, y, eqindex, a) -> np.float32:
         total = f32(0.0)
         for k, i in enumerate(eqindex):
-            total = f32(total + f32(f32(y[k] - self._fit(i, a)) ** 2))
+            total = f32(total + square(y[k] - self._fit(i, a)))
         return f32(total / f32(len(eqindex)))
 
     def accum(self, y, eqindex, a, deltaa, aindex):
@@ -157,7 +157,7 @@ class _Solver:
             yfit = self._fit(i, a)
             if np.isnan(yfit):
                 return None, None, 0.0
-            rms1 = f32(rms1 + f32(f32(y[k] - yfit) ** 2))
+            rms1 = f32(rms1 + square(y[k] - yfit))
         rms1 = f32(rms1 / f32(len(eqindex)))
         active = [j for j in range(nstd) if aindex[j] != 0]
         n = len(active)
@@ -312,11 +312,11 @@ class _Solver:
                 self.incrms(y, eqindex, a, da, aindex, rms)
                 for k in range(nstd):
                     if aindex[k] > 0:
-                        errors[k] = f32(errors[k] + f32(f32(a[nobs + k] - afit[k]) ** 2))
+                        errors[k] = f32(errors[k] + square(a[nobs + k] - afit[k]))
                 a[j] = atemp
                 for k, seq in enumerate(sets):
                     value = evaluate(seq.eq.code, a, self.params[0])
-                    serrors[k] = f32(serrors[k] + f32(f32(value - svals[k]) ** 2))
+                    serrors[k] = f32(serrors[k] + square(value - svals[k]))
             else:
                 a[j] = atemp
             a[nobs:] = afit
@@ -357,10 +357,10 @@ class _Solver:
                 self.incrms(y, eqindex, a, da, aindex, rms)
                 for j in range(nstd):
                     if aindex[j] != 0:
-                        errors[j] = f32(errors[j] + f32(f32(a[nobs + j] - afit[j]) ** 2))
+                        errors[j] = f32(errors[j] + square(a[nobs + j] - afit[j]))
                 for m, seq in enumerate(sets):
                     value = evaluate(seq.eq.code, a, self.params[0])
-                    serrors[m] = f32(serrors[m] + f32(f32(value - svals[m]) ** 2))
+                    serrors[m] = f32(serrors[m] + square(value - svals[m]))
             y[k] = f32(y[k] - yerr[k])
             a[nobs:] = afit
         return nerrors, _roots(errors), _roots(serrors)
@@ -494,7 +494,7 @@ def catalog_means(cfg: Config, catalog: dict | None,
             if uservars[i] == 0 or np.isnan(row[i]):
                 continue
             avg[i] = f32(avg[i] + row[i])
-            sigma[i] = f32(sigma[i] + f32(row[i] ** 2))
+            sigma[i] = f32(sigma[i] + square(row[i]))
             count[i] += 1
     for i in range(ncat):
         if count[i] <= 1:

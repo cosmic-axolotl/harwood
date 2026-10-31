@@ -1,0 +1,29 @@
+
+#Sat 08:59:33 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            1
+standard deviation 0.02882062
+reduced chi        0.02882062
+average error              1.
+average scatter            0.
+RMS                0.02554675
+
+parameter            value           error
+v1             -21.9181118       0.0446448    (fit)
+v2               0.0496332       0.0202389    (fit)
+v3               0.2112702       0.0278537    (fit)
+
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

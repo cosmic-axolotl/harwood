@@ -1,0 +1,98 @@
+
+#Sat 08:59:28 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        5
+total_points       15
+rejected           0
+deleted            1
+standard deviation 0.02965849
+reduced chi         0.9384597
+average error      0.03160338
+average scatter    0.01384826
+RMS                0.02628945
+
+parameter            value           error
+v1             -21.9194603       0.0337112    (fit)
+v2               0.0512728       0.0145925    (fit)
+v3               0.2166733       0.0211748    (fit)
+
+
+#Sat 08:59:28 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+
+#      objectid       function            fit      residuals          sigma
+             1S          -6.33      -6.328299   -0.001701355     0.01934927
+             2S         -8.399      -8.417921      0.0189209     0.01482479
+             3S         -6.746      -6.720922    -0.02507782     0.02507039
+             1S         -6.396      -6.383117    -0.01288319     0.01934927
+             2S         -8.467      -8.472739    0.005739212     0.01636381
+             3S         -6.828       -6.77574    -0.05225992     0.03182019
+             1S         -6.501       -6.47737    -0.02363014     0.04329427
+             2S          INDEF          INDEF          INDEF          INDEF
+             3S         -6.931      -6.869993    -0.06100702     0.04557987
+             1S         -6.475      -6.491887     0.01688671     0.02105693
+             2S          -8.55       -8.58151      0.0315094      0.0415304
+             3S          -6.89       -6.88451   -0.005489826     0.02587517
+             1S         -6.443      -6.442702   -2.980232E-4     0.02105693
+             2S         -8.525      -8.532325    0.007325172     0.01458679
+             3S         -6.846      -6.835325    -0.01067495     0.02507039
+
+
+#Sat 08:59:28 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        5
+total_points       15
+rejected           0
+deleted            1
+standard deviation 0.02965849
+reduced chi         0.9384597
+average error      0.03160338
+average scatter    0.01384826
+RMS                0.02628945
+
+parameter            value           error
+v1             -21.9194603       0.0337112    (fit)
+v2               0.0512728       0.0145925    (fit)
+v3               0.2166733       0.0211748    (fit)
+
+
+#      objectid       function            fit      residuals          sigma
+             1S          -6.33      -6.328299   -0.001701355     0.01934927
+             2S         -8.399      -8.417921      0.0189209     0.01482479
+             3S         -6.746      -6.720922    -0.02507782     0.02507039
+             1S         -6.396      -6.383117    -0.01288319     0.01934927
+             2S         -8.467      -8.472739    0.005739212     0.01636381
+             3S         -6.828       -6.77574    -0.05225992     0.03182019
+             1S         -6.501       -6.47737    -0.02363014     0.04329427
+             2S          INDEF          INDEF          INDEF          INDEF
+             3S         -6.931      -6.869993    -0.06100702     0.04557987
+             1S         -6.475      -6.491887     0.01688671     0.02105693
+             2S          -8.55       -8.58151      0.0315094      0.0415304
+             3S          -6.89       -6.88451   -0.005489826     0.02587517
+             1S         -6.443      -6.442702   -2.980232E-4     0.02105693
+             2S         -8.525      -8.532325    0.007325172     0.01458679
+             3S         -6.846      -6.835325    -0.01067495     0.02507039
+
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

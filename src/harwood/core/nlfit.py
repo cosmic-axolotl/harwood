@@ -31,6 +31,14 @@ DONE, SINGULAR, NO_DEG_FREEDOM, NOT_DONE = 0, 1, 2, 3
 OK = 0
 
 
+def square(x) -> np.float32:
+    """x ** 2 as IRAF's compiled code does it, x * x. numpy's ** on a float32
+    scalar goes through powf, and about one time in a thousand is off in the
+    last place."""
+    x = f32(x)
+    return f32(x * x)
+
+
 def chfac(matrix: np.ndarray, nbands: int, nrows: int, matfac: np.ndarray,
           singular=EPSILONR) -> int:
     """nl_chfac: banded Cholesky factorisation (de Boor's bchfac), in place
@@ -236,7 +244,7 @@ class NLFit:
         for i in range(len(z)):
             if w[i] <= 0:
                 continue
-            factor = f32(f32(z[i] - zfit[i]) ** 2)
+            factor = square(z[i] - zfit[i])
             variance = f32(variance + factor)
             chisqr = f32(chisqr + f32(factor * w[i]))
             n += 1

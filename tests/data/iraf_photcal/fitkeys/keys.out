@@ -1,0 +1,95 @@
+1 1S x=-6.33 y=0.005326271 func=-6.33 fit=-6.335326, resid=0.005326271
+
+#Sat 08:59:26 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+#Sat 08:59:26 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+
+number      variable           minimum         maximum
+1           TB               1.5500000      23.7094440
+2           XB               1.1480000       1.9760000
+3           xB             135.6999969     471.2099915
+4           yB             188.1799927     580.2199707
+5           mB              -7.7919998      -5.8090000
+6           er(mB)           0.0020000       0.0310000
+7           TV               1.6266667      23.7866669
+8           XV               1.1490000       1.9040000
+9           xV             136.2100067     469.5299988
+10          yV             187.5899963     579.1900024
+11          mV              -8.5500002      -6.3299999
+12          er(mV)           0.0030000       0.0430000
+13          V               13.0509996      15.1820002
+14          er(V)            0.0020000       0.0057000
+15          B               13.7919998      15.5629997
+16          er(B)            0.0020000       0.0042000
+
+
+#Sat 08:59:26 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.02809818
+reduced chi        0.02809818
+average error              1.
+average scatter            0.
+RMS                0.02513178
+
+parameter            value           error
+v1             -21.9059124       0.0393189    (fit)
+v2               0.0445506       0.0181337    (fit)
+v3               0.2056334       0.0257491    (fit)
+
+
+#Sat 08:59:26 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+
+#      objectid       function            fit      residuals          sigma
+             1S          -6.33      -6.335326    0.005326271             1.
+             2S         -8.399      -8.430374     0.03137398             1.
+             3S         -6.746      -6.733899    -0.01210117             1.
+             1S         -6.396      -6.387352   -0.008648396             1.
+             2S         -8.467        -8.4824     0.01539993             1.
+             3S         -6.828      -6.785924    -0.04207611             1.
+             1S         -6.501      -6.476802    -0.02419758             1.
+             2S         -8.543       -8.57185      0.0288496             1.
+             3S         -6.931      -6.875375    -0.05562544             1.
+             1S         -6.475       -6.49058      0.0155797             1.
+             2S          -8.55      -8.585628     0.03562737             1.
+             3S          -6.89      -6.889152   -8.478165E-4             1.
+             1S         -6.443      -6.443901    9.012222E-4             1.
+             2S         -8.525      -8.538949     0.01394939             1.
+             3S         -6.846      -6.842473   -0.003527164             1.
+
+low_reject = 3.
+high_reject = 3.
+nreject = 0
+grow = 0.
+tol = 3.000000E-5
+maxiter = 15
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

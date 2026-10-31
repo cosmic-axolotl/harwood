@@ -1,0 +1,9 @@
+0 0 1 : tol 0.1
+0 0 1 : tol
+0 0 1 : maxiter 4
+0 0 1 : maxiter
+0 0 1 f
+0 0 1 : errors
+0 0 1 : tol abc
+0 0 1 : nreject abc
+0 0 1 q

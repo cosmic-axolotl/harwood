@@ -87,13 +87,16 @@ def test_every_panel_lists_every_key():
     """What used to be the first four or five on one line."""
     from harwood.viewer import (
         aperture_panel,
+        cog_panel,
+        fit_panel,
         icfit_panel,
         identify_panel,
         implot_panel,
         keyguide,
     )
 
-    for module in (aperture_panel, icfit_panel, identify_panel, implot_panel):
+    for module in (aperture_panel, cog_panel, fit_panel, icfit_panel, identify_panel,
+                   implot_panel):
         label = keyguide.strip(module.HELP)
         listed = dict(label.keys)
         for key, what in module.HELP:

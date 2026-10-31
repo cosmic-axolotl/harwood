@@ -1,0 +1,41 @@
+abbrev: {}
+again: {}
+blank: {}
+const: {}
+data: {}
+del: {}
+delh: {}
+delq: {}
+endno: {}
+eof: {}
+equations:
+  weighting: equations
+few: {}
+files: {}
+firstlast: {}
+go: {}
+goall: {}
+graphkeys: {}
+graphuser: {}
+grow: {}
+keys: {}
+near: {}
+nocursor: {}
+nosave: {}
+photo:
+  weighting: photometric
+photons:
+  addscatter: false
+  weighting: photometric
+plot:
+  config: cfgplot.cfg
+prev: {}
+quit: {}
+reject: {}
+rejstart:
+  high_reject: 1.5
+  low_reject: 1.5
+  nreject: 2
+tol: {}
+undel: {}
+wkey: {}

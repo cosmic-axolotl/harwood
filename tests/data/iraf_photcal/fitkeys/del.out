@@ -1,0 +1,58 @@
+
+#Sat 08:59:18 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            1
+standard deviation 0.02897794
+reduced chi        0.02897794
+average error              1.
+average scatter            0.
+RMS                 0.0256862
+
+parameter            value           error
+v1             -21.9059124       0.0405499    (fit)
+v2               0.0445506       0.0187015    (fit)
+v3               0.2056334       0.0265554    (fit)
+
+
+#Sat 08:59:18 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            1
+standard deviation 0.02892616
+reduced chi        0.02892616
+average error              1.
+average scatter            0.
+RMS                 0.0256403
+
+parameter            value           error
+v1             -21.9020786       0.0410372    (fit)
+v2               0.0427763       0.0189278    (fit)
+v3               0.2028092       0.0269704    (fit)
+
+5 2S x=-8.467 y=0.01754379 func=-8.467 fit=-8.484544, resid=0.01754379
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

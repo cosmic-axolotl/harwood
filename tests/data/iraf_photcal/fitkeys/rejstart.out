@@ -1,0 +1,80 @@
+
+#Sat 08:59:32 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    1.5
+high_reject   1.5
+nreject       2
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           3
+deleted            0
+standard deviation  0.0164443
+reduced chi         0.0164443
+average error              1.
+average scatter            0.
+RMS                0.01424118
+
+parameter            value           error
+v1             -21.8810768       0.0257913    (fit)
+v2               0.0535983       0.0120494    (fit)
+v3               0.1927423       0.0162748    (fit)
+
+
+#Sat 08:59:32 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+
+#      objectid       function            fit      residuals          sigma
+             1S          -6.33      -6.335633    0.005632877             1.
+             2S         -8.399      -8.423379     0.02437878             1.
+             3S         -6.746      -6.726198    -0.01980209             1.
+             1S         -6.396      -6.384397    -0.01160288             1.
+             2S         -8.467      -8.472143    0.005143166             1.
+             3S          INDEF          INDEF          INDEF          INDEF
+             1S          INDEF          INDEF          INDEF          INDEF
+             2S         -8.543      -8.555985     0.01298523             1.
+             3S          INDEF          INDEF          INDEF          INDEF
+             1S         -6.475      -6.481153    0.006153584             1.
+             2S          -8.55      -8.568899     0.01889896             1.
+             3S          -6.89      -6.871718    -0.01828146             1.
+             1S         -6.443      -6.437401   -0.005599022             1.
+             2S         -8.525      -8.525147    1.478195E-4             1.
+             3S         -6.846      -6.827966    -0.01803446             1.
+
+
+#Sat 08:59:32 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    1.5
+high_reject   1.5
+nreject       2
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        5
+total_points       15
+rejected           5
+deleted            1
+standard deviation 0.01388071
+reduced chi        0.01388071
+average error              1.
+average scatter            0.
+RMS                0.01133355
+
+parameter            value           error
+v1             -21.9236584       0.0286348    (fit)
+v2               0.0547643       0.0111401    (fit)
+v3               0.2169315       0.0192487    (fit)
+
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

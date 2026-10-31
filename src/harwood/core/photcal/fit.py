@@ -2,7 +2,8 @@
 
 From photcal/fitparams (fttrneq.x, ftref.x, ftweights.x, ftindef.x,
 fteval.x) and xtools/inlfit (infit, inrefit, inreject, indeviant, inerrors,
-inrms, and the log's ing_show, ing_errors, ing_results), non-interactive.
+inrms, and the log's ing_show, ing_errors, ing_results); the keys are in
+fitsession.py.
 
 For each equation, in order: the reference side is evaluated for every
 observation; the weights are made (uniform, from the photometric errors,
@@ -28,7 +29,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .. import iraffmt
-from ..nlfit import DONE, NO_DEG_FREEDOM, NLFit
+from ..nlfit import DONE, NO_DEG_FREEDOM, NLFit, square
 from .config import Config, Equation, SetEquation, evaluate
 
 f32 = np.float32
@@ -219,7 +220,7 @@ def _deviant(nl: NLFit, x: np.ndarray, y: np.ndarray, w: np.ndarray, rejected: n
     sigma, j = f32(0.0), 0
     for i in range(len(y)):
         if w[i] != 0 and not rejected[i]:
-            sigma = f32(sigma + f32(residuals[i] ** 2))
+            sigma = f32(sigma + square(residuals[i]))
             j += 1
         elif rejected[i]:
             nreject += 1
@@ -252,77 +253,106 @@ def _deviant(nl: NLFit, x: np.ndarray, y: np.ndarray, w: np.ndarray, rejected: n
     return nreject, newreject
 
 
-def fit_equation(cfg: Config, eq: Equation, rows: np.ndarray, weighting: str = "uniform",
+class Fitter:
+    """One equation's points, settings and fit: what an INLFIT descriptor
+    holds. in_fit and in_errors are `run` and `result`, apart so that an
+    interactive session can do one and look at the other any number of times,
+    with `wts` and `plist` changed between them."""
+
+    def __init__(self, cfg: Config, eq: Equation, rows: np.ndarray, weighting: str = "uniform",
                  addscatter: bool = True, tol: float = 3e-5, maxiter: int = 15,
                  nreject: int = 0, low_reject: float = 3.0, high_reject: float = 3.0,
-                 grow: float = 0.0) -> FitResult:
-    """ft_trneq, non-interactive."""
-    x = np.array(rows, dtype=f32)
-    y = np.array([evaluate(eq.ref.code, row, ()) for row in x], dtype=f32)
-    if weighting == "photometric":
-        wts = weights_photometric(cfg, eq, rows)
-    elif weighting == "equations":
-        wts = weights_equations(eq, rows)
-    else:
-        wts = np.ones(len(rows), dtype=f32)
-    _undefined(eq, x, y, wts)
+                 grow: float = 0.0) -> None:
+        self.eq = eq
+        self.x = np.array(rows, dtype=f32)
+        self.y = np.array([evaluate(eq.ref.code, row, ()) for row in self.x], dtype=f32)
+        if weighting == "photometric":
+            self.wts = weights_photometric(cfg, eq, rows)
+        elif weighting == "equations":
+            self.wts = weights_equations(eq, rows)
+        else:
+            self.wts = np.ones(len(rows), dtype=f32)
+        _undefined(eq, self.x, self.y, self.wts)
+        deltas = np.array([p.delta for p in eq.params], dtype=f32)
+        self.func, self.dfunc = _functions(eq, deltas)
+        self.values = np.array(eq.values, dtype=f32)
+        self.plist = list(eq.plist)
+        self.scatter = weighting != "uniform" and addscatter
+        self.tol, self.maxiter = tol, maxiter
+        self.nreject, self.low_reject, self.high_reject = nreject, low_reject, high_reject
+        self.grow = grow
+        self.rejected = np.zeros(len(self.y), dtype=bool)
+        self.nl = self._fresh()
+        self.stat = NO_DEG_FREEDOM
 
-    deltas = np.array([p.delta for p in eq.params], dtype=f32)
-    func, dfunc = _functions(eq, deltas)
-    plist0 = [k - 1 for k in eq.plist]
-    scatter = weighting != "uniform" and addscatter
-    npts = len(y)
-
-    def fresh() -> NLFit:
-        nl = NLFit(func, dfunc, eq.values, plist0, tol, maxiter)
-        nl.w = wts.copy()
+    def _fresh(self) -> NLFit:
+        nl = NLFit(self.func, self.dfunc, self.values, [k - 1 for k in self.plist], self.tol,
+                   self.maxiter)
+        nl.w = self.wts.copy()
         nl.scatter = f32(0.0)
         return nl
 
-    # in_fit
-    wts1 = wts.copy()
-    rejected = np.zeros(npts, dtype=bool)
-    nl = fresh()
-    stat = NO_DEG_FREEDOM
-    if npts and npts - int(np.sum(wts <= 0)) >= len(plist0):
-        stat = nl.fit(x, y, wts, scatter=scatter)
-        wts = nl.w.copy()
-        if low_reject > 0 or high_reject > 0:
+    def run(self) -> int:
+        """in_fit."""
+        x, y = self.x, self.y
+        npts = len(y)
+        nfit = len(self.plist)
+        wts1 = self.wts.copy()
+        self.rejected = rejected = np.zeros(npts, dtype=bool)
+        self.nl = nl = self._fresh()
+        self.stat = NO_DEG_FREEDOM
+        if not npts or npts - int(np.sum(self.wts <= 0)) < nfit:
+            return self.stat
+        self.stat = nl.fit(x, y, self.wts, scatter=self.scatter)
+        self.wts = nl.w.copy()
+        if self.low_reject > 0 or self.high_reject > 0:
             nrej = 0
-            if nreject >= 1:
+            if self.nreject >= 1:
                 w0 = wts1.copy()
-                for _ in range(nreject):
-                    old, new = _deviant(nl, x, y, wts1, rejected, low_reject,
-                                        high_reject, grow)
+                for _ in range(self.nreject):
+                    old, new = _deviant(nl, x, y, wts1, rejected, self.low_reject,
+                                        self.high_reject, self.grow)
                     nrej = old + new
                     if new == 0:
                         break
                     # in_refit, from the initial values
                     wts1[:] = w0
                     wts1[rejected] = 0
-                    nl = fresh()
-                    if npts - int(np.sum(wts1 <= 0)) < len(plist0):
-                        stat = NO_DEG_FREEDOM
+                    self.nl = nl = self._fresh()
+                    if npts - int(np.sum(wts1 <= 0)) < nfit:
+                        self.stat = NO_DEG_FREEDOM
                         continue
-                    stat = nl.fit(x, y, wts1, scatter=scatter)
+                    self.stat = nl.fit(x, y, wts1, scatter=self.scatter)
                     wts1[:] = nl.w
             if nrej > 0:
-                wts = np.where(wts1 > 0, wts1, wts).astype(f32)
+                self.wts = np.where(wts1 > 0, wts1, self.wts).astype(f32)
+        return self.stat
 
-    # in_errors
-    werr = wts.copy()
-    werr[rejected] = 0
-    zfit = nl.vector(x)
-    variance, chisqr, errors = nl.statistics(y, zfit, werr)
-    rms = _rms(y, zfit, werr)
-    params = nl.param.copy()
-    if stat == DONE:
-        eq.values[:] = params
-    return FitResult(eq, int(stat), params, errors, list(eq.plist), variance, chisqr,
-                     f32(getattr(nl, "scatter", 0.0)), rms, nl.iter, rejected, werr, y,
-                     zfit, int(np.sum(wts == 0)),
-                     dict(low_reject=low_reject, high_reject=high_reject, nreject=nreject,
-                          grow=grow, tol=tol, maxiter=maxiter))
+    def settings(self) -> dict:
+        return dict(low_reject=self.low_reject, high_reject=self.high_reject,
+                    nreject=self.nreject, grow=self.grow, tol=self.tol, maxiter=self.maxiter)
+
+    def result(self) -> FitResult:
+        """in_errors, on the weights as they now stand."""
+        nl = self.nl
+        werr = self.wts.copy()
+        werr[self.rejected] = 0
+        zfit = nl.vector(self.x)
+        variance, chisqr, errors = nl.statistics(self.y, zfit, werr)
+        return FitResult(self.eq, int(self.stat), nl.param.copy(), errors, list(self.plist),
+                         variance, chisqr, f32(getattr(nl, "scatter", 0.0)),
+                         _rms(self.y, zfit, werr), nl.iter, self.rejected.copy(), werr, self.y,
+                         zfit, int(np.sum(self.wts == 0)), self.settings())
+
+
+def fit_equation(cfg: Config, eq: Equation, rows: np.ndarray, **settings) -> FitResult:
+    """ft_trneq, non-interactive."""
+    fitter = Fitter(cfg, eq, rows, **settings)
+    fitter.run()
+    result = fitter.result()
+    if result.stat == DONE:
+        eq.values[:] = result.params
+    return result
 
 
 def _rms(y, fit, w) -> np.float32:
@@ -347,14 +377,17 @@ def _w(value, width: int, fmt: str = "g", decpl: int = 7) -> str:
     return iraffmt.printf(float(value), fmt, decpl, width).rjust(width)
 
 
-def log_fit_text(result: FitResult) -> str:
-    """ing_show and ing_errors."""
-    s = result.settings
+def show_text(s: dict) -> str:
+    """ing_show."""
     g = iraffmt.g
-    lines = [f"low_reject    {g(s['low_reject'])}", f"high_reject   {g(s['high_reject'])}",
-             f"nreject       {s['nreject']}", f"grow          {g(s['grow'])}",
-             f"tol           {g(float(f32(s['tol'])))}", f"maxiter       {s['maxiter']}", "",
-             "", f"niterations        {result.niter}",
+    return (f"low_reject    {g(s['low_reject'])}\nhigh_reject   {g(s['high_reject'])}\n"
+            f"nreject       {s['nreject']}\ngrow          {g(s['grow'])}\n"
+            f"tol           {g(float(f32(s['tol'])))}\nmaxiter       {s['maxiter']}\n\n")
+
+
+def errors_text(result: FitResult) -> str:
+    """ing_errors."""
+    lines = ["", f"niterations        {result.niter}",
              f"total_points       {len(result.y)}",
              f"rejected           {result.nrejected}",
              f"deleted            {result.deleted}",
@@ -371,6 +404,11 @@ def log_fit_text(result: FitResult) -> str:
         lines.append(f"{param.name:<10.10}  {_w(result.params[k], 14, 'f', 7)}  "
                      f"{_w(result.errors[k], 14, 'f', 7)}    ({kind})")
     return "\n".join(lines) + "\n\n"
+
+
+def log_fit_text(result: FitResult) -> str:
+    """ing_show and ing_errors."""
+    return show_text(result.settings) + errors_text(result)
 
 
 def log_results_text(result: FitResult, names: list[str]) -> str:
@@ -392,12 +430,10 @@ def log_results_text(result: FitResult, names: list[str]) -> str:
 # --------------------------------------------------------------- the task
 
 
-def fitparams(cfg: Config, observations: list[str], catalogs: list[str], output: str,
-              logfile: str = "", catdir: str = "", log_unmatched: bool = True,
-              log_fit: bool = False, log_results: bool = False, **fit) -> list[FitResult]:
-    """t_fitparams: read, match, fit each equation and append its record to
-    `output` (and, with a log file, what IRAF logs). Raises ValueError with
-    IRAF's message when there is nothing to fit."""
+def read_inputs(cfg: Config, observations: list[str], catalogs: list[str], logfile: str = "",
+                catdir: str = "", log_unmatched: bool = True):
+    """t_fitparams up to the fit: the observations, and what IRAF logs of them.
+    Raises ValueError with IRAF's message when there is nothing to fit."""
     from . import io
 
     logs: list[str] = []
@@ -421,14 +457,34 @@ def fitparams(cfg: Config, observations: list[str], catalogs: list[str], output:
                              "the catalog entries")
         raise ValueError("ERROR: No observations could be read from the "
                          "observations files")
+    return obs, logs
+
+
+def equation_log(result: FitResult, names: list[str], log_fit: bool, log_results: bool) -> str:
+    """What ft_trneq logs of one equation."""
+    text = ""
+    if log_fit:
+        text += f"#EQUATION: {result.eq.name}\n\n" + log_fit_text(result)
+    if log_results:
+        text += f"#RESULTS: {result.eq.name}\n\n" + log_results_text(result, names)
+    return text
+
+
+def fitparams(cfg: Config, observations: list[str], catalogs: list[str], output: str,
+              logfile: str = "", catdir: str = "", log_unmatched: bool = True,
+              log_fit: bool = False, log_results: bool = False, **fit) -> list[FitResult]:
+    """t_fitparams: read, match, fit each equation and append its record to
+    `output` (and, with a log file, what IRAF logs). Raises ValueError with
+    IRAF's message when there is nothing to fit."""
+    from . import io
+
+    obs, logs = read_inputs(cfg, observations, catalogs, logfile, catdir, log_unmatched)
     results = []
     for eq in cfg.equations:
         result = fit_equation(cfg, eq, obs.rows.copy(), **fit)
         io.write_coeffs(output, eq, result, fit.get("weighting", "uniform"))
-        if logfile and log_fit:
-            logs.append(f"#EQUATION: {eq.name}\n\n" + log_fit_text(result))
-        if logfile and log_results:
-            logs.append(f"#RESULTS: {eq.name}\n\n" + log_results_text(result, obs.names))
+        if logfile:
+            logs.append(equation_log(result, obs.names, log_fit, log_results))
         results.append(result)
     if logfile:
         with open(logfile, "a") as out:

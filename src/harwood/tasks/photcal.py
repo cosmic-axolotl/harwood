@@ -111,12 +111,20 @@ class FitparamsParams(TaskParams):
     log_results: bool = Field(False, description="Log each star's residual.")
     catdir: str = Field("", description="Look for each catalog here as NAME.dat "
                                         "first.")
+    interactive: bool = Field(False, description="Look at each equation's fit, delete "
+                                                 "the stars that do not belong, and say "
+                                                 "which fits to keep.")
+    gcommands: str = Field("", description="Cursor commands for those keys, 'x y wcs "
+                                           "key' per line, instead of the window.")
+    answers: str = Field("", description="With gcommands: the lines the prompts read "
+                                         "(save? where next?), as IRAF takes them from "
+                                         "the terminal. Empty: each takes its default.")
 
 
 @register
 class Fitparams(Task[FitparamsParams]):
     """Fit the transformation equations to the standard stars, as IRAF's
-    fitparams does non-interactively."""
+    fitparams does, with its keys in a tab beside the image when asked for."""
 
     name = "fitparams"
     package = "photcal"
@@ -131,6 +139,9 @@ class Fitparams(Task[FitparamsParams]):
                              + (", with a scatter term" if params.addscatter
                                 and params.weighting != "uniform" else ""),
                       why=WHY["fit"])]
+        if params.interactive or params.gcommands:
+            steps.append(Step("keys", f"the keys, from {params.gcommands or 'the window'}",
+                              why=WHY["fitkeys"]))
         if params.nreject:
             steps.append(Step("reject", f"{params.nreject} iterations at "
                                         f"-{params.low_reject:g}/+{params.high_reject:g} "
@@ -139,21 +150,34 @@ class Fitparams(Task[FitparamsParams]):
         return steps
 
     def execute(self, params: FitparamsParams) -> TaskResult:
-        from ..core.photcal import fit, io
+        from ..core.photcal import fit, fitsession, io
 
         cfg = _parse(params.config)
+        _check_keys(params, "fitparams")
+        if params.answers and not Path(params.answers).exists():
+            advice.fail(f"answers file '{params.answers}' does not exist",
+                        "write one line for each prompt, or leave --answers empty for "
+                        "the defaults", FileNotFoundError)
         existed = params.parameters.is_file()
+        options = dict(logfile=params.logfile, catdir=params.catdir,
+                       log_unmatched=params.log_unmatched, log_fit=params.log_fit,
+                       log_results=params.log_results, weighting=params.weighting,
+                       addscatter=params.addscatter, tol=params.tolerance,
+                       maxiter=params.maxiter, nreject=params.nreject,
+                       low_reject=params.low_reject, high_reject=params.high_reject,
+                       grow=params.grow)
+        said = ""
         try:
-            results = fit.fitparams(
-                cfg, _files(params.observations), _files(params.catalogs),
-                str(params.parameters),
-                logfile=params.logfile, catdir=params.catdir,
-                log_unmatched=params.log_unmatched, log_fit=params.log_fit,
-                log_results=params.log_results, weighting=params.weighting,
-                addscatter=params.addscatter, tol=params.tolerance,
-                maxiter=params.maxiter, nreject=params.nreject,
-                low_reject=params.low_reject, high_reject=params.high_reject,
-                grow=params.grow)
+            if params.interactive or params.gcommands:
+                session = fitsession.FitSession(
+                    cfg, _files(params.observations), _files(params.catalogs),
+                    str(params.parameters), **options)
+                said = _fit_by_the_keys(session, params)
+                results = session.saved
+            else:
+                results = fit.fitparams(
+                    cfg, _files(params.observations), _files(params.catalogs),
+                    str(params.parameters), **options)
         except (ValueError, OSError, io.ContinuationError) as error:
             advice.fail(str(error), "check the observation and catalog files "
                                     "against the configuration's columns.")
@@ -203,6 +227,15 @@ class Fitparams(Task[FitparamsParams]):
                 f"{params.parameters} already had records; these were appended.",
                 "invertfit and evalfit read the last record of each equation, "
                 "so the new ones are the ones used."))
+        unsaved = [eq.name for eq in cfg.equations
+                   if not any(r.eq is eq for r in results)]
+        if (params.interactive or params.gcommands) and unsaved:
+            warnings.append(advice.warn(
+                f"nothing was saved for {', '.join(unsaved)}.",
+                "invertfit and evalfit need a record for every equation they use: "
+                "run it again and save them."))
+        if said:
+            data["text"] = said.replace("\a", "").splitlines()
         outputs = [params.parameters] + ([Path(params.logfile)] if params.logfile else [])
         return TaskResult(outputs=outputs, steps=steps, warnings=warnings, data=data)
 

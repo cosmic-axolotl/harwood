@@ -25,7 +25,7 @@ import numpy as np
 import pytest
 import yaml
 
-from harwood.core.photcal import apfile, config, evalfit, fit, invert
+from harwood.core.photcal import apfile, config, evalfit, fit, fitsession, invert
 from harwood.core.photcal import obsfile as obs
 
 DATA = Path(__file__).parent / "data" / "iraf_photcal"
@@ -403,6 +403,100 @@ def test_mkapfile_keys_need_a_screen_or_a_file(tmp_path, monkeypatch):
     with pytest.raises(FileNotFoundError):
         _run_mkapfile(tmp_path, gcommands="nosuch.cur")
     assert not (tmp_path / "a").exists()
+
+
+FITKEYS = DATA / "fitkeys"
+FITCASES = sorted(path.stem for path in FITKEYS.glob("*.cur"))
+
+
+def _said(text: str) -> list[str]:
+    """What IRAF printed less the terminal's: the bell, and `w`, which is not
+    ported, asking for its window."""
+    text = text.replace("window:\a", "").replace("\a", "")
+    return [line for line in text.splitlines() if not _stamped(line)]
+
+
+def _named_by_memory(lines: list[str]) -> list[str]:
+    """`:const 3`: IRAF names the parameter with whatever was in memory."""
+    return [re.sub(r"^\(.*\) changed to", "changed to", line) for line in lines]
+
+
+def _written(path: Path) -> list[str]:
+    """A parameters file or log without its time stamps."""
+    if not path.exists():
+        return []
+    return [line for line in _lines(path) if not line.startswith("# ")]
+
+
+@pytest.mark.parametrize("case", FITCASES)
+def test_fitparams_by_the_keys_says_and_writes_what_iraf_does(here, case):
+    """Each case is a cursor file and the answers to the prompts, as IRAF 2.18
+    ran them (fitkeys/run_iraf.py): what it printed on both streams, the
+    parameters file, the log, and what a colon command wrote to a file."""
+    settings = yaml.safe_load((FITKEYS / "CASES.yaml").read_text())[case]
+    cfgfile = settings.pop("config", "configuration.mkconfig")
+    if cfgfile == "cfgplot.cfg":
+        cfgfile = str(FITKEYS / cfgfile)
+    session = fitsession.FitSession(
+        config.parse(cfgfile), ["observations.obsfile"], [CATALOG], "out.fit",
+        logfile="out.log", log_fit=True, log_results=True, **settings)
+    session.run_commands((FITKEYS / f"{case}.cur").read_text(),
+                         (FITKEYS / f"{case}.ans").read_text())
+    assert _named_by_memory(_said(session.stdout)) == _named_by_memory(
+        _said((FITKEYS / f"{case}.out").read_text()))
+    assert session.stderr == (FITKEYS / f"{case}.err").read_text()
+    assert _written(here / "out.fit") == _written(FITKEYS / f"{case}.fit")
+    assert _written(here / "out.log") == _written(FITKEYS / f"{case}.log")
+    if (FITKEYS / f"{case}.keep").exists():
+        assert _lines(here / "keep.txt") == _lines(FITKEYS / f"{case}.keep")
+
+
+def _run_fitparams(tmp_path, case=None, **params):
+    from harwood.tasks.photcal import Fitparams, FitparamsParams
+
+    if case:
+        params |= dict(gcommands=str(FITKEYS / f"{case}.cur"),
+                       answers=str(FITKEYS / f"{case}.ans"))
+    return Fitparams().execute(FitparamsParams(
+        observations=["observations.obsfile"], catalogs=[CATALOG],
+        config="configuration.mkconfig", parameters=tmp_path / "out.fit", **params))
+
+
+def test_fitparams_gcommands_is_the_session_iraf_ran(here):
+    result = _run_fitparams(here, "del")
+    assert _written(here / "out.fit") == _written(FITKEYS / "del.fit")
+    assert result.data["VFIT"]["points"] == 14
+    assert "Do you want to save fit results ?" in result.data["text"][-1]
+
+
+def test_fitparams_says_which_equations_were_not_saved(here):
+    result = _run_fitparams(here, "nosave")
+    assert not (here / "out.fit").exists()
+    assert any("VFIT, BFIT" in str(warning) for warning in result.warnings)
+    assert "keys" in [step.action for step in result.steps]
+
+
+def test_fitparams_keys_need_a_screen_or_a_file(here, monkeypatch):
+    from harwood.core import display
+
+    monkeypatch.setattr(display, "_autodetect", lambda: "none")
+    with pytest.raises(ValueError) as caught:
+        _run_fitparams(here, interactive=True)
+    assert "--gcommands" in caught.value.fix
+    with pytest.raises(FileNotFoundError):
+        _run_fitparams(here, gcommands="nosuch.cur")
+    with pytest.raises(FileNotFoundError):
+        _run_fitparams(here, gcommands=str(FITKEYS / "del.cur"), answers="nosuch.ans")
+    assert not (here / "out.fit").exists()
+
+
+def test_a_square_is_what_iraf_computes_not_what_powf_does():
+    """Found by the fit above: numpy's ** on a float32 scalar left its variance
+    off in the last place."""
+    from harwood.core.nlfit import f32, square
+
+    values = np.random.default_rng(1).uniform(-1, 1, 5000).astype(f32)
+    assert all(square(v) == v * v for v in values)
 
 
 def _cli(*args):

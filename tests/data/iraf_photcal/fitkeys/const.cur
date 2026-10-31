@@ -1,0 +1,20 @@
+0 0 1 : const v2
+0 0 1 : errors
+0 0 1 f
+0 0 1 : errors
+0 0 1 : const 3 0.2
+0 0 1 f
+0 0 1 : errors
+0 0 1 : fit v2
+0 0 1 : fit v2 0.1
+0 0 1 f
+0 0 1 : errors
+0 0 1 : const
+0 0 1 : const nosuch
+0 0 1 : const 99
+0 0 1 : const 0
+0 0 1 : const v1 abc
+0 0 1 : fit 3
+0 0 1 f
+0 0 1 : errors
+0 0 1 q

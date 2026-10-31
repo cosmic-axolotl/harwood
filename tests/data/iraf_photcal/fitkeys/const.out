@@ -1,0 +1,146 @@
+(v2) changed to constant parameter, with value=-0.03
+
+#Sat 08:59:16 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.02809818
+reduced chi        0.02809818
+average error              1.
+average scatter            0.
+RMS                0.02513178
+
+parameter            value           error
+v1             -21.9059124       0.0393189    (fit)
+v2               0.0445506       0.0181337    (constant)
+v3               0.2056334       0.0257491    (fit)
+
+
+#Sat 08:59:16 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.04189534
+reduced chi        0.04189534
+average error              1.
+average scatter            0.
+RMS                0.03900244
+
+parameter            value           error
+v1             -21.8687878       0.0570586    (fit)
+v2              -0.0300000       0.0000000    (constant)
+v3               0.2056334       0.0383929    (fit)
+
+(|v1|v2|v3|) changed to constant parameter, with value=0.2
+
+#Sat 08:59:16 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        3
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.04040473
+reduced chi        0.04040473
+average error              1.
+average scatter            0.
+RMS                0.03903468
+
+parameter            value           error
+v1             -21.8605671       0.0104326    (fit)
+v2              -0.0300000       0.0000000    (constant)
+v3               0.2000000       0.0000000    (constant)
+
+(v2) changed to fitting parameter, with value=-0.03
+(v2) changed to fitting parameter, with value=0.1
+
+#Sat 08:59:16 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        3
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.02704942
+reduced chi        0.02704942
+average error              1.
+average scatter            0.
+RMS                0.02518164
+
+parameter            value           error
+v1             -21.8976936       0.0111516    (fit)
+v2               0.0445505       0.0174569    (fit)
+v3               0.2000000       0.0000000    (constant)
+
+(v1) changed to fitting parameter, with value=0.2
+
+#Sat 08:59:16 31-Oct-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.02809824
+reduced chi        0.02809824
+average error              1.
+average scatter            0.
+RMS                0.02513183
+
+parameter            value           error
+v1             -21.9059162       0.0393188    (fit)
+v2               0.0445506       0.0181340    (fit)
+v3               0.2056361       0.0257491    (fit)
+
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

@@ -506,3 +506,72 @@ def test_the_cog_panel_stays_as_a_tab_after_q(tabs, cog):
     assert tabs.views.indexOf(cog) >= 0
 
 
+@pytest.fixture
+def fitting(monkeypatch, tmp_path):
+    pytest.importorskip("PySide6")
+    pytest.importorskip("pyqtgraph")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from harwood.core.photcal import config, fitsession
+    from harwood.viewer import _qt
+    from harwood.viewer.fit_panel import FitPanel
+
+    _qt.application()
+    monkeypatch.chdir(Path(__file__).parent / "data" / "iraf_photcal")
+    session = fitsession.FitSession(
+        config.parse("configuration.mkconfig"), ["observations.obsfile"],
+        ["catalogo.mkcatalog"], str(tmp_path / "out.fit"))
+    return FitPanel(session)
+
+
+def test_the_fit_panel_draws_the_graph_keys_and_deletes_at_the_cursor(fitting):
+    session = fitting.session
+    assert session.graph().xlabel == "function" and session.graph().ylabel == "residuals"
+    assert fitting.key("k")
+    assert session.graph().xlabel == "TB"
+    graph = session.graph()
+    fitting._cursor = (float(graph.kept[0][4]), float(graph.kept[1][4]))
+    view = fitting.plot.getViewBox().viewRange()
+    fitting.key("d")
+    assert session.graph().deleted[0].size == 1
+    assert fitting.plot.getViewBox().viewRange() == view, "a deletion leaves the zoom alone"
+    fitting.key("f")
+    assert "RMS=" in fitting.params.text() and "deleted=1" in fitting.params.text()
+    assert not fitting.key("z")
+
+
+def test_the_fit_panel_asks_with_buttons_and_finishes_after_the_last(fitting, tmp_path):
+    seen = []
+    fitting.finished.connect(lambda: seen.append(True))
+    fitting.key("q")
+    words = [fitting._row.itemAt(i).widget().text() for i in range(fitting._row.count() - 1)]
+    assert words == ["yes", "no"]
+    assert "save fit results" in fitting.command.placeholderText()
+    fitting._row.itemAt(0).widget().click()
+    assert fitting.session.state == "command"
+    fitting.command.setText("")
+    fitting._run_command()                      # a blank line: the default, next
+    assert fitting.session.eq.name == "BFIT"
+    fitting.key("q")
+    fitting._answer("no")
+    fitting._answer("next")
+    fitting._answer("yes")
+    assert seen == [True]
+    assert fitting.session.state == "done"
+    assert (tmp_path / "out.fit").read_text().count("begin") == 1
+    fitting.key("d")
+    assert "The results are written" in fitting.said
+
+
+def test_the_fit_panel_takes_a_graph_key_definition(fitting):
+    fitting.key("g")
+    assert fitting.session.state == "graphkey"
+    fitting._answer("i")
+    assert "Set graph axis types" in fitting.command.placeholderText()
+    fitting._answer("XV, residuals")
+    assert fitting.session.state == "fit"
+    assert fitting.session.graph().xlabel == "XV"
+    fitting.command.setText(":tol")
+    fitting._run_command()
+    assert "tol = " in fitting.said
+
+

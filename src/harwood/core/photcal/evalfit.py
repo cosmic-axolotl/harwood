@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..nlfit import DONE
+from ..nlfit import DONE, square
 from . import io
 from .config import INDEF, Config, evaluate
 from .invert import _fields, _format, default_format, print_list
@@ -93,7 +93,7 @@ def _error(code: list, fit, params, row: np.ndarray, errors: list) -> np.float32
                 continue
             saved = row[i]
             row[i] = f32(saved + err)
-            total = f32(total + f32(f32(evaluate(code, row, params) - fit) ** 2))
+            total = f32(total + square(evaluate(code, row, params) - fit))
             row[i] = saved
     return f32(np.sqrt(total)) if nerrors else INDEF
 
