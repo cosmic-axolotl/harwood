@@ -404,9 +404,23 @@ class MkapfileParams(TaskParams):
                                            "to magfile as an eleventh column, Obj, for "
                                            "obsfile (incolumns ...,11). IRAF's file has "
                                            "ten.")
+    interactive: bool = Field(False, description="Look at each image's curve of growth "
+                                                 "and delete the points that do not "
+                                                 "belong, before anything is written.")
+    gcommands: str = Field("", description="Cursor commands for those keys, 'x y wcs "
+                                           "key' per line up to q, instead of the window.")
 
 
 WHY.update({
+    "fitkeys": "A fit can be right by its statistics and wrong by its picture: a star "
+               "misidentified, or observed through cloud, sits off the line and pulls "
+               "it. A deleted star stays out of the fit only after f, q does not refit, "
+               "and each record saved is appended, so the last one is the one used.",
+    "keys": "A star with a neighbour in its outer apertures, or a cosmic ray, shows "
+            "as a point off the curve, and the weights only go so far. Deleting a "
+            "point takes the apertures beyond it too, and changes nothing until the "
+            "fit is done again with f: q does not refit, it writes the corrections "
+            "from the fit it has.",
     "read": "Each star is used out to the last aperture whose magnitude is "
             "defined and whose error is under maglim -- a faint star's outer "
             "apertures are mostly sky. What is fitted is the difference "
@@ -435,7 +449,7 @@ WHY.update({
 @register
 class Mkapfile(Task[MkapfileParams]):
     """Aperture corrections from the curve of growth, as IRAF's mkapfile
-    does non-interactively."""
+    does, with its keys in a tab beside the image when asked for."""
 
     name = "mkapfile"
     package = "photcal"
@@ -445,21 +459,27 @@ class Mkapfile(Task[MkapfileParams]):
     def plan(self, params: MkapfileParams) -> list[Step]:
         large = params.largeap or params.naperts
         names = ("swings", "pwings", "pgauss", "rgescale", "xwings")[:params.nparams]
+        keys = []
+        if params.interactive or params.gcommands:
+            keys = [Step("keys", f"the keys, from {params.gcommands or 'the window'}",
+                         why=WHY["keys"])]
         return [Step("read", f"{params.naperts} apertures from "
                              f"{', '.join(params.photfiles)}, errors under "
                              f"{params.maglim:g} mag", why=WHY["read"]),
                 Step("model", f"fit {', '.join(names)} and a seeing radius per image",
                      why=WHY["model"]),
+                *keys,
                 Step("adopt", "each image's curve of growth", why=WHY["adopt"]),
                 Step("correct", f"from aperture {params.smallap} to {large}, "
                                 f"into {params.apercors}", why=WHY["correct"])]
 
     def execute(self, params: MkapfileParams) -> TaskResult:
-        from ..core.photcal import apfile
+        from ..core.photcal import apfile, apsession
 
         if params.largeap and params.largeap > params.naperts:
             advice.fail(f"largeap {params.largeap} is beyond the {params.naperts} "
                         "apertures read.", "lower largeap, or raise naperts.")
+        _check_keys(params)
         notes: list[str] = []
         try:
             images = apfile.read_photfiles(_files(params.photfiles), params.naperts,
@@ -471,13 +491,24 @@ class Mkapfile(Task[MkapfileParams]):
         except (OSError, ValueError) as error:
             advice.fail(f"cannot read the photometry: {error}",
                         "the inputs must be phot's text output (.mag files).")
+        start = (params.swings, params.pwings, params.pgauss, params.rgescale, params.xwings)
+        said: list[str] = []
+        stale = False
         try:
-            result = apfile.apfile(
-                images, params.naperts, str(params.apercors), params.smallap,
-                params.largeap, magfile=params.magfile, logfile=params.logfile,
-                params=(params.swings, params.pwings, params.pgauss, params.rgescale,
-                        params.xwings),
-                nparams=params.nparams, append=params.append, names=params.names)
+            if params.interactive or params.gcommands:
+                session = apsession.ApSession(images, params.naperts, start, params.nparams,
+                                              params.smallap, params.largeap)
+                said = _by_the_keys(session, params)
+                stale = session.newfit
+                result, more = session.finish(str(params.apercors), params.magfile,
+                                              params.logfile, params.append, params.names)
+                said += more
+            else:
+                result = apfile.apfile(
+                    images, params.naperts, str(params.apercors), params.smallap,
+                    params.largeap, magfile=params.magfile, logfile=params.logfile,
+                    params=start, nparams=params.nparams, append=params.append,
+                    names=params.names)
         except ValueError as error:
             advice.fail(str(error).removeprefix("Error: "),
                         "with no star measured in at least two apertures there is "
@@ -514,6 +545,13 @@ class Mkapfile(Task[MkapfileParams]):
                     "mostly the model's.",
                     "fit it together with other images of the night, which share "
                     "the model."))
+        if stale:
+            warnings.append(advice.warn(
+                "points were deleted or a parameter changed after the last fit, so the "
+                "corrections come from the fit before it.",
+                "run it again, and press f before q."))
+        if said:
+            data["text"] = said
         outputs = [params.apercors] + [Path(p) for p in (params.magfile, params.logfile)
                                        if p]
         return TaskResult(outputs=outputs, steps=steps, warnings=warnings, data=data)
@@ -969,6 +1007,40 @@ class Mkcatalog(Task[MkcatalogParams]):
         return TaskResult(outputs=outputs, steps=steps, warnings=warnings,
                           data={"columns": cat.names, "widths": cat.widths,
                                 "created": cat.created, "records": cat.nrecords})
+
+
+def _check_keys(params, task: str = "mkapfile") -> None:
+    """Before anything is read: where the keys of an interactive run will come from."""
+    from ..core import display
+
+    if params.gcommands:
+        if not Path(params.gcommands).exists():
+            advice.fail(f"graphics cursor file '{params.gcommands}' does not exist",
+                        "write 'x y 1 key' lines, q ending them", FileNotFoundError)
+    elif params.interactive and display._autodetect() != "native":
+        advice.fail(f"{task} --interactive needs a screen, and there is none here.",
+                    "run it inside `harwood gui` or on a desktop, or give the keys with "
+                    "--gcommands.")
+
+
+def _fit_by_the_keys(session, params: FitparamsParams) -> str:
+    """Fitparams' keys, from --gcommands or the window: what they printed."""
+    if params.gcommands:
+        answers = Path(params.answers).read_text() if params.answers else ""
+        session.run_commands(Path(params.gcommands).read_text(), answers)
+        return session.stdout + session.stderr
+    from ..viewer.fit_panel import run
+
+    return run(session)
+
+
+def _by_the_keys(session, params: MkapfileParams) -> list[str]:
+    """Mkapfile's keys, from --gcommands or the window: what they printed."""
+    if params.gcommands:
+        return session.run_commands(Path(params.gcommands).read_text())
+    from ..viewer.cog_panel import run
+
+    return run(session)
 
 
 def _files(items: list[str]) -> list[str]:

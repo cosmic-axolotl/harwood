@@ -1,0 +1,59 @@
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+
+The initial cog model parameter values for nparams 3
+	    swings:             1.2
+	    pwings:             0.1
+	    pgauss:             0.5
+	  rgescale:             0.9
+	    xwings:              0.
+
+
+The computed cog model parameters and their errors for nparams 3
+	    swings:        1.070178 +/-              0.
+	    pwings:      0.07774672 +/-              0.
+	    pgauss:       0.6795542 +/-              0.
+	  rgescale:             0.9 +/-              0.
+	    xwings:              0. +/-              0.
+
+
+The seeing radius and assumed airmass for each image
+               data0097cr.fits    2.1511     1.164
+               data0098cr.fits    2.2780     1.162
+               stan0051cr.fits    2.6791     1.976
+               stan0052cr.fits    2.4035     1.904
+               stan0057cr.fits    2.5278     1.696
+               stan0058cr.fits    2.4119     1.651
+               stan0074cr.fits    2.1903     1.228
+               stan0075cr.fits    2.0921     1.216
+               stan0091cr.fits    2.3960     1.148
+               stan0092cr.fits    2.4275     1.149
+               stan0134cr.fits    3.1196     1.354
+               stan0135cr.fits    2.6870     1.376
+
+
+The computed cog model parameters and their errors for nparams 3
+	    swings:        1.070178 +/-              0.
+	    pwings:      0.07774672 +/-              0.
+	    pgauss:       0.6795542 +/-              0.
+	  rgescale:             0.9 +/-              0.
+	    xwings:              0. +/-              0.
+
+Image: data0097cr.fits  R0:   2.151  X: 1.164
+Image: stan0051cr.fits rin=1.00 rout=30.00 apercor=-2.882 +/- 0.1651
+Image: nosuch.fits not found in data
+nparams = 3
+swings = 1.2
+pwings = 0.1
+pgauss = 0.5
+rgescale = 0.9
+xwings = 0.
+smallap = 1
+largeap = 20
+Ambiguous or undefined command

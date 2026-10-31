@@ -1,0 +1,10 @@
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Star: 1 x: 22.421 y: 510.374 radius: 11.000 delta mag: -0.007
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Star: 1 x: 22.421 y: 510.374 radius: 11.000 residual: 0.002
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Star: 3 x: 530.257 y: 404.873 mag[1]: -6.682 residual: 0.002
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Star: 3 x: 530.257 y: 404.873 x: 530.257 residual: 0.002
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Star: 3 x: 530.257 y: 404.873 y: 404.873 residual: 0.002

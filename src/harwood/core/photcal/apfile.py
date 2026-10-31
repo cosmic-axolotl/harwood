@@ -246,11 +246,15 @@ class Fit:
     errors: list[float]
     nterms: int
     ok: bool
+    old: float = 0.0      # the static the next fit in this process starts from
 
 
-def fit_model(images: list[Image], params0: list[float], lterms: int) -> Fit:
+def fit_model(images: list[Image], params0: list[float], lterms: int,
+              old: float = 0.0) -> Fit:
     """ph_amfit: each image's seeing radius, and the model's parameters.
-    The images and their stars go to the kernel as arrays."""
+    The images and their stars go to the kernel as arrays. `old` is the static
+    the convergence test starts from: zero in a fresh process, and for a
+    refit the last fit's Fit.old."""
     nimg = len(images)
     naperts = max((len(i.stars[0].rap) for i in images if i.stars), default=1)
     allstars = [s for image in images for s in image.stars]
@@ -277,26 +281,26 @@ def fit_model(images: list[Image], params0: list[float], lterms: int) -> Fit:
     first_rap = allstars[0].rap[0] if allstars else f32(0.0)
     params = np.array(params0, dtype=np.float64)
     perrors = np.zeros(MAX_MTERMS)
-    ok, nterms = _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, f32(first_rap),
-                        params, perrors, lterms)
+    ok, nterms, old = _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, f32(first_rap),
+                             params, perrors, lterms, float(old))
     for image, r in zip(images, ro, strict=True):
         image.ro = f32(r)
     return Fit([float(v) for v in params], [float(v) for v in perrors], int(nterms),
-               bool(ok))
+               bool(ok), float(old))
 
 
 @jit
 def _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, first_rap, params, perrors,
-           lterms):
+           lterms, old):
     """ph_amfit's iterations, on arrays: ro and params are updated in place.
-    Returns whether the fit converged, and the number of terms fitted."""
+    Returns whether the fit converged, the number of terms fitted, and the
+    static the next fit starts from."""
     nimg, naperts = rap.shape
     pclamps = np.full(MAX_MTERMS, 0.2)
     pclamps[3] = 0.5
     pold = np.zeros(lterms)
     ipow, nterms = 1, 0
     gain = f32(0.0)
-    old = 0.0                         # static, zero in a fresh process
     sumn = 0.0
     u = np.zeros((lterms, lterms))
     v = np.zeros(lterms)
@@ -363,7 +367,7 @@ def _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, first_rap, params, perr
                     ro[k] = f32(ro[k] - f32(dr / f32(abs(f32(dr / rclamp)) + f32(1.0))))
                     if ro[k] <= EPSILONR:
                         ro[k] = NAN
-                        return False, nterms
+                        return False, nterms, old
                     rold = dr
                     if abs(f64(f32(dr / ro[k]))) <= CONVERGED:
                         break
@@ -373,7 +377,7 @@ def _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, first_rap, params, perr
                 ntimes += 1
                 if ntimes >= 100:
                     ro[k] = NAN
-                    return False, nterms
+                    return False, nterms, old
             # ph_adp: the parameter derivatives at the new radius
             t[:, :] = 0.0
             for j in range(1, naperts):
@@ -404,7 +408,7 @@ def _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, first_rap, params, perr
                         for m in range(nterms):
                             u[ll, m] = u[ll, m] + f64(wt) * t[ll, j] * t[m, j]
         if dinver(u, nterms):
-            return False, nterms
+            return False, nterms, old
         for i in range(nterms):
             dp[i] = 0.0
             for j in range(nterms):
@@ -444,10 +448,10 @@ def _amfit(rap, start, ngood, mag, merr, nap, nxair, ro, first_rap, params, perr
             continue
         break
     if niter > AGR_ITMAX:
-        return False, nterms
+        return False, nterms, old
     for k in range(nterms):
         perrors[k] = sumn * math.sqrt(u[k, k]) if u[k, k] > 0.0 else 0.0
-    return True, nterms
+    return True, nterms, old
 
 
 # --------------------------------------------------------------- evaluate
@@ -580,7 +584,10 @@ def correction(image: Image, curve: Curve, smallap: int, largeap: int):
 class Work:
     """AGR_MAGS, AGR_CMAGS, AGR_TMAGS, AGR_WMAGS: working arrays shared by the
     log and the best magnitudes, never cleared -- what a star does not
-    reach keeps the last star's values, and IRAF prints them."""
+    reach keeps the last star's values, and IRAF prints them. Before any star
+    has reached it IRAF prints the memory it was given: zeros in a plain run,
+    and after the graphs of an interactive one 77272.055 or the like. Here it
+    is always zero."""
 
     def __init__(self, naperts: int):
         self.mags = np.zeros(naperts, dtype=f32)
@@ -675,6 +682,9 @@ def magfile_header(largeap: int, names: bool = False) -> str:
     return f"# Magnitudes corrected to aperture {largeap}\n\n{line}\n\n"
 
 
+PARAMETERS = ("swings", "pwings", "pgauss", "rgescale", "xwings")
+
+
 @dataclass
 class Result:
     images: list[Image]
@@ -692,41 +702,62 @@ def apfile(images: list[Image], naperts: int, apercors: str, smallap: int = 1,
     carries the star's name from the photometry as an eleventh column, Obj
     -- what obsfile needs to write the stars under the names the standards
     catalog knows them by; IRAF's file has ten columns."""
-    smallap = max(1, min(naperts, smallap))
-    largeap = naperts if largeap <= 0 else max(1, min(naperts, largeap))
-    if largeap <= smallap:
-        raise ValueError("The large aperture is less than or equal to the large aperture")
+    smallap, largeap = limits(naperts, smallap, largeap)
     lterms = max(1, min(MAX_MTERMS, nparams))
     p0 = [float(f32(v)) for v in params]
-    log: list[str] = []
-    if logfile:
-        log += [f"NEW LOGFILE ENTRY AT: {cnvtime()}", f"APFILE: {apercors}", ""]
+    log = log_title(apercors) if logfile else []
     images = [image for image in images if image is not None]
     if not images:
         if logfile:
             log.append("There is no input data to fit")
         raise ValueError("Error: There is no input data to fit")
     fit = fit_model(images, p0, lterms)
+    return write_results(images, fit, naperts, apercors, smallap, largeap, magfile, logfile,
+                         p0, lterms, log, append, names)
 
+
+def limits(naperts: int, smallap: int, largeap: int) -> tuple[int, int]:
+    smallap = max(1, min(naperts, smallap))
+    largeap = naperts if largeap <= 0 else max(1, min(naperts, largeap))
+    if largeap <= smallap:
+        raise ValueError("The large aperture is less than or equal to the large aperture")
+    return smallap, largeap
+
+
+def log_title(apercors: str) -> list[str]:
+    return [f"NEW LOGFILE ENTRY AT: {cnvtime()}", f"APFILE: {apercors}", ""]
+
+
+def show_initial(params, lterms: int) -> list[str]:
+    """ph_ishow."""
+    return ["", f"The initial cog model parameter values for nparams {lterms}",
+            *(f"\t{name:>10}: {_g15(value)}" for name, value in zip(PARAMETERS, params,
+                                                                    strict=True)), ""]
+
+
+def show_model(fit: Fit, lterms: int) -> list[str]:
+    """ph_pshow."""
+    return ["", f"The computed cog model parameters and their errors for nparams {lterms}",
+            *(f"\t{name:>10}: {_g15(value)} +/- {_g15(error)}"
+              for name, value, error in zip(PARAMETERS, fit.params, fit.errors, strict=True)),
+            ""]
+
+
+def show_seeing(images: list[Image]) -> list[str]:
+    """ph_rshow."""
+    return ["", "The seeing radius and assumed airmass for each image",
+            *(f"{image.name:>30}  {_f(image.ro, 8, 4)}  {_f(image.xairmass, 8, 3)}"
+              for image in images), ""]
+
+
+def write_results(images: list[Image], fit: Fit, naperts: int, apercors: str, smallap: int,
+                  largeap: int, magfile: str, logfile: str, p0, lterms: int, log: list[str],
+                  append: bool = False, names: bool = False, stale: bool = False) -> Result:
+    """What is left once the fit is settled: ph_aeval and the log around it.
+    `stale`: points were deleted since the fit, as an interactive run may leave
+    it; IRAF says so in the log and goes on with the fit it has."""
     def ishow() -> None:
-        log.append("")
-        log.append(f"The initial cog model parameter values for nparams {lterms}")
-        for name, value in zip(("swings", "pwings", "pgauss", "rgescale", "xwings"), p0,
-                               strict=True):
-            log.append(f"\t{name:>10}: {_g15(value)}")
-        log.append("")
-        log.append("")
-        log.append(f"The computed cog model parameters and their errors for nparams "
-                   f"{lterms}")
-        for name, value, error in zip(("swings", "pwings", "pgauss", "rgescale",
-                                       "xwings"), fit.params, fit.errors, strict=True):
-            log.append(f"\t{name:>10}: {_g15(value)} +/- {_g15(error)}")
-        log.append("")
-        log.append("")
-        log.append("The seeing radius and assumed airmass for each image")
-        for image in images:
-            log.append(f"{image.name:>30}  {_f(image.ro, 8, 4)}  {_f(image.xairmass, 8, 3)}")
-        log.append("")
+        log.extend(show_initial(p0, lterms) + show_model(fit, lterms) + show_seeing(images))
 
     corrections, best = {}, {}
     apcat = [f"# The aperture correction from apertures {smallap} to {largeap} "
@@ -738,6 +769,8 @@ def apfile(images: list[Image], naperts: int, apercors: str, smallap: int = 1,
             log.append("Error: The cog model fit did not converge")
     else:
         if logfile:
+            if stale:
+                log.append("Warning: The cog model fit is out-of-date")
             ishow()
         tave = np.zeros(naperts, dtype=f32)
         tresid, tressq, twr = (np.zeros(naperts, dtype=f32) for _ in range(3))

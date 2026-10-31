@@ -428,3 +428,81 @@ def test_a_whole_task_through_the_tab(tabs):
     assert tabs.views.indexOf(panel) == 1 and not tabs._waiting
 
 
+@pytest.fixture
+def cog(monkeypatch):
+    pytest.importorskip("PySide6")
+    pytest.importorskip("pyqtgraph")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from harwood.core.photcal import apfile, apsession
+    from harwood.viewer import _qt
+    from harwood.viewer.cog_panel import CogPanel
+
+    _qt.application()
+    photometry = Path(__file__).parent / "data" / "iraf_photcal" / "apfile"
+    monkeypatch.chdir(photometry)
+    files = (photometry / "all.lis").read_text().split()
+    session = apsession.ApSession(apfile.read_photfiles(files, 20, 0.10), 20)
+    return CogPanel(session)
+
+
+def test_the_panel_says_what_the_session_says(cog):
+    assert cog.said == cog.session.printed
+    assert cog.key("w") and cog.said[-1] == cog.session.status()[0]
+    assert cog.said[-1] in cog.text.toPlainText()
+    cog.command.setText(":show parameters")
+    cog._run_command()
+    assert any("swings" in line for line in cog.said)
+    assert not cog.key("z"), "a key the session does not have is not the panel's"
+
+
+def test_the_panel_draws_each_graph_and_inverts_only_the_apercor(cog):
+    for key, inverted in (("r", False), ("b", False), ("x", False), ("y", False),
+                          ("a", True), ("m", False)):
+        assert cog.key(key)
+        assert cog.session.graphtype == key
+        assert cog.plot.getViewBox().yInverted() is inverted
+
+
+def test_a_point_deleted_at_the_cursor_goes_on_the_screen_and_into_the_next_fit(cog):
+    graph = cog.session.graph()
+    assert graph.dropped[0].size == 0
+    cog._cursor = (float(graph.kept[0][10]), float(graph.kept[1][10]))
+    view = cog.plot.getViewBox().viewRange()
+    cog.key("d")
+    assert cog.session.graph().dropped[0].size > 0
+    assert cog.session.newfit
+    assert cog.plot.getViewBox().viewRange() == view, "a deletion leaves the zoom alone"
+    cog.key("w")
+    assert "out-of-date" in cog.said[-1]
+    cog.key("f")
+    assert not cog.session.newfit
+
+
+def test_nearest_is_nearest_on_the_screen_however_it_is_zoomed(cog):
+    """Near the inner apertures in x and the outer ones in y: the same cursor
+    is on one or the other as the axes are stretched."""
+    _, by_x = cog.session._nearest(2.0, -0.01, (1000.0, 1.0), "all")
+    _, by_y = cog.session._nearest(2.0, -0.01, (1.0, 1000.0), "all")
+    assert by_x < by_y
+
+
+def test_a_finished_session_can_be_looked_at_but_not_changed(cog, tmp_path):
+    seen = []
+    cog.finished.connect(lambda: seen.append(True))
+    cog.key("q")
+    assert seen
+    assert "written" in cog.text.toPlainText()
+    cog.session.finish(str(tmp_path / "a"))
+    assert cog.key("r") and cog.session.graphtype == "r"
+    cog.key("d")
+    assert cog.said[-1].startswith("The results are written")
+
+
+def test_the_cog_panel_stays_as_a_tab_after_q(tabs, cog):
+    tabs.open_panel(cog, "mkapfile")
+    assert tabs.views.currentWidget() is cog
+    cog.key("q")
+    tabs.finish_panel(cog)
+    assert tabs.views.indexOf(cog) >= 0
+
+

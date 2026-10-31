@@ -1,0 +1,10 @@
+aps: {}
+deletes: {}
+faint:
+  maglim: 0.01
+limits:
+  largeap: 12
+  smallap: 2
+nofit:
+  maglim: 0.003
+walk: {}

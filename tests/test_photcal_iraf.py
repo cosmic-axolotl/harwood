@@ -17,10 +17,13 @@ rms is 1e-12, all rounding, and it lands two units of the seventh decimal
 away (1.9e-6 in 15.16, two units in the last place of a float).
 """
 
+import json
+import re
 from pathlib import Path
 
 import numpy as np
 import pytest
+import yaml
 
 from harwood.core.photcal import apfile, config, evalfit, fit, invert
 from harwood.core.photcal import obsfile as obs
@@ -228,6 +231,178 @@ def test_no_catalog_section_means_no_id(here):
     fit_value, _, resid = (float(v) for v in rows[0])
     assert fit_value + resid == pytest.approx(-10.714, abs=2e-6)
     assert rows[3][2] == "INDEF", "mV undefined: a value from mB, but nothing to compare it to"
+
+
+KEYS = DATA / "apkeys"
+
+
+def _unwritten(lines, ours):
+    """IRAF's log with the columns no star has reached yet in a `mags` row
+    taken from ours: after the graphs IRAF prints the memory it was given there,
+    which changes with the keys. Only where ours is zero, so that a number that
+    is wrong still shows."""
+    out, inside = [], False
+    for line, mine in zip(lines, ours, strict=True):
+        if line.startswith("    mags"):
+            inside = True
+        elif line.startswith("   cmags"):
+            inside = False
+        if inside:
+            for a in range(10, len(mine), 9):
+                if mine[a:a + 9] == "   0.0000":
+                    line = line[:a] + mine[a:a + 9] + line[a + 9:]
+        out.append(line)
+    return out
+
+
+KEYCASES = sorted(path.stem for path in KEYS.glob("*.cur"))
+
+
+@pytest.mark.parametrize("case", KEYCASES)
+def test_mkapfile_by_the_keys_says_and_writes_what_iraf_does(tmp_path, monkeypatch, case):
+    """Each case is a cursor file IRAF 2.18 ran (apkeys/run_iraf.py): what it
+    printed key by key, the corrections, the best magnitudes and the log."""
+    from harwood.core.photcal import apsession
+
+    monkeypatch.chdir(APFILE)
+    images = apfile.read_photfiles(PHOTFILES, 20, 0.10)
+    session = apsession.ApSession(images, 20)
+    said = session.run_commands((KEYS / f"{case}.cur").read_text())
+    apercors, mags, log = tmp_path / "a", tmp_path / "m", tmp_path / "l"
+    _, more = session.finish(str(apercors), str(mags), str(log))
+    assert said + more == (KEYS / f"{case}.out").read_text().replace("\a", "").splitlines()
+    assert apercors.read_text() == (KEYS / f"{case}.apercors").read_text()
+    assert mags.read_text() == (KEYS / f"{case}.mkapfile").read_text()
+    written = ("NEW LOGFILE", "APFILE")
+    ours = [line for line in _lines(log) if not line.startswith(written)]
+    theirs = [line for line in _lines(KEYS / f"{case}.log") if not line.startswith(written)]
+    assert ours == _unwritten(theirs, ours)
+
+
+GRAPHS = Path(__file__).parent / "data" / "iraf_photcal" / "apgraphs"
+GRAPHCASES = sorted(path.stem for path in GRAPHS.glob("*.cur"))
+#: A metacode unit is 1/32767 of the screen, and IRAF rounds where it falls.
+GKI_UNITS = 2
+
+
+def _on_screen(frame, x, y):
+    """Data coordinates as metacode ones, through the frame's own window."""
+    wx1, wx2, wy1, wy2, sx1, sx2, sy1, sy2 = frame["window"]
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    return np.c_[(sx1 + (x - wx1) / (wx2 - wx1) * (sx2 - sx1)) * 32767,
+                 (sy1 + (y - wy1) / (wy2 - wy1) * (sy2 - sy1)) * 32767]
+
+
+def _unmatched(points, others):
+    """Those of `points` with nothing of `others` where they are."""
+    points, others = np.reshape(points, (-1, 2)), np.reshape(others, (-1, 2))
+    if not len(others):
+        return points
+    return np.array([p for p in points if np.abs(others - p).max(axis=1).min() > GKI_UNITS]
+                    ).reshape(-1, 2)
+
+
+def _graphs_of(case):
+    """Every graph the session draws for a case's cursor file, in order."""
+    from harwood.core.photcal import apsession
+
+    class Recording(apsession.ApSession):
+        # A key that draws says the status after it; w says it and draws nothing.
+        drawn = None
+        by_w = False
+
+        def key(self, key, *args, **kwargs):
+            self.by_w = key == "w"
+            return super().key(key, *args, **kwargs)
+
+        def status(self):
+            if self.drawn is not None and not self.by_w:
+                self.drawn.append(self.graph())
+            return super().status()
+
+    options = yaml.safe_load((GRAPHS / "CASES.yaml").read_text())[case]
+    images = apfile.read_photfiles(PHOTFILES, 20, options.get("maglim", 0.10))
+    session = Recording(images, 20, smallap=options.get("smallap", 1),
+                        largeap=options.get("largeap", 0))
+    session.drawn = [session.graph()]
+    session.run_commands((GRAPHS / f"{case}.cur").read_text())
+    return session.drawn
+
+
+@pytest.mark.parametrize("case", GRAPHCASES)
+def test_mkapfile_draws_what_iraf_draws(monkeypatch, case):
+    """IRAF's own metacode (apgraphs/run_iraf.py): each frame's window, title,
+    labels, marks and lines, to the resolution of the metacode."""
+    monkeypatch.chdir(APFILE)
+    frames = json.loads((GRAPHS / f"{case}.json").read_text())
+    graphs = _graphs_of(case)
+    assert len(graphs) == len(frames)
+    for number, (graph, frame) in enumerate(zip(graphs, frames, strict=True)):
+        where = f"frame {number}"
+        width = abs(frame["window"][1] - frame["window"][0])
+        height = abs(frame["window"][3] - frame["window"][2])
+        assert graph.window[:2] == pytest.approx(frame["window"][:2], abs=1e-4 * width), where
+        assert graph.window[2:] == pytest.approx(frame["window"][2:4],
+                                                 abs=1e-4 * height), where
+        assert {graph.xlabel, graph.ylabel} <= set(frame["text"]), where
+        assert graph.title == [text for text in frame["text"]
+                               if text.startswith(("Image:", "Dashed"))], where
+        for theirs, ours in ((frame["plus"], graph.kept), (frame["cross"], graph.dropped)):
+            mine = _on_screen(frame, *ours)
+            assert len(mine) == len(theirs), where
+            assert not len(_unmatched(mine, theirs)), where
+            assert not len(_unmatched(theirs, mine)), where
+        left, right, bottom, top = (np.array(frame["window"][4:]) * 32767).tolist()
+        for style in (1, 2):
+            mine = [_on_screen(frame, x, y) for x, y, dashed in graph.lines
+                    if dashed == (style == 2)]
+            mine = np.vstack(mine) if mine else np.zeros((0, 2))
+            mine = mine[np.isfinite(mine).all(axis=1)]
+            inside = ((mine[:, 0] >= left - 1) & (mine[:, 0] <= right + 1)
+                      & (mine[:, 1] >= bottom - 1) & (mine[:, 1] <= top + 1))
+            theirs = [p for s, points in frame["lines"] if s == style for p in points]
+            assert not len(_unmatched(mine[inside], theirs)), where
+            # All but where IRAF cut a line at the edge of the plot.
+            extra = _unmatched(theirs, mine[inside])
+            assert all(min(abs(x - left), abs(x - right), abs(y - bottom), abs(y - top))
+                       <= GKI_UNITS for x, y in extra), where
+
+
+def _run_mkapfile(tmp_path, **params):
+    from harwood.tasks.photcal import Mkapfile, MkapfileParams
+
+    return Mkapfile().execute(MkapfileParams(
+        photfiles=PHOTFILES, naperts=20, apercors=tmp_path / "a", magfile=str(tmp_path / "m"),
+        logfile=str(tmp_path / "l"), **params))
+
+
+def test_mkapfile_gcommands_is_the_session_iraf_ran(tmp_path, monkeypatch):
+    monkeypatch.chdir(APFILE)
+    result = _run_mkapfile(tmp_path, gcommands=str(KEYS / "del.cur"))
+    assert result.data["text"] == (KEYS / "del.out").read_text().splitlines()
+    assert (tmp_path / "a").read_text() == (KEYS / "del.apercors").read_text()
+    assert (tmp_path / "m").read_text() == (KEYS / "del.mkapfile").read_text()
+    assert not result.warnings
+
+
+def test_mkapfile_says_when_q_left_the_fit_out_of_date(tmp_path, monkeypatch):
+    monkeypatch.chdir(APFILE)
+    result = _run_mkapfile(tmp_path, gcommands=str(KEYS / "stale.cur"))
+    assert (tmp_path / "a").read_text() == (KEYS / "stale.apercors").read_text()
+    assert any("press f before q" in warning.fix for warning in result.warnings)
+
+
+def test_mkapfile_keys_need_a_screen_or_a_file(tmp_path, monkeypatch):
+    from harwood.core import display
+
+    monkeypatch.chdir(APFILE)
+    monkeypatch.setattr(display, "_autodetect", lambda: "none")
+    with pytest.raises(ValueError) as caught:
+        _run_mkapfile(tmp_path, interactive=True)
+    assert "--gcommands" in caught.value.fix
+    with pytest.raises(FileNotFoundError):
+        _run_mkapfile(tmp_path, gcommands="nosuch.cur")
+    assert not (tmp_path / "a").exists()
 
 
 def _cli(*args):

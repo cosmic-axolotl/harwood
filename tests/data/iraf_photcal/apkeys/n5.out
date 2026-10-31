@@ -1,0 +1,11 @@
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.532 +/- 0.1569
+
+The computed cog model parameters and their errors for nparams 5
+	    swings:        1.024975 +/-              0.
+	    pwings:       0.3024893 +/-              0.
+	    pgauss:        0.919519 +/-              0.
+	  rgescale:       0.5176682 +/-              0.
+	    xwings:     -0.07437984 +/-              0.
+
+nparams = 5

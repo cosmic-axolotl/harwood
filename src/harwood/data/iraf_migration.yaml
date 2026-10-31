@@ -641,7 +641,7 @@ tasks:
     note: "IRAF's inversion and both error methods, ported and checked against IRAF's output to the seventh decimal"}
   istable: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   mkapfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkapfile,
-    note: "DAOGROW: the curve-of-growth model, the adopted curves, the corrections, the best magnitudes and the log, byte for byte IRAF's on twelve images alone and together; the interactive graphs and the obsparams airmass file are not ported"}
+    note: "DAOGROW: the curve-of-growth model, the adopted curves, the corrections, the best magnitudes and the log, byte for byte IRAF's on twelve images alone and together; the interactive graphs and keys in a tab, held to IRAF on 21 cursor files; the obsparams airmass file is not ported"}
   mkcatalog: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkcatalog,
     note: "header, records and format file byte for byte, the columns and records given at once instead of at prompts; the review of old records and the editor are not ported"}
   mkconfig: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkconfig,

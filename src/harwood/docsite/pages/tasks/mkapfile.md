@@ -40,6 +40,38 @@ photometry as an eleventh column, `Obj`, so [obsfile](task:obsfile) can
 write the stars under the names the standards catalog uses
 (`incolumns 1,6,7,2,3,4,5,8,9,11`); IRAF's file has ten.
 
+**By the keys.** `--interactive` opens the curve of growth in a tab beside
+the image, before anything is written; `--gcommands` takes the same keys from
+a file, `x y wcs key` a line up to `q`, without a screen.
+
+```console
+$ harwood mkapfile @all.lis 20 night.apercors --interactive --logfile night.log
+```
+
+`m` shows the curves by radius, `r`, `b`, `x` and `y` the residuals by radius,
+magnitude and position, `a` the correction by radius, with brighter upwards.
+`n` and `p` go through the images, `c` names the star at the cursor, `w` gives
+the correction. The colon commands change what the next fit starts from:
+`:nparams 5`, `:swings 1.5`, `:smallap 2`; `:show model`, `:show seeing` and
+`:show parameters` print it all, `:image` goes to an image by name. Everything
+said stays in the box under the plot and is printed when the task ends.
+
+`d` deletes the point at the cursor and every aperture of that star beyond it,
+because a star is used *out to* an aperture; `u` brings them back. A deletion
+changes nothing until `f` fits again, and the status says the fit is out of
+date until then. `f` goes back to the first image. `q` writes the results and
+does not refit: leave with points deleted and no `f`, and the corrections come
+from the fit before them, over the points as they now stand, as IRAF does,
+with a warning here. The tab stays after `q`, to look through; what would change
+the results says it can no longer, and its × closes it. Closing it before `q`
+is the same as `q`. From a shell, with no `harwood gui` open, the panel is a
+window of its own and closes on `q`.
+
+A cross is usually a deleted point. On the `a` graph it is also, deleted or not,
+any aperture from a star's last good one out to `largeap`: a star too faint to be
+measured there has the adopted curve standing in for it, and the graph says so.
+Apertures beyond `largeap` are not on that graph.
+
 **How far to trust a correction.** With a few stars per image, less than
 the error beside it says. On the Skinakas night -- three stars per image --
 IRAF's `.mag` file keeps the errors to 0.001 mag, and in the small
@@ -61,10 +93,20 @@ and the log are byte for byte IRAF's on the twelve Skinakas images, alone
 and together. One habit of IRAF's is kept: the first fit's convergence test
 starts from a value left by the previous fit in the same IRAF process, so
 IRAF run twice in one session gives a slightly different second answer.
-harwood always gives the first, which is what a fresh IRAF gives. With
+harwood always gives the first, which is what a fresh IRAF gives, and within
+a session by the keys a second `f` starts from the first, as IRAF's does.
+Twenty-one cursor files that IRAF ran give the same text key by key and the
+same three files, with one exception: once its graphs have run, IRAF's log
+fills the `mags` columns of a star no star has yet reached with whatever is in
+memory, 77272.055 say, and harwood's with 0.0000, what IRAF prints without
+graphs. What is drawn is held to IRAF's too, frame by frame from its graphics
+metacode: 308 frames, with windows, titles, marks and lines the same to 1/16000
+of the screen. Where IRAF draws a cross straight over the point `d` was pressed
+on, harwood redraws the graph, which is what `g` shows in IRAF. An image with
+no star at all has its empty graph's x axis from memory in IRAF; here it is
+just around zero. With
 numba installed (`harwood[fast]`) the fit is compiled: twelve images
 together take a twentieth of a second instead of one to three, to the
 same digits. The
-interactive graphs and the `obsparams` file (airmasses from a separate
-table) are not ported; set the airmass in the headers with
-[setairmass](task:setairmass) before phot.
+`obsparams` file (airmasses from a separate table) is not ported; set the
+airmass in the headers with [setairmass](task:setairmass) before phot.

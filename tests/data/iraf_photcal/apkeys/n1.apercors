@@ -1,0 +1,14 @@
+# The aperture correction from apertures 1 to 20 in magnitudes
+
+data0097cr.fits -2.610503 0.1578789
+data0098cr.fits -2.5213 0.1508106
+stan0051cr.fits -2.893346 0.1650982
+stan0052cr.fits -2.773245 0.1640705
+stan0057cr.fits -2.849187 0.1607889
+stan0058cr.fits -2.769187 0.1623859
+stan0074cr.fits -2.651314 0.1582637
+stan0075cr.fits -2.517563 0.1532841
+stan0091cr.fits -2.741333 0.1593398
+stan0092cr.fits -2.81132 0.1600143
+stan0134cr.fits -2.8911 0.1592115
+stan0135cr.fits -2.976803 0.1680486

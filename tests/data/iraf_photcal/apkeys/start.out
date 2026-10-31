@@ -1,0 +1,18 @@
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.571 +/- 0.1568
+
+The initial cog model parameter values for nparams 3
+	    swings:             1.5
+	    pwings:             0.2
+	    pgauss:             0.4
+	  rgescale:             0.8
+	    xwings:             0.1
+
+Image: data0097cr.fits rin=1.00 rout=30.00 apercor=-2.527 +/- 0.1559
+
+The computed cog model parameters and their errors for nparams 3
+	    swings:        1.026405 +/-        2.386385
+	    pwings:       0.2181145 +/-         16.3856
+	    pgauss:       0.8208837 +/-       0.7855014
+	  rgescale:             0.8 +/-              0.
+	    xwings:             0.1 +/-              0.
+

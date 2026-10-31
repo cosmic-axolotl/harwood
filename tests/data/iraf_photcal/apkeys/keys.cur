@@ -1,0 +1,25 @@
+0 0 1 m
+0 0 1 r
+0 0 1 b
+0 0 1 x
+0 0 1 y
+0 0 1 a
+0 0 1 g
+0 0 1 w
+0 0 1 : show parameters
+0 0 1 : show model
+0 0 1 : show seeing
+0 0 1 : show
+0 0 1 : image
+0 0 1 : image stan0051cr.fits
+0 0 1 : image nosuch.fits
+0 0 1 : nparams
+0 0 1 : swings
+0 0 1 : pwings
+0 0 1 : pgauss
+0 0 1 : rgescale
+0 0 1 : xwings
+0 0 1 : smallap
+0 0 1 : largeap
+0 0 1 : bogus
+0 0 1 q
