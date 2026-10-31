@@ -62,6 +62,10 @@ WHY = {
                  "star, sky noise over the aperture, and the uncertainty in the "
                  "mean sky itself -- and in a crowded field the third one, which "
                  "a naive implementation drops, is what dominates.",
+    "findkeys": "The threshold is a judgement about this frame: too low and the "
+                "noise is stars, too high and the faint ones are gone. Trying it on the "
+                "image is quicker than reading a list, and f only looks, so that what "
+                "is written is what was decided on.",
     "write": "Coordinates leave here 1-based and (x, y), as IRAF and DS9 write "
              "them, with the convention recorded in the file so nothing "
              "downstream has to assume it.",
@@ -121,6 +125,11 @@ class DaoFindParams(TaskParams):
                     "the filter is defined right up to the edge -- and so does "
                     "harwood by default.",
     )
+    interactive: bool = Field(
+        False, description="Try parameters on the image in the window, with IRAF's "
+                           "keys: f finds, the space bar finds and writes, q ends.")
+    icommands: str = Field(
+        "", description="The same keys from a file, 'x y wcs key' per line.")
 
 
 @register
@@ -129,6 +138,68 @@ class DaoFind(Task[DaoFindParams]):
     package = "apphot"
     description = "Detect point sources with the DAOFIND algorithm."
     Params = DaoFindParams
+
+    def _by_the_keys(self, params, data, header, sigma, measured) -> TaskResult:
+        """Daofind's keys, from --icommands or the window: a list for each time
+        the space bar found something new."""
+        import numpy as np
+
+        from ..core import catalog, daofindsession, output, photsession, provenance
+
+        if params.icommands and not Path(params.icommands).exists():
+            advice.fail(f"cursor file '{params.icommands}' does not exist",
+                        "write 'x y 1 key' lines, or use --interactive for the window",
+                        FileNotFoundError)
+        destination = params.output or output.named_for(params.image, ".coo")
+        session = daofindsession.Session(
+            data, str(params.image), str(destination),
+            dict(fwhmpsf=params.fwhmpsf, sigma=sigma, threshold=params.threshold,
+                 nsigma=params.nsigma, ratio=params.ratio, theta=params.theta,
+                 sharplo=params.sharplo, sharphi=params.sharphi, roundlo=params.roundlo,
+                 roundhi=params.roundhi, epadu=params.epadu, readnoise=params.readnoise,
+                 scale=1.0))
+        if params.icommands:
+            for x, y, key in photsession.read_commands(params.icommands):
+                session.colon(key) if key.startswith(":") else session.key(key, x, y)
+                if session.done:
+                    break
+        else:
+            _find_in_window(session, data, header, params)
+        outputs, sources = [], 0
+        for name, found, _ in session.written:
+            keep = np.flatnonzero(_inside(found, data.shape, params.border))
+            sources = keep.size
+            outputs.append(catalog.write(
+                _catalogue(found, keep), name, harwood_image=str(params.image),
+                harwood_sigma=float(session.params["sigma"]),
+                harwood_threshold=found["threshold"],
+                harwood_call=provenance.current_stamp() or ""))
+        warnings = []
+        if measured:
+            warnings.append(advice.note(
+                f"the background sigma was measured from the image: {sigma:.3f}.",
+                "set another with :sigma, or give it with --sigma."))
+        if not session.written:
+            warnings.append(advice.warn(
+                "nothing was written: f only finds, and the space bar writes.",
+                "press the space bar before q when the list looks right."))
+        refits = [name for name, _, refit in session.written if refit]
+        if refits:
+            warnings.append(advice.warn(
+                f"the sharpness in {', '.join(refits)} is what IRAF gives when it finds "
+                "again on the same kernel, which counts one pixel too few, so some stars "
+                "may have passed or failed sharplo by it.",
+                "to have the sharpness a plain run gives, change a kernel parameter or "
+                "run it without the keys."))
+        steps = [Step("read", params.image, why=WHY["read"]),
+                 Step("keys", f"the keys, from {params.icommands or 'the window'}",
+                      why=WHY["findkeys"]),
+                 Step("write", ", ".join(str(path) for path in outputs) or "nothing",
+                      why=WHY["write"])]
+        data_out = {"sources": sources, "sigma": float(session.params["sigma"])}
+        if session.said:
+            data_out["text"] = session.said
+        return TaskResult(outputs=outputs, steps=steps, warnings=warnings, data=data_out)
 
     def plan(self, params: DaoFindParams) -> list[Step]:
         steps = [
@@ -155,7 +226,6 @@ class DaoFind(Task[DaoFindParams]):
     def execute(self, params: DaoFindParams) -> TaskResult:
         import numpy as np
         from astropy.stats import sigma_clipped_stats
-        from astropy.table import Table
 
         from ..core import catalog, daofind, images, output, provenance
 
@@ -170,13 +240,16 @@ class DaoFind(Task[DaoFindParams]):
                 "constant. Give it with --sigma."
             )
 
+        if params.interactive or params.icommands:
+            return self._by_the_keys(params, data, header, sigma, measured)
+
         found = daofind.find(
             data, params.fwhmpsf, sigma, threshold=params.threshold,
             nsigma=params.nsigma, ratio=params.ratio, theta=params.theta,
             sharplo=params.sharplo, sharphi=params.sharphi,
             roundlo=params.roundlo, roundhi=params.roundhi,
             epadu=params.epadu, readnoise=params.readnoise)
-        x, y = found["x"], found["y"]
+        x = found["x"]
         if x.size == 0:
             raise RuntimeError(
                 f"no sources found. The background sigma "
@@ -184,27 +257,16 @@ class DaoFind(Task[DaoFindParams]):
                 f"--threshold than {params.threshold}, or check --fwhmpsf."
             )
 
-        ny, nx = data.shape
         border = params.border
-        inside = ((x > border + 0.5) & (x < nx + 0.5 - border)
-                  & (y > border + 0.5) & (y < ny + 0.5 - border))
+        inside = _inside(found, data.shape, border)
         dropped = int((~inside).sum())
         if not inside.any():
             raise RuntimeError(
                 f"every one of the {x.size} detections was within {border:g} px "
                 "of the edge. Lower --border if the field really does run to the edge."
             )
-        # Brightest first, where IRAF writes them line by line. It is the one
-        # ordering two frames of the same field agree on, which is what
-        # xyxymatch's triangle search needs when it takes only the brightest
-        # nmatch stars from each list.
         keep = np.flatnonzero(inside)
-        keep = keep[np.argsort(found["mag"][keep], kind="stable")]
-        catalogue = Table({
-            "id": range(1, keep.size + 1),
-            **{name: found[name][keep]
-               for name in ("x", "y", "mag", "sharpness", "sround", "ground")},
-        })
+        catalogue = _catalogue(found, keep)
         destination = params.output or output.named_for(params.image, ".coo")
         catalog.write(catalogue, destination,
                       harwood_image=str(params.image),
@@ -658,6 +720,83 @@ class _Interactive(TaskParams):
         "", description="Image cursor commands instead of the window: 'x y 1 key' or "
                         "'x y 1 :command' per line, IRAF's icommands. \\040 is the "
                         "space bar.")
+
+
+def _inside(found: dict, shape: tuple[int, int], border: float):
+    """The detections further than `border` from the edge."""
+    ny, nx = shape
+    x, y = found["x"], found["y"]
+    return ((x > border + 0.5) & (x < nx + 0.5 - border)
+            & (y > border + 0.5) & (y < ny + 0.5 - border))
+
+
+def _catalogue(found: dict, keep):
+    """A detection list as a table. Brightest first, where IRAF writes them line
+    by line: it is the one ordering two frames of the same field agree on, which
+    is what xyxymatch's triangle search needs when it takes only the brightest
+    nmatch stars from each list."""
+    import numpy as np
+    from astropy.table import Table
+
+    keep = keep[np.argsort(found["mag"][keep], kind="stable")]
+    return Table({
+        "id": range(1, keep.size + 1),
+        **{name: found[name][keep]
+           for name in ("x", "y", "mag", "sharpness", "sround", "ground")},
+    })
+
+
+def _find_in_window(session, data, header, params) -> None:
+    """The image in the window and daofind's keys handed to the session until q;
+    the stars of the last find circled, and d the radial profile."""
+    from ..core import daofindsession, display
+
+    screen = display.get(None)
+    window = getattr(screen, "window", None)
+    if window is None or not hasattr(window, "wait_for_examine"):
+        advice.fail("--interactive needs the window",
+                    "run it where there is a screen, or give the keys in a file with "
+                    "--icommands")
+    screen.show(data, header, name=str(params.image))
+    said = [0]
+
+    def redraw() -> None:
+        for line in session.said[said[0]:]:
+            window.log("  " + line)
+        said[0] = len(session.said)
+        frame = window.frames.get(window.current)
+        if frame is not None and session.found is not None:
+            found = session.found
+            radius = float(session.params["fwhmpsf"])
+            frame.markers = [m for m in frame.markers if m.tag != "daofind"] + [
+                display.Marker(float(x), float(y), "circle", radius, colour="accent",
+                               tag="daofind")
+                for x, y in zip(found["x"], found["y"], strict=True)]
+        window._redraw()
+
+    def key(name: str, x: float, y: float) -> bool:
+        session.key(name, x, y)
+        if name == "d":
+            window.examine_at("r", x, y)
+        redraw()
+        if session.done:
+            window.examine_done.emit()
+        return True
+
+    def colon(line: str) -> str:
+        session.colon(line)
+        redraw()
+        return ""
+
+    window.key_hook, window.colon_hook = key, colon
+    window.set_task_keys("daofind", daofindsession.HELP)
+    window.log("daofind: f finds, the space bar finds and writes, :threshold 6 sets a "
+               "parameter, q ends -- the Keys panel has them all.")
+    try:
+        window.wait_for_examine()
+    finally:
+        window.key_hook = window.colon_hook = None
+        window.set_task_keys(None)
 
 
 class CenterParams(_DataPars, _CenterPars, _Interactive):

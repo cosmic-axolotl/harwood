@@ -47,3 +47,30 @@ nearest pixel, so the filter is defined to the border -- and then dropped,
 since phot would lose their outer apertures; how many were dropped is said.
 Stars closer than about one and a half FWHM make a single peak and are
 found as one.
+
+**By the keys.** `--interactive` shows the image in the window and hands it
+daofind's keys; `--icommands` takes the same keys from a file, `x y wcs key` a
+line, without a screen. `f` finds the stars and circles them, and writes nothing;
+the space bar finds them and writes the list. `d` is the radial profile of the
+star at the cursor, in the Examine panel. `:threshold 6`, `:fwhmpsf 3.1`, `:sigma 5`,
+`:nsigma`, `:ratio`, `:theta`, `:sharplo`, `:sharphi`, `:roundlo`, `:roundhi`,
+`:epadu`, `:readnoise` and `:scale` set a parameter, or show it with no value, and
+`:show` shows them all. `q` ends.
+
+Each list written goes to a file of its own, the output name, then `name.2`,
+`name.3`; the space bar finds nothing new until a parameter has changed.
+
+Finding again with the same kernel gives a different sharpness, because IRAF's
+code marks the kernel's centre as skipped after the first find and counts one
+pixel too few from then on. Only sharpness changes, by a few hundredths for a
+bright star and more for a faint one (0.49 to 0.34 in one test), but `--sharplo`
+then cuts on it. harwood does what IRAF does, and warns when a list written has it:
+after `f`, or after changing only `:threshold`, `:sharplo`, `:sharphi`, `:roundlo`
+or `:roundhi`. Changing anything else rebuilds the kernel and starts clean.
+
+Held to IRAF on ten cursor files: every line printed and every list written,
+but for `ground`, which agrees to 0.001 as it does without the keys, and the third
+file's name, which IRAF takes from the image (`field.fits.coo.1`). `i`, `v` and `w`
+are not ported: `r` over a star gives the FWHM, `:fwhmpsf` sets it, and `run.yaml`
+keeps what was used. Nor are the colon commands for what harwood's daofind has no
+use for, such as `:datamin`.

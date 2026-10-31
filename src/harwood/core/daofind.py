@@ -119,11 +119,13 @@ def find(data: np.ndarray, fwhmpsf: float, sigma: float | None, threshold: float
          nsigma: float = 1.5, ratio: float = 1.0, theta: float = 0.0,
          sharplo: float = 0.2, sharphi: float = 1.0, roundlo: float = -1.0,
          roundhi: float = 1.0, epadu: float = 1.0, readnoise: float = 0.0,
-         scale: float = 1.0) -> dict:
+         scale: float = 1.0, refit: bool = False) -> dict:
     """ap_bfdfind + ap_find: the star list, in IRAF's order (line by line).
 
     Returns arrays x, y, mag, sharpness, sround, ground and the relerr and
-    absolute threshold used.
+    absolute threshold used. `refit`: ap_find has run on this kernel already, in
+    an interactive session; it marked the centre as skipped then, so it counts
+    one pixel fewer now, and every sharpness comes out differently.
     """
     k = kernel(fwhmpsf, ratio, theta, nsigma, scale)
     data = np.asarray(data, dtype=np.float32)
@@ -141,7 +143,8 @@ def find(data: np.ndarray, fwhmpsf: float, sigma: float | None, threshold: float
     dpad = np.pad(data, ((yh, yh), (xh, xh)), mode="edge")
     cpad = np.pad(dens, ((yh, yh), (xh, xh)), mode="edge")
     skip = k.skip.copy()
-    nonzero = int((~skip).sum()) - 1
+    pixels = int((~skip).sum()) - 1
+    nonzero = pixels - 1 if refit else pixels
     skip_centre = skip.copy()
     skip_centre[yh, xh] = True
     xsigsq = (scale * fwhmpsf / 2.35482) ** 2
@@ -183,7 +186,7 @@ def find(data: np.ndarray, fwhmpsf: float, sigma: float | None, threshold: float
             sround = 0.0 if sum2 == 0 else (np.nan if sum4 <= 0 else 2.0 * sum2 / sum4)
             # sharpness
             midpix = dbox[yh, xh]
-            others = dbox[~skip_centre].sum() - nonzero * skymode
+            others = dbox[~skip_centre].sum() - pixels * skymode
             sharp = (np.nan if centre <= 0 or nonzero <= 0
                      else (midpix - skymode - others / nonzero) / centre)
             # ground and the centre, from the marginals

@@ -619,7 +619,7 @@ tasks:
     note: "IRAF's output byte for byte, every parser message where IRAF places it; a file ending in '#' without its newline, on which IRAF loops for ever, is a syntax error"}
   daoedit: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   daofind: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: daofind,
-    note: "IRAF's kernel, density, detection, sharpness, sround, ground and centres, ported and checked against IRAF's output; sigma is measured from the image when not given, where IRAF would detect at zero"}
+    note: "IRAF's kernel, density, detection, sharpness, sround, ground and centres, ported and checked against IRAF's output; sigma is measured from the image when not given, where IRAF would detect at zero; the keys in the window, held to IRAF on 10 cursor files, without i, v and w"}
   daopars: {pkg: digiphot.daophot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   datapars: {pkg: digiphot.apphot, domain: photometry, status: replaced,

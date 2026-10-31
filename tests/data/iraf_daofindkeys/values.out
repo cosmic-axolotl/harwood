@@ -1,0 +1,40 @@
+fwhmpsf = 2.5 scaleunit
+sigma = 6. counts
+epadu = 1. e-/adu
+readnoise = 0. e-
+nsigma = 1.5 sigma
+ratio = 1. number
+theta = 0. degrees
+threshold = 4. sigma
+sharplo = 0.2 number
+sharphi = 1. number
+roundlo = -1. number
+roundhi = 1. number
+scale = 1. units
+
+
+Data Characteristics
+    image: field.fits (0.00, 0.00)   scale: 1.
+    output: values.coo    coords: 
+    fwhmpsf = 2.5 scaleunit    emission = yes
+    datamin = INDEF counts    datamax = INDEF counts
+    exposure =     itime = 1. timeunit
+    filter =     ifilter = INDEF
+    airmass =     xairmass = INDEF
+    obstime =     otime = INDEF
+
+Noise Model
+    noise = poisson  model    sigma = 6. counts
+    gain =     epadu = 1. e-/adu
+    ccdread =     readnoise = 0. e-
+
+Kernel Parameters
+    fwhmpsf = 2.5 scaleunit    emission = yes
+    nsigma = 1.5 sigma    ratio = 1.   theta = 0. degrees
+
+Detection Parameters
+    threshold = 4. sigma
+    sharplo = 0.2    sharphi = 1.
+    roundlo = -1.    roundhi = 1.
+
+Unknown or ambiguous colon command

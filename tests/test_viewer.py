@@ -575,3 +575,41 @@ def test_the_fit_panel_takes_a_graph_key_definition(fitting):
     assert "tol = " in fitting.said
 
 
+def test_daofind_in_the_window_circles_what_it_finds_and_writes_on_the_space_bar(
+        tabs, tmp_path, monkeypatch):
+    from astropy.io import fits
+    from iraf_field import field
+    from PySide6 import QtCore
+
+    import harwood
+    from harwood.core import display
+
+    image = tmp_path / "field.fits"
+    fits.writeto(image, field())
+
+    class Screen:
+        window = tabs
+
+        def show(self, data, header, name):
+            tabs.load(data, header, name=name)
+
+    monkeypatch.setattr(display, "get", lambda _=None: Screen())
+    circled = []
+
+    def press():
+        tabs.key_hook("f", 40.0, 45.0)
+        frame = tabs.frames[tabs.current]
+        circled.append(sum(m.tag == "daofind" for m in frame.markers))
+        tabs.colon_hook(":threshold 6")
+        tabs.key_hook(" ", 40.0, 45.0)
+        circled.append(sum(m.tag == "daofind" for m in frame.markers))
+        tabs.key_hook("d", 40.3, 45.7)
+        tabs.key_hook("q", 40.0, 45.0)
+
+    tabs.show()
+    QtCore.QTimer.singleShot(0, press)
+    result = harwood.run("daofind", image=str(image), output=tmp_path / "out.coo", sigma=6.0,
+                         fwhmpsf=2.5, interactive=True)
+    assert circled == [6, 6], "each find replaces the circles of the last"
+    assert [path.name for path in result.outputs] == ["out.coo"]
+    assert tabs.key_hook is None

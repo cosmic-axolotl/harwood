@@ -1,0 +1,18 @@
+0 0 1 f
+0 0 1 f
+0 0 1 :threshold 6
+0 0 1 :threshold
+0 0 1 f
+0 0 1 \040
+0 0 1 \040
+0 0 1 :nsigma 2
+0 0 1 \040
+0 0 1 :show
+0 0 1 :show find
+0 0 1 :show data
+0 0 1 :fwhmpsf
+0 0 1 :sigma
+0 0 1 :sharplo
+0 0 1 :bogus
+0 0 1 z
+0 0 1 q
