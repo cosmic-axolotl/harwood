@@ -763,7 +763,7 @@ tasks:
   ecreidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
   fitprofs: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   identify: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: identify,
-    note: "IRAF's identify arithmetic ported (center1d, the 'l' line list matching, the fit) with its automatic path being autoidentify's, checked against IRAF; the interactive panel is harwood's own. One aperture at a time (reidentify carries it to the others), and no 2-D solution"}
+    note: "IRAF's identify arithmetic ported (center1d, the 'l' line list matching, the fit) with its automatic path being autoidentify's, checked against IRAF; the keys, colon commands and graphs are IRAF's too, from cursor files it ran. One aperture at a time (reidentify carries it to the others), and no 2-D solution"}
   interp: {pkg: proto, domain: spec-1d, status: planned, milestone: later}
   lcalib: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   match: {pkg: system, domain: spec-1d, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}

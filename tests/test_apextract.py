@@ -325,146 +325,25 @@ def test_wspectext_can_be_asked_for_some_columns(frame):
 
 
 # -------------------------------------------------------------- apedit
+# Its keys are held to IRAF's in test_apedit_keys.py; here, that the task takes them up.
 
 
-@pytest.fixture
-def panel():
-    """The profile of a star, with the aperture apfind would have set."""
-    from harwood.viewer._qt import application
-    from harwood.viewer.aperture_panel import AperturePanel
-
-    application()
-    frame, _ = synthetic()
-    spatial, _ = apextract.getdata(apextract.frame(frame, 2))
-    low, high = apextract.ylevel(spatial, CENTRE, 0.05, low=-NX, high=NX)
-    return AperturePanel(spatial, [{"centre": CENTRE, "low": low, "high": high}],
-                         background=[3.0, 12.0])
-
-
-def test_an_edge_goes_where_the_cursor_is(panel):
-    panel._cursor = CENTRE + 6.0
-    panel.key("u")
-    assert panel.apertures[0]["high"] == pytest.approx(6.0, abs=0.01)
-
-
-def test_an_aperture_that_would_not_contain_its_centre_is_refused(panel):
-    """It extracts nothing, and nobody means to ask for it."""
-    before = dict(panel.apertures[0])
-    panel._cursor = CENTRE + 3.0
-    panel.key("l")
-    assert panel.apertures[0] == before
-    assert "below the centre" in panel.status.text()
-
-
-def test_adding_and_deleting(panel):
-    panel._cursor = 45.0
-    panel.key("a")
-    assert len(panel.apertures) == 2
-    assert panel.apertures[panel.selected]["centre"] == pytest.approx(45.0, abs=5)
-
-    panel.key("d")
-    assert len(panel.apertures) == 1
-    assert "deleted" in panel.status.text()
-
-
-def test_apertures_stay_in_order_across_the_slit(panel):
-    for position in (45.0, 12.0, 38.0):
-        panel._cursor = position
-        panel.key("a")
-    centres = [aperture["centre"] for aperture in panel.apertures]
-    assert centres == sorted(centres)
-
-
-def test_the_background_band_takes_two_presses(panel):
-    panel._cursor = CENTRE + 12.0
-    panel.key("b")
-    assert "Press b again" in panel.status.text()
-    assert panel.background == [3.0, 12.0], "nothing changes until the second"
-
-    panel._cursor = CENTRE + 25.0
-    panel.key("b")
-    inner, outer = panel.background
-    assert outer > inner and outer - inner > 5
-
-
-def test_a_background_band_narrower_than_a_pixel_is_refused(panel):
-    panel._cursor = CENTRE + 12.0
-    panel.key("b")
-    panel._cursor = CENTRE + 12.2
-    panel.key("b")
-    assert "less than a pixel" in panel.status.text()
-
-
-def test_recentring_puts_the_aperture_on_the_peak(panel):
-    panel.apertures[0]["centre"] = CENTRE + 3.0
-    panel.key("g")
-    assert panel.apertures[0]["centre"] == pytest.approx(CENTRE, abs=0.6)
-
-
-def test_colon_commands_set_the_numbers_directly(panel):
-    panel.command.setText(":lower -7")
-    panel._run_command()
-    assert panel.apertures[0]["low"] == pytest.approx(-7.0)
-
-    panel.command.setText(":centre 30")
-    panel._run_command()
-    assert panel.apertures[0]["centre"] == pytest.approx(30.0)
-
-    panel.command.setText(":sparkle 3")
-    panel._run_command()
-    assert "no parameter called" in panel.status.text()
-
-
-def test_apall_uses_what_apedit_returned(frame, monkeypatch):
+def test_apall_uses_what_the_keys_left(frame):
     """The edited apertures are the ones extracted, not the found ones."""
-    from harwood.viewer import aperture_panel
-
-    def edited(profile, apertures, background, ylevel, title=""):
-        chosen = [dict(aperture) for aperture in apertures]
-        chosen[0]["low"], chosen[0]["high"] = -9.0, 9.0
-        return chosen, [5.0, 20.0]
-
-    monkeypatch.setattr(aperture_panel, "run", edited)
-    result = get_task("apall").run(input="obj.fits", output="obj.ms.fits",
-                                   edit=True, t_step=10, nsum=10)
-
+    (frame / "cur").write_text(f"{CENTRE} 0 1 .\n{CENTRE - 9} 0 1 l\n{CENTRE + 9} 0 1 u\n"
+                               "0 0 1 q\n")
+    result = get_task("apall").run(input="obj.fits", output="obj.ms.fits", edit=True,
+                                   t_step=10, nsum=10, gcommands="cur")
     back = spectrum.read(frame / "obj.ms.fits")[0]
-    assert back.low == pytest.approx(-9.0)
-    assert back.high == pytest.approx(9.0)
+    assert back.low == pytest.approx(-9.0, abs=0.7)
+    assert back.high == pytest.approx(9.0, abs=0.7)
     assert result.data["apertures"] == 1
-    # The band set by hand, 5 to 20 px outside each edge, is the sample.
-    from harwood.core import database
-    stored = database.read("obj.fits", frame, prefix="ap")
-    assert stored.extra["apertures"][0]["background"]["sample"] == "-29:-14,14:29"
 
 
-def test_deleting_every_aperture_stops_rather_than_extracting_nothing(frame,
-                                                                     monkeypatch):
-    from harwood.viewer import aperture_panel
-
-    monkeypatch.setattr(aperture_panel, "run",
-                        lambda *args, **kwargs: ([], None))
+def test_deleting_every_aperture_stops_rather_than_extracting_nothing(frame):
+    (frame / "cur").write_text(f"{CENTRE} 0 1 d\n0 0 1 q\n")
     with pytest.raises(RuntimeError, match="nothing to extract"):
-        get_task("apall").run(input="obj.fits", output="x.ms.fits", edit=True)
-
-
-def test_recentring_converges_from_a_few_pixels_away(panel):
-    """A centroid in a box that is not centred on the peak is pulled towards
-    the middle of the box; one pass lands short and three do not."""
-    for offset in (-4.0, -2.0, 2.0, 4.0):
-        panel.apertures[0]["centre"] = CENTRE + offset
-        panel.key("g")
-        assert panel.apertures[0]["centre"] == pytest.approx(CENTRE, abs=0.4), \
-            f"starting {offset:+g} px away"
-
-
-def test_adding_where_there_is_nothing_puts_it_where_you_pointed(panel):
-    """Centroiding is a refinement, not a search: on featureless profile the
-    iteration wanders off down whatever slope it finds, and what was asked for
-    is an aperture there."""
-    panel._cursor = 50.0
-    panel.key("a")
-    assert panel.apertures[panel.selected]["centre"] == pytest.approx(50.0, abs=1.0)
+        get_task("apall").run(input="obj.fits", output="x.ms.fits", edit=True, gcommands="cur")
 
 
 def test_the_trace_and_a_dispersion_solution_do_not_collide(frame):

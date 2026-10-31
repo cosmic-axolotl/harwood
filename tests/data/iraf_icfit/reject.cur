@@ -1,0 +1,15 @@
+0 0 1 :low_reject 2.5
+0 0 1 :high_reject 2.5
+0 0 1 :niterate 3
+0 0 1 f
+0 0 1 j
+0 0 1 :grow 2
+0 0 1 f
+0 0 1 :markrej no
+0 0 1 r
+0 0 1 :markrej
+0 0 1 :markrej yes
+0 0 1 r
+0 0 1 :naverage 3
+0 0 1 f
+0 0 1 q

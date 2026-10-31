@@ -83,7 +83,14 @@ where the header says 5.4 overstates them all.
 
 `--edit` opens the profile with the apertures drawn on it, to set them by
 hand with IRAF's apedit keys before extracting; `--fittrace` does the same
-for the trace.
+for the trace. `m` and `n` make an aperture, `f` finds them, `d` deletes the nearest,
+`c`, `g` and `s` centre or move it, `l`, `u`, `y` and `z` set its limits, `b` opens the
+background's icfit until its `q`, `i`, `j` and `o` number them, `a` is a switch that makes
+the next ones act on all, and colon commands such as `:lower -5` and `:ylevel 0.2` work
+as in IRAF. Ten sessions IRAF ran say and draw the same, from its graphics metacode. Not
+ported: `w` and the `/` commands (the mouse zooms), `e` and `t`, the task going on to trace
+and extract, and `:parameters`, `:database`, `:logfile`, `:plotfile`, `:read`, `:write`
+and `:image`.
 
 ## What it writes
 

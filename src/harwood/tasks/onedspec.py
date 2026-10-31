@@ -155,6 +155,10 @@ class IdentifyParams(_ArcParams):
     cdelt: float | None = Field(None, description="Approximate dispersion per pixel.")
     interactive: bool = Field(
         False, description="Mark lines and fit by hand, in the identify panel.")
+    gcommands: str = Field("", description="Cursor commands for those keys, 'x y wcs key' "
+                                           "per line up to q, instead of the window.")
+    answers: str = Field("", description="With gcommands: the lines the prompts read, in "
+                                         "a file: the coordinates m and u ask for.")
 
 
 class AutoIdentifyParams(_ArcParams):
@@ -204,19 +208,29 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
                                   "section": where or "1-D", "lines in list": len(linelist)}
     warnings: list = []
 
-    if getattr(params, "interactive", False):
-        from ..viewer.identify_panel import run as run_identify
+    gcommands = getattr(params, "gcommands", "")
+    if getattr(params, "interactive", False) or gcommands:
+        from ..core import identifysession
 
-        peaks = arc.find_peaks(vector, fwidth=params.fwidth, threshold=3.0,
-                               minsep=params.minsep)
-        fit, pixel, wavelength = run_identify(
-            vector, peaks, linelist.values, spec, title=f"identify · {params.image}",
-            match=abs(params.match), units=units)
-        ident.features = [idn.Feature(float(p), float(w), float(w))
-                          for p, w in zip(pixel, wavelength, strict=True)]
-        ident.dofit()
-        ident.update_fitdata()
-        ident.fit_features()
+        name = Path(str(params.image)).stem
+        session = identifysession.IdentifySession(
+            ident, name, f"identify {name}{where and ' - ' + where}", params.coordlist,
+            str(params.database), units.lower(), crval=params.crval, cdelt=params.cdelt)
+        if gcommands:
+            if not Path(gcommands).exists():
+                advice.fail(f"graphics cursor file '{gcommands}' does not exist",
+                            "write 'x y 1 key' lines, q ending them", FileNotFoundError)
+            answers = getattr(params, "answers", "")
+            session.run_commands(Path(gcommands).read_text(),
+                                 Path(answers).read_text() if answers else "")
+        else:
+            from ..viewer.identify_panel import run as run_identify
+
+            run_identify(session, title=f"identify · {params.image}")
+        if not session.write:
+            advice.fail("the features were not written to the database.",
+                        "answer yes at the end to keep them.", RuntimeError)
+        spec = ident.spec
     else:
         _enough_lines(arc, vector, where, data, params)
         if task.name == "identify" and params.crval is None and params.cdelt is None:
@@ -276,14 +290,14 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
         image=str(params.image), pixel=pixel, section=where,
         aperture=aperture.number if aperture is not None else None,
         wavelength=np.array([np.nan if f.user is None else f.user for f in ident.features]),
-        function=params.function, order=params.order, rms=float(rms), units=units,
+        function=spec.function, order=spec.order, rms=float(rms), units=units,
         coordlist=params.coordlist,
         used=np.array([f.user is not None and f.wts != 0 for f in ident.features]),
         fitted=np.array([f.fit for f in ident.features]),
         extra={**extra_ap, "npts": int(vector.size),
-               "xrange": [1.0, float(vector.size)], "niterate": params.niterate,
-               "low_reject": params.low_reject, "high_reject": params.high_reject,
-               "sample": params.sample, "grow": params.grow})
+               "xrange": [1.0, float(vector.size)], "niterate": spec.niterate,
+               "low_reject": spec.low_reject, "high_reject": spec.high_reject,
+               "sample": spec.sample, "grow": spec.grow})
     destination = database.write(solution, params.database)
     first, last = float(ident.fitdata[0]), float(ident.fitdata[-1])
     return TaskResult(
@@ -291,8 +305,8 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
         data={"features": len(ident.features), "used": len(used), "rms": round(rms, 5),
               "dispersion": round(scale, 5),
               "range": f"{min(first, last):.2f} to {max(first, last):.2f} {units}"},
-        history=[f"{task.name}: {len(used)} features, {params.function} order "
-                 f"{params.order}, rms {rms:.4f} {units}, from {params.coordlist}"])
+        history=[f"{task.name}: {len(used)} features, {spec.function} order "
+                 f"{spec.order}, rms {rms:.4f} {units}, from {params.coordlist}"])
 
 
 @register

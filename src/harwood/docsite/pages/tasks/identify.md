@@ -15,9 +15,22 @@ so it can be given straight from [ccdproc](task:ccdproc).
 
 **By hand, as IRAF asks.** `--interactive` opens the arc in a panel: mark
 four or five lines spread across it with `m` and type each wavelength, `f`
-fits, `l` adds every other catalogue line the fit explains, `d` deletes a
-bad one, `q` accepts. Spread matters more than number: five lines bunched in
+fits, handing the keys to icfit until its `q` (`d` there deletes the feature), `l`
+adds every other catalogue line the fit explains, `d` deletes a bad one, `q` asks
+whether to write them. Spread matters more than number: five lines bunched in
 the middle constrain the ends not at all.
+
+The rest of IRAF's keys are there, along the panel's foot: `e` and `y` the list or the
+peaks with no fit, `c` and `a c` centre again, `u t v` a feature's coordinate, place
+and weight, `. + n -` move between features, `g s x` shift them, `b` identifies
+automatically, `i` starts again, `z` and `p` zoom and pan. So are the colon commands
+for `match`, `minsep`, `fwidth` and the like, and `:features` and `:show`. Marking a line
+within `minsep` of a feature takes its coordinate from it: type it again. Thirteen
+sessions IRAF ran say and write the same and draw the same, from its graphics metacode.
+Not ported: `w` and the `/` commands (the mouse zooms); `:image`, `:nsum`, `:database`,
+`:read`, `:write` and `:add`, and moving to another line with `j`, `k` and `o`, there
+being one spectrum to a run; `x` with over ten features starts from the list, where
+IRAF tries the features first.
 
 ```console
 $ harwood identify p/sp0018.fits --coordlist 'linelists$thar.dat' --section 'middle column' --interactive

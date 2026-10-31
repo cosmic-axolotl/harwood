@@ -16,6 +16,18 @@ or spline of `--order` terms, with rejection -- and `--interactive` opens it
 in a panel to fit by hand, with the parameters you settle on written to the
 log so the run can be repeated in batch.
 
+The panel has IRAF's keys, listed along its foot: `f` fits, `d` and `u` delete and
+undelete, `h i j k l` choose the graph (`j` residuals, `k` ratio, `l` the non-linear
+part), `g` redefines one, `s t z` set the sample with the cursor, `a v x y` add or
+change a point, `c` prints one, and `:order 5`, `:sample 20:500`, `:errors` and the
+rest work as in IRAF. As there, nothing changes until `f`: a deleted point stays in
+the fit, the line under the plot says the fit is out of date, and `q` keeps the last
+fit. Seventeen sessions IRAF ran through fit1d, the same code on one line, say and draw
+the same, to about the sixth figure, IRAF's being in real and this in double. Three
+points or so fitted exactly are the exception: IRAF's real arithmetic leaves an rms
+there, this one none. `w` and the `/` commands are not ported (the mouse zooms), nor
+the coefficients in `:vshow`.
+
 ```example
 title: A whole night's object frames, after the calibrations
 after: flat

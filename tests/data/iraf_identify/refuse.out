@@ -1,0 +1,10 @@
+    100.02  100.02481 (     INDEF ):     100.02  100.02481      INDEF 
+Center not found: check cursor position    100.02  100.02481 (     INDEF ):     100.02  100.02481  4043.3948 
+    100.02  100.02481 (     INDEF ):     100.02  100.02481  4043.3948 
+
+Sat 13:52:57 31-Oct-2026
+Features identified in image arc.
+      Pixel        Fit       User   Residual Fwidth Wt Label
+ 1   100.02  100.02481  4043.3948   -3943.37   4.00  1 
+    100.02  100.02481  4043.3948 
+Write feature data to the database (yes)? 

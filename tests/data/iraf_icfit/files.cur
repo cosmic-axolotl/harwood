@@ -1,0 +1,13 @@
+0 0 1 :show keep.txt
+0 0 1 :xyshow keep.txt
+0 0 1 :errors keep.txt
+0 0 1 :naverage 4
+0 0 1 f
+0 0 1 :errors keep.txt
+0 0 1 :xyshow keep.txt
+0 0 1 :low_reject 2
+0 0 1 :niterate 2
+0 0 1 :naverage 1
+0 0 1 f
+0 0 1 :errors keep.txt
+0 0 1 q

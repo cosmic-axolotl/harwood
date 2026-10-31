@@ -1,0 +1,21 @@
+function = spline3
+order = 3
+sample = *
+naverage = 1
+niterate = 1
+low_reject = 0.
+high_reject = 0.
+grow = 0.
+markrej = YES
+graph h x y
+evaluate requires a value to evaluate
+fit(50.) = 570.1524
+Unrecognized command or ambiguous abbreviationUnknown or ambiguous function
+function = chebyshev
+Order must be greater than zero
+order = 4
+function = chebyshev
+Unrecognized command or ambiguous abbreviationgrow = 2.
+niterate = 2
+low_reject = 2.7
+high_reject = 1.5

@@ -1,0 +1,47 @@
+0 0 1 :match
+0 0 1 :maxfeatures
+0 0 1 :minsep
+0 0 1 :zwidth
+0 0 1 :labels
+0 0 1 :fwidth
+0 0 1 :ftype
+0 0 1 :cradius
+0 0 1 :threshold
+0 0 1 :coordlist
+0 0 1 :database
+0 0 1 :image
+0 0 1 :nsum
+0 0 1 :bogus
+0 0 1 :match 2
+0 0 1 :match
+0 0 1 :maxf 10
+0 0 1 :maxfeatures
+0 0 1 :minsep 3
+0 0 1 :minsep
+0 0 1 :zwidth 50
+0 0 1 :zwidth
+0 0 1 :fw 5
+0 0 1 :fwidth
+0 0 1 :cr 6
+0 0 1 :cradius
+0 0 1 :th 2
+0 0 1 :threshold
+0 0 1 :ftype absorption
+0 0 1 :ftype
+0 0 1 :ftype emission
+0 0 1 :labels index
+0 0 1 :labels
+100 0 1 m
+318 0 1 m
+0 0 1 r
+0 0 1 :labels pixel
+0 0 1 r
+0 0 1 :labels coord
+0 0 1 r
+0 0 1 :labels user
+0 0 1 r
+0 0 1 :labels both
+0 0 1 r
+0 0 1 :labels none
+0 0 1 r
+0 0 1 q

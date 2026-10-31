@@ -1,0 +1,11 @@
+# Sat 13:52:56 31-Oct-2026
+begin	identify arc - Ap 1
+	id	arc
+	task	identify
+	image	arc - Ap 1
+	aperture	1
+	aplow	INDEF
+	aphigh	INDEF
+	units	Angstroms
+	features	0
+

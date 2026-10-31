@@ -1,0 +1,9 @@
+0 0 1 :show
+0 0 1 :xyshow
+0 0 1 :errors
+0 0 1 :sample 20:60
+0 0 1 f
+0 0 1 :errors
+0 0 1 z
+11 522.0175 1 c
+0 0 1 q

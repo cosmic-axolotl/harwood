@@ -1,0 +1,11 @@
+0 0 1 :function legendre
+0 0 1 :order 4
+0 0 1 f
+0 0 1 :function chebyshev
+0 0 1 f
+0 0 1 :function spline1
+0 0 1 :order 3
+0 0 1 f
+0 0 1 :function spline3
+0 0 1 f
+0 0 1 q

@@ -83,6 +83,8 @@ class Aperture:
     background: icfit.FitSpec = field(default_factory=lambda: icfit.FitSpec(
         function="chebyshev", order=1, sample="-10:-6,6:10", naverage=-3,
         niterate=0, low_reject=3.0, high_reject=3.0, grow=0.0))
+    beam: int | None = None
+    title: str = ""
 
     def centre_at(self, position) -> np.ndarray:
         return self.centre + self.trace(position)

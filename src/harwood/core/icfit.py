@@ -69,8 +69,8 @@ class Fit:
     model: object = field(repr=False, default=None)
     message: str = ""
     sample: np.ndarray | None = field(repr=False, default=None)    #: in the sample range
-    #: What was fitted, where the points are averaged: x, y, and which are still in.
-    averaged: tuple | None = field(repr=False, default=None)
+    #: What was fitted, the sample's points averaged: x, y, weight, and what was rejected.
+    binned: tuple | None = field(repr=False, default=None)
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         if self.model is None:
@@ -90,8 +90,9 @@ class Fit:
     def rms(self) -> float:
         """ic_rms, over what was fitted: averages, where the points are averaged, so
         averaging lowers it by what it took out."""
-        if self.averaged is not None:
-            x, y, kept = self.averaged
+        if self.binned is not None:
+            x, y, w, rejected = self.binned
+            kept = (w != 0) & ~rejected
             if kept.sum() < 2 or self.model is None:
                 return float("nan")
             return float(np.sqrt(np.mean((y[kept] - self(x[kept])) ** 2)))
@@ -116,19 +117,19 @@ class Fit:
 def parse_sample(sample: str, x: np.ndarray) -> np.ndarray:
     """Which points the sample string includes.
 
-    ``"*"`` is everything; otherwise a comma-separated list of ``first:last``
-    ranges in the units of x, inclusive at both ends, as IRAF writes them::
+    ``"*"`` is everything; otherwise a list of ``first:last`` ranges in the units
+    of x, inclusive at both ends, separated by commas or spaces, as IRAF writes them::
 
         sample = "1:512"
         sample = "1:100,400:512"
+        sample = " 1:100 400:512"
     """
     text = (sample or "*").strip()
     if text in ("*", ""):
         return np.ones(np.shape(x), dtype=bool)
 
     keep = np.zeros(np.shape(x), dtype=bool)
-    for piece in text.split(","):
-        piece = piece.strip()
+    for piece in re.split(r"[,\s]+", re.sub(r"\s*:\s*", ":", text)):
         if not piece:
             continue
         match = re.fullmatch(r"(-?[\d.]+)\s*:\s*(-?[\d.]+)", piece)
@@ -273,15 +274,32 @@ def _build(x: np.ndarray, y: np.ndarray, spec: FitSpec, weights=None,
     try:
         return LSQUnivariateSpline(xs, ys, knots, w=np.sqrt(ws), bbox=[low, high],
                                    k=degree, ext="const")
-    except ValueError as error:
-        raise ValueError(
-            f"{spec.function} with {pieces} pieces cannot be fitted: some piece "
-            "has no points in it. Lower the order, or widen the sample."
-        ) from error
+    except ValueError:
+        # Some piece has no points in it. curfit solves what it can and says so.
+        return _SingularSpline(function, pieces, low, high, xs, ys, ws)
+
+
+class _SingularSpline:
+    """A spline with a piece no point falls in, as cvsolve leaves it: the row of no
+    information is dropped, and it is single precision, being curfit's."""
+
+    def __init__(self, function, pieces, low, high, x, y, w) -> None:
+        from .curfit import Curve
+
+        self.curve = Curve(function, pieces, low, high)
+        for point, value, weight in zip(x, y, w, strict=True):
+            one = np.ones(1, dtype=np.float32) * np.float32(weight)
+            self.curve.accumulate(np.array([point], dtype=np.float32),
+                                  np.array([value], dtype=np.float32), one)
+        self.curve.solve()
+
+    def __call__(self, x) -> np.ndarray:
+        x = np.atleast_1d(np.asarray(x, dtype=np.float32))
+        return np.asarray(self.curve.vector_at(x), dtype=float)
 
 
 def fit(x, y, spec: FitSpec | None = None, deleted=None,
-        xrange: tuple[float, float] | None = None, **overrides) -> Fit:
+        xrange: tuple[float, float] | None = None, weights=None, **overrides) -> Fit:
     """Fit, reject, refit -- IRAF's ic_fit, one call.
 
     In IRAF's order: the sample is cut into ranges, each range into groups of
@@ -295,7 +313,8 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None,
     this" and "I decided this one is wrong".
 
     `xrange` is ic's xmin and xmax, over which spline pieces are laid; left
-    out, the range of the data, as most tasks set it.
+    out, the range of the data, as most tasks set it. `weights` are the points'
+    own, which a weight of zero takes out as `deleted` does.
     """
     spec = replace(spec or FitSpec(), **overrides) if overrides else (spec or FitSpec())
     x = np.asarray(x, dtype=float)
@@ -311,7 +330,7 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None,
         return Fit(spec, x, y, usable, deleted, None,
                    "not enough points to fit; check the sample range", in_sample)
 
-    weights = usable.astype(float)
+    weights = usable * (1.0 if weights is None else np.asarray(weights, dtype=float))
     groups = _groups(_runs(in_sample), spec.naverage)
     xb, yb, wb = _binned(x, np.where(np.isfinite(y), y, 0.0), weights, groups,
                          spec.naverage)
@@ -330,8 +349,10 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None,
         return mask & usable
 
     def finished(mask, model, message):
-        averaged = (xb, yb, (wb > 0) & ~rejected) if abs(int(spec.naverage)) > 1 else None
-        return Fit(spec, x, y, mask, deleted, model, message, in_sample, averaged)
+        if isinstance(model, _SingularSpline) and not message:
+            message = "Singular solution"
+        return Fit(spec, x, y, mask, deleted, model, message, in_sample,
+                   (xb, yb, wb, rejected.copy()))
 
     try:
         model = model_from(~rejected)

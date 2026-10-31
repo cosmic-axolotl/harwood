@@ -1,0 +1,17 @@
+100 0 1 m
+193 0 1 m
+318 0 1 m
+542 0 1 m
+744 0 1 m
+968 0 1 m
+0 0 1 f
+0 0 1 :order 2
+0 0 1 :function legendre
+0 0 1 :low_reject 1
+0 0 1 :high_reject 1
+0 0 1 :niterate 2
+0 0 1 f
+0 0 1 q
+0 0 1 r
+0 0 1 :features
+0 0 1 q

@@ -1,0 +1,32 @@
+0 0 1 :function
+0 0 1 :order
+0 0 1 :sample
+0 0 1 :naverage
+0 0 1 :niterate
+0 0 1 :low_reject
+0 0 1 :high_reject
+0 0 1 :grow
+0 0 1 :markrej
+0 0 1 :graph
+0 0 1 :evaluate
+0 0 1 :evaluate 50
+0 0 1 :bogus
+0 0 1 :function bogus
+0 0 1 :function cheb
+0 0 1 :function
+0 0 1 :order 0
+0 0 1 :order 4
+0 0 1 :order
+0 0 1 :f
+0 0 1 :gr
+0 0 1 :grow 2
+0 0 1 :grow
+0 0 1 :niterate 2
+0 0 1 :niterate
+0 0 1 :low_reject 2.7
+0 0 1 :high_reject 1.5
+0 0 1 :low_reject
+0 0 1 :high_reject
+0 0 1 f
+0 0 1 r
+0 0 1 q

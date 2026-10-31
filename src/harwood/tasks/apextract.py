@@ -122,6 +122,10 @@ class ApAllParams(TaskParams):
         description="Adjust the apertures by hand before extracting, on the "
                     "profile they came from (IRAF's apedit).",
     )
+    gcommands: str = Field("", description="With edit: cursor commands for apedit's keys, "
+                                           "'x y wcs key' per line up to q, for the window.")
+    answers: str = Field("", description="With gcommands: the lines the prompts read, in a "
+                                         "file.")
     trace: bool = Field(True, description="Trace the apertures along the dispersion?")
     fittrace: bool = Field(False, description="Fit the traced points by hand?")
     extract: bool = Field(True, description="Extract the spectra?")
@@ -329,7 +333,7 @@ class ApAll(Task[ApAllParams]):
                 "limits": ", ".join(f"{a.low:+.2f} {a.high:+.2f}" for a in apertures[:4])}
 
         if params.edit:
-            apertures, background = self._edit(params, profile, apertures, background, line)
+            apertures, background = self._edit(params, frame, apertures, background, line)
 
         traced = []
         if params.trace:
@@ -420,33 +424,32 @@ class ApAll(Task[ApAllParams]):
                      f"{params.t_function} order {params.t_order}"],
         )
 
-    def _edit(self, params, profile, apertures, background, line):
-        """apedit: the panel works on dicts and a band outside each edge;
-        a band set there becomes the background sample around each aperture."""
-        from dataclasses import replace
+    def _edit(self, params, frame, apertures, background, line):
+        """apedit: the keys, in the panel or from a cursor file."""
+        from ..core import apeditsession
 
-        from ..core import apextract
-        from ..viewer.aperture_panel import run as run_apedit
+        settings = {name: getattr(params, name) for name in apeditsession.SETTINGS
+                    if hasattr(params, name)}
+        for aperture in apertures:
+            aperture.background = aperture.background or background
+        session = apeditsession.ApeditSession(
+            frame, apertures, line, params.nsum, str(params.input),
+            f"Image={params.input}, Sum of {abs(params.nsum)} lines at {line}", settings)
+        if params.gcommands:
+            if not Path(params.gcommands).exists():
+                advice.fail(f"graphics cursor file '{params.gcommands}' does not exist",
+                            "write 'x y 1 key' lines, q ending them", FileNotFoundError)
+            answers = Path(params.answers).read_text() if params.answers else ""
+            session.run_commands(Path(params.gcommands).read_text(), answers)
+        else:
+            from ..viewer.aperture_panel import run as run_apedit
 
-        found = [{"centre": a.centre, "low": a.low, "high": a.high} for a in apertures]
-        edited, band = run_apedit(profile, found, None,
-                                  params.ylevel if params.ylevel is not None else 0.1,
-                                  title=f"apedit · {params.input}")
-        if not edited:
+            run_apedit(session, title=f"apedit · {params.input}")
+        if not session.apertures:
             advice.fail("every aperture was deleted, so there is nothing to extract.",
                         "run it again and keep at least one aperture, or drop --edit "
                         "to take the ones apfind proposes.", RuntimeError)
-        out = []
-        for number, chosen in enumerate(edited, start=1):
-            spec = background
-            if band:
-                inner, outer = band
-                low, high = chosen["low"], chosen["high"]
-                spec = replace(background, sample=f"{low - outer:g}:{low - inner:g},"
-                                                  f"{high + inner:g}:{high + outer:g}")
-            out.append(apextract.Aperture(number, chosen["centre"], chosen["low"],
-                                          chosen["high"], float(line), background=spec))
-        return out, (out[0].background if out else background)
+        return session.apertures, session.apertures[0].background
 
     def _fit_by_hand(self, params, apertures, traced, length, spec):
         from ..core import apextract, icfit
@@ -458,7 +461,8 @@ class ApAll(Task[ApAllParams]):
             fit = run_icfit(points.positions, points.centres - aperture.centre, spec,
                             title=f"aptrace · aperture {aperture.number} of {params.input}",
                             xlabel="position along the dispersion (pixels)",
-                            ylabel="offset from the aperture centre (pixels)")
+                            ylabel="offset from the aperture centre (pixels)", kind="mark",
+                            xrange=(1.0, float(length)))
             aperture.trace = apextract.Trace(
                 fit, *icfit.cv_range(points.positions, fit.spec, (1.0, float(length))))
 

@@ -97,6 +97,8 @@ class Feature:
     user: float | None
     wts: float = 1.0
     label: str = ""
+    fwidth: float | None = None
+    ftype: str | None = None
 
 
 @dataclass
@@ -124,6 +126,7 @@ class Identify:
     #: ID_NEWFEATURES: features added or replaced since the database was
     #: last written -- set by reading a record, cleared by writing one.
     newfeatures: bool = False
+    current: int = -1                       #: ID_CURRENT: the last one newfeature touched
 
     def __post_init__(self):
         self.data = np.asarray(self.data, dtype=f32)
@@ -269,12 +272,14 @@ class Identify:
                 index -= 1
             self.features.insert(index, new)
             self.newfeatures = True
+            self.current = index
             return index
         old = self.features[current]
         if user is not None and old.user is not None and \
                 abs(fit - user) < abs(old.fit - old.user):
             self.features[current] = new
             self.newfeatures = True
+        self.current = current
         return current
 
     def match_line(self, value: float, diff: float):
@@ -357,8 +362,12 @@ class Identify:
                     p = abs(self.peak(item[0]))
                     if p < minval:
                         nextpix, minval = k, p
-        for pix, fit, user, label in found:
+        first = -1
+        for number, (pix, fit, user, label) in enumerate(found):
             self.newfeature(pix, fit, user, 1.0, label)
+            if number == 0:
+                first = self.current
+        self.current = first      # cursave: the first one added, and it is left current
 
     def dofit(self, spec: icfit.FitSpec | None = None) -> None:
         """id_dofit, non-interactive: fit user coordinates against pixels
@@ -528,6 +537,10 @@ class AidPars:
     minratio: float = 0.1
     rms: float = 0.1
     fmatch: float = 0.2
+    nbest: int = 3
+    wrms: float = 0.34
+    wfmatch: float = 0.33
+    wftmatch: float = 0.33
 
 
 @dataclass
@@ -974,9 +987,9 @@ class _Aid:
                 ntmatch += 1
         ftmatch = 1 - float(f32(ntmatch)) / min(self.nt, st["ncandidate"])
         if p.rms > 0 and p.fmatch > 0:
-            best = 0.34 * rms / p.rms
-            best += 0.33 * fmatch / p.fmatch
-            best += 0.33 * ftmatch / p.fmatch
+            best = p.wrms * rms / p.rms
+            best += p.wfmatch * fmatch / p.fmatch
+            best += p.wftmatch * ftmatch / p.fmatch
         else:
             best = MAX_DOUBLE
         return rms, fmatch, ftmatch, best
@@ -1210,14 +1223,14 @@ def autoidentify(ident: Identify, crval: float | None, cdelt: float | None,
                             best = aid.evaluate(ev, ell)
                             if best is not None and best < 1:
                                 nbest += 1
-                                if nbest >= 3:
+                                if nbest >= pars.nbest:
                                     done = True
                                     break
                             if evf is not None:
                                 best = aid.evaluate(evf, ell)
                                 if best is not None and best < 1:
                                     nbest += 1
-                                    if nbest >= 3:
+                                    if nbest >= pars.nbest:
                                         done = True
                                         break
                         if done:
@@ -1234,7 +1247,7 @@ def autoidentify(ident: Identify, crval: float | None, cdelt: float | None,
                         best = aid.evaluate(ev, jj)
                         if best is not None and best < 1:
                             nbest += 1
-                            if nbest >= 3:
+                            if nbest >= pars.nbest:
                                 done = True
                                 break
                     if done:

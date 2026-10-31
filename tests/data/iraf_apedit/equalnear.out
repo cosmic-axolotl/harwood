@@ -1,0 +1,13 @@
+Searching aperture database ...
+     aperture = 1  beam = 1  center = 40.00  low = -5.00  upper = 5.00
+     aperture = 2  beam = 2  center = 50.00  low = -5.00  upper = 5.00
+Apertures 1 2 are equally near the cursor.
+Choose an aperture (1):      aperture = 1  beam = 1  center = 40.00  low = -5.00  upper = 5.00
+Apertures 1 2 are equally near the cursor.
+Choose an aperture (1):      aperture = 2  beam = 2  center = 50.00  low = -5.00  upper = 5.00
+# APERTURES
+
+##ID BEAM  CENTER     LOW    HIGH TITLE
+   2    2   50.00   -5.00    5.00
+     aperture = 2  beam = 2  center = 50.00  low = -5.00  upper = 5.00
+Oct 31 14:18: DATABASE - 1 apertures for frame written to database

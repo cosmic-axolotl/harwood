@@ -1,24 +1,13 @@
 """The interactive half of icfit: the keys, the plot, the colon commands.
 
-This is the interaction that the IRAF inventory says is "reused by dozens of
-tasks", and it is the single strongest reason a long-time IRAF user can sit
-down in front of harwood and work. The keys are IRAF's:
+This is the interaction that the IRAF inventory says is "reused by dozens of tasks",
+and it is the single strongest reason a long-time IRAF user can sit down in front of
+harwood and work. The keys are IRAF's, all but w, for which the mouse is here.
 
-    f           refit with the current parameters
-    d           delete the point nearest the cursor
-    u           undelete the point nearest the cursor
-    y           cycle the vertical axis: data, residuals, ratio
-    r           redraw
-    ?           list the keys
-    q           accept the fit and leave
-
-    :function legendre|chebyshev|spline1|spline3
-    :order 3        :sample 20:500       :naverage -4
-    :niterate 3     :low 3    :high 3    :grow 1
-
-Nothing is computed here. Every number comes from `core.icfit`, so a fit made
-by hand and a fit made in a script are the same fit -- which is what makes an
-interactive session reproducible afterwards.
+Nothing is computed here. Every number and every line of text comes from
+`core.icfitsession`, held to IRAF's by files of cursor commands and to what IRAF draws
+by its graphics metacode. As in IRAF a deletion or a new parameter changes nothing
+until f, and q takes the last fit: the line under the plot says when it is out of date.
 """
 
 from __future__ import annotations
@@ -29,23 +18,12 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
-from ..core import gio, icfit
+from ..core import icfit, icfitsession
 from . import keyguide, theme
 from ._qt import on_main
 from .theme import palette as _c
 
-AXES = ("data", "residuals", "ratio")
-
-HELP = [
-    ("f", "refit with the current parameters"),
-    ("d", "delete the point nearest the cursor"),
-    ("u", "undelete the point nearest the cursor"),
-    ("y", "cycle the vertical axis: data, residuals, ratio"),
-    ("r", "redraw"),
-    ("q", "accept this fit and leave"),
-    (":order 3", "any icfit parameter: function, order, sample, naverage, "
-                 "niterate, low, high, grow"),
-]
+HELP = icfitsession.HELP
 
 
 class IcfitPanel(QtWidgets.QWidget):
@@ -53,18 +31,18 @@ class IcfitPanel(QtWidgets.QWidget):
 
     finished = QtCore.Signal()
 
-    def __init__(self, x, y, spec: icfit.FitSpec | None = None,
-                 title: str = "icfit", xlabel: str = "x", ylabel: str = "y",
-                 parent=None) -> None:
-        super().__init__(parent)
-        self.xdata = np.asarray(x, dtype=float)
-        self.ydata = np.asarray(y, dtype=float)
-        self.spec = spec or icfit.FitSpec()
-        self.deleted = np.zeros(self.xdata.shape, dtype=bool)
-        self.axis = "data"
-        self.title = title
-        self._cursor = (float(self.xdata.mean()), float(self.ydata.mean()))
+    @classmethod
+    def on(cls, session: icfitsession.IcfitSession, parent=None) -> IcfitPanel:
+        """The panel of a session another has started, as identify's f."""
+        return cls(session.x, session.y, parent=parent, session=session)
 
+    def __init__(self, x, y, spec: icfit.FitSpec | None = None, title: str = "icfit",
+                 xlabel: str = "x", ylabel: str = "y", parent=None, kind: str = "line",
+                 xrange=None, weights=None, session=None) -> None:
+        super().__init__(parent)
+        self.session = session or icfitsession.IcfitSession(x, y, spec, weights, title, xlabel,
+                                                            ylabel, kind, xrange)
+        self._cursor = (float(np.mean(x)), float(np.mean(y))) if len(x) else (0.0, 0.0)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -81,14 +59,12 @@ class IcfitPanel(QtWidgets.QWidget):
             # labels and appends it to the axis title, which then no longer
             # fits and is cut -- leaving a residual axis labelled "(x0.0".
             axis.enableAutoSIPrefix(False)
-        self.ylabel = ylabel
-        self.plot.setLabel("bottom", xlabel, color=_c().muted)
-        self.plot.setLabel("left", ylabel, color=_c().muted)
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
         layout.addWidget(self.plot, stretch=1)
 
         self.status = QtWidgets.QLabel("")
         self.status.setObjectName("status")
+        self.status.setWordWrap(True)
         layout.addWidget(self.status)
 
         self.keys = keyguide.strip(HELP)
@@ -96,8 +72,6 @@ class IcfitPanel(QtWidgets.QWidget):
 
         self.command = QtWidgets.QLineEdit()
         self.command.setObjectName("command")
-        self.command.setPlaceholderText(":order 3   ·   press a key over the plot, "
-                                        "or type a colon command here")
         self.command.returnPressed.connect(self._run_command)
         layout.addWidget(self.command)
 
@@ -105,69 +79,69 @@ class IcfitPanel(QtWidgets.QWidget):
         self.plot.installEventFilter(self)
         self.setFocusProxy(self.plot)
 
-        self.refit()
+        self._curves: list = []
+        self.redraw(rescale=True)
+        self._offer()
 
     # ---------------------------------------------------------------- fit
 
-    def refit(self) -> None:
-        self.fit = icfit.fit(self.xdata, self.ydata, self.spec, deleted=self.deleted)
-        self.redraw()
+    @property
+    def fit(self) -> icfit.Fit:
+        return self.session.result()
 
-    def redraw(self) -> None:
-        self.plot.clear()
-        used = self.fit.mask & ~self.deleted
-        rejected = ~self.fit.mask & ~self.deleted
+    @property
+    def said(self) -> str:
+        return self.session.stdout + self.session.stderr
 
-        if self.axis == "residuals":
-            values = self.fit.residuals
-            curve_y = np.zeros_like(self.xdata)
-            label = f"residual ({self.ylabel})" if self.ylabel else "residual"
-        elif self.axis == "ratio":
-            with np.errstate(divide="ignore", invalid="ignore"):
-                values = np.where(self.fit.values != 0, self.ydata / self.fit.values, np.nan)
-            curve_y = np.ones_like(self.xdata)
-            label = "data / fit"
-        else:
-            values = self.ydata
-            curve_y = None
-            label = self.ylabel or "data"
-        self.plot.setLabel("left", label, color=_c().muted)
-
-        self._scatter(self.xdata[used], values[used], _c().sky, 5.0)
-        self._scatter(self.xdata[rejected], values[rejected], _c().drop, 6.5, symbol="x")
-        self._scatter(self.xdata[self.deleted], values[self.deleted], _c().muted, 7.0,
-                      symbol="s")
-
-        if self.fit.model is not None:
-            grid = np.linspace(float(self.xdata.min()), float(self.xdata.max()), 400)
-            curve = (np.interp(grid, self.xdata, curve_y) if curve_y is not None
-                     else self.fit(grid))
-            self.plot.plot(grid, curve, pen=pg.mkPen(_c().accent, width=2,
-                                                     style=QtCore.Qt.PenStyle.DashLine))
-
-        (x0, x1), (y0, y1) = gio.with_room(self.xdata), gio.with_room(values)
-        self.plot.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)
-        self.plot.setTitle(self.title, color=_c().ink, size="10pt")
-        self.status.setText(self._status_text())
-
-    def _scatter(self, x, y, colour, size, symbol="o") -> None:
-        if len(x) == 0:
+    def redraw(self, rescale: bool = False) -> None:
+        graph = self.session.graph()
+        if graph.overplot:
+            self._draw_fit(graph)
+            self._draw_sample(graph)
+            self.status.setText(self._status_text(graph))
             return
-        self.plot.plot(x, y, pen=None, symbol=symbol, symbolSize=size,
-                       symbolBrush=pg.mkBrush(colour) if symbol != "x" else None,
-                       symbolPen=pg.mkPen(colour, width=1.4))
+        self.plot.clear()
+        self._curves = []
+        self.plot.setLabel("bottom", graph.xlabel, color=_c().muted)
+        self.plot.setLabel("left", graph.ylabel, color=_c().muted)
+        self.plot.setTitle(graph.title.strip().replace("\n", "<br>"), color=_c().ink,
+                           size="10pt")
+        # Marks that differ in shape, so that colour is never the only channel.
+        x, y = graph.kept
+        if graph.kind == "line":
+            self.plot.plot(x, y, pen=pg.mkPen(_c().sky, width=1.2))
+        else:
+            self._mark(x, y, _c().sky, "+")
+        self._mark(*graph.deleted, _c().muted, "x")
+        self._mark(*graph.averaged, _c().sky, "+")
+        self._mark(*graph.rejected, _c().drop, "d")
+        self._draw_fit(graph)
+        self._draw_sample(graph)
+        if rescale:
+            x0, x1, y0, y1 = graph.window
+            self.plot.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)
+        self.status.setText(self._status_text(graph))
 
-    def _status_text(self) -> str:
-        spec = self.spec
-        left = (f"{spec.function} order {spec.order}   sample {spec.sample}   "
-                f"naverage {spec.naverage}   reject {spec.low_reject}/"
-                f"{spec.high_reject} x{spec.niterate}   grow {spec.grow:g}")
-        used = int((self.fit.mask & ~self.deleted).sum())
-        right = (f"rms {self.fit.rms:.4g}   {used} used   "
-                 f"{self.fit.nrejected} rejected   {int(self.deleted.sum())} deleted")
-        if self.fit.message:
-            right += f"   [{self.fit.message}]"
-        return f"{left}\n{right}"
+    def _draw_fit(self, graph) -> None:
+        x, y = graph.fit
+        if len(x):
+            self.plot.plot(x, y, pen=pg.mkPen(_c().accent, width=2,
+                                              style=QtCore.Qt.PenStyle.DashLine))
+
+    def _draw_sample(self, graph) -> None:
+        for x1, y1, x2, y2 in graph.sample:
+            self.plot.plot([x1, x2], [y1, y2], pen=pg.mkPen(_c().line, width=1.4))
+
+    def _mark(self, x, y, colour, symbol) -> None:
+        if len(x):
+            self.plot.plot(x, y, pen=None, symbol=symbol, symbolSize=9, symbolBrush=None,
+                           symbolPen=pg.mkPen(colour, width=1.4))
+
+    def _status_text(self, graph) -> str:
+        lines = list(graph.params)
+        if self.session.stale:
+            lines.append("Changed since the last fit: f fits again, q keeps the last fit.")
+        return "\n".join(lines)
 
     # ------------------------------------------------------------- input
 
@@ -182,66 +156,63 @@ class IcfitPanel(QtWidgets.QWidget):
             point = box.mapSceneToView(position)
             self._cursor = (point.x(), point.y())
 
+    def _scale(self) -> tuple[float, float]:
+        """Pixels per unit on each axis, so that nearest means nearest on the
+        screen, however the plot has been zoomed."""
+        box = self.plot.getPlotItem().vb
+        (x0, x1), (y0, y1) = box.viewRange()
+        return (box.width() or 1.0) / max(x1 - x0, 1e-12), \
+            (box.height() or 1.0) / max(y1 - y0, 1e-12)
+
     def key(self, key: str) -> bool:
         """Handle one keystroke. Returns True if it was ours."""
         if not key:
             return False
-        if key == "f":
-            self.refit()
-        elif key == "r":
-            self.redraw()
-        elif key == "d":
-            self._toggle_nearest(True)
-        elif key == "u":
-            self._toggle_nearest(False)
-        elif key == "y":
-            self.axis = AXES[(AXES.index(self.axis) + 1) % len(AXES)]
-            self.redraw()
-        elif key == "?":
-            self.command.setText("")
-            self.keys.show()                      # every key is listed already
-        elif key == "q":
-            self.finished.emit()
-        elif key == ":":
+        session = self.session
+        if key == ":":
             self.command.setFocus()
             self.command.setText(":")
-        else:
+            return True
+        if key not in dict(HELP) and key != "w" and session.state != "second":
             return False
+        session.key(key, *self._cursor, scale=self._scale())
+        self._after()
+        if session.done:
+            self.finished.emit()
         return True
 
-    def _toggle_nearest(self, delete: bool) -> None:
-        """Delete or restore the point nearest the cursor.
+    def _after(self) -> None:
+        """What the session said, and the graph, if it has changed."""
+        said = self.session.take()
+        if self.session.newgraph:
+            self.redraw(rescale=True)
+        else:
+            self.redraw()
+        if said.strip():
+            self.status.setText(self.status.text() + "\n" + said.strip().splitlines()[-1])
+        self._offer()
 
-        Distance is measured in plot units scaled by the visible range, so
-        "nearest" means nearest *on screen* -- otherwise whichever axis happens
-        to carry bigger numbers decides, and the wrong point is picked.
-        """
-        (x0, x1), (y0, y1) = self.plot.getPlotItem().vb.viewRange()
-        span_x = max(x1 - x0, 1e-12)
-        span_y = max(y1 - y0, 1e-12)
-        values = self.ydata if self.axis == "data" else self.fit.residuals
-        distance = np.hypot((self.xdata - self._cursor[0]) / span_x,
-                            (values - self._cursor[1]) / span_y)
-        candidates = (np.flatnonzero(~self.deleted) if delete
-                      else np.flatnonzero(self.deleted))
-        if candidates.size == 0:
-            return
-        index = candidates[np.argmin(distance[candidates])]
-        self.deleted[index] = delete
-        self.refit()
+    def _offer(self) -> None:
+        session = self.session
+        asking = session.state not in ("fit", "second")
+        if session.state == "second":
+            text = "the other end of the range: s again"
+        elif asking:
+            text = session.prompt
+        else:
+            text = ":order 3   ·   press a key over the plot, or type a colon command here"
+        self.command.setPlaceholderText(text)
+        (self.command if asking else self.plot).setFocus()
 
     def _run_command(self) -> None:
-        text = self.command.text().strip().lstrip(":")
+        text = self.command.text().strip()
         self.command.clear()
+        if self.session.state not in ("fit", "second"):
+            self.session.answer(text)
+        elif text.lstrip(":"):
+            self.session.key(":", rest=text.lstrip(":"))
         self.plot.setFocus()
-        if not text:
-            return
-        try:
-            self.spec = apply_command(self.spec, text)
-        except ValueError as error:
-            self.status.setText(f"{self._status_text()}\n[{error}]")
-            return
-        self.refit()
+        self._after()
 
     def result(self) -> icfit.Fit:
         return self.fit
@@ -286,10 +257,11 @@ def apply_command(spec: icfit.FitSpec, text: str) -> icfit.FitSpec:
 
 @on_main
 def run(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit",
-        xlabel: str = "x", ylabel: str = "y") -> icfit.Fit:
+        xlabel: str = "x", ylabel: str = "y", kind: str = "line", xrange=None) -> icfit.Fit:
     """Open the panel, wait for `q`, and hand back the fit that was accepted."""
     from .dock import show
 
-    panel = IcfitPanel(x, y, spec, title=title, xlabel=xlabel, ylabel=ylabel)
+    panel = IcfitPanel(x, y, spec, title=title, xlabel=xlabel, ylabel=ylabel, kind=kind,
+                       xrange=xrange)
     show(panel, title, size=(980, 620))
     return panel.result()

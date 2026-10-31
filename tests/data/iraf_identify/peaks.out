@@ -1,0 +1,57 @@
+    994.77  994.76758      INDEF 
+    994.77  994.76758      INDEF 
+
+Sat 13:52:56 31-Oct-2026
+Features identified in image arc.
+      Pixel        Fit       User   Residual Fwidth Wt Label
+ 1    54.74  54.744884      INDEF      INDEF   4.00  1 
+ 2    71.61  71.607445      INDEF      INDEF   4.00  1 
+ 3    91.46  91.462189      INDEF      INDEF   4.00  1 
+ 4   100.02  100.02481      INDEF      INDEF   4.00  1 
+ 5   123.06  123.05856      INDEF      INDEF   4.00  1 
+ 6   127.96   127.9612      INDEF      INDEF   4.00  1 
+ 7   136.74  136.74339      INDEF      INDEF   4.00  1 
+ 8   172.15  172.14699      INDEF      INDEF   4.00  1 
+ 9   193.36  193.36433      INDEF      INDEF   4.00  1 
+10   202.44  202.43785      INDEF      INDEF   4.00  1 
+11   209.36  209.35928      INDEF      INDEF   4.00  1 
+12   216.41  216.40578      INDEF      INDEF   4.00  1 
+13   236.94  236.93617      INDEF      INDEF   4.00  1 
+14   257.06  257.05862      INDEF      INDEF   4.00  1 
+15   279.62  279.61765      INDEF      INDEF   4.00  1 
+16   297.63  297.62735      INDEF      INDEF   4.00  1 
+17   318.01  318.00735      INDEF      INDEF   4.00  1 
+18   327.19   327.1933      INDEF      INDEF   4.00  1 
+19   402.89  402.88919      INDEF      INDEF   4.00  1 
+20   422.03   422.0329      INDEF      INDEF   4.00  1 
+21   435.83  435.83127      INDEF      INDEF   4.00  1 
+22   451.45  451.44534      INDEF      INDEF   4.00  1 
+23   473.07  473.07117      INDEF      INDEF   4.00  1 
+24   518.57  518.56738      INDEF      INDEF   4.00  1 
+25   526.68  526.68243      INDEF      INDEF   4.00  1 
+26   542.43  542.43384      INDEF      INDEF   4.00  1 
+27   551.84  551.84052      INDEF      INDEF   4.00  1 
+28   576.41  576.40649      INDEF      INDEF   4.00  1 
+29   592.10  592.10321      INDEF      INDEF   4.00  1 
+30   624.93  624.92853      INDEF      INDEF   4.00  1 
+31   696.74   696.7359      INDEF      INDEF   4.00  1 
+32   715.75   715.7464      INDEF      INDEF   4.00  1 
+33   723.27  723.26563      INDEF      INDEF   4.00  1 
+34   744.26  744.26404      INDEF      INDEF   4.00  1 
+35   766.14  766.13898      INDEF      INDEF   4.00  1 
+36   775.57  775.57355      INDEF      INDEF   4.00  1 
+37   800.46  800.45563      INDEF      INDEF   4.00  1 
+38   826.74  826.73987      INDEF      INDEF   4.00  1 
+39   850.72  850.72437      INDEF      INDEF   4.00  1 
+40   863.49   863.4903      INDEF      INDEF   4.00  1 
+41   899.93  899.92926      INDEF      INDEF   4.00  1 
+42   920.80  920.80426      INDEF      INDEF   4.00  1 
+43   930.09  930.08527      INDEF      INDEF   4.00  1 
+44   956.29  956.28918      INDEF      INDEF   4.00  1 
+45   962.15  962.14716      INDEF      INDEF   4.00  1 
+46   968.01  968.01428      INDEF      INDEF   4.00  1 
+47   973.72  973.71985      INDEF      INDEF   4.00  1 
+48   980.27  980.26709      INDEF      INDEF   4.00  1 
+49   994.77  994.76758      INDEF      INDEF   4.00  1 
+    994.77  994.76758      INDEF 
+Write feature data to the database (yes)? 

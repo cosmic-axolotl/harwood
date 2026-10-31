@@ -1,0 +1,15 @@
+Searching aperture database ...
+Finding apertures ...
+     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+# APERTURES
+
+##ID BEAM  CENTER     LOW    HIGH TITLE
+   1    1   34.59   -5.00    5.00
+   2    2   69.26   -5.00    5.00
+     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+minsep 5.maxsep 1000.order increasingpeak yesbkg yesllimit INDEFshift yesb_order 1b_sample -10:-6,6:10line 150nsum 10image frameUnrecognized or ambiguous command     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+Oct 31 14:14: DATABASE - 2 apertures for frame written to database

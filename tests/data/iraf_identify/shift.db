@@ -1,0 +1,35 @@
+# Sat 13:53:09 31-Oct-2026
+begin	identify arc - Ap 1
+	id	arc
+	task	identify
+	image	arc - Ap 1
+	aperture	1
+	aplow	INDEF
+	aphigh	INDEF
+	units	Angstroms
+	features	6
+	        100.03 4066.90492  4043.3948   4.0 1 1 
+	        193.36 4092.85568  4069.2833   4.0 1 1 
+	        318.01 4127.93804  4104.3821   4.0 1 1 
+	        542.43 4192.10223  4168.6341   4.0 1 1 
+	        744.26 4250.57634  4226.9876   4.0 1 1 
+	        481.63 4174.61039  4292.3057   4.0 1 1 
+	shift	23.53647368423587
+	function spline3
+	order 1
+	sample *
+	naverage 1
+	niterate 0
+	low_reject 3.
+	high_reject 3.
+	grow 0.
+	coefficients	8
+		3.
+		1.
+		1.
+		1024.
+		625.189250574477
+		668.2046351694166
+		718.170487509766
+		767.7525668114318
+

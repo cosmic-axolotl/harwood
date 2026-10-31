@@ -1,0 +1,36 @@
+match -3.
+maxfeatures 50
+minsep 2.
+zwidth 100.
+labels none
+fwidth 4.
+ftype emission
+cradius 5.
+threshold 0.
+coordlist arc_lines.dat
+database database
+image arc
+nsum 1 1
+Unrecognized or ambiguous commandmatch 2.
+maxfeatures 10
+minsep 3.
+zwidth 50.
+fwidth 5.
+cradius 6.
+threshold 2.
+ftype absorption
+labels index
+    100.03  100.02597 (     INDEF ):     100.03  100.02597  4043.3948 A
+    318.02  318.02161 (     INDEF ):     318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+    318.02  318.02161  4104.3821 
+Write feature data to the database (yes)? 

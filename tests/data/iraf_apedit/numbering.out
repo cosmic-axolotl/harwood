@@ -1,0 +1,26 @@
+Searching aperture database ...
+     aperture = 1  beam = 1  center = 34.59  low = -5.00  upper = 5.00
+     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+Aperture (1) =      aperture = 5  beam = 5  center = 34.59  low = -5.00  upper = 5.00
+Beam (2) =      aperture = 2  beam = -1  center = 69.26  low = -5.00  upper = 5.00
+# APERTURES
+
+##ID BEAM  CENTER     LOW    HIGH TITLE
+   5    5   34.59   -5.00    5.00
+   2   -1   69.26   -5.00    5.00
+     aperture = 2  beam = -1  center = 69.26  low = -5.00  upper = 5.00
+Aperture (5) =      aperture = 7  beam = 7  center = 34.59  low = -5.00  upper = 5.00
+# APERTURES
+
+##ID BEAM  CENTER     LOW    HIGH TITLE
+   7    7   34.59   -5.00    5.00
+   8    8   69.26   -5.00    5.00
+     aperture = 7  beam = 7  center = 34.59  low = -5.00  upper = 5.00
+Aperture (8) =      aperture = 3  beam = 3  center = 69.26  low = -5.00  upper = 5.00
+# APERTURES
+
+##ID BEAM  CENTER     LOW    HIGH TITLE
+   7    7   34.59   -5.00    5.00
+   3    3   69.26   -5.00    5.00
+     aperture = 3  beam = 3  center = 69.26  low = -5.00  upper = 5.00
+Oct 31 14:14: DATABASE - 2 apertures for frame written to database

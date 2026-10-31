@@ -1,0 +1,21 @@
+0 0 1 f
+0 0 1 :show
+0 0 1 r
+0 0 1 :minsep
+0 0 1 :maxsep
+0 0 1 :order
+0 0 1 :peak
+0 0 1 :bkg
+0 0 1 :llimit
+0 0 1 :shift
+0 0 1 :b_order
+0 0 1 :b_sample
+0 0 1 :line
+0 0 1 :nsum
+0 0 1 :image
+0 0 1 :bogus
+0 0 1 :line 100
+0 0 1 r
+0 0 1 :nsum 5
+0 0 1 r
+0 0 1 q
