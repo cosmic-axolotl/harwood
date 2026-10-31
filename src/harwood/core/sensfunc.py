@@ -807,6 +807,29 @@ class Window:
     window: tuple
 
 
+@dataclass
+class Graph:
+    """What sf_graph and sf_fitgraph draw in one window. `marks`, in the order drawn,
+    are (kind, x, y) with kind plus, cross or box; `lines` are (x, y, dashed); `bars`
+    are the composite points' x, y and error, each drawn as a bar that tall in all,
+    so half the error either way, as IRAF's gmark has it."""
+
+    kind: str
+    title: str
+    window: tuple
+    marks: list = field(default_factory=list)
+    lines: list = field(default_factory=list)
+    bars: tuple | None = None
+
+
+GRAPH_TITLES = {"s": "Sensitivity vs Wavelength", "r": "Sensitivity Residuals vs Wavelength",
+                "a": "Sensitivity Residuals vs Airmass", "e": "Extinction vs Wavelength",
+                "c": "Composite Points vs Wavelength",
+                "i": "The spectrum, flux calibrated: not ported",
+                "l": "The spectrum's log flux: not ported"}
+NCURVE = 50
+
+
 class Session:
     """sf_sensfunc's cursor loop on one aperture. Keys arrive with the
     cursor's position and the graph (wcs, 1-based) it was in; d, u, m and w
@@ -848,16 +871,122 @@ class Session:
         ports = VIEWPORTS[min(4, max(1, len(self.graphs)))]
         self.windows = []
         for graph, port in zip(self.graphs, ports, strict=False):
-            if graph not in "asr":
-                self.windows.append(Window(graph, port, (0, 1, 0, 1)))
+            self.windows.append(Window(graph, port, self._window(graph)))
+
+    def _window(self, graph: str) -> tuple:
+        if graph == "e":
+            return self._extinction_curves()[0]
+        if graph == "c":
+            found = self._composite_points()
+            return found[0] if found else (0, 1, 0, 1)
+        if graph not in "asr":
+            return (0, 1, 0, 1)
+        data(self.stars, graph)
+        ys = [s.y for s in self.stars if s.flag == INCLUDE and s.nwaves]
+        ymin = min(f32(np.min(y)) for y in ys)
+        ymax = max(f32(np.max(y)) for y in ys)
+        d = f32(f32(0.05) * f32(ymax - ymin))
+        x1, x2 = (self.airmass if graph == "a" else (self.xmin, self.xmax))
+        return (x1, x2, f32(ymin - d), f32(ymax + d))
+
+    def _extinction_curves(self) -> tuple:
+        """sf_egraph: the window, and the extinction and, after e, what it became."""
+        dx = f32(f32(self.xmax - self.xmin) / f32(NCURVE - 1))
+        x = self.xmin
+        grid, table, changed = [], [], []
+        for _ in range(NCURVE):
+            value = extinction(self.curve, x)
+            grid.append(x)
+            table.append(value)
+            if self.ecv is not None:
+                changed.append(f32(value + f32(self.ecv(x))))
+            x = f32(x + dx)
+        everything = table + changed
+        window = (self.xmin, self.xmax, min(everything), max(everything))
+        grid = np.linspace(float(self.xmin), float(self.xmax), NCURVE)
+        return window, grid, np.array(table, dtype=f32), np.array(changed, dtype=f32)
+
+    def _composite_points(self):
+        """sf_cgraph: the window and the points, or None if none overlap."""
+        waves, sens = [], []
+        for star in self.stars[:-2]:
+            if star.flag == EXCLUDE:
                 continue
-            data(self.stars, graph)
-            ys = [s.y for s in self.stars if s.flag == INCLUDE and s.nwaves]
-            ymin = min(f32(np.min(y)) for y in ys)
-            ymax = max(f32(np.max(y)) for y in ys)
-            d = f32(f32(0.05) * f32(ymax - ymin))
-            x1, x2 = (self.airmass if graph == "a" else (self.xmin, self.xmax))
-            self.windows.append(Window(graph, port, (x1, x2, f32(ymin - d), f32(ymax + d))))
+            kept = star.wts[:star.nwaves] != 0
+            waves.append(star.waves[:star.nwaves][kept])
+            sens.append(star.sens[:star.nwaves][kept])
+        waves, sens = np.concatenate(waves), np.concatenate(sens)
+        order = np.argsort(waves, kind="stable")
+        waves, sens = waves[order], sens[order]
+        xs, ys, errors = [], [], []
+        ymin, ymax = 0.0, 0.0
+        for wave in np.unique(waves):
+            here = sens[waves == wave]
+            if here.size <= 2:
+                continue
+            n = here.size
+            total = float(np.sum(here.astype(np.float64)))
+            squares = float(np.sum((here * here).astype(f32).astype(np.float64)))
+            mean = total / n
+            spread = squares / n - mean * mean
+            spread = math.sqrt(spread / n) if spread > 0 else 0.0
+            mean = mean - float(self.cv(wave))
+            xs.append(wave)
+            ys.append(f32(mean))
+            errors.append(f32(spread))
+            ymax = max(ymax, mean + spread)
+            ymin = min(ymin, mean - spread)
+        if not xs:
+            return None
+        window = (self.xmin, self.xmax, f32(ymin), f32(ymax))
+        return (window, np.array(xs, dtype=f32), np.array(ys, dtype=f32),
+                np.array(errors, dtype=f32))
+
+    def drawn(self) -> list[Graph]:
+        """Every graph as it stands, for the panel, in sf_graph's order."""
+        return [self._graph(window) for window in self.windows]
+
+    def _graph(self, window: Window) -> Graph:
+        kind = window.graph
+        graph = Graph(kind, GRAPH_TITLES[kind], window.window)
+        if kind in "asr":
+            data(self.stars, kind)
+            for i, star in enumerate(self.stars):
+                if star.flag != INCLUDE:
+                    continue
+                mark = "box" if i == len(self.stars) - 2 else "plus"
+                for j in range(star.nwaves):
+                    graph.marks.append(("cross" if star.wts[j] == 0 else mark,
+                                        star.x[j], star.y[j]))
+            if kind == "s":
+                graph.lines.append((*self._fit_curve(window), False))
+        elif kind == "e":
+            _, grid, table, changed = self._extinction_curves()
+            graph.lines.append((grid, table, False))
+            if self.ecv is not None:
+                graph.lines.append((grid, changed, True))
+        elif kind == "c":
+            found = self._composite_points()
+            if found is not None:
+                graph.bars = found[1:]
+        return graph
+
+    def _fit_curve(self, window: Window) -> tuple[np.ndarray, np.ndarray]:
+        """sf_fitgraph."""
+        x, right = window.window[:2]
+        step = f32(f32(right - x) / f32(NCURVE))
+        xs = [x]
+        for _ in range(NCURVE):
+            x = f32(x + step)
+            xs.append(x)
+        xs = np.array(xs, dtype=f32)
+        return xs, np.asarray(self.cv.vector_at(xs), dtype=f32)
+
+    def title(self) -> str:
+        """sf_title."""
+        rms_text = "INDEF" if self.rms is None else f"{self.rms:6.4f}"
+        return (f"Aperture={self.aperture}  Function={self.function}  Order={self.order}  "
+                f"Points={self.npts}  RMS={rms_text}")
 
     def _ndc(self, window: Window, x, y):
         vx1, vx2, vy1, vy2 = (f32(v) for v in window.viewport)

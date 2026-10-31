@@ -472,7 +472,8 @@ class SensFuncParams(TaskParams):
                            "written: delete, move, reweight, shift, composite, "
                            "residual extinction. Off by default here, on in IRAF.")
     graphs: str = Field("sr", description="The graphs shown: s sensitivity, r "
-                                          "residuals, a residuals against airmass.")
+                                          "residuals, a residuals against airmass, e "
+                                          "extinction, c composite points.")
     cursor: Path | None = Field(
         None, description="With interactive, the keys from a file instead of the "
                           "window: 'x y graph key' per line, IRAF's cursor file. The "

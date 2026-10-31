@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 
 from .. import iraffmt
-from ..gio import widened
+from ..gio import with_room
 from ..nlfit import DONE
 from . import io
 from .config import Config, evaluate
@@ -745,16 +745,7 @@ class FitSession:
 
 
 def _window(xs: np.ndarray, ys: np.ndarray) -> tuple[float, float, float, float]:
-    """gascale and gt_swind: the data, and a little room around it."""
-    def around(values: np.ndarray) -> tuple[float, float]:
-        values = values[np.isfinite(values)]
-        if not values.size:
-            return -1.0, 1.0
-        lo, hi = float(values.min()), float(values.max())
-        room = 0.03 * (hi - lo)
-        return widened(lo - room, hi + room)
-
-    return (*around(xs), *around(ys))
+    return (*with_room(xs), *with_room(ys))
 
 
 def _vtran(name: str) -> str:

@@ -8,7 +8,6 @@ here are the ones a cursor file with the same keys would choose.
 
 from __future__ import annotations
 
-import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
@@ -41,7 +40,7 @@ class StandardPanel(QtWidgets.QWidget):
         spec = editor.spec
         self.plot.setTitle(f"{spec.image}{spec.section}({spec.ap}): {spec.title}",
                            color=_c().muted, size="10pt")
-        self.plot.setLabel("bottom", "wavelength (Angstroms)", color=_c().muted)
+        self.plot.setLabel("bottom", "Wavelength (angstroms)", color=_c().muted)
         self.plot.setLabel("left", "instrumental flux", color=_c().muted)
         self.plot.scene().sigMouseMoved.connect(self._moved)
         self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
@@ -58,32 +57,21 @@ class StandardPanel(QtWidgets.QWidget):
         self.command.setPlaceholderText(":show")
         self.command.returnPressed.connect(self._run_command)
         layout.addWidget(self.command)
-        self.render()
+        self.render(rescale=True)
 
-    def boxes(self) -> list[tuple[float, float, float]]:
-        """(centre, width, counts per pixel) of each band measured: what
-        std_graph marks."""
-        spec, bands = self.editor.spec, self.editor.bands
-        out = []
-        for wave, dwave, total in zip(bands.waves, bands.dwaves, bands.fluxes, strict=True):
-            if total == 0:
-                continue
-            pixels = abs(spec.wl(float(wave - dwave / 2)) - spec.wl(float(wave + dwave / 2)))
-            out.append((float(wave), float(dwave), float(total) / pixels))
-        return out
-
-    def render(self) -> None:
+    def render(self, rescale: bool = False) -> None:
+        graph = self.editor.graph()
         self.plot.clear()
-        spec = self.editor.spec
-        self.plot.plot(spec.wave, np.asarray(spec.y, float),
-                       pen=pg.mkPen(_c().accent, width=1.2))
-        for wave, dwave, level in self.boxes():
+        self.plot.plot(graph.x, graph.y, pen=pg.mkPen(_c().accent, width=1.2))
+        half = graph.box_height / 2
+        for wave, dwave, level in graph.boxes:
             x = [wave - dwave / 2, wave + dwave / 2, wave + dwave / 2, wave - dwave / 2,
                  wave - dwave / 2]
-            height = 0.03 * max(abs(level), 1e-30)
-            y = [level - height, level - height, level + height, level + height,
-                 level - height]
+            y = [level - half, level - half, level + half, level + half, level - half]
             self.plot.plot(x, y, pen=pg.mkPen(_c().warning, width=1.4))
+        if rescale:
+            x1, x2, y1, y2 = graph.window
+            self.plot.setRange(xRange=(x1, x2), yRange=(y1, y2), padding=0)
         pending = self.editor.pending
         if pending is not None:
             self.plot.addItem(pg.InfiniteLine(angle=90, pos=float(pending),
@@ -106,7 +94,7 @@ class StandardPanel(QtWidgets.QWidget):
         if self.editor.done:
             self.finished.emit()
             return
-        self.render()
+        self.render(rescale=key == "r" and self.editor.pending is None)
 
     def eventFilter(self, obj, event) -> bool:  # noqa: N802 (Qt's name)
         if event.type() == QtCore.QEvent.Type.KeyPress and event.text():

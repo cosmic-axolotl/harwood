@@ -19,6 +19,7 @@ the right (harwood reads the band's own; stdstar.colour_column).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -126,6 +127,67 @@ def test_standard_writes_what_iraf_writes(case, spectra, tmp_path, monkeypatch):
         assert (header["EXPTIME"], header["AIRMASS"]) == (450.0, 1.42)
 
 
+GRAPHS = {"int": ("cur1", 2), "redraw": ("cur3", 8)}
+GKI_UNITS = 2.5
+
+
+@pytest.mark.parametrize("case", list(GRAPHS))
+def test_the_graph_is_iraf_s(case, spectra, tmp_path, monkeypatch):
+    """IRAF's metacode, where a frame is drawn: the start of each spectrum, and r.
+    What a and d put over the frame after that comes after the frame's boxes."""
+    import shutil
+
+    for path in spectra.iterdir():
+        shutil.copy(path, tmp_path / path.name)
+    cursor, count = GRAPHS[case]
+    shutil.copy(REF / cursor, tmp_path / cursor)
+    monkeypatch.chdir(tmp_path)
+    drawn = []
+
+    class Recording(stdstar.Editor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            drawn.append(self.graph())
+
+        def key(self, x, key, command=""):
+            pending = self.pending
+            super().key(x, key, command)
+            if key == "r" and pending is None:
+                drawn.append(self.graph())
+
+    monkeypatch.setattr(stdstar, "Editor", Recording)
+    get_task("standard").run(input="std1.fits,std2.fits", output=tmp_path / "std",
+                             caldir=str(REF / "mycal"), star_name="fakestar",
+                             extinction=str(DATA / "kpnoextinct.dat"), observatory="kpno",
+                             interact=True, answer="YES", cursor=cursor)
+    frames = json.loads((REF / "graphs" / f"{case}.json").read_text())
+    assert len(frames) == len(drawn) == count
+    for number, (graph, frame) in enumerate(zip(drawn, frames, strict=True)):
+        where = f"frame {number}"
+        wx1, wx2, wy1, wy2, sx1, sx2, sy1, sy2 = frame["windows"][0]
+        assert graph.window[:2] == pytest.approx((wx1, wx2), abs=1e-4 * abs(wx2 - wx1)), where
+        assert graph.window[2:] == pytest.approx((wy1, wy2), abs=1e-4 * abs(wy2 - wy1)), where
+        assert graph.image in frame["text"] and graph.title in frame["text"], where
+
+        scale_x = (sx2 - sx1) * 32767 / (wx2 - wx1)
+        scale_y = (sy2 - sy1) * 32767 / (wy2 - wy1)
+        spectrum_drawn = np.array(max((points for _, points in frame["lines"]), key=len))
+        scale_x = (sx2 - sx1) * 32767 / (wx2 - wx1)
+        scale_y = (sy2 - sy1) * 32767 / (wy2 - wy1)
+        mine = np.c_[sx1 * 32767 + (graph.x - wx1) * scale_x,
+                     sy1 * 32767 + (graph.y - wy1) * scale_y]
+        for point in spectrum_drawn:
+            assert np.abs(mine - point).max(axis=1).min() <= GKI_UNITS, where
+        for (wave, dwave, level), (kind, bx, by, bw, bh) in zip(
+                graph.boxes, frame["marks"], strict=False):
+            assert kind == "box", where
+            at = (sx1 * 32767 + (wave - wx1) * scale_x, sy1 * 32767 + (level - wy1) * scale_y)
+            assert at == pytest.approx((bx, by), abs=GKI_UNITS), where
+            assert dwave * scale_x == pytest.approx(bw, abs=2 * GKI_UNITS), where
+            assert graph.box_height * scale_y == pytest.approx(bh, abs=5 * GKI_UNITS), where
+        assert len(graph.boxes) <= len(frame["marks"]), where
+
+
 def test_harwood_s_file_holds_the_same_bands(spectra, tmp_path, monkeypatch):
     """The CSV harwood writes by default is read back to the bands IRAF's
     file gives: counts per second per Angstrom, apertures and images kept."""
@@ -202,7 +264,7 @@ def test_the_window_drives_the_same_editor():
     editor = stdstar.Editor(spec, bands, stdstar.Extinction(None))
     stdstar.measure(spec, bands, stdstar.Extinction(None))
     panel = StandardPanel(editor)
-    assert len(panel.boxes()) == 13
+    assert len(panel.editor.graph().boxes) == 13
     panel._x = 4101.0
     panel.key("d")
     assert np.float32(4100) not in bands.waves
@@ -210,7 +272,7 @@ def test_the_window_drives_the_same_editor():
     panel.key("a")
     panel._x = 4190.0
     panel.key("a")
-    assert np.float32(4170) in bands.waves and len(panel.boxes()) == 13
+    assert np.float32(4170) in bands.waves and len(panel.editor.graph().boxes) == 13
     done = []
     panel.finished.connect(lambda: done.append(True))
     panel.key("q")

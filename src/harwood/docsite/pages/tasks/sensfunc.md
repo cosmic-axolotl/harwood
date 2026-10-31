@@ -28,7 +28,12 @@ them.
 
 **Working on the stars.** `--interactive` shows IRAF's graphs --
 sensitivity and residuals against wavelength (`--graphs sra` adds the
-residuals against airmass) -- and its keys, on the graph under the mouse:
+residuals against airmass; `e` is the extinction, dashed where a residual has
+changed it, and `c` the composite points, each bar as tall as the error, so half of
+it either way, as IRAF draws them) -- and its keys, on the graph under the mouse.
+Every frame of fifteen cursor files is held to IRAF's graphics metacode. IRAF's `i`
+and `l`, the standards' spectra flux calibrated, are not ported, and their plots
+say so; nor are `:images`, `:skys`, `:fluxlimits`, `:marks` or `:colors`:
 
 - `d` then `p`, `s` or `w` deletes the point, the whole star or the whole
   wavelength nearest the cursor; `u` brings them back; `w` gives them a

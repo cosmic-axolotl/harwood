@@ -1,0 +1,7 @@
+keys: {images: [sa.fits, sb.fits]}
+ranges: {images: [sa.fits, sb.fits]}
+over: {images: [sa.fits, sb.fits]}
+peak: {images: [star.fits], line: 25}
+spec: {images: [spec.fits], line: 1, wcs: world}
+flat: {images: [flat.fits]}
+log: {images: [star.fits], line: 25}

@@ -28,6 +28,7 @@ from pathlib import Path
 import numpy as np
 
 from . import advice, flux
+from .gio import with_room
 
 f32 = np.float32
 f64 = np.float64
@@ -522,6 +523,20 @@ def measure(spec: Spectrum, bands: Bands, ext: Extinction, edge: float = 0.0) ->
 # --------------------------------------------------------- the editor
 
 
+@dataclass
+class Graph:
+    """What std_graph draws: the spectrum, and a box for each band measured, at its
+    counts per pixel, as wide as the band and 3% of the plot high."""
+
+    image: str
+    title: str
+    window: tuple[float, float, float, float]
+    x: np.ndarray
+    y: np.ndarray
+    boxes: list[tuple[float, float, float]]     #: centre, width, counts per pixel
+    box_height: float
+
+
 class Editor:
     """std_calib's cursor loop on one spectrum: a marks a band's two ends,
     d deletes the band nearest in wavelength, :show lists the bands, q
@@ -562,6 +577,19 @@ class Editor:
             pass
         else:
             self.messages.append("\a")
+
+    def graph(self) -> Graph:
+        spec, bands = self.spec, self.bands
+        boxes = []
+        for wave, dwave, total in zip(bands.waves, bands.dwaves, bands.fluxes, strict=True):
+            if total == 0:
+                continue
+            pixels = abs(spec.wl(float(wave - dwave / 2)) - spec.wl(float(wave + dwave / 2)))
+            boxes.append((float(wave), float(dwave), float(f32(f32(total) / f32(pixels)))))
+        x, y = np.asarray(spec.wave, dtype=float), np.asarray(spec.y, dtype=float)
+        window = (*with_room(x), *with_room(y))
+        return Graph(spec.image, spec.title, window, x, y, boxes,
+                     0.03 * (window[3] - window[2]))
 
     def _add(self, wx1, wx2) -> None:
         wx1, wx2 = f32(wx1), f32(wx2)

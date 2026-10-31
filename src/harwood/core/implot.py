@@ -19,6 +19,7 @@ the plot's y range onto 1 .. the other dimension, as imp_tran does.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -28,15 +29,21 @@ f32 = np.float32
 
 @dataclass
 class Plot:
-    """What is drawn: the curves (x, y, label) and the window."""
+    """What is drawn: the curves (x, y, label), the window they were scaled to, and
+    where the plotted line or column lies in the image: a mark at the right of the
+    plot for each, on the right-hand axis, which counts `nother` lines or columns."""
 
     curves: list[tuple[np.ndarray, np.ndarray, str]] = field(default_factory=list)
     title: str = ""
+    subtitle: str = ""
     xlabel: str = ""
     xrange: tuple[float, float] | None = None
     yrange: tuple[float, float] | None = None
     logy: bool = False
-    marks: list[tuple[float, float, float, float]] = field(default_factory=list)
+    window: tuple[float, float, float, float] | None = None
+    marks: list[tuple[float, float]] = field(default_factory=list)
+    nother: int = 1
+    segments: list[tuple[float, float, float, float]] = field(default_factory=list)
 
 
 class Implot:
@@ -145,25 +152,51 @@ class Implot:
             return f"Average of {kind} {i1} to {i2} of {self.name}"
         return f"{'Line' if self.lineplot else 'Column'} {at} of {self.name}"
 
+    def _xlabel(self) -> str:
+        """plt_wcs's label: what the axis is, or in world what the header says."""
+        if self.wcs in ("logical", "physical"):
+            return "Column (pixels)" if self.lineplot else "Line (pixels)"
+        attributes = _wat_attributes(self.header, 1 if self.lineplot else 2)
+        label, units = attributes.get("label"), attributes.get("units")
+        if label is None:
+            return ""
+        return f"{label} ({units})" if units is not None else label
+
+    def _title(self) -> str:
+        """IM_TITLE, which IRAF prints under the line that says what is plotted."""
+        return str(self.header.get("OBJECT", "")).strip() if self.header else ""
+
     def _draw(self, erase_last: bool = False) -> None:
         x, y = self.vector()
         label = self._label()
+        self.x, self.y = x, y
         if self.overplot and self.plot.curves:
+            # On the plot as it stands: the window and the title stay what they were.
             if erase_last:
                 self.plot.curves[-1] = (x, y, label)
             else:
                 self.plot.curves.append((x, y, label))
             self.overplot = False
         else:
-            self.plot = Plot(curves=[(x, y, label)], title=label,
-                             xlabel=self.wcs, logy=self.logscale)
+            self.plot = Plot(curves=[(x, y, label)], title=label, xlabel=self._xlabel(),
+                             logy=self.logscale,
+                             subtitle="" if self.nlines <= 1 else self._title())
+            self.plot.window = self._scaled()
         self.plot.xrange = self.fixed_x
         self.plot.yrange = self.fixed_y
-        self.x, self.y = x, y
+        self._mark_position()
 
-    def window(self) -> tuple[float, float, float, float]:
-        """The plot window, as gascale leaves it: the vector's extremes, or
-        the fixed ranges."""
+    def _mark_position(self) -> None:
+        """imp_markpos."""
+        count, at = (self.nlines, self.line) if self.lineplot else (self.ncols, self.col)
+        self.plot.nother = count
+        if count < 2 or self.nlines <= 1:
+            return
+        _, x2, y1, y2 = self.plot.window
+        self.plot.marks.append((x2, (y2 - y1) / (count - 1) * (at - 1) + y1))
+
+    def _scaled(self) -> tuple[float, float, float, float]:
+        """The vector's extremes, as gascale leaves them, or the fixed ranges."""
         x, y = self.x, self.y
         x1, x2 = self.fixed_x or (float(x.min()), float(x.max()))
         lo, hi = min(x1, x2), max(x1, x2)
@@ -172,7 +205,15 @@ class Implot:
         y1, y2 = self.fixed_y or (float(values.min()), float(values.max()))
         if y1 == y2:
             y1, y2 = 0.99 * y1, 1.01 * y2
+        if self.logscale and min(y1, y2) > 0:
+            # glabax takes a log axis out to whole decades.
+            low, high = (math.floor, math.ceil) if y1 < y2 else (math.ceil, math.floor)
+            y1, y2 = 10.0 ** low(math.log10(y1)), 10.0 ** high(math.log10(y2))
         return x1, x2, y1, y2
+
+    def window(self) -> tuple[float, float, float, float]:
+        """The window of the plot on the screen."""
+        return self.plot.window
 
     def _tran(self, x: float, y: float, other: int) -> tuple[int, int]:
         """imp_tran: the nearest point of the vector to x, and y on the
@@ -246,6 +287,8 @@ class Implot:
             self._draw()
         elif key == " ":
             self._coordinates(x, y)
+        elif key == "/":
+            pass                                  # the panel shows all of p's four lines
         elif key == "?":
             self.status = ["l line  c column  a average  e expand  j k move  m n image  "
                            "o overplot  p profile  r redraw  s statistics  space value  "
@@ -297,7 +340,8 @@ class Implot:
         elif key == "s":
             self._statistics(x1, x2)
         elif key == "p":
-            self.status = profile(self.x, self.y, x1, y1, x2, y2)
+            self.status, segments = profile(self.x, self.y, x1, y1, x2, y2)
+            self.plot.segments += segments
             self.messages += self.status
 
     def _statistics(self, x1: float, x2: float) -> None:
@@ -363,7 +407,7 @@ class Implot:
             self.p_navg = max(1, int(float(value))) if value else 1
         elif name.startswith("log"):
             self.logscale = command.rstrip().endswith("+")
-            self._draw()
+            self.status = [f"log scale {'on' if self.logscale else 'off'}; r redraws"]
         elif name in ("l", "c") or (name[:1] in "lc" and name[1:].isdigit()):
             try:
                 values = [int(float(v)) for v in ([name[1:]] if name[1:] else [])
@@ -427,13 +471,28 @@ class Implot:
                            ":a averages, :i opens an image; ? lists the keys"]
 
 
+def _wat_attributes(header, axis: int) -> dict[str, str]:
+    """An axis's attributes from its WATn_ cards: wtype=linear label=Wavelength
+    units=Angstroms, a value with spaces in double quotes."""
+    if header is None:
+        return {}
+    text = ""
+    for number in range(1, 1000):
+        card = f"WAT{axis}_{number:03d}"
+        if card not in header:
+            break
+        text += str(header[card]).ljust(68)
+    return {name: quoted or plain for name, quoted, plain
+            in re.findall(r'(\w+)\s*=\s*(?:"([^"]*)"|(\S+))', text)}
+
+
 def _aavg(values: np.ndarray) -> tuple[float, float]:
     """aavgr (awvgr without cuts): mean and sigma, n - 1 in the variance."""
     n = values.size
     total = float(np.sum(values.astype(np.float64)))
     if n <= 1:
         return float(f32(total)), float("nan")
-    sumsq = float(np.sum((values * values).astype(np.float64)))
+    sumsq = float(np.sum(values.astype(np.float64) ** 2))
     variance = (sumsq - (total / n) * total) / (n - 1)
     return float(f32(total / n)), float(f32(math.sqrt(variance) if variance > 0 else 0.0))
 
@@ -452,93 +511,150 @@ def _amed(values: np.ndarray) -> float:
 
 
 def profile(x: np.ndarray, y: np.ndarray, x1: float, y1: float, x2: float,
-            y2: float) -> list[str]:
-    """impprofile.x: within x1..x2, over the line from (x1, y1) to (x2,
-    y2), the peak, its half-intensity width and the moments, all from
-    spline3 interpolants of the coordinates and the data. Returns IRAF's
-    four status lines."""
+            y2: float) -> tuple[list[str], list[tuple[float, float, float, float]]]:
+    """impprofile.x, in single precision as it is: within x1..x2, over the line from
+    (x1, y1) to (x2, y2), the peak, its half-intensity width and the moments, all
+    from spline3 interpolants of the coordinates and the data. Returns IRAF's four
+    status lines and the segments it draws: the baseline, the centre, the half widths."""
     from .asi import Interpolant
+    from .iraffmt import printf
 
     n = x.size
     xasi, yasi = Interpolant("spline3", x), Interpolant("spline3", y)
-    step0, dxacc, niterate = 0.01, 0.001, 10
+    at_x = lambda p: f32(xasi(p))     # noqa: E731
+    at_y = lambda p: f32(yasi(p))     # noqa: E731
+    x1, y1, x2, y2 = f32(x1), f32(y1), f32(x2), f32(y2)
+    step0, dxacc, niterate = f32(0.01), f32(0.001), 10
 
     def solve(target, start):
         p = start
         for _ in range(niterate):
-            value, slope = xasi(p), xasi.derivative(p)
-            a = target - value
-            p = max(1.0, min(float(n), p + a / slope)) if slope else p
+            value, slope = at_x(p), f32(xasi.derivative(p))
+            a = f32(target - value)
+            if slope:
+                p = max(f32(1.0), min(f32(n), f32(p + f32(a / slope))))
             if abs(a) < dxacc:
                 break
         return p
 
-    p1 = solve(x1, 1.0 + n / 2.0)
+    p1 = solve(x1, f32(f32(1.0) + f32(n / 2.0)))
     p2 = solve(x2, p1)
     if p1 == p2:
-        y0, dy, step = (y1 + y2) / 2.0, 1.0, step0
-    elif p1 < p2:
-        y0, dy = y1, (y2 - y1) / (p2 - p1)
-        step = (p2 - p1) / (round(p2) - round(p1) + 1) * step0
+        y0, dy, step = f32(f32(y1 + y2) / f32(2.0)), f32(1.0), step0
     else:
-        p1, p2 = p2, p1
-        y0, dy = y2, (y1 - y2) / (p2 - p1)
-        step = (p2 - p1) / (round(p2) - round(p1) + 1) * step0
+        if p1 < p2:
+            y0, dy = y1, f32(f32(y2 - y1) / f32(p2 - p1))
+        else:
+            p1, p2 = p2, p1
+            y0, dy = y2, f32(f32(y1 - y2) / f32(p2 - p1))
+        step = f32(f32(f32(p2 - p1) / f32(_nint(p2) - _nint(p1) + 1)) * step0)
 
-    ps = np.arange(p1, p2 + step * 1e-9, step)
-    a = np.array([xasi(p) for p in ps])
-    base = y0 + (ps - p1) * dy
-    c = np.array([yasi(p) for p in ps]) - base
-    sumb = (base.sum() - base[0] / 2 - base[-1] / 2) * step
-    sum0 = (c.sum() - c[0] / 2 - c[-1] / 2) * step
-    sum1 = (np.sum(a * c) - a[0] * c[0] / 2 - a[-1] * c[-1] / 2) * step
+    def over_baseline(p):
+        return f32(y0 + f32(f32(p - p1) * dy))
+
+    # The moments, by the trapezoid: the sums in double of what is each a real.
+    p = p1
+    a, b = at_x(p), over_baseline(p)
+    c = f32(at_y(p) - b)
+    sum0, sum1 = float(f32(c / f32(2.0))), float(f32(f32(a * c) / f32(2.0)))
+    p = f32(p + step)
+    while p <= p2:
+        a, b = at_x(p), over_baseline(p)
+        c = f32(at_y(p) - b)
+        sum0 += float(c)
+        sum1 += float(f32(a * c))
+        p = f32(p + step)
+    sum0 = (sum0 - float(f32(c / f32(2.0)))) * float(step)
+    sum1 = (sum1 - float(f32(f32(a * c) / f32(2.0)))) * float(step)
     if sum0 == 0:
-        centroid = width = asym = float("nan")
+        sum1 = sum2 = sum3 = float("nan")
     else:
-        centroid = sum1 / sum0
-        d = a - centroid
-        sum2 = (np.sum(d * d * c) - d[0] ** 2 * c[0] / 2 - d[-1] ** 2 * c[-1] / 2) * step
-        sum3 = (np.sum(d ** 3 * c) - d[0] ** 3 * c[0] / 2 - d[-1] ** 3 * c[-1] / 2) * step
-        sigma = math.sqrt(sum2 / sum0) if sum2 / sum0 > 0 else 0.0
-        width = 2.35482 * sigma
-        asym = (sum3 / sum0) / sigma ** 3 if sigma > 0 else float("nan")
-    excess = np.abs(c)
-    k = int(np.argmax(excess)) if excess.size else 0
-    pc, half = ps[k], excess[k] / 2
-    xc = xasi(pc)
-    xl = xr = float("nan")
-    previous = excess[k]
-    for j in range(k, -1, -1):
-        if excess[j] < half:
-            pl = ps[j] + (half - excess[j]) / (previous - excess[j]) * step
-            xl = xasi(pl)
+        sum1 = sum1 / sum0
+        p = p1
+
+        def terms(p):
+            a = f32(float(at_x(p)) - sum1)
+            c = f32(at_y(p) - over_baseline(p))
+            square = f32(a * a)
+            return float(f32(square * c)), float(f32(f32(square * a) * c))
+
+        two, three = terms(p)
+        sum2, sum3 = float(f32(two / 2)), float(f32(three / 2))
+        p = f32(p + step)
+        while p <= p2:
+            two, three = terms(p)
+            sum2 += two
+            sum3 += three
+            p = f32(p + step)
+        sum2 = (sum2 - float(f32(two / 2))) * float(step)
+        sum3 = (sum3 - float(f32(three / 2))) * float(step)
+        sum2 = math.sqrt(sum2 / sum0) if sum2 / sum0 > 0 else 0.0
+        if sum2 > 0:
+            sum3 = (sum3 / sum0) / sum2 ** 3
+
+    def distance(p):
+        return abs(f32(f32(at_y(p) - y0) - f32(f32(p - p1) * dy)))
+
+    pc, c = p1, f32(0.0)
+    p = p1
+    while p <= p2:
+        a = distance(p)
+        if a > c:
+            pc, c = p, a
+        p = f32(p + step)
+    xc = at_x(pc)
+
+    # The half width points, from what the search left in b the first time round.
+    half = f32(c / f32(2.0))
+    pl = pr = xl = xr = None
+    p = pc
+    while p >= p1:
+        a = distance(p)
+        if a < half:
+            pl = f32(p + f32(f32(f32(half - a) / f32(b - a)) * step))
+            xl = at_x(pl)
             break
-        previous = excess[j]
-    previous = excess[k]
-    for j in range(k, len(ps)):
-        if ps[j] >= p2:
+        b = a
+        p = f32(p - step)
+    p = pc
+    while p < p2:
+        a = distance(p)
+        if a < half:
+            pr = f32(p - f32(f32(f32(half - a) / f32(b - a)) * step))
+            xr = at_x(pr)
             break
-        if excess[j] < half:
-            pr = ps[j] - (half - excess[j]) / (previous - excess[j]) * step
-            xr = xasi(pr)
-            break
-        previous = excess[j]
-    if not math.isnan(xl) and xl > xc:
-        xl, xr = xr, xl
-    fwhm = xr - xl if not (math.isnan(xl) or math.isnan(xr)) else float("nan")
-    background = y0 + (pc - p1) * dy
-    peak = yasi(pc)
-    del sumb
+        b = a
+        p = f32(p + step)
+
+    background = over_baseline(pc)
+    peak = at_y(pc)
+    middle = f32(f32(f32(peak - background) / f32(2.0)) + background)
+    if xl is not None and (xr is None or xl > xc):
+        pl, pr, xl, xr = pr, pl, xr, xl
+    width = None if xl is None or xr is None else f32(xr - xl)
+
+    segments = [(float(x1), float(y1), float(x2), float(y2)),
+                (float(xc), float(background), float(xc), float(peak))]
+    for far, pfar in ((xl, pl), (xr, pr)):
+        if far is not None:
+            level = f32(f32(f32(middle - background) + y0) + f32(f32(pfar - p1) * dy))
+            segments.append((float(xc), float(middle), float(far), float(level)))
 
     def g(v, w=8):
-        from .iraffmt import printf
+        if v is None or math.isnan(float(v)):
+            return f"{'INDEF':>{w}}"
+        return f"{printf(float(v), 'g', width=w):>{w}}"
 
-        return f"{printf(float(v), 'g', width=w):>{w}}" if not math.isnan(v) else \
-            f"{'INDEF':>{w}}"
+    double = lambda v, w=8: (  # noqa: E731
+        f"{'INDEF':>{w}}" if math.isnan(v)
+        else f"{printf(v, 'g', width=w, double=True):>{w}}")
+    return ([f"[1/4] Profile: Center={g(xc)}, Width={g(width)}, Peak={g(peak)}, "
+             f"Bkg={g(background)}",
+             f"[2/4] Moments: Centroid={double(sum1)}, Width={double(2.35482 * sum2)}, "
+             f"Flux={double(sum0)}, Asym={double(sum3, 6)}",
+             f"[3/4] Half Intensity: Lower={g(xl)}, Upper={g(xr)}, Width={g(width)}",
+             f"[4/4] Background: ({g(x1)}, {g(y1)}) - ({g(x2)}, {g(y2)})"], segments)
 
-    return [f"[1/4] Profile: Center={g(xc)}, Width={g(fwhm)}, Peak={g(peak)}, "
-            f"Bkg={g(background)}",
-            f"[2/4] Moments: Centroid={g(centroid)}, Width={g(width)}, Flux={g(sum0)}, "
-            f"Asym={g(asym, 6)}",
-            f"[3/4] Half Intensity: Lower={g(xl)}, Upper={g(xr)}, Width={g(fwhm)}",
-            f"[4/4] Background: ({g(x1)}, {g(y1)}) - ({g(x2)}, {g(y2)})"]
+
+def _nint(value) -> int:
+    return int(math.floor(float(value) + 0.5))

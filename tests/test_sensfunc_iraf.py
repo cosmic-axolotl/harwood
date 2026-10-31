@@ -8,7 +8,8 @@ every aperture, apertures chosen, ignoreaps, four functions. From a cursor
 file, on the three stars of aperture 1: points, stars and wavelengths
 deleted and restored, moved, added and reweighted, the stars shifted and
 made a composite, a residual extinction applied and cancelled, the original
-data back, the order and function changed, and three graphs.
+data back, the order and function changed, and three graphs. What each cursor
+file draws is in iraf_sensfunc/graphs, from IRAF's graphics metacode.
 
 IRAF reads the new weight (w) and the answer to the residual extinction
 (e) from the terminal; the cursor files here give them as the next line's
@@ -18,6 +19,7 @@ its q; harwood fits that curve as IRAF does by default.
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
@@ -87,6 +89,96 @@ def test_the_keys_do_what_iraf_s_do(case, tmp_path, monkeypatch):
         assert any("Significance =  1.7 sigma" in line for line in result.data["text"])
     if case == "del":
         assert "ms3.fits - Delete p(oint), s(tar), or w(avelength):" in result.data["text"]
+
+
+GRAPHS = sorted(path.stem for path in (REF / "graphs").glob("*.json"))
+GKI_UNITS = 2.5
+
+
+def _on_screen(window, x, y):
+    wx1, wx2, wy1, wy2, sx1, sx2, sy1, sy2 = window
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    return np.c_[(sx1 + (x - wx1) / (wx2 - wx1) * (sx2 - sx1)) * 32767,
+                 (sy1 + (y - wy1) / (wy2 - wy1) * (sy2 - sy1)) * 32767]
+
+
+def _on_plot(window, point) -> bool:
+    return (window[4] * 32767 - 1 <= point[0] <= window[5] * 32767 + 1
+            and window[6] * 32767 - 1 <= point[1] <= window[7] * 32767 + 1)
+
+
+@pytest.mark.parametrize("case", GRAPHS)
+def test_the_graphs_are_iraf_s(case, tmp_path, monkeypatch):
+    """IRAF's metacode (iraf_sensfunc/run_graphs.py): every frame's windows, titles
+    and curves, and every mark in the order drawn, through the same cursor file. IRAF
+    clips what falls outside a window, and what d and u put over a frame comes after."""
+    from harwood.core import sensfunc as sf
+
+    drawn = []
+
+    class Recording(sf.Session):
+        def draw(self):
+            super().draw()
+            drawn.append((self.title(), self.drawn()))
+
+    monkeypatch.setattr(sf, "Session", Recording)
+    monkeypatch.chdir(tmp_path)
+    shutil.copy(REF / "cursor" / case, tmp_path / "cursor")
+    get_task("sensfunc").run(
+        standards=REF / "std_mix", sensitivity=f"i_{case}", apertures="1",
+        extinction=str(DATA / "kpnoextinct.dat"), interactive=True, answer="YES",
+        cursor=tmp_path / "cursor", logfile=f"log_{case}", newextinction=f"ext_{case}")
+    # The frames of icfit, in e, have no title of sensfunc's.
+    frames = [frame for frame in json.loads((REF / "graphs" / f"{case}.json").read_text())
+              if any(text.startswith("Aperture=") for text in frame["text"])]
+    assert len(frames) == len(drawn)
+    for number, (frame, (title, graphs)) in enumerate(zip(frames, drawn, strict=True)):
+        where = f"frame {number}"
+        assert title in frame["text"], where
+        lines = np.array([p for _, points in frame["lines"] for p in points]).reshape(-1, 2)
+        assert sum(style == 2 for style, _ in frame["lines"]) == sum(
+            dashed for graph in graphs for _, _, dashed in graph.lines), where
+        marks = iter(frame["marks"])
+        for graph, window in zip(graphs, frame["windows"], strict=False):
+            assert graph.title in frame["text"], where
+            width, height = abs(window[1] - window[0]), abs(window[3] - window[2])
+            assert [float(v) for v in graph.window[:2]] == pytest.approx(
+                window[:2], abs=1e-4 * width), where
+            assert [float(v) for v in graph.window[2:]] == pytest.approx(
+                window[2:4], abs=1e-4 * height), where
+            for kind, x, y in graph.marks:
+                point = _on_screen(window, [x], [y])[0]
+                if _on_plot(window, point):
+                    theirs = next(marks)
+                    assert theirs[0] == kind, where
+                    assert np.abs(point - theirs[1:3]).max() <= GKI_UNITS, where
+            for x, y, _ in graph.lines:
+                for point in _on_screen(window, x, y):
+                    if _on_plot(window, point):
+                        assert np.abs(lines - point).max(axis=1).min() <= GKI_UNITS, where
+            if graph.bars is not None:
+                x, y, error = graph.bars
+                for end in (y - error / 2, y + error / 2):
+                    for point in _on_screen(window, x, end):
+                        assert np.abs(lines - point).max(axis=1).min() <= GKI_UNITS, where
+
+
+def test_the_panel_draws_every_graph_there_is():
+    pytest.importorskip("PySide6")
+    pytest.importorskip("pyqtgraph")
+    from harwood.core import sensfunc as sf
+    from harwood.viewer import _qt
+    from harwood.viewer.sensfunc_panel import SensfuncPanel
+
+    _qt.application()
+    stars = sf.read_iraf((REF / "std_mix").read_text(), [1], False)
+    curve = flux.read_extinction(DATA / "kpnoextinct.dat")
+    session = sf.Session(stars, curve, "spline3", 6, graphs="sace")
+    panel = SensfuncPanel(session)
+    assert [plot.titleLabel.text for plot in panel.plots] == [
+        "Sensitivity vs Wavelength", "Sensitivity Residuals vs Airmass",
+        "Composite Points vs Wavelength", "Extinction vs Wavelength"]
+    assert panel.status.text().startswith("Aperture=1  Function=spline3  Order=6")
 
 
 def test_harwood_s_own_std_file_gives_iraf_s_fit_to_its_precision(tmp_path, monkeypatch):

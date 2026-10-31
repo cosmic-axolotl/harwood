@@ -5,6 +5,9 @@ the dispersion in identify are all fitting correctly, because they are the same
 code.
 """
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -224,3 +227,22 @@ def test_a_missing_solution_says_what_to_run(tmp_path):
         database.read("nothing.fits", tmp_path)
     assert "dispersion solution" in str(raised.value)
     assert "identify" in raised.value.fix
+
+
+@pytest.mark.parametrize("case", range(5))
+def test_the_rms_and_the_counts_are_what_iraf_s_title_says(case):
+    """Averaged points are what the rms is over, and outside the sample is not
+    rejected: IRAF's fit1d, its graph's title, tests/data/iraf_icfit_titles.json."""
+    reference = json.loads(
+        (Path(__file__).parent / "data" / "iraf_icfit_titles.json").read_text())
+    y = np.array(reference["y"])
+    x = np.arange(1.0, y.size + 1.0)
+    settings = dict(reference["cases"][case])
+    total, sample, rejected, deleted, rms = settings.pop("said")
+    settings = {"function": "spline3", "low_reject": 0.0, "high_reject": 0.0, "niterate": 1,
+                "grow": 0.0, **settings}
+    fit = icfit.fit(x, y, icfit.FitSpec(**settings))
+    assert fit.nrejected == int(rejected) and not int(deleted)
+    assert x.size == int(total)
+    assert f"{fit.rms:.4g}" == f"{float(rms):.4g}"
+    assert int(fit.sample.sum()) // (4 if settings.get("naverage") == -4 else 1) == int(sample)

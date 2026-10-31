@@ -9,7 +9,6 @@ keys in a file would do. A key acts on the graph under the mouse.
 
 from __future__ import annotations
 
-import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
@@ -21,8 +20,6 @@ from .theme import palette as _c
 HELP = [("d u", "delete, undelete: then p, s or w"), ("m", "move to the cursor"),
         ("w", "reweight"), ("a", "add a point"), ("s", "shift"), ("c", "composite"),
         ("e", "residual extinction"), ("f g", "fit"), ("o", "original"), ("q", "done")]
-TITLES = {"s": "Sensitivity vs Wavelength", "r": "Sensitivity Residuals vs Wavelength",
-          "a": "Sensitivity Residuals vs Airmass"}
 
 
 class SensfuncPanel(QtWidgets.QWidget):
@@ -62,39 +59,36 @@ class SensfuncPanel(QtWidgets.QWidget):
         self.canvas.clear()
         self.plots = []
         session = self.session
-        for index, window in enumerate(session.windows):
-            plot = self.canvas.addPlot(row=index, col=0,
-                                       title=TITLES.get(window.graph, window.graph))
+        for index, graph in enumerate(session.drawn()):
+            plot = self.canvas.addPlot(row=index, col=0, title=graph.title)
             for axis in ("left", "bottom"):
                 item = plot.getAxis(axis)
                 item.setPen(pg.mkPen(_c().line))
                 item.setTextPen(pg.mkPen(_c().muted))
                 item.enableAutoSIPrefix(False)
             self.plots.append(plot)
-            if window.graph not in "asr":
-                continue
-            sf.data(session.stars, window.graph)
-            for i, star in enumerate(session.stars):
-                if star.flag != sf.INCLUDE or not star.nwaves:
-                    continue
-                kept = star.wts != 0
-                symbol = "t" if i == len(session.stars) - 2 else "+"
-                plot.plot(star.x[kept], star.y[kept], pen=None, symbol=symbol,
-                          symbolPen=pg.mkPen(_c().accent), symbolBrush=None, symbolSize=8)
-                if (~kept).any():
-                    plot.plot(star.x[~kept], star.y[~kept], pen=None, symbol="x",
-                              symbolPen=pg.mkPen(_c().warning), symbolSize=8)
-            x1, x2, y1, y2 = (float(v) for v in window.window)
-            if window.graph == "s":
-                grid = np.linspace(x1, x2, 200).astype(np.float32)
-                plot.plot(grid, session.cv.vector_at(grid), pen=pg.mkPen(_c().line))
-            elif window.graph in "ra":
+            # Marks that differ in shape, so that colour is never the only channel.
+            for kind, symbol, colour in (("plus", "+", _c().accent), ("box", "s", _c().accent),
+                                         ("cross", "x", _c().warning)):
+                points = [(x, y) for mark, x, y in graph.marks if mark == kind]
+                if points:
+                    x, y = zip(*points, strict=True)
+                    plot.plot(x, y, pen=None, symbol=symbol, symbolPen=pg.mkPen(colour),
+                              symbolBrush=None, symbolSize=8)
+            for x, y, dashed in graph.lines:
+                style = QtCore.Qt.PenStyle.DashLine if dashed else QtCore.Qt.PenStyle.SolidLine
+                plot.plot(x, y, pen=pg.mkPen(_c().line, style=style))
+            if graph.bars is not None:
+                x, y, height = graph.bars
+                beam = (x.max() - x.min()) / 80
+                plot.addItem(pg.ErrorBarItem(x=x, y=y, height=height, beam=beam,
+                                             pen=pg.mkPen(_c().accent)))
+            x1, x2, y1, y2 = (float(v) for v in graph.window)
+            if graph.kind in "ra":
                 plot.addLine(y=0, pen=pg.mkPen(_c().line))
             plot.setXRange(x1, x2, padding=0)
             plot.setYRange(y1, y2, padding=0)
-        rms = "INDEF" if session.rms is None else f"{session.rms:.4f}"
-        self.status.setText(f"aperture {session.aperture} · {session.function} "
-                            f"{session.order} · {session.npts} points · rms {rms}")
+        self.status.setText(session.title())
 
     def _moved(self, position) -> None:
         for index, plot in enumerate(self.plots):

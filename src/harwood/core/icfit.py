@@ -68,6 +68,9 @@ class Fit:
     deleted: np.ndarray               #: True where a human deleted it
     model: object = field(repr=False, default=None)
     message: str = ""
+    sample: np.ndarray | None = field(repr=False, default=None)    #: in the sample range
+    #: What was fitted, where the points are averaged: x, y, and which are still in.
+    averaged: tuple | None = field(repr=False, default=None)
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         if self.model is None:
@@ -85,6 +88,13 @@ class Fit:
 
     @property
     def rms(self) -> float:
+        """ic_rms, over what was fitted: averages, where the points are averaged, so
+        averaging lowers it by what it took out."""
+        if self.averaged is not None:
+            x, y, kept = self.averaged
+            if kept.sum() < 2 or self.model is None:
+                return float("nan")
+            return float(np.sqrt(np.mean((y[kept] - self(x[kept])) ** 2)))
         used = self.mask & ~self.deleted
         if used.sum() < 2:
             return float("nan")
@@ -92,7 +102,9 @@ class Fit:
 
     @property
     def nrejected(self) -> int:
-        return int((~self.mask & ~self.deleted).sum())
+        """Those the rejection took: outside the sample is not rejected."""
+        inside = np.ones(self.x.shape, dtype=bool) if self.sample is None else self.sample
+        return int((~self.mask & ~self.deleted & inside).sum())
 
     def summary(self) -> str:
         return (f"{self.spec.function} order {self.spec.order}   "
@@ -297,7 +309,7 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None,
     usable = in_sample & ~deleted & np.isfinite(y)
     if usable.sum() < 2:
         return Fit(spec, x, y, usable, deleted, None,
-                   "not enough points to fit; check the sample range")
+                   "not enough points to fit; check the sample range", in_sample)
 
     weights = usable.astype(float)
     groups = _groups(_runs(in_sample), spec.naverage)
@@ -317,10 +329,14 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None,
                 mask[members] = True
         return mask & usable
 
+    def finished(mask, model, message):
+        averaged = (xb, yb, (wb > 0) & ~rejected) if abs(int(spec.naverage)) > 1 else None
+        return Fit(spec, x, y, mask, deleted, model, message, in_sample, averaged)
+
     try:
         model = model_from(~rejected)
     except Exception as error:
-        return Fit(spec, x, y, usable, deleted, None, str(error))
+        return finished(usable, None, str(error))
 
     pixgrow = _pixgrow(xb, spec.grow)
     for _ in range(max(0, int(spec.niterate))):
@@ -347,17 +363,17 @@ def fit(x, y, spec: FitSpec | None = None, deleted=None,
         if not new.any():
             break
         if (~(rejected | new) & (wb > 0)).sum() < _minimum_points(spec):
-            return Fit(spec, x, y, used_points(), deleted, model,
-                       f"stopped rejecting: another pass would leave fewer than "
-                       f"{_minimum_points(spec)} points, which {spec.function} "
-                       f"order {spec.order} needs")
+            return finished(used_points(), model,
+                            f"stopped rejecting: another pass would leave fewer than "
+                            f"{_minimum_points(spec)} points, which {spec.function} "
+                            f"order {spec.order} needs")
         rejected |= new
         try:
             model = model_from(~rejected)
         except Exception as error:
-            return Fit(spec, x, y, used_points(), deleted, None, str(error))
+            return finished(used_points(), None, str(error))
 
-    return Fit(spec, x, y, used_points(), deleted, model, _clamped(spec, wb, rejected))
+    return finished(used_points(), model, _clamped(spec, wb, rejected))
 
 
 def cv_range(x, spec: FitSpec, xrange: tuple[float, float] | None = None

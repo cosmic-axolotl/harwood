@@ -33,7 +33,7 @@ same lines.
 | `:a 5` | how many l and c average |
 | `:i image` | another image |
 | `:o` | overplot the next |
-| `:log+`, `:log-` | logarithmic counts |
+| `:log+`, `:log-` | logarithmic counts, from the next redraw (`r`), with the axis out to whole decades, as IRAF has it |
 | `:step 7` | the step of j and k |
 | `:w logical` / `physical` / `world` | the coordinates along the plot |
 | `:x 100 200`, `:y 400 900` | fix the range (no numbers: free again) |
@@ -50,5 +50,10 @@ pixel=[150,200] value=1324.802
 On a raw frame of the [sample night](page:start/sample), a line shows about
 800 ADU of sky and stars over columns 1 to 100 and the 500 ADU of the
 overscan over 105 to 120 -- the strip ccdproc fits and subtracts.
+
+The right-hand axis counts the image's lines or columns, and the + on it is where
+the plotted one lies. Seven cursor files IRAF ran give the same text and, from its
+graphics metacode, the same plots: windows, labels, curves, marks and the dashed
+lines of `p`. `p` prints its four lines at once, where IRAF's `/` walks through them.
 
 Contours and surfaces are IRAF's `contour` and `surface`, separate tasks.

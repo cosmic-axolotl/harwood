@@ -13,6 +13,8 @@ the cursor. Positions are 1-based, as everywhere a user can see.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
@@ -63,6 +65,14 @@ class ImplotPanel(QtWidgets.QWidget):
             item.setTextPen(pg.mkPen(_c().muted))
             item.enableAutoSIPrefix(False)
         self.plot.setLabel("left", "counts", color=_c().muted)
+        # The right-hand axis counts the lines or columns of the image, as IRAF's
+        # does: the mark on it says where the cut plotted lies.
+        self.plot.showAxis("right")
+        right = self.plot.getAxis("right")
+        right.setPen(pg.mkPen(_c().line))
+        right.setTextPen(pg.mkPen(_c().muted))
+        right.enableAutoSIPrefix(False)
+        self.plot.getViewBox().sigYRangeChanged.connect(self._scale_right_axis)
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
         self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.plot.installEventFilter(self)
@@ -113,15 +123,52 @@ class ImplotPanel(QtWidgets.QWidget):
                            pen=pg.mkPen(colour, width=1.2), connect="finite")
         self.plot.setLogMode(y=state.logy)
         self.plot.setLabel("bottom", state.xlabel, color=_c().muted)
-        self.plot.setTitle(f"implot · {state.title}", color=_c().ink, size="10pt")
+        title = f"implot · {state.title}"
+        if state.subtitle:
+            title += f"<br>{state.subtitle}"
+        self.plot.setTitle(title, color=_c().ink, size="10pt")
         x1, x2, y1, y2 = self.engine.window()
-        self.plot.setRange(xRange=sorted((x1, x2)), yRange=sorted((y1, y2)), padding=0.02)
+        low, high = self._on_view(y1), self._on_view(y2)
+        box = self.plot.getViewBox()
+        box.invertX(x1 > x2)
+        box.invertY(y1 > y2)
+        self.plot.setRange(xRange=sorted((x1, x2)), yRange=sorted((low, high)), padding=0.02)
+        self._scale_right_axis()
+        for sx1, sy1, sx2, sy2 in state.segments:
+            self.plot.plot([sx1, sx2], [sy1, sy2], pen=pg.mkPen(
+                _c().muted, width=1.2, style=QtCore.Qt.PenStyle.DashLine))
+        if state.marks:
+            x, y = zip(*state.marks, strict=True)
+            self.plot.plot(x, y, pen=None, symbol="+", symbolSize=15,
+                           symbolPen=pg.mkPen(_c().accent, width=1.6))
         y = self.engine.y
         lines = self.engine.status or [
             f"{state.title}   min {y.min():.1f}   max {y.max():.1f}   "
             f"mean {y.mean():.1f}   median {np.median(y):.1f}"]
         self.status.setText("\n".join(line for line in lines if line != "\a")
                             or "that key does nothing here; ? lists them")
+
+    def _on_view(self, y: float) -> float:
+        """A data value where the view has it, which on a log plot is its log."""
+        if not self.engine.plot.logy:
+            return y
+        if y > 0:
+            return math.log10(y)
+        positive = self.engine.y[self.engine.y > 0]
+        return math.log10(positive.min()) if positive.size else 0.0
+
+    def _scale_right_axis(self) -> None:
+        state = self.engine.plot
+        if state.window is None or state.nother < 2:
+            self.plot.getAxis("right").setRange(0, 1)
+            return
+        low, high = self._on_view(state.window[2]), self._on_view(state.window[3])
+        if low == high:
+            return
+        count = state.nother - 1
+        view = self.plot.getViewBox().viewRange()[1]
+        self.plot.getAxis("right").setRange(*(1 + (v - low) / (high - low) * count
+                                              for v in view))
 
     # -------------------------------------------------------------- input
 

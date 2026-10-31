@@ -1,0 +1,13 @@
+pixel=[40,20] value=652.1092
+pixel=[10,33] value=646.9108
+pixel=[17,25] value=602.3512
+pixel=[38,33] value=665.2858
+pixel=[33,48] value=679.8353
+pixel=[12,54] value=690.6649
+pixel=[12,47] value=655.9619
+pixel=[12,47] value=148.4736
+pixel=[68,20] value=228.7227
+pixel=[68,55], physical=[68,55], value=470.2227
+pixel=[68,54], physical=[70,55], value=815.2612
+pixel=[7,30], physical=[9,31], value=647.1893
+pixel=[7,30], world=[9.,31.] value=647.1893

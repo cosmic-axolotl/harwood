@@ -29,7 +29,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
-from ..core import icfit
+from ..core import gio, icfit
 from . import keyguide, theme
 from ._qt import on_main
 from .theme import palette as _c
@@ -142,8 +142,11 @@ class IcfitPanel(QtWidgets.QWidget):
             grid = np.linspace(float(self.xdata.min()), float(self.xdata.max()), 400)
             curve = (np.interp(grid, self.xdata, curve_y) if curve_y is not None
                      else self.fit(grid))
-            self.plot.plot(grid, curve, pen=pg.mkPen(_c().accent, width=2))
+            self.plot.plot(grid, curve, pen=pg.mkPen(_c().accent, width=2,
+                                                     style=QtCore.Qt.PenStyle.DashLine))
 
+        (x0, x1), (y0, y1) = gio.with_room(self.xdata), gio.with_room(values)
+        self.plot.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)
         self.plot.setTitle(self.title, color=_c().ink, size="10pt")
         self.status.setText(self._status_text())
 
