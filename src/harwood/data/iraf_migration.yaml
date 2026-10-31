@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 47, partial: 15, planned: 293, replaced: 94, wontport: 161
+#   available: 48, partial: 16, planned: 291, replaced: 94, wontport: 161
 #   milestone mvp: 57 (34 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -648,8 +648,10 @@ tasks:
     note: "the sections from format files and templates, IRAF's standards directory shipped as photcal$catalogs/, byte for byte, then chkconfig; the prompting for a section with no file and the editor are not ported"}
   mkimsets: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkimsets,
     note: "the image list from the photometry or the headers, sorted, grouped (imgroup) and written byte for byte as IRAF does, names from a list or a header keyword; the editor sessions are not ported"}
-  mknobsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
-  mkobsfile: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mknobsfile: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mknobsfile,
+    note: "one aperture of the photometry through obsfile, byte for byte IRAF's on the twelve Skinakas images"}
+  mkobsfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkobsfile,
+    note: "as mknobsfile, byte for byte IRAF's; the questions at the terminal are not ported, the sets come from a file of mkimsets'"}
   mkphotcors: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
   nstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   obsfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: obsfile,

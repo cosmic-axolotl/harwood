@@ -405,6 +405,68 @@ def test_mkapfile_keys_need_a_screen_or_a_file(tmp_path, monkeypatch):
     assert not (tmp_path / "a").exists()
 
 
+OBSKEYS = DATA / "obskeys"
+SKINAKAS_SETS = str((DATA / "obsfile") / "imsets.mkimsets")
+OBSKEYCASES = {
+    "mA": {}, "mB": dict(aperture=5), "mC": dict(allfilters=True),
+    "mD": dict(apercors=str((DATA / "obsfile") / "apercors.all")),
+    "mE": dict(shifts=str(OBSKEYS / "shifts.txt")), "mF": dict(minmagerr=0.02),
+    "mG": dict(tolerance=0.0), "mH": dict(wrap=False),
+    "mI": dict(obsparams=str(OBSKEYS / "obspars.txt")), "mJ": {},
+    "nA": {}, "nB": dict(aperture=11, allfilters=True),
+    "nI": dict(obsparams=str(OBSKEYS / "obspars.txt"),
+               apercors=str((DATA / "obsfile") / "apercors.all"))}
+
+
+@pytest.mark.parametrize("case", OBSKEYCASES)
+def test_mkobsfile_writes_and_says_what_iraf_does(tmp_path, monkeypatch, case):
+    """mA to mJ ran mkobsfile, nA to nI mknobsfile (obskeys/run_iraf.py): the same
+    script but for mkphotcors, whose warning on mI's obsparams is not ported."""
+    from harwood.tasks.photcal import Mknobsfile, Mkobsfile
+
+    monkeypatch.chdir(APFILE)
+    task = Mknobsfile() if case.startswith("n") else Mkobsfile()
+    out = tmp_path / case
+    settings = dict(tolerance=8.0) | OBSKEYCASES[case]
+    result = task.execute(task.Params(
+        photfiles=PHOTFILES, idfilters="B,V", imsets=SKINAKAS_SETS, observations=out,
+        **settings))
+    assert out.read_text() == (OBSKEYS / case).read_text()
+    assert obs.format_path(out).read_text() == (OBSKEYS / f"f{case}.dat").read_text()
+    if case != "mJ":        # verbose=no, which harwood's task has no use for
+        written = [(set_["name"], set_["stars"]) for set_ in result.data["sets"]]
+        assert obs.summary(case, written) == (OBSKEYS / f"{case}.out").read_text()
+    if case != "mI":
+        assert (OBSKEYS / f"{case}.err").read_text() == ""
+    assert not result.warnings
+
+
+def test_mkobsfile_refuses_what_iraf_refuses(tmp_path, monkeypatch):
+    from harwood.tasks.photcal import Mkobsfile
+
+    monkeypatch.chdir(APFILE)
+    task = Mkobsfile()
+
+    def run(**settings):
+        settings = dict(photfiles=PHOTFILES, idfilters="B,V", imsets=SKINAKAS_SETS,
+                        observations=tmp_path / "out") | settings
+        return task.execute(task.Params(**settings))
+
+    with pytest.raises(ValueError, match="image sets are needed") as caught:
+        run(imsets="")
+    assert "mkimsets" in caught.value.fix
+    with pytest.raises(ValueError, match="does not exist"):
+        run(imsets="nosuch")
+    with pytest.raises(ValueError, match="does not exist"):
+        run(apercors="nosuch")
+    with pytest.raises(ValueError, match="no aperture 99"):
+        run(aperture=99)
+    assert not (tmp_path / "out").exists()
+    run()
+    with pytest.raises(ValueError, match="already exists"):
+        run()
+
+
 FITKEYS = DATA / "fitkeys"
 FITCASES = sorted(path.stem for path in FITKEYS.glob("*.cur"))
 

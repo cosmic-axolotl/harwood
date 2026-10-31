@@ -1,0 +1,2 @@
+stan0051cr.fits 1.5 -2.0
+stan0052cr.fits 0.5 0.5

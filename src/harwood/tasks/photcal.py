@@ -820,6 +820,124 @@ class Obsfile(Task[ObsfileParams]):
                                 "notes": notes})
 
 
+class MknobsfileParams(TaskParams):
+    photfiles: list[str] = Field(
+        ..., description="apphot or daophot text files of magnitudes (phot's .mag "
+                         "files, or harwood's).",
+        json_schema_extra={"positional": True})
+    idfilters: str = Field(..., description="The filters, in the order of the "
+                                            "columns to write: B,V.",
+                           json_schema_extra={"positional": True})
+    imsets: str = Field(..., description="The image sets file: NAME : image image "
+                                         "..., one image per filter (mkimsets).",
+                        json_schema_extra={"positional": True})
+    observations: Path = Field(..., description="The observations file to write; it "
+                                                "must not exist. Its format goes to "
+                                                "f<name>.dat.",
+                               json_schema_extra={"positional": True})
+    aperture: int = Field(1, ge=1, description="Which aperture's magnitude to take.")
+    wrap: bool = Field(True, description="A line per filter, the later ones "
+                                         "starting with '*'; off, one long line.")
+    obsparams: str = Field("", description="A file of image, filter, exposure "
+                                           "time, airmass and time that replaces "
+                                           "what the photometry says.")
+    obscolumns: str = Field("2 3 4 5", description="obsparams' columns of filter, "
+                                                   "exposure time, airmass and time.")
+    minmagerr: float = Field(0.001, ge=0, description="The smallest error a "
+                                                      "magnitude is given.")
+    shifts: str = Field("", description="A file of image, x shift and y shift, "
+                                        "added before matching.")
+    apercors: str = Field("", description="The aperture corrections mkapfile "
+                                          "wrote, added to the magnitudes.")
+    tolerance: float = Field(5.0, ge=0, description="Match stars within this many "
+                                                    "pixels; 0 matches by order.")
+    allfilters: bool = Field(False, description="Write only the stars measured in "
+                                                "every filter.")
+
+
+class MkobsfileParams(MknobsfileParams):
+    imsets: str = Field("", description="The image sets file: NAME : image image ..., "
+                                        "one image per filter (mkimsets). IRAF asks "
+                                        "for them at the terminal when left out; here "
+                                        "they have to be written first.")
+    observations: Path = Field(..., description="The observations file to write; it "
+                                                "must not exist. Its format goes to "
+                                                "f<name>.dat.",
+                               json_schema_extra={"positional": True})
+
+
+WHY.update({
+    "dump": "One aperture's magnitude is taken from each star, with what the photometry "
+            "knows of the image: filter, exposure time, airmass and time. Which "
+            "aperture matters: correct it afterwards with mkapfile's corrections "
+            "(apercors), which are for one small aperture and one large one.",
+})
+
+
+class _ObservationsFromPhotometry(Task):
+    """What mkobsfile.cl and mknobsfile.cl have in common, which is all but the
+    questions mkphotcors asks."""
+
+    package = "photcal"
+    description = "The observations file, straight from the photometry."
+
+    def plan(self, params) -> list[Step]:
+        return [Step("dump", f"aperture {params.aperture} of "
+                             f"{', '.join(params.photfiles)}", why=WHY["dump"]),
+                Step("sets", params.imsets, why=WHY["sets"]),
+                Step("match", f"filters {params.idfilters}, within {params.tolerance:g} "
+                              "pixels", why=WHY["obsmatch"]),
+                Step("write", str(params.observations), why=WHY["obswrite"])]
+
+    def execute(self, params) -> TaskResult:
+        from ..core.photcal import mkobsfile, obsfile
+
+        if not params.imsets:
+            advice.fail("the image sets are needed, and IRAF's questions at the terminal "
+                        "are not ported.",
+                        "write them first with mkimsets, and give the file with --imsets.")
+        try:
+            result = mkobsfile.mkobsfile(
+                _files(params.photfiles), params.idfilters, params.imsets,
+                str(params.observations), wrap=params.wrap, obsparams=params.obsparams,
+                obscolumns=params.obscolumns, minmagerr=params.minmagerr,
+                shifts=params.shifts, apercors=params.apercors, aperture=params.aperture,
+                tolerance=params.tolerance, allfilters=params.allfilters)
+        except KeyError as error:
+            advice.fail(f"a photometry file has no column {error}.",
+                        "the inputs must be phot's output, or use --aperture to name one "
+                        "it measured.")
+        except (OSError, ValueError) as error:
+            advice.fail(str(error), "check the names, and pick a new name for the output: "
+                                    "it is not overwritten, as IRAF's is not.")
+        steps = self.plan(params)
+        steps[-1].measured = {f"{k}. {label}": f"{n} stars"
+                              for k, (label, n) in enumerate(result.written, start=1)}
+        warnings = [advice.warn(note.strip(), "check the image sets against the "
+                                              "photometry and the filters.")
+                    for note in result.notes]
+        outputs = [params.observations, obsfile.format_path(params.observations)]
+        return TaskResult(outputs=outputs, steps=steps, warnings=warnings,
+                          data={"sets": [{"name": label, "stars": n}
+                                         for label, n in result.written]})
+
+
+@register
+class Mkobsfile(_ObservationsFromPhotometry):
+    """The observations file, from the photometry and a file of image sets."""
+
+    name = "mkobsfile"
+    Params = MkobsfileParams
+
+
+@register
+class Mknobsfile(_ObservationsFromPhotometry):
+    """The same, for many observations of single stars, the sets being required."""
+
+    name = "mknobsfile"
+    Params = MknobsfileParams
+
+
 class ChkconfigParams(TaskParams):
     config: Path = Field(..., description="The configuration file to check.",
                          json_schema_extra={"positional": True})
