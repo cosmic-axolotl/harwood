@@ -57,8 +57,7 @@ HELP = [
     ("a", "all, or not: a switch"),
     ("r", "redraw"),
     ("?", "these keys"),
-    (":", "show, line, nsum, center, lower, upper, title, minsep, maxsep, width, radius, "
-          "threshold, ylevel, peak, bkg, r_grow, llimit, ulimit, order, shift, npeaks"),
+    (":", "show, line, nsum, center, lower, upper, title, and apall's parameters"),
     ("q", "finish"),
 ]
 

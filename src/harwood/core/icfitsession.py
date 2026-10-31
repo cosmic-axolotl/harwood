@@ -57,8 +57,7 @@ HELP = [
     ("o", "the next graph over this one"),
     ("r", "redraw"),
     ("?", "these keys"),
-    (":", "function, order, sample, naverage, niterate, low_reject, high_reject, grow, "
-          "markrej, show, xyshow, errors, evaluate, graph"),
+    (":", "function, order, sample, naverage, niterate, low_reject, high_reject, grow, show"),
     ("q", "accept the last fit: q does not fit"),
 ]
 

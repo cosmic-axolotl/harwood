@@ -820,14 +820,20 @@ class Graph:
     marks: list = field(default_factory=list)
     lines: list = field(default_factory=list)
     bars: tuple | None = None
+    widths: tuple | None = None     #: x, y and width of a standard's bands on its spectrum
 
 
 GRAPH_TITLES = {"s": "Sensitivity vs Wavelength", "r": "Sensitivity Residuals vs Wavelength",
                 "a": "Sensitivity Residuals vs Airmass", "e": "Extinction vs Wavelength",
                 "c": "Composite Points vs Wavelength",
-                "i": "The spectrum, flux calibrated: not ported",
-                "l": "The spectrum's log flux: not ported"}
+                "i": "Flux", "l": "Log Flux"}
 NCURVE = 50
+
+
+def iraffmt_g(value) -> str:
+    from .iraffmt import g
+
+    return "INDEF" if value is None else g(float(f32(value)))
 
 
 class Session:
@@ -838,8 +844,11 @@ class Session:
     answer (y or n), where IRAF reads the terminal."""
 
     def __init__(self, stars: list[Star], curve, function: str, order: int,
-                 graphs: str = "sr", system: str = "harwood") -> None:
+                 graphs: str = "sr", system: str = "harwood", reader=None) -> None:
         self.stars, self.curve = stars, curve
+        self.reader = reader            #: (image, beam) gives a stdstar.Spectrum
+        self.fluxlimits: tuple = (None, None)
+        self._spectra: dict = {}
         self.function, self.order = function, order
         self.graphs = graphs
         self.system = system
@@ -860,6 +869,7 @@ class Session:
         delta = f32(self.airmass[1] - self.airmass[0])
         self.airmass = (f32(self.airmass[0] - f32(0.05) * delta),
                         f32(self.airmass[1] + f32(0.05) * delta))
+        self.images = [star.image for star in included][:4]
         self.windows: list[Window] = []
         self.draw()
 
@@ -870,8 +880,90 @@ class Session:
         included points' range and 5 per cent."""
         ports = VIEWPORTS[min(4, max(1, len(self.graphs)))]
         self.windows = []
+        self._spectra = {}
+        image = 0
         for graph, port in zip(self.graphs, ports, strict=False):
-            self.windows.append(Window(graph, port, self._window(graph)))
+            if graph in "il":
+                image += 1
+                self._spectra[len(self.windows)] = self._image(image, graph == "l")
+                window = self._spectra[len(self.windows)]["window"]
+            else:
+                window = self._window(graph)
+            self.windows.append(Window(graph, port, window))
+
+    def _image(self, number: int, log: bool) -> dict:
+        """sf_image: the number'th image, extinction corrected and flux calibrated with
+        the fit there is, scaled, or its log; with the star's bands if it is one."""
+        none = {"window": (0, 1, 0, 1), "title": GRAPH_TITLES["l" if log else "i"], "x": None}
+        if number > len(self.images) or not self.images[number - 1] or self.reader is None:
+            return none
+        name = self.images[number - 1]
+        beam = next(s.beam for s in self.stars[:-2] if s.flag != EXCLUDE)
+        try:
+            spec = self.reader(name, beam)
+        except (OSError, ValueError, KeyError) as error:
+            self.messages.append(f"Warning: {error}")
+            return none
+        x = np.asarray(spec.wave, dtype=f32)
+        y = np.asarray(spec.y, dtype=f32).copy()
+        airmass = f32(spec.airmass if spec.airmass is not None else 1.0)
+        exptime = f32(spec.exptime if spec.exptime is not None else 1.0)
+        if spec.ec == 0:
+            self.messages.append(f"-{name} already extinction corrected-")
+        else:
+            xmin = self.ecv.xmin if self.ecv is not None else None
+            xmax = self.ecv.xmax if self.ecv is not None else None
+            for i in range(y.size):
+                e = extinction(self.curve, x[i])
+                if self.ecv is not None:
+                    e = f32(e + f32(self.ecv(min(xmax, max(x[i], xmin)))))
+                y[i] = f32(y[i] * f32(10.0 ** float(f32(f32(f32(0.4) * airmass) * e))))
+        if getattr(spec, "calibrated", False):
+            self.messages.append(f"-{name} already flux calibrated-")
+        else:
+            sens = np.asarray(self.cv.vector_at(x), dtype=f32)
+            for i in range(y.size):
+                dw = f32(abs(spec.lw(i + 1.5) - spec.lw(i + 0.5)))
+                y[i] = f32(f32(f32(y[i] / exptime) / dw)
+                           / f32(10.0 ** float(f32(f32(0.4) * sens[i]))))
+        top = float(y.max())
+        scale = None
+        multiplier = 1.0
+        if top < 0:
+            scale = 0
+        elif not log:
+            scale = int(-math.log10(top) + 1)
+            multiplier = 10.0 ** scale
+            y = (y * f32(multiplier)).astype(f32)
+        else:
+            floor = f32(top / 1000)
+            positive = y[y > floor]
+            least = positive.min() if positive.size else f32(top)
+            y = np.log10(np.maximum(y, least).astype(np.float64)).astype(f32)
+        low, high = self.fluxlimits
+        if scale is None:
+            title = f"{name}: Log Flux"
+            low = math.log10(low) if low is not None and low > 0 else None
+            high = math.log10(high) if high is not None and high > 0 else None
+        elif scale != 0:
+            title = f"{name}: Flux x 1E{scale}"
+            low = None if low is None else low * multiplier
+            high = None if high is None else high * multiplier
+        else:
+            title = f"{name}: Flux"
+        window = (float(x.min()), float(x.max()),
+                  float(y.min()) if low is None else low,
+                  float(y.max()) if high is None else high)
+        bands = [s for s in self.stars if s.image == name and s.nwaves]
+        widths = None
+        if bands:
+            waves = np.concatenate([s.waves[:s.nwaves] for s in bands])
+            fluxes = np.concatenate([s.fluxes[:s.nwaves] for s in bands])
+            wide = np.concatenate([s.dwaves[:s.nwaves] for s in bands])
+            levels = (np.log10(fluxes.astype(np.float64)) if scale is None
+                      else fluxes * f32(multiplier))
+            widths = waves, levels, wide
+        return {"window": window, "title": title, "x": x, "y": y, "widths": widths}
 
     def _window(self, graph: str) -> tuple:
         if graph == "e":
@@ -969,6 +1061,12 @@ class Session:
             found = self._composite_points()
             if found is not None:
                 graph.bars = found[1:]
+        elif kind in "il":
+            spectrum = self._spectra[self.windows.index(window)]
+            graph.title = spectrum["title"]
+            if spectrum["x"] is not None:
+                graph.lines.append((spectrum["x"], spectrum["y"], False))
+                graph.widths = spectrum["widths"]
         return graph
 
     def _fit_curve(self, window: Window) -> tuple[np.ndarray, np.ndarray]:
@@ -1183,7 +1281,21 @@ class Session:
                 self.graphs = kept[:4]
                 return False, True
             self.messages.append(f"graphs {self.graphs}")
-        elif name in ("images", "skys", "marks", "fluxlimits", "colors"):
+        elif name == "images":
+            if rest:
+                self.images[:len(rest)] = rest
+            else:
+                shown = (self.images + [""] * 4)[:4]
+                self.messages.append("images " + " ".join(shown))
+        elif name == "fluxlimits":
+            if len(rest) == 2:
+                self.fluxlimits = tuple(None if v.upper() == "INDEF" else float(v)
+                                        for v in rest)
+                return False, True
+            else:
+                low, high = (iraffmt_g(v) for v in self.fluxlimits)
+                self.messages.append(f"fluxlimits {low} {high}")
+        elif name in ("skys", "marks", "colors"):
             pass
         else:
             self.messages.append("Unrecognized or ambiguous command\a")

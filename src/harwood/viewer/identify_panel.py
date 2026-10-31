@@ -68,7 +68,7 @@ class IdentifyPanel(QtWidgets.QWidget):
         self.status.setWordWrap(True)
         page.addWidget(self.status)
 
-        self.keys = keyguide.strip(HELP)
+        self.keys = keyguide.strip([("space" if k == " " else k, what) for k, what in HELP])
         page.addWidget(self.keys)
 
         self.command = QtWidgets.QLineEdit()

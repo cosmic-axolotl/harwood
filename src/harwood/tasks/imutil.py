@@ -1474,10 +1474,12 @@ def histogram(data, integer: bool, z1=None, z2=None, binwidth=None, nbins: int =
     if hist_type == "cumulative":
         counts = np.cumsum(counts)
     elif hist_type in ("difference", "second_difference"):
-        for _ in range(1 if hist_type == "difference" else 2):
+        times = 1 if hist_type == "difference" else 2
+        for _ in range(times):
             counts = np.append(counts[1:] - counts[:-1], 0)[:nbins]
-            lo, hi = f32(lo + f32(width / f32(2))), f32(hi - f32(width / f32(2)))
             nbins -= 1
+        shift = f32(width / f32(2)) if times == 1 else width
+        lo, hi = f32(lo + shift), f32(hi - shift)
         counts = counts[:nbins]
     centres = np.empty(nbins, dtype=f32)
     start = f32(lo + f32(width / f32(2)))
@@ -1575,6 +1577,7 @@ class ImHistogram(Task[ImHistogramParams]):
             plot.line(np.asarray(centres, dtype=float), values)
         else:
             plot.steps(z1 + width * np.arange(nbins + 1), values)
+        plot.scale_to(float(z1), float(z2))
         where = _plot(plot, params.device, f"imhistogram · {params.image}",
                       Path(str(images.parse(params.image).path)).stem + ".hist.svg")
         return TaskResult(data={"bins": rows, **summary}, steps=self.plan(params),

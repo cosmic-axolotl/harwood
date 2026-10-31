@@ -62,4 +62,4 @@ def test_without_a_screen_the_plot_is_an_svg(tmp_path, monkeypatch):
                         logy=False, device=str(tmp_path / "boxes.svg"))
     assert boxes.outputs == [tmp_path / "boxes.svg"]
     points = boxes.outputs[0].read_text().split('points="')[1].split('"')[0].split()
-    assert len(points) == 2 * 37, "two corners per bin"
+    assert len(points) == 2 * 37 - 1, "two corners a bin, but hgline stops at the last's start"

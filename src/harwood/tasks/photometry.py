@@ -651,6 +651,8 @@ def _sky_sources(params):
             from ..viewer.graph_panel import mark
 
             cursor = fitsky.Cursor(show=mark)
+    if cursor is not None:
+        cursor.image = str(params.image)
     if params.salgorithm == "file" and getattr(params, "skyfile", ""):
         skyfile = fitsky.SkyFile(params.skyfile)
     return cursor, skyfile

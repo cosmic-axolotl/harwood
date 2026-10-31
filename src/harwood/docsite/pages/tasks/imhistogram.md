@@ -38,3 +38,8 @@ width=`.
 Most pixels of a frame of sky fall in the first bin; a long tail of
 brighter bins is the stars. Narrow the range (`--z1`, `--z2`) to look at the
 sky itself.
+
+The plot is held to what IRAF draws, from its graphics metacode: the window, the title and
+the curve. A log axis goes out to whole decades, and with a bin at zero, or the negative
+values of a difference histogram, it is IRAF's elog scale: log beyond 10 either way,
+straight through zero between.

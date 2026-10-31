@@ -63,8 +63,7 @@ HELP = [
     ("p", "pan: the whole spectrum"),
     ("r", "redraw"),
     ("?", "these keys"),
-    (":", "show, features, match, maxfeatures, minsep, zwidth, labels, fwidth, ftype, "
-          "cradius, threshold, coordlist"),
+    (":", "show, features, match, minsep, zwidth, labels, fwidth, ftype, threshold"),
     ("q", "finish"),
 ]
 

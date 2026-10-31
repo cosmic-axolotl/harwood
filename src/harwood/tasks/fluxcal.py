@@ -324,6 +324,30 @@ def _latitude(params) -> float | None:
     return None if site is None else site.latitude
 
 
+def _spectrum_reader(params):
+    """sensfunc's i and l: a star's spectrum, next to the standards if that is where it is."""
+    from astropy.io import fits
+
+    from ..core import spectrum, stdstar
+
+    def read(name: str, beam: int):
+        path = Path(name)
+        if not path.exists():
+            path = Path(params.standards).parent / name
+        apertures = spectrum.read(path)
+        chosen = next((a for a in apertures if a.number == beam), apertures[0])
+        header = fits.getheader(path)
+        spec = stdstar.Spectrum(
+            name, chosen.number, str(header.get("OBJECT", "")), chosen.wavelength,
+            chosen.flux, _header_real(header, "AIRMASS"),
+            _header_real(header, "EXPOSURE", _header_real(header, "EXPTIME")),
+            ec=int(_header_real(header, "EX-FLAG", stdstar.ECNO)))
+        spec.calibrated = header.get("CA-FLAG") == 0
+        return spec
+
+    return read
+
+
 def _spectra(name: str, selected, params, latitude, writes: list[str]) -> list:
     """shdr_open for each selected aperture of one file: the header's
     exposure time, airmass (or the one worked out, or the one given), OFLAG
@@ -571,7 +595,7 @@ class SensFunc(Task[SensFuncParams]):
             for star in stars[:-2]:
                 star.flag = sf.INCLUDE if star.beam == aperture else sf.EXCLUDE
             session = sf.Session(stars, curve, params.function, params.order,
-                                 params.graphs, system)
+                                 params.graphs, system, _spectrum_reader(params))
             if mode == "ask":
                 said.append(f"Fit aperture {aperture} interactively? {params.answer}")
                 if params.answer == "NO":

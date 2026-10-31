@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 
@@ -24,3 +26,24 @@ def with_room(values) -> tuple[float, float]:
     low, high = float(values.min()), float(values.max())
     room = 0.03 * (high - low)
     return widened(low - room, high + room)
+
+
+def decades(low: float, high: float) -> tuple[float, float]:
+    """A log axis, as glabax leaves it: out to whole decades, and with data at or
+    under zero IRAF's elog scale, on which zero stays."""
+    def out(value: float, away) -> float:
+        if value == 0:
+            return 0.0
+        sign = 1.0 if value > 0 else -1.0
+        return sign * 10.0 ** away(math.log10(abs(value)))
+
+    return (out(low, math.floor if low > 0 else math.ceil),
+            out(high, math.ceil if high > 0 else math.floor))
+
+
+def elog(values) -> np.ndarray:
+    """The elog scale: log10 beyond 10 either way, and straight through zero within."""
+    values = np.asarray(values, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        logs = np.sign(values) * np.log10(np.abs(values))
+    return np.where(np.abs(values) > 10, logs, values / 10)

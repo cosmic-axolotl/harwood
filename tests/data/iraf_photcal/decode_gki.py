@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-CLEAR, LINE, TEXT, PLSET, WCS = 6, 9, 11, 15, 26
+OPEN, CLEAR, LINE, TEXT, PLSET, WCS = 1, 6, 9, 11, 15, 26
 MARKS = ("plus", "cross", "diamond", "box")
 
 
@@ -80,12 +80,13 @@ def frames(path, over_lines=False):
 def everything(path):
     """Frames of several graphs, in the order drawn: the window and viewport of each
     WCS at the end of the frame, every mark (kind, x, y, width, height) and every
-    line, the axes' too."""
+    line, the axes' too. A workstation opened anew is a frame with no clear."""
     out, frame, style = [], None, 1
     for opcode, data in instructions(path):
-        if opcode == CLEAR:
-            frame = {"windows": [], "text": [], "marks": [], "lines": []}
-            out.append(frame)
+        if opcode in (CLEAR, OPEN):
+            if frame is None or frame["lines"] or frame["marks"] or frame["text"]:
+                frame = {"windows": [], "text": [], "marks": [], "lines": []}
+                out.append(frame)
             style = 1
         elif frame is None:
             continue

@@ -83,6 +83,10 @@ class SensfuncPanel(QtWidgets.QWidget):
                 beam = (x.max() - x.min()) / 80
                 plot.addItem(pg.ErrorBarItem(x=x, y=y, height=height, beam=beam,
                                              pen=pg.mkPen(_c().accent)))
+            if graph.widths is not None:
+                x, y, width = graph.widths
+                plot.addItem(pg.ErrorBarItem(x=x, y=y, width=width, beam=0,
+                                             pen=pg.mkPen(_c().warning)))
             x1, x2, y1, y2 = (float(v) for v in graph.window)
             if graph.kind in "ra":
                 plot.addLine(y=0, pen=pg.mkPen(_c().line))

@@ -29,7 +29,7 @@ import math
 
 import numpy as np
 
-from . import apphot, nlfit
+from . import apphot, iraffmt, nlfit
 from .apphot import (
     SKY_BADPARAMS,
     SKY_FLAT_HIST,
@@ -846,6 +846,7 @@ class Cursor:
     def __init__(self, path=None, show=None) -> None:
         self.lines: list[tuple[float, float, str]] = []
         self.show = show
+        self.image = ""     #: for the title of the graphs
         if path:
             from pathlib import Path
 
@@ -980,14 +981,17 @@ def _histplot(a, index, n, k1, binsize, smooth, cursor, x, y):
     nreject = h.accumulate(a, index, n)
     nsky = n - nreject
     _, sigma, skew = h.initial_rejection(a, index, n, nreject)
-    graph = Graph([f"Sky histogram at {x:.2f} {y:.2f}",
-                   f"Mark histogram peak ({float(mode):g}) [space=mark, q=quit]"],
-                  xlabel="sky value", ylabel="number of pixels")
+    graph = Graph([f"Image: {cursor.image}:  {x:.2f} {y:.2f}",
+                   f"Sky Histogram: nbins = {h.nbins} hmin = {iraffmt.g(float(h.hmin))} "
+                   f"hmax = {iraffmt.g(float(h.hmax))} smooth={'YES' if smooth else 'NO'}"],
+                  xlabel="Sky Values", ylabel="Number of Pixels")
+    graph.hint = f"Mark histogram peak ({float(mode):g}) [space=mark, q=quit]"
     centres = h.x()
     graph.steps(np.append(centres - h.dh / 2, centres[-1] + h.dh / 2), h.hgm)
     if smooth:
         nker = max(1, _nint(f32(sigma / h.dh)))
         graph.line(centres, _bsmooth(h.hgm, nker))
+    graph.scale_to(float(h.hmin), float(h.hmax))
     for wx, _wy, key in cursor.events(graph, float(mode)):
         if key == "q":
             break
@@ -1009,11 +1013,13 @@ def _radplot(a, index, n, cursor, x, y, scale):
     col = coords % a.snx + 1
     row = coords // a.snx + 1
     r = np.hypot(col - a.sxc, row - a.syc) / scale
-    graph = Graph([f"Sky radial profile at {x:.2f} {y:.2f}",
-                   f"Mark sky level ({float(mode):g}) [space=mark, q=quit]"],
-                  xlabel="radius (scale units)", ylabel="sky value")
-    order = np.argsort(r)
-    graph.line(r[order], a.pix[index[1:n + 1]][order])
+    graph = Graph([f"Image: {cursor.image}:  {x:.2f} {y:.2f}"],
+                  xlabel="Radial Distance (lower-pixels, upper-scale units)",
+                  ylabel="Intensity")
+    graph.hint = f"Mark sky level ({float(mode):g}) [space=mark, q=quit]"
+    pixels = a.pix[index[1:n + 1]]
+    graph.marks = (r, pixels)
+    graph.window = (float(r.min()), float(r.max()), float(pixels.min()), float(pixels.max()))
     for _wx, wy, key in cursor.events(graph, float(mode)):
         if key == "q":
             break

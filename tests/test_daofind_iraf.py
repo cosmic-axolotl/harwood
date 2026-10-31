@@ -156,6 +156,36 @@ def test_daofind_by_the_keys_says_and_finds_what_iraf_does(case):
         assert np.abs(ours - _coo(written)).max() < TOLERANCE
 
 
+@pytest.mark.parametrize("case", sorted(path.stem.removesuffix(".marks")
+                                         for path in KEYS.glob("*.marks.json")))
+def test_the_stars_marked_are_the_ones_iraf_marks(case, monkeypatch):
+    """IRAF's marks on the display, from its metacode, a frame for each find; harwood
+    draws the same stars, with a circle. A mark cut by the edge of the plot is not read
+    as a mark, so what IRAF marks has to be found, and what it does not, near the edge."""
+    found = []
+    run = daofindsession.Session._run
+
+    def recording(self, write, refit):
+        run(self, write, refit)
+        found.append(np.c_[self.found["x"], self.found["y"]])
+
+    monkeypatch.setattr(daofindsession.Session, "_run", recording)
+    _session(case)
+    frames = [f for f in json.loads((KEYS / f"{case}.marks.json").read_text()) if f["marks"]]
+    assert len(frames) == len([stars for stars in found if len(stars)])
+    for frame, stars in zip(frames, [stars for stars in found if len(stars)], strict=True):
+        wx1, wx2, wy1, wy2, sx1, sx2, sy1, sy2 = frame["windows"][0]
+        mine = np.c_[(sx1 + (stars[:, 0] - wx1) / (wx2 - wx1) * (sx2 - sx1)) * 32767,
+                     (sy1 + (stars[:, 1] - wy1) / (wy2 - wy1) * (sy2 - sy1)) * 32767]
+        theirs = np.array([mark[1:3] for mark in frame["marks"]])
+        for point in theirs:
+            assert np.abs(mine - point).max(axis=1).min() <= 4
+        for point in mine:
+            if np.abs(theirs - point).max(axis=1).min() > 4:
+                assert (min(point[0] - sx1 * 32767, sx2 * 32767 - point[0]) < 200
+                        or min(point[1] - sy1 * 32767, sy2 * 32767 - point[1]) < 200)
+
+
 def test_finding_again_on_a_kernel_counts_one_pixel_too_few():
     """What makes IRAF's second find differ from its first: the sharpness moves,
     nothing else does, and a kernel parameter puts it back."""

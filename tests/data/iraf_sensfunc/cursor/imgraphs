@@ -1,0 +1,15 @@
+4000 0 1 :graphs si
+4000 0 1 g
+4000 0 1 :graphs il
+4000 0 1 g
+4000 0 1 :images
+4000 0 1 :images std2.fits std1.fits
+4000 0 1 g
+4000 0 1 :fluxlimits
+4000 0 1 :graphs i
+4000 0 1 :fluxlimits 0 5e-13
+4000 0 1 g
+4000 0 1 :fluxlimits INDEF INDEF
+4000 0 1 :graphs l
+4000 0 1 g
+4000 0 1 q

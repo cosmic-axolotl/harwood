@@ -107,6 +107,22 @@ def _on_plot(window, point) -> bool:
             and window[6] * 32767 - 1 <= point[1] <= window[7] * 32767 + 1)
 
 
+def _write_standards(where) -> None:
+    """The spectra of std_two, as harwood has them, for the graphs i and l."""
+    from astropy.io import fits
+    from iraf_field import standard_cases
+
+    from harwood.core import spectrum
+
+    for name in ("std1", "std2"):
+        ((number, w1, dw, counts, _),), header = standard_cases()[name]
+        n = counts.size
+        aperture = spectrum.Aperture(number=number, centre=1.0, low=-1.0, high=1.0,
+                                     pixel=np.arange(1.0, n + 1.0), flux=counts.astype(float),
+                                     wavelength=w1 + dw * np.arange(n), title="")
+        spectrum.write(where / f"{name}.fits", [aperture], header=fits.Header(header))
+
+
 @pytest.mark.parametrize("case", GRAPHS)
 def test_the_graphs_are_iraf_s(case, tmp_path, monkeypatch):
     """IRAF's metacode (iraf_sensfunc/run_graphs.py): every frame's windows, titles
@@ -124,8 +140,11 @@ def test_the_graphs_are_iraf_s(case, tmp_path, monkeypatch):
     monkeypatch.setattr(sf, "Session", Recording)
     monkeypatch.chdir(tmp_path)
     shutil.copy(REF / "cursor" / case, tmp_path / "cursor")
+    standards = "std_two" if case.startswith("im") else "std_mix"
+    if case.startswith("im"):
+        _write_standards(tmp_path)
     get_task("sensfunc").run(
-        standards=REF / "std_mix", sensitivity=f"i_{case}", apertures="1",
+        standards=REF / standards, sensitivity=f"i_{case}", apertures="1",
         extinction=str(DATA / "kpnoextinct.dat"), interactive=True, answer="YES",
         cursor=tmp_path / "cursor", logfile=f"log_{case}", newextinction=f"ext_{case}")
     # The frames of icfit, in e, have no title of sensfunc's.
@@ -156,6 +175,13 @@ def test_the_graphs_are_iraf_s(case, tmp_path, monkeypatch):
                 for point in _on_screen(window, x, y):
                     if _on_plot(window, point):
                         assert np.abs(lines - point).max(axis=1).min() <= GKI_UNITS, where
+            if graph.widths is not None:
+                x, y, width = graph.widths
+                for edge in (x - width / 2, x + width / 2):
+                    for point in _on_screen(window, edge, y):
+                        if _on_plot(window, point):
+                            nearest = np.abs(lines - point).max(axis=1).min()
+                            assert nearest <= 2 * GKI_UNITS, where
             if graph.bars is not None:
                 x, y, error = graph.bars
                 for end in (y - error / 2, y + error / 2):
