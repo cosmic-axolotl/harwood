@@ -34,6 +34,42 @@ def transform(header, system: str, logical: np.ndarray) -> np.ndarray:
     raise ValueError(f"no coordinate system '{system}'")
 
 
+def logical_of_physical(header, physical: np.ndarray) -> np.ndarray:
+    """physical[axis] in logical: LTM times it, plus LTV."""
+    n = physical.shape[0]
+    ltm = np.array([[_number(header, f"LTM{i + 1}_{j + 1}", float(i == j)) for j in range(n)]
+                    for i in range(n)])
+    ltv = np.array([_number(header, f"LTV{i + 1}", 0.0) for i in range(n)])
+    return _vmul(ltm, physical) + ltv
+
+
+def logical_of(header, world: np.ndarray) -> np.ndarray:
+    """world[axis] in logical, the other way from transform; for whole-pixel offsets,
+    so it is not held to IRAF's last digits. With no WCS, world is physical."""
+    world = np.asarray(world, dtype=np.float64)
+    n = world.shape[0]
+    if not any(_has_world(header, axis + 1, n) for axis in range(n)):
+        return logical_of_physical(header, world)
+    types = [str(header.get(f"CTYPE{i + 1}", "")).upper() for i in range(n)]
+    projected = [i for i, ctype in enumerate(types) if ctype.endswith("-TAN")]
+    if any(re.search(r"-[A-Z0-9]{3}$", ctype) for ctype in types) and len(projected) != 2:
+        from astropy.wcs import WCS
+
+        return WCS(header, naxis=n, relax=True).wcs_world2pix(world[None, :], 1)[0]
+    crval = np.array([_number(header, f"CRVAL{i + 1}", 0.0) for i in range(n)])
+    crpix = np.array([_number(header, f"CRPIX{i + 1}", 0.0) for i in range(n)])
+    plane = world - crval
+    if projected:
+        ira, idec = projected if not types[projected[0]].startswith("DE") else projected[::-1]
+        ra, dec = math.radians(world[ira] - crval[ira]), math.radians(world[idec])
+        dec0 = math.radians(crval[idec])
+        z = math.sin(dec) * math.sin(dec0) + math.cos(dec) * math.cos(dec0) * math.cos(ra)
+        plane[ira] = math.degrees(math.cos(dec) * math.sin(ra) / z)
+        plane[idec] = math.degrees((math.sin(dec) * math.cos(dec0)
+                                    - math.cos(dec) * math.sin(dec0) * math.cos(ra)) / z)
+    return np.linalg.solve(_matrix(header, n), plane) + crpix
+
+
 def _number(header, key: str, default: float) -> float:
     """A number of the header as IRAF has it: ctod of what the card says, whose
     digits are worked out in steps and can end a unit from the nearest double. A
@@ -93,10 +129,15 @@ def _world(header, logical: np.ndarray) -> np.ndarray:
         if card is not None and getattr(card, "_modified", False):
             # A section moved it; IRAF still has the file's, through ctod.
             reference[i] = iraffmt.ctod(repr(float(reference[i])))
-    shift = -_vmul(matrix, reference) - _vmul(matrix, _vmul(inverse, ltv))
+    # mw_sctran: LTV = W - CD*R, and an axis with a function undoes the +W again, which
+    # rounds; then the input side, CD*(-inv(LTM)*LTV).
+    shift = crval + _vmul(matrix, -reference)
+    for axis in projected:
+        shift[axis] = shift[axis] - crval[axis]
+    shift = shift + _vmul(matrix, -_vmul(inverse, ltv))
     for axis in range(n):
         if axis not in projected and _has_world(header, axis + 1, n):
-            out[axis] = moved[axis] + (crval[axis] + shift[axis])
+            out[axis] = moved[axis] + shift[axis]
     if projected:
         ira, idec = projected if not types[projected[0]].startswith("DE") else projected[::-1]
         # mw_ltran, for the general case: from the translation, then term by term

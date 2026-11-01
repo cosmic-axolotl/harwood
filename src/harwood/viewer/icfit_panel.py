@@ -265,3 +265,13 @@ def run(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit",
                        xrange=xrange)
     show(panel, title, size=(980, 620))
     return panel.result()
+
+
+@on_main
+def make(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit", weights=None):
+    """The same, for a task that wants the session after it: the points and the weights."""
+    from .dock import show
+
+    panel = IcfitPanel(x, y, spec, title=title, weights=weights)
+    show(panel, title, size=(980, 620))
+    return panel

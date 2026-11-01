@@ -17,7 +17,7 @@ title: The sky of a processed frame, with the stars clipped out
 after: reduced
 run: harwood imstatistics red/obj001.fits --fields image,mean,midpt,mode,stddev --nclip 3
 output: |
-  red/obj001.fits │ 293.602 │ 287.818 │ 289.115 │ 32.6894
+  red/obj001.fits │ 293.602 │ 287.818 │ 289.116 │ 32.6894
 ```
 
 Without clipping, the thirty stars pull the mean up to 434.8 and the

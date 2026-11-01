@@ -34,12 +34,6 @@ def test_a_read_prints_what_iraf_prints(work, case):
         return
     result = get_task("rimcursor").run(cursor="cur", **expected["params"])
     theirs = expected["text"].split("\n")[:-1]
-    if case == "section-wor":
-        # A dec on the edge of the 15th digit: at 17 digits a few of these are a unit in
-        # the last place from IRAF's, with the same operations in the same order.
-        assert result.stdout[8].split()[1] == "-33.5011299775826"
-        assert theirs[8].split()[1] == "-33.5011299775827"
-        result.stdout[8] = theirs[8]
     assert result.stdout == theirs
 
 

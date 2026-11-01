@@ -5,6 +5,8 @@ and because the person reading the result six months later is not the person
 who ran it.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from astropy.io import fits
@@ -181,12 +183,13 @@ def test_the_log_records_which_flat_each_frame_got(night):
     assert "ccdproc  o1.fits" in text
 
 
-def test_a_named_calibration_of_the_wrong_shape_is_caught(night):
-    """Only the calibrations harwood found itself are prepared; one you name is
-    taken as given, and an untrimmed flat against a trimmed frame is a real
-    mistake rather than something to paper over."""
+def test_a_named_calibration_is_prepared_as_well(night):
+    """A raw flat named against a trimmed frame goes through the frame's steps, in memory,
+    as IRAF's ccdproc does in place; the file stays as it was."""
     get_task("flatcombine").run(input=["f6*.fits"], output="Raw.fits",
                                 gain=2.0, rdnoise=6.0, subsets=False)
-    with pytest.raises(ValueError, match="trimmed and the other not"):
-        get_task("ccdproc").run(input=["o1.fits"], output="out", overscan=True,
-                                trim=True, flatcor=True, flat="Raw.fits")
+    before = Path("Raw.fits").read_bytes()
+    result = get_task("ccdproc").run(input=["o1.fits"], output="out", overscan=True,
+                                     trim=True, flatcor=True, flat="Raw.fits")
+    assert Path("Raw.fits").read_bytes() == before
+    assert any(step.action.startswith("flat Raw.fits") for step in result.steps)

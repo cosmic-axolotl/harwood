@@ -212,8 +212,8 @@ def _measure(pixels, xc, yc, x, y, shape, radii, sky, zmag, dpars) -> apphot.Ape
             break
     sums, areas = np.zeros(nap), np.zeros(nap)
     if nmax == 0:
-        return apphot.magnitudes(radii, sums, areas, sky, zmag, dpars, apphot.APERT_NOAPERT,
-                                 nmax, 1)
+        return apphot.magnitudes(radii, sums, areas, sky, zmag, dpars,
+                                 apphot.APERT_OUTOFBOUNDS, nmax, 1)
     box = pixels.astype(np.float64)
     jj, ii = np.mgrid[1:pixels.shape[0] + 1, 1:pixels.shape[1] + 1]
     dx = (ii.astype(f32) - xc).astype(f32)

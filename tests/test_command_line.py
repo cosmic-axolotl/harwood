@@ -105,8 +105,9 @@ def test_tab_completes_task_names_with_what_each_does():
 
 
 def test_tab_completes_options_and_the_values_they_allow():
-    assert _values("imcombine --rej") == ["--reject"]
-    assert _values("imcombine --combine ") == ["average", "median", "lmedian", "sum"]
+    assert _values("imcombine --rej") == ["--reject", "--rejmasks"]
+    assert _values("imcombine --combine ") == ["average", "median", "lmedian", "sum",
+                                               "quadrature", "nmodel"]
     assert _values("imcombine --reject cc") == ["ccdclip"]
 
 
@@ -286,7 +287,7 @@ def test_tab_in_the_window_writes_in_one_candidate_and_lists_several(window):
     assert prompt.text() == "imcombine "
     _keys(prompt, "--combine ", QtCore.Qt.Key.Key_Tab)
     rows = [prompt._model.item(i).text() for i in range(prompt._model.rowCount())]
-    assert rows == ["average", "median", "lmedian", "sum"]
+    assert rows == ["average", "median", "lmedian", "sum", "quadrature", "nmodel"]
     prompt._chosen(prompt._model.index(1, 0))
     assert prompt.text() == "imcombine --combine median "
 

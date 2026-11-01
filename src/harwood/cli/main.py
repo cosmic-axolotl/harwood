@@ -202,17 +202,85 @@ def _list_iraf(domain: str | None, milestone: str | None) -> None:
     console.print(table)
 
 
+def _manual_sections(text: str, wanted: str) -> str:
+    """The parts of a manual under the headings that have the word."""
+    out, keeping = [], False
+    for line in text.splitlines():
+        if line.startswith("#"):
+            keeping = wanted.lower() in line.lower()
+        if keeping:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _help_parameter(task: str, cls, name: str) -> None:
+    from rich.markup import escape
+
+    fields = cls.Params.model_fields
+    key = name.replace("-", "_")
+    matches = [key] if key in fields else [f for f in fields if f.startswith(key)]
+    if len(matches) != 1:
+        console.print(f"[red]{task} has no parameter '{name}'.[/red]"
+                      + (" It could be: " + ", ".join(matches) + "." if matches else
+                         f" harwood lpar {task} lists them."))
+        raise SystemExit(3)
+    field = fields[matches[0]]
+    default = "required" if field.is_required() else _show(
+        field.get_default(call_default_factory=True))
+    console.print(f"[bold]{matches[0]}[/bold] [cyan]{escape(_typename(field.annotation))}"
+                  f"[/cyan] = {default}")
+    console.print(escape(field.description or ""))
+
+
+def _search_manuals(word: str) -> None:
+    from ..core import registry
+    from ..docsite.builder import PAGES
+
+    wanted = word.lower()
+    if not wanted:
+        console.print("[red]--search needs what to look for.[/red]")
+        raise SystemExit(2)
+    found = 0
+    for name, cls in sorted(registry.list_tasks().items()):
+        manual = PAGES / "tasks" / f"{name}.md"
+        text = manual.read_text(encoding="utf-8") if manual.exists() else (cls.__doc__ or "")
+        hits = [line.strip() for line in text.splitlines() if wanted in line.lower()]
+        if wanted in name or wanted in (cls.description or "").lower() or hits:
+            found += 1
+            console.print(f"[bold]{name}[/bold] -- {cls.description}")
+            if hits:
+                console.print(f"  [dim]{hits[0][:90]}[/dim]", highlight=False)
+    if not found:
+        console.print(f"no manual has '{word}'.")
+        raise SystemExit(3)
+
+
 @app.command("help")
-@click.argument("task", shell_complete=_task_names)
-def help_cmd(task: str) -> None:
+@click.argument("task", required=False, default="", shell_complete=_task_names)
+@click.option("--parameter", "-p", default="",
+              help="Only this parameter, what IRAF's parameter= does.")
+@click.option("--section", "-s", default="",
+              help="Only the sections of the manual whose heading has this.")
+@click.option("--search", is_flag=True,
+              help="The tasks whose manual has the word, what IRAF's search=yes does.")
+def help_cmd(task: str, parameter: str, section: str, search: bool) -> None:
     """The manual for a task: what it does, and what each parameter means."""
     from ..core.registry import exists, get_class
 
+    if search:
+        _search_manuals(task)
+        return
+    if not task:
+        console.print("[red]help needs a task[/red], or --search and what to look for.")
+        raise SystemExit(2)
     if not exists(task):
         _explain_unknown(task)
         raise SystemExit(3)
 
     cls = get_class(task)
+    if parameter:
+        _help_parameter(task, cls, parameter)
+        return
     console.print(f"\n[bold]{cls.name}[/bold] -- {cls.description}")
     console.print(f"[dim]package {cls.package}"
                   + (f" · IRAF {cls.iraf}" if cls.iraf and cls.iraf != cls.name else "")
@@ -231,7 +299,19 @@ def help_cmd(task: str) -> None:
 
         from ..docsite.examples import for_terminal
 
-        console.print(Markdown(for_terminal(manual.read_text(encoding="utf-8"))))
+        text = for_terminal(manual.read_text(encoding="utf-8"))
+        if section:
+            found = _manual_sections(text, section)
+            if not found:
+                names = [line.lstrip("# ") for line in text.splitlines()
+                         if line.startswith("#")]
+                console.print(f"[red]{task} has no section with '{section}'.[/red] "
+                              + ("It has: " + ", ".join(names) + "." if names
+                                 else "Its manual has no headings."))
+                raise SystemExit(3)
+            console.print(Markdown(found))
+            return
+        console.print(Markdown(text))
     elif cls.__doc__:
         console.print(escape(_dedent(cls.__doc__)))
     if cls.defaults:

@@ -8,10 +8,11 @@ output: |
   -> stars.txt
 ```
 
-`--spatial` is `uniform`, or `hubble` around `--xcenter` and `--ycenter` with `--core-radius`
-and `--base`. `--luminosity` is `uniform`, `salpeter`, `bands` or `powlaw`, each with the
-parameters of the same names as IRAF's. A list is added to the end of a file that is there,
-and its head records the parameters, with the time on top.
+`--spatial` is `uniform`, `hubble` around `--xcenter` and `--ycenter` with `--core-radius` and
+`--base`, or `file`: `--sfile` has a radius and a relative density a line, around the same
+centre. `--luminosity` is `uniform`, `salpeter`, `bands`, `powlaw`, or `file`: `--lfile` has a
+magnitude and a relative probability a line. Each has the parameters of the same names as
+IRAF's. A list is added to the end of a file that is there, and its head records the
+parameters, with the time on top.
 
-The functions IRAF can read from `sfile` and `lfile`, and its interactive plots of the two
-distributions, are not here.
+IRAF's interactive plots of the two distributions are not here.

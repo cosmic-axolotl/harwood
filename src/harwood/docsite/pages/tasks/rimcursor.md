@@ -12,5 +12,5 @@ closing the window ends the list. With `--cursor` the reads come from a file of 
 or from the terminal with `STDIN`. `--wxformat` and `--wyformat` give the formats; with neither
 it is the format in the image's WCS or else `%0.15g`.
 
-The lines are IRAF's, compared on 15 cases of coordinates and formats, but for a `dec` of a TAN
-image that in one read comes out a unit lower in the 15th digit.
+The lines are IRAF's, compared on 18 cases of coordinates, sections and formats, the world
+coordinates to 17 digits.

@@ -46,6 +46,13 @@ class CurfitParams(TaskParams):
     high_reject: float = Field(3.0, ge=0, description="Reject above this many sigma.")
     niterate: int = Field(0, ge=0, description="How many times to reject and fit again.")
     grow: float = Field(0.0, ge=0, description="Reject too what is this close in x.")
+    interactive: bool = Field(
+        False, description="Fit it by hand first, in the icfit panel, with IRAF's keys."
+    )
+    cursor: str = Field(
+        "", description="Those keys from a file, an 'x y 1 key' a line or just a key, for a "
+                        "session with no window."
+    )
 
 
 def _divided(top, values, real, fallback):
@@ -214,7 +221,10 @@ class Curfit(Task[CurfitParams]):
                 niterate=params.niterate,
                 grow=params.grow,
             )
-            curve = icfitbits.fit(ic, x, y, w)
+            fitted = None
+            if params.interactive or params.cursor:
+                ic, x, y, w, fitted = _session(ic, x, y, w, params, name, real)
+            curve = icfitbits.fit(ic, x, y, w if fitted is None else fitted)
             lines += ic.messages
             warnings += [advice.warn(m, "check the sample ranges.") for m in ic.warnings]
             listed = [
@@ -252,6 +262,44 @@ class Curfit(Task[CurfitParams]):
         return TaskResult(
             data={"fits": fits}, stdout=lines, warnings=warnings, steps=self.plan(params)
         )
+
+
+def _session(ic, x, y, w, params, name: str, real):
+    """icg_fit before the output: what it leaves is the parameters and the points, whose
+    weights d and u have changed, and the fit is the exact one of those. q takes the last
+    fit, so what was deleted since f is out of it and still shown with no weight."""
+    import numpy as np
+
+    from ..core import icfit, icfitsession
+    from ..viewer import icfit_panel
+
+    spec = icfit.FitSpec(function=ic.function, order=ic.order, sample=ic.sample,
+                         naverage=ic.naverage, niterate=ic.niterate, low_reject=ic.low_reject,
+                         high_reject=ic.high_reject, grow=ic.grow)
+    if params.cursor:
+        if not Path(params.cursor).exists():
+            advice.fail(f"cursor file '{params.cursor}' does not exist",
+                        "write one key a line, or use --interactive for the window",
+                        FileNotFoundError)
+        session = icfitsession.IcfitSession(x.astype(float), y.astype(float), spec,
+                                            w.astype(float), name)
+        lines = []
+        for line in Path(params.cursor).read_text().splitlines():
+            words = line.split()
+            if words:
+                lines.append(line if len(words) >= 4 and words[0][0] not in ":" else
+                             f"0 0 1 {line.strip()}")
+        session.run_commands("\n".join(lines))
+    else:
+        panel = icfit_panel.make(x.astype(float), y.astype(float), spec,
+                                 title=f"curfit · {name}", weights=w.astype(float))
+        session = panel.session
+    done = session.spec
+    ic.function, ic.order, ic.sample = done.function, done.order, done.sample
+    ic.naverage, ic.niterate = done.naverage, done.niterate
+    ic.low_reject, ic.high_reject, ic.grow = done.low_reject, done.high_reject, done.grow
+    return (ic, np.asarray(session.x, real), np.asarray(session.y, real),
+            np.asarray(session.wts, real), np.asarray(session.fitted_wts, real))
 
 
 class RimcursorParams(TaskParams):

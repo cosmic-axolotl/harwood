@@ -286,4 +286,4 @@ def test_setinstrument_applies_the_instruments_settings(tmp_path):
     assert document["params"]["flatcombine"]["reject"] == "crreject"
     rows = {row["setting"]: row["applied"] for row in result.data["rows"]}
     assert rows["ccdred.logfile"].startswith("no -- harwood.log.jsonl")
-    assert rows["combine.gain"].startswith("no")
+    assert rows["combine.gain"].startswith("yes"), "imcombine takes a keyword for it now"

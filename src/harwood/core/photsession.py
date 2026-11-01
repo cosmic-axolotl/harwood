@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 
+import numpy as np
+
 from . import apphot
 
 #: The keys, as the window's Keys panel lists them (the docstring above, key
@@ -50,6 +52,10 @@ class Row:
     sky: apphot.Sky
     mags: apphot.Apertures | None
     radii: list[float]
+    profile: object = None
+    #: radprof: what the fit was asked for, and the #K cards a change since the last row wrote.
+    settings: dict | None = None
+    cards: list = field(default_factory=list)
 
 
 @dataclass
@@ -67,6 +73,7 @@ class Session:
     rows: list[Row] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     done: bool = False
+    fitter: object = None              #: radprof's
 
     def __post_init__(self) -> None:
         self.new_center = self.new_sky = self.new_mag = True
@@ -80,6 +87,8 @@ class Session:
         self.sky_at = self.mag_at = (None, None)
         self.stid = 1
         self.pending_average: list[apphot.Sky] | None = None
+        self.profile = None
+        self.pending_cards: list = []
 
     # ------------------------------------------------------------ fitting
 
@@ -94,13 +103,25 @@ class Session:
     def _measure(self) -> None:
         if self.task == "center":
             return
+        if self.task == "radprof":
+            self.profile = self.fitter.fit(self.data, self.center.x, self.center.y, self.sky,
+                                           sorted(self.radii), self.zmag, self.dpars)
+            self.mags = self.profile.measured
+            self.mag_at = (self.center.x, self.center.y)
+            return
         self.mags = apphot.apertures(self.data, self.center.x, self.center.y,
                                      sorted(self.radii), self.sky, self.zmag, self.dpars)
         self.mag_at = (self.center.x, self.center.y)
 
     def _write(self, lid: int) -> None:
+        settings = None
+        if self.fitter is not None:
+            settings = {name: getattr(self.fitter, name)
+                        for name in ("radius", "step", "order", "kreject", "nreject")}
         self.rows.append(Row(self.stid, lid, self._init[0], self._init[1], self.center,
-                             self.sky, self.mags, sorted(self.radii)))
+                             self.sky, self.mags, sorted(self.radii), self.profile, settings,
+                             self.pending_cards))
+        self.pending_cards = []
         self.stid += 1
 
     # ------------------------------------------------------------ the keys
@@ -243,7 +264,9 @@ class Session:
         rest = rest.strip()
         if name in ("m", "n"):
             number = int(rest) if rest else self.ltid + 1
-            self._next(number, measure=name == "n")
+            # radprof's :m goes on into the measuring that follows in apradprof.x, as the
+            # key m does not: it writes the star, and :m is :n.
+            self._next(number, measure=name == "n" or self.task == "radprof")
             return
         if name == "show":
             self.messages.append(self._show())
@@ -260,6 +283,10 @@ class Session:
                 self.new_mag = True
             self.messages.append(f"zmag = {self.zmag:g}")
             return
+        if self.fitter is not None and name in ("radius", "step", "stepsize", "order",
+                                                "kreject", "nreject"):
+            self.messages.append(self._profile_parameter(name, rest))
+            return
         for pars, refit in ((self.dpars, "all"), (self.cpars, "center"),
                             (self.spars, "sky")):
             names = {f.name for f in fields(pars)}
@@ -273,6 +300,21 @@ class Session:
                 self.messages.append(f"{name} = {getattr(pars, name)}")
                 return
         self.messages.append(f"Unknown or ambiguous colon command ':{name}'")
+
+    def _profile_parameter(self, name: str, rest: str) -> str:
+        """radprof's colon commands: a new radius or step is a new profile's length."""
+        fitter = self.fitter
+        field_name = "step" if name == "stepsize" else name
+        if rest:
+            if field_name in ("order", "nreject"):
+                setattr(fitter, field_name, int(float(rest)))
+            else:
+                setattr(fitter, field_name, np.float32(float(rest)))
+            fitter.npts = int(np.float32(fitter.radius / fitter.step)) + 1
+            self.new_mag = True
+            if self.stid > 1:
+                self.pending_cards.append((field_name, getattr(fitter, field_name)))
+        return f"{name} = {getattr(fitter, field_name):g}"
 
     def _show(self) -> str:
         values = {**{f.name: getattr(self.dpars, f.name) for f in fields(self.dpars)},

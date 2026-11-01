@@ -187,7 +187,7 @@ def test_a_position_off_the_image_says_so(star_image):
 
 def test_an_unknown_key_is_named_and_not_guessed(star_image):
     _, data = star_image
-    result = examine.examine(data, "w", 50.0, 50.0)
+    result = examine.examine(data, "W", 50.0, 50.0)
     assert not result.ok and "?" in result.line
 
 

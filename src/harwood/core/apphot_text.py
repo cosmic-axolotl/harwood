@@ -157,6 +157,17 @@ HEADERS = (
 )
 
 
+RPROF_HEADERS = (
+    ("#N%4tPFWHM%14tINORM%29tTINORM%66tRIER%71tRERROR%80t\\\n"
+     "#U%4tScale%14tcounts%29tcounts%66t##%71trerrors%80t\\\n"
+     "#F%4t%%-13.3f%14t%%-15.7f%29t%%-36.7f%66t%%-5d%71t%%-9s%80t \n"),
+    ("#N%4tPRADIUS%14tINTENSITY%29tTINTENSITY%80t\\\n"
+     "#U%4tscale%14tcounts%29tcounts%80t\\\n"
+     "#F%4t%%-13.3f%14t%%-15.7f%29t%%-15.7f%80t \n"),
+)
+RERRORS = {901: "OffImage", 902: "EdgeImage", 903: "TooFewPts", 904: "BadFit"}
+
+
 def _template_lines(text: str) -> str:
     return "".join(fprintf(line + "\n") for line in text.split("\n") if line)
 
@@ -227,10 +238,11 @@ def _real(value) -> float:
     return float(np.float32(value)) if value is not None else float("nan")
 
 
-def record(image: str, coords: str, star: Star) -> str:
+def record(image: str, coords: str, star: Star, more: bool = False) -> str:
     """ap_pmag: the star's four lines, and one per aperture. IRAF keeps
     positions, the sky and magnitudes in reals and the sums and areas in
-    doubles, and the last digit printed depends on which: so here too."""
+    doubles, and the last digit printed depends on which: so here too.
+    With `more` lines to come, radprof's, every aperture line goes on."""
     xinit, yinit, x, y = (_real(v) for v in (star.xinit, star.yinit, star.x, star.y))
     out = fprintf("%-23.23s%24t%-10.3f%34t%-10.3f%44t%-6d%50t%-23.23s%73t%-6d%80t%c\n",
                   image, xinit, yinit, star.id, coords or "nullfile", star.lid, "\\")
@@ -245,6 +257,8 @@ def record(image: str, coords: str, star: Star) -> str:
     n = len(star.radii)
     for k in range(1, n + 1):
         end = "  " if n == 1 else "* " if k == n else "*\\"
+        if more:
+            end = " \\" if n == 1 else "*\\"
         ier = _aperture_ier(star, k)
         merr = star.merr[k - 1]
         out += fprintf("%4t%-9.2f%-14.7g%-11.7g%-14.7g%-7.3f%-6.3f%-5d%-9.9s%79t%2s\n",
@@ -256,6 +270,48 @@ def record(image: str, coords: str, star: Star) -> str:
                        _real(merr) if math.isfinite(merr) and merr <= 99.999 else None,
                        ier, PERRORS.get(ier, "NoError"), end)
     return out
+
+
+def rprof_record(star: Star, profile, radius: float, step: float) -> str:
+    """ap_wrres: the FWHM line and the profile. IRAF's rows go by radius / step, in real,
+    plus one; a star with no profile still has them, its radii and INDEF (ap_rpindef)."""
+    ier = profile["ier"]
+    out = fprintf("%4t%-10.3f%-15.7g%-36.7g%-5d%-9.9s%80t\\\n", _real(profile["fwhm"]),
+                  _real(profile["inorm"]), _real(profile["tinorm"]), ier,
+                  RERRORS.get(ier, "NoError"))
+    rows = int(np.float32(np.float32(radius) / np.float32(step))) + 1
+    for k in range(rows):
+        end = "* " if k == rows - 1 else "*\\"
+        out += fprintf("%4t%-10.3f%-15.7g%-15.7g%79t%2s\n", _real(profile["radius"][k]),
+                       _real(profile["intensity"][k]), _real(profile["tintensity"][k]), end)
+    return out
+
+
+def _rprof_card(name: str, value) -> str:
+    """ap_profcolon: a change of radprof's parameters, as the file has it when it comes."""
+    return {"radius": lambda: r("RADIUS", float(value), "scaleunit"),
+            "step": lambda: r("STEPSIZE", float(value), "scaleunit"),
+            "order": lambda: i("ORDER", int(value), "number"),
+            "kreject": lambda: r("KREJECT", float(value), "sigma"),
+            "nreject": lambda: i("NREJECT", int(value), "number")}[name]()
+
+
+def write_rprof(path: str | Path, params: dict, image: str, coords: str, stars: list,
+                first: dict) -> Path:
+    """radprof's .prf: phot's text, with its parameters as they were at the first star, and a
+    block for each star, as (star, profile, the settings then, the changes since the last)."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = parameters("radprof", params)
+    text += "".join(_rprof_card(name, first[name]) for name in
+                    ("radius", "step", "order", "kreject", "nreject")) + "#\n"
+    text += headers() + "".join(_template_lines(h) + "#\n" for h in RPROF_HEADERS)
+    for star, profile, settings, cards in stars:
+        text += "".join(_rprof_card(name, value) for name, value in cards)
+        text += record(image, coords, star, more=True)
+        text += rprof_record(star, profile, settings["radius"], settings["step"])
+    path.write_text(text)
+    return path
 
 
 def write(path: str | Path, task: str, params: dict, image: str, coords: str,

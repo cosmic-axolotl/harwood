@@ -546,7 +546,11 @@ class MkObjectsParams(TaskParams):
     background: float = Field(1000.0, ge=0, description="The sky of a new image, per second.")
     xoffset: float = Field(0.0, description="Added to each x.")
     yoffset: float = Field(0.0, description="Added to each y.")
-    star: Literal["moffat", "gaussian"] = Field("moffat", description="The stars' profile.")
+    star: str = Field(
+        "moffat", description="The stars' profile: moffat, gaussian, an image of a star, or "
+                              "a text file with it, a value a line, out to --radius; if the "
+                              "first value is 0, the file is its integral."
+    )
     radius: float = Field(1.0, ge=0, description="Half the stars' full width at half maximum.")
     beta: float = Field(2.5, gt=1, description="The Moffat parameter.")
     ar: float = Field(1.0, ge=0, le=1, description="The stars' axial ratio.")
@@ -744,8 +748,7 @@ class MkObjects(Task[MkObjectsParams]):
                         warnings.append(
                             advice.warn(
                                 f"Object template {kind} not found",
-                                "use sersic, expdisk or devauc; a profile from an image or a "
-                                "file is not read here",
+                                "use sersic, expdisk, devauc, an image or a text file",
                             )
                         )
             objects.append((kind, x, y, flux, r, ar, pa))
@@ -765,7 +768,12 @@ class StarListParams(TaskParams):
     nstars: int = Field(
         5000, ge=1, description="How many stars.", json_schema_extra={"positional": True}
     )
-    spatial: Literal["uniform", "hubble"] = Field("uniform", description="Where they are.")
+    spatial: Literal["uniform", "hubble", "file"] = Field(
+        "uniform", description="Where they are: file takes a density against radius from "
+                               "--sfile."
+    )
+    sfile: str = Field("", description="For spatial file: radius and relative density, a "
+                                       "line.")
     xmin: float = Field(1.0, description="The lowest x.")
     xmax: float = Field(512.0, description="The highest x.")
     ymin: float = Field(1.0, description="The lowest y.")
@@ -775,9 +783,11 @@ class StarListParams(TaskParams):
     core_radius: float = Field(30.0, description="Its core radius.")
     base: float = Field(0.0, description="Its relative background density.")
     sseed: int = Field(1, description="The seed for the positions.")
-    luminosity: Literal["uniform", "salpeter", "bands", "powlaw"] = Field(
-        "powlaw", description="How bright they are."
+    luminosity: Literal["uniform", "salpeter", "bands", "powlaw", "file"] = Field(
+        "powlaw", description="How bright they are: file takes a function from --lfile."
     )
+    lfile: str = Field("", description="For luminosity file: magnitude and relative "
+                                       "probability, a line.")
     minmag: float = Field(-7.0, description="The lowest magnitude.")
     maxmag: float = Field(0.0, description="The highest magnitude.")
     mzero: float = Field(
@@ -876,12 +886,138 @@ def _hubble(params, state):
     while len(xs) < params.nstars:
         rval = real(curve(artdata.urand(state)))
         theta = real(real(real(360.0) * artdata.urand(state)) / artdata.RADIAN)
-        x = real(real(float(rval) * math.cos(float(theta))) + xc)
-        y = real(real(float(rval) * math.sin(float(theta))) + yc)
+        x = real(float(rval) * math.cos(float(theta)) + float(xc))
+        y = real(float(rval) * math.sin(float(theta)) + float(yc))
         if xmin <= x <= xmax and ymin <= y <= ymax:
             xs.append(x)
             ys.append(y)
     return np.array(xs, real), np.array(ys, real)
+
+
+def _xy_file(name: str, what: str):
+    """st_gfetchxy: the first two numbers of each line that has them."""
+    import numpy as np
+
+    from ..core import iraffmt
+
+    path = Path(name)
+    if not path.is_file():
+        advice.fail(f"Cannot open file ({name})", f"give the {what} with its option",
+                    FileNotFoundError)
+    xs, ys = [], []
+    for line in path.read_text(errors="replace").splitlines():
+        words = line.split()
+        if len(words) < 2:
+            continue
+        a, b = iraffmt.ctod(words[0]), iraffmt.ctod(words[1])
+        if a is None or b is None:
+            continue
+        xs.append(a)
+        ys.append(b)
+    return np.array(xs, np.float32), np.array(ys, np.float32)
+
+
+def _smoothed(x, y, order):
+    """cvfit of the relative probability, its pieces held back to a quarter of the points."""
+    import numpy as np
+
+    from ..core import curfit
+
+    real = np.float32
+    curve = curfit.Curve(curfit.SPLINE3, min(order, max(1, x.size // 4)), x.min(), x.max())
+    curve.accumulate(x, y, np.ones(x.size, real))
+    return curve if curve.solve() == curfit.OK else None
+
+
+def _integrated(values, order, weights):
+    """asigrl across the sample, mapped to 0..1, and the inverse fit to it."""
+    import numpy as np
+
+    from ..core import asi
+
+    real = np.float32
+    interpolant = asi.Interpolant("spline3", np.asarray(weights, real))
+    integral = np.zeros(len(values), real)
+    for i in range(1, len(values)):
+        piece = real(interpolant.integral(float(i), float(i + 1)))
+        integral[i] = real(integral[i - 1] + piece)
+    integral = _amap(integral, integral.min(), integral.max(), 0.0, 1.0)
+    return _inverse(integral, values, order)
+
+
+def _spatial_file(params, state):
+    """st_sfsample."""
+    import math
+
+    import numpy as np
+
+    from ..core import artdata
+
+    real = np.float32
+    half = real(2.0)
+    xmin, xmax, ymin, ymax = (real(v) for v in (params.xmin, params.xmax, params.ymin,
+                                                params.ymax))
+    middle = (np.full(params.nstars, real(real(xmin + xmax) / half)),
+              np.full(params.nstars, real(real(ymin + ymax) / half)))
+    r, rprob = _xy_file(params.sfile, "spatial function")
+    if r.size == 0:
+        return middle
+    xc = real(params.xcenter) if params.xcenter is not None else real(real(xmax + xmin) / half)
+    yc = real(params.ycenter) if params.ycenter is not None else real(real(ymax + ymin) / half)
+    smooth = _smoothed(r, rprob, params.sorder)
+    if smooth is None:
+        return middle
+    n = params.nssample
+    rval = r.min()
+    dr = real(real(r.max() - r.min()) / real(n - 1))
+    rad, prob = np.zeros(n, real), np.zeros(n, real)
+    for i in range(n):
+        rad[i] = rval
+        prob[i] = real(rval * real(smooth(rval)))
+        rval = real(rval + dr)
+    curve = _integrated(rad, params.sorder, prob)
+    if curve is None:
+        return middle
+    xs, ys = [], []
+    while len(xs) < params.nstars:
+        rval = real(curve(artdata.urand(state)))
+        theta = real(real(real(360.0) * artdata.urand(state)) / artdata.RADIAN)
+        x = real(float(rval) * math.cos(float(theta)) + float(xc))
+        y = real(float(rval) * math.sin(float(theta)) + float(yc))
+        if xmin <= x <= xmax and ymin <= y <= ymax:
+            xs.append(x)
+            ys.append(y)
+    return np.array(xs, real), np.array(ys, real)
+
+
+def _luminosity_file(params, state):
+    """st_lfsample."""
+    import numpy as np
+
+    from ..core import artdata, curfit
+
+    real = np.float32
+    minmag, maxmag = real(params.minmag), real(params.maxmag)
+    middle = np.full(params.nstars, real(real(minmag + maxmag) / real(2.0)))
+    m, mprob = _xy_file(params.lfile, "luminosity function")
+    if m.size == 0:
+        return middle
+    smooth = curfit.Curve(curfit.SPLINE3, max(1, m.size // 4), m.min(), m.max())
+    smooth.accumulate(m, mprob, np.ones(m.size, real))
+    if smooth.solve() != curfit.OK:
+        return middle
+    n = params.nlsample
+    mval = max(minmag, m.min())
+    dm = real(real(min(maxmag, m.max()) - mval) / real(n - 1))
+    mags, prob = np.zeros(n, real), np.zeros(n, real)
+    for i in range(n):
+        mags[i] = mval
+        prob[i] = real(smooth(mval))
+        mval = real(mval + dm)
+    curve = _integrated(mags, params.lorder, prob)
+    if curve is None:
+        return middle
+    return np.array([real(curve(artdata.urand(state))) for _ in range(params.nstars)], real)
 
 
 def _sampled(values, probabilities, params, state):
@@ -918,6 +1054,8 @@ def _luminosities(params, state):
     real = np.float32
     nstars, n = params.nstars, params.nlsample
     minmag, maxmag = real(params.minmag), real(params.maxmag)
+    if params.luminosity == "file":
+        return _luminosity_file(params, state)
     if params.luminosity == "uniform":
         values = [artdata.urand(state) for _ in range(nstars)]
         return _amap(values, 0.0, 1.0, minmag, maxmag)
@@ -994,6 +1132,8 @@ class StarList(Task[StarListParams]):
             drawn = [artdata.urand(sstate) for _ in range(2 * params.nstars)]
             x = _amap(drawn[0::2], 0.0, 1.0, params.xmin, params.xmax)
             y = _amap(drawn[1::2], 0.0, 1.0, params.ymin, params.ymax)
+        elif params.spatial == "file":
+            x, y = _spatial_file(params, sstate)
         else:
             x, y = _hubble(params, sstate)
         mag = _luminosities(params, lstate)
@@ -1005,9 +1145,9 @@ class StarList(Task[StarListParams]):
         lines = [
             f"# {iraffmt.cnvtime()}",
             f"# begin\t{params.starlist}",
-            f"#\tspatial\t\t{params.spatial}",
+            f"#\tspatial\t\t{params.sfile if params.spatial == 'file' else params.spatial}",
         ]
-        if params.spatial == "hubble":
+        if params.spatial in ("hubble", "file"):
             xc = (
                 real(params.xcenter)
                 if params.xcenter is not None
@@ -1018,18 +1158,19 @@ class StarList(Task[StarListParams]):
                 if params.ycenter is not None
                 else real(real(real(params.ymax) + real(params.ymin)) / half)
             )
-            lines += [
-                f"#\txcenter\t\t{g(xc)}",
-                f"#\tycenter\t\t{g(yc)}",
-                f"#\tcoreradius\t{g(params.core_radius)}",
-                f"#\tbaseline\t{g(params.base)}",
-            ]
+            lines += [f"#\txcenter\t\t{g(xc)}", f"#\tycenter\t\t{g(yc)}"]
+            if params.spatial == "hubble":
+                lines += [
+                    f"#\tcoreradius\t{g(params.core_radius)}",
+                    f"#\tbaseline\t{g(params.base)}",
+                ]
         lines += [
             f"#\txmin\t\t{g(params.xmin)}",
             f"#\txmax\t\t{g(params.xmax)}",
             f"#\tymin\t\t{g(params.ymin)}",
             f"#\tymax\t\t{g(params.ymax)}",
-            f"#\tluminosity\t{params.luminosity}",
+            "#\tluminosity\t"
+            + (params.lfile if params.luminosity == "file" else params.luminosity),
         ]
         if params.luminosity == "powlaw":
             lines.append(f"#\tpower\t\t{g(params.power)}")

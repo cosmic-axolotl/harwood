@@ -53,7 +53,16 @@ MARKS = {
     "darkcor": ("DARKCOR", "dark subtracted by harwood"),
     "flatcor": ("FLATCOR", "flat fielded by harwood"),
     "fixpix": ("FIXPIX", "bad pixels replaced by harwood"),
+    "illumcor": ("ILLUMCOR", "illumination corrected by harwood"),
+    "fringecor": ("FRINGCOR", "fringes subtracted by harwood"),
 }
+
+#: The steps of each image type, as t_ccdproc switches on it. What is not named here
+#: runs them all, and takes a CCDMEAN.
+ALL_STEPS = ("fixpix", "overscan", "trim", "zerocor", "darkcor", "flatcor", "illumcor",
+             "fringecor")
+BY_TYPE = {"zero": ALL_STEPS[:3], "dark": ALL_STEPS[:4], "flat": ALL_STEPS[:5],
+           "illum": ALL_STEPS[:6]}
 
 
 class CcdProcParams(TaskParams):
@@ -91,6 +100,22 @@ class CcdProcParams(TaskParams):
         False, description="Subtract the master dark, scaled by exposure time."
     )
     flatcor: bool = Field(False, description="Divide by the master flat.")
+    illumcor: bool = Field(
+        False, description="Divide by an illumination image, normalised by its mean. It has "
+                           "to carry the MKILLUM keyword, as mkillumcor leaves it."
+    )
+    fringecor: bool = Field(
+        False, description="Subtract a fringe image, scaled by the exposure times and its "
+                           "FRINGSCL. It has to carry the MKFRINGE keyword."
+    )
+    readcor: bool = Field(
+        False, description="A zero becomes its average across the readout axis, one line or "
+                           "one column that goes for the whole frame."
+    )
+    scancor: bool = Field(
+        False, description="The zero, dark and flat become what a scanned detector saw: a "
+                           "moving average for a shortscan, one line for a longscan."
+    )
 
     biassec: str | None = Field(
         None,
@@ -104,14 +129,28 @@ class CcdProcParams(TaskParams):
     zero: Path | None = Field(None, description="Master bias image.")
     dark: Path | None = Field(None, description="Master dark image.")
     flat: Path | None = Field(None, description="Master flat image.")
+    illum: Path | None = Field(None, description="Illumination image.")
+    fringe: Path | None = Field(None, description="Fringe image.")
+    scantype: Literal["shortscan", "longscan"] = Field(
+        "shortscan", description="For --scancor: moved during the exposure and read at the "
+                                 "end, or read continuously."
+    )
+    nscan: int = Field(
+        1, ge=1, description="For --scancor with a shortscan: the steps of the scan, for an "
+                             "object with no NSCANROW keyword."
+    )
     bpm: Path | None = Field(
         None, description="Bad pixel mask, non-zero where a pixel is bad."
     )
 
     # The overscan fit is an icfit, with icfit's parameter names -- the same
     # ones identify, aptrace, continuum and sensfunc use. Learn them once.
-    function: Literal["legendre", "chebyshev", "spline1", "spline3"] = Field(
-        "legendre", description="Function fitted to the overscan along the readout axis."
+    function: Literal["legendre", "chebyshev", "spline1", "spline3", "mean", "median",
+                      "minmax"] = Field(
+        "legendre", description="Function fitted to the overscan along the readout axis; "
+                                "or with mean, median or minmax no fit, a value for each "
+                                "line (readaxis line only). minmax leaves out the highest "
+                                "and the lowest."
     )
     order: int = Field(
         1, ge=1,
@@ -139,7 +178,8 @@ class CcdProcParams(TaskParams):
         0.0, ge=0, description="Also reject points within this distance of a rejected one."
     )
     readaxis: Literal["line", "column"] = Field(
-        "column", description="Axis the overscan is averaged along."
+        "line", description="The readout axis, as in IRAF: line takes the overscan as a "
+                            "function of the line, its strip at the end of each."
     )
     interactive: bool = Field(
         False,
@@ -181,7 +221,7 @@ class CcdProcParams(TaskParams):
 class CcdProc(Task[CcdProcParams]):
     name = "ccdproc"
     package = "ccdred"
-    description = "Process CCD images: overscan, trim, bias, dark, flat."
+    description = "Process CCD images: overscan, trim, bias, dark, flat, illumination, fringe."
     Params = CcdProcParams
 
     def plan(self, params: CcdProcParams) -> list[Step]:
@@ -254,15 +294,23 @@ class CcdProc(Task[CcdProcParams]):
                 params.trimsec or header.get("TRIMSEC") or "TRIMSEC from the header",
                 WHY["trim"])
         for flag, key in (("zerocor", "zero"), ("darkcor", "dark"),
-                          ("flatcor", "flat")):
+                          ("flatcor", "flat"), ("illumcor", "illum"),
+                          ("fringecor", "fringe")):
             if getattr(params, flag):
                 given = getattr(params, key)
                 found = survey["zero"] if key == "zero" else (
                     survey["dark"] if key == "dark"
-                    else (next(iter(survey["flats"].values()), None)))
+                    else (next(iter(survey[f"{key}s"].values()), None)))
                 add(flag, key,
                     str(given or found or f"no --{key} image and none found"),
                     WHY[key])
+        if params.readcor:
+            steps.append(Step("readcor", f"the zero, across the {params.readaxis}s",
+                              why=WHY["readcor"]))
+        if params.scancor:
+            steps.append(Step("scancor", params.scantype
+                              + (f", {params.nscan} steps" if params.scantype == "shortscan"
+                                 else ""), why=WHY["scancor"]))
         steps.append(Step(
             "write",
             "in place, over the inputs" if params.inplace
@@ -277,10 +325,6 @@ class CcdProc(Task[CcdProcParams]):
         return steps
 
     def execute(self, params: CcdProcParams) -> TaskResult:
-        import time
-
-        import numpy as np
-
         from ..core import images, logfile, mef, provenance, subsets
 
         specs = images.expand(params.input)
@@ -323,28 +367,14 @@ class CcdProc(Task[CcdProcParams]):
             calibration = {key: prepared.get(str(value), value)
                            for key, value in calibration.items()}
 
-            steps.extend(_process(frame, params, survey["instrument"], calibration,
-                                  kind=survey["kinds"].get(spec, "object")))
+            kind = survey["kinds"].get(spec, "object")
+            steps.extend(_process(frame, params, survey["instrument"], calibration, kind=kind,
+                                  warnings=warnings))
             if frame.var is None:
                 no_gain.append(Path(str(spec)).name)
+            _finish(frame, kind, steps, params)
             data = frame.data
-
-            # A flat is left with nothing below minreplace, as IRAF leaves it,
-            # so that dividing by it later can never divide by noise or zero.
-            if survey["kinds"].get(spec) == "flat" and steps:
-                low = data < params.minreplace
-                if low.any():
-                    data = np.where(low, params.minreplace, data)
-                    frame.data = data
-                    steps.append(Step("minreplace", f"{int(low.sum())} pixels below "
-                                      f"{params.minreplace:g} set to it",
-                                      why=WHY["minreplace"],
-                                      measured={"replaced": int(low.sum())}))
-            # CCDMEAN, as IRAF writes it on everything ccdproc touches: it is
-            # the scale a flat is divided by, and IRAF reads it from the file.
-            if steps and any(not step.skipped for step in steps):
-                header["CCDMEAN"] = (float(np.mean(data)), "mean of the image after ccdproc")
-                header["CCDMEANT"] = (int(time.time()), "when CCDMEAN was computed")
+            header = frame.header
 
             lines = [f"ccdproc: {step.render()}" for step in steps if not step.skipped]
             provenance.stamp_header(header, lines)
@@ -362,6 +392,7 @@ class CcdProc(Task[CcdProcParams]):
 
         skipped = sum(1 for step in all_steps if step.skipped)
         all_steps = prepared.pop("_steps", []) + all_steps
+        warnings.extend(prepared.pop("_warnings", []))
         logfile.note(params.logfile,
                      f"ccdproc finished: {len(outputs)} image(s), "
                      f"{skipped} step(s) already done")
@@ -438,6 +469,19 @@ WHY = {
             "the response of every pixel relative to the rest. Dividing by it, "
             "normalised to one, turns counts into a quantity proportional to the "
             "light that arrived.",
+    "illum": "A dome flat is lit differently from the sky, by a pattern that is smooth "
+             "across the chip. An illumination image holds that pattern, usually from "
+             "dark-sky flats, and dividing by it, normalised by its mean, flattens the sky.",
+    "fringe": "In the red, night-sky lines interfere in the thin chip and print a pattern "
+              "that adds to the sky and does not divide. A fringe image holds it for some "
+              "exposure, and it is subtracted scaled by the exposure times.",
+    "readcor": "A zero's structure can run only along the readout, the same for every line. "
+               "Averaging across that axis leaves the structure and removes the noise of "
+               "all those pixels.",
+    "scancor": "A scanned detector moves the charge while it exposes, so each pixel of the "
+               "image was seen by several real pixels, and the calibrations have to be made "
+               "the same way: a moving average over the scan, or a single line for a scan "
+               "as long as the exposure.",
 }
 
 
@@ -464,44 +508,48 @@ def _survey(specs, params) -> dict:
         (s.path for s in specs if kinds[s] == "zero"), None)
     dark = params.dark or next(
         (s.path for s in specs if kinds[s] == "dark"), None)
-    flats: dict[str, object] = {}
-    if not params.flat:
-        for spec in specs:
-            if kinds[spec] == "flat":
-                flats.setdefault(subsets[spec], spec.path)
+    by_subset: dict[str, dict] = {"flat": {}, "illum": {}, "fringe": {}}
+    for key, found in by_subset.items():
+        if not getattr(params, key):
+            for spec in specs:
+                if kinds[spec] == key:
+                    found.setdefault(subsets[spec], spec.path)
 
     return {"instrument": inst, "kinds": kinds, "subsets": subsets,
-            "targets": targets, "zero": zero, "dark": dark, "flats": flats,
+            "targets": targets, "zero": zero, "dark": dark, "flats": by_subset["flat"],
+            "illums": by_subset["illum"], "fringes": by_subset["fringe"],
             "counts": dict(Counter(kinds.values()))}
 
 
 def _prepare_calibrations(survey, params) -> dict:
-    """Put the calibration frames through the same geometry as the science.
-
-    Only the steps that change the shape or the level of a calibration: a bias
-    needs the overscan and the trim, a flat needs those and the bias. A flat
-    does not get flat-fielded by itself, which is the mistake this exists to
-    avoid making by accident.
+    """Put the calibration frames through what they need first, as ccdcheck and ccdproc do
+    inside set_zero, set_dark and set_flat: each by its own type, whatever its header says,
+    and in memory: harwood does not rewrite a calibration given to it. The header marks
+    leave what is already done alone. A flat does not get flat-fielded by itself, which is
+    the mistake this exists to avoid making by accident.
     """
 
-    done: dict = {"_steps": []}
+    done: dict = {"_steps": [], "_warnings": []}
     candidates = []
-    if params.zerocor and not params.zero and survey["zero"]:
+    if params.zerocor and survey["zero"]:
         candidates.append(("zero", survey["zero"]))
-    if params.darkcor and not params.dark and survey["dark"]:
+    if params.darkcor and survey["dark"]:
         candidates.append(("dark", survey["dark"]))
-    if params.flatcor and not params.flat:
+    if params.flatcor:
+        if params.flat:
+            candidates.append(("flat", params.flat))
         candidates.extend(("flat", path) for path in survey["flats"].values())
 
     for kind, path in candidates:
+        if str(path) in done:
+            continue
         frame = _Frame.load(path)
-        zero = None
-        if kind in ("dark", "flat") and params.zerocor:
-            zero = done.get(str(survey["zero"]), survey["zero"])
-        steps = _process(frame, params, survey["instrument"],
-                         {"zero": zero, "dark": None, "flat": None},
-                         only=("overscan", "trim") + (("zerocor",) if zero is not None
-                                                      else ()), kind=kind)
+        calibration = {"zero": done.get(str(survey["zero"]), survey["zero"]),
+                       "dark": done.get(str(survey["dark"]), survey["dark"]),
+                       "flat": None, "illum": None, "fringe": None}
+        steps = _process(frame, params, survey["instrument"], calibration, kind=kind,
+                         warnings=done["_warnings"])
+        _finish(frame, kind, steps, params)
         for step in steps:
             if not step.skipped:
                 step.action = f"{kind} {Path(path).name}: {step.action}"
@@ -528,6 +576,7 @@ class _Frame:
     normalised: object = None
     level: float = 1.0
     clamped: object = None
+    sections: object = None
 
     @classmethod
     def load(cls, spec) -> _Frame:
@@ -562,17 +611,21 @@ def _noise(header, params, inst) -> tuple[float | None, float]:
 
 
 def _process(frame: _Frame, params, inst, calibration: dict,
-             only: tuple[str, ...] = ("fixpix", "overscan", "trim", "zerocor", "darkcor",
-                                      "flatcor"), kind: str = "object") -> list[Step]:
-    """ccdproc's steps, in IRAF's order, on the data with its variance and DQ.
-    `kind` is the image type: a zero frame has no photons in it, only read
-    noise, and its variance is that alone."""
+             only: tuple[str, ...] = ALL_STEPS, kind: str = "object",
+             warnings: list | None = None) -> list[Step]:
+    """ccdproc's steps, in IRAF's order, on the data with its variance and DQ, each
+    in real as cor.gx writes it: `(out - overscan - zero - darkscale*dark) * flatscale /
+    flat * illumscale / illum - frgscale*fringe`, one operation at a time. The overscan
+    comes from the raw lines and goes over the trimmed ones. `kind` is the image type,
+    which decides the steps; a zero frame has no photons in it, only read noise, and its
+    variance is that alone."""
     import numpy as np
 
-    from ..core import dq, images, pixels
+    from ..core import ccdsections, dq
 
     steps: list[Step] = []
     header = frame.header
+    allowed = set(only) & set(BY_TYPE.get(kind, ALL_STEPS))
     raw = not any(MARKS[flag][0] in header for flag in MARKS)
     if params.saturation is not None:
         if raw:
@@ -586,29 +639,81 @@ def _process(frame: _Frame, params, inst, calibration: dict,
             steps.append(Step("saturation", skipped=True,
                               reason="the frame is already processed, and saturation "
                                      "is a raw level"))
-    if "fixpix" in only and params.fixpix and params.bpm is not None:
-        frame.data, step = _fixpix(frame.data, params.bpm, header)
+
+    biassec = params.biassec or header.get("BIASSEC") or ""
+    trimsec = params.trimsec or header.get("TRIMSEC") or ""
+    data = np.asarray(frame.data, np.float32)
+    source = data
+    sec = ccdsections.sections(header, data.shape, biassec, trimsec)
+    trimming = "trim" in allowed and params.trim
+    if trimming and not _already(header, "trim"):
+        if not trimsec:
+            raise ValueError(
+                "trim was asked for but no section was given and the header has no TRIMSEC. "
+                "Pass --trimsec '[1:2048,1:2048]'.")
+        ccdsections.trim(sec)
+    changed = False
+
+    # The overscan vector first: it is measured on the raw lines, and fixed pixels only
+    # reach a per-line overscan, as those go through xt_fps with the rest of the line.
+    vector = None
+    if "overscan" in allowed and params.overscan:
+        vector, step = _overscan(data, header, params, sec, biassec)
         if not step.skipped:
-            mask, _ = images.read(params.bpm)
-            frame.dq[mask != 0] |= dq.BAD_PIXEL
-        steps.append(step)
-    if "overscan" in only and params.overscan:
-        frame.data, step = _overscan(frame.data, header, params)
-        steps.append(step)
-    if "trim" in only and params.trim:
-        shape = frame.data.shape
-        frame.data, step = _trim(frame.data, header, params)
+            changed = True
+    else:
+        step = None
+
+    shape = data.shape
+    if sec.trimmed:
+        cut = (slice(sec.trim_l1 - 1, sec.trim_l2), slice(sec.trim_c1 - 1, sec.trim_c2))
+        data = data[cut].copy()
+        frame.dq = frame.dq[cut]
+        if frame.var is not None:
+            frame.var = frame.var[cut]
+    else:
+        cut = None
+        data = data.copy()
+    region = (slice(sec.out_l1 - 1, sec.out_l2), slice(sec.out_c1 - 1, sec.out_c2))
+
+    if "fixpix" in allowed and params.fixpix and params.bpm is not None:
+        fixed, fix_step, bad = _fixpix(source, data, params.bpm, header, sec, region)
+        if not fix_step.skipped:
+            data = fixed
+            frame.dq[region][bad] |= dq.BAD_PIXEL
+            changed = True
+        steps.append(fix_step)
+
+    if step is not None:
         if not step.skipped:
-            cut = pixels.parse_section(header["TRIMSEC"], shape)
-            frame.dq = frame.dq[cut]
-            if frame.var is not None:
-                frame.var = frame.var[cut]
+            before = Task.statistics(data)
+            data[region] = (data[region] - vector).astype(np.float32)
+            step.before, step.after = before, Task.statistics(data)
         steps.append(step)
-    if "zerocor" in only and params.zerocor:
-        frame.data, step, cal = _calibrate(frame.data, header, "zero",
-                                           calibration["zero"], params)
-        steps.append(step)
-        _carry(frame, cal, step, 1.0, params, inst, "zero")
+    if trimming:
+        if _already(header, "trim"):
+            steps.append(Step("trim", skipped=True, reason="TRIM already in the header"))
+        else:
+            lost = shape[0] * shape[1] - data.size
+            _mark(header, "trim")
+            changed = True
+            steps.append(Step(
+                "trim", f"{trimsec} -> {data.shape[1]}x{data.shape[0]}", why=WHY["trim"],
+                measured={"kept": f"{data.shape[1]}x{data.shape[0]}",
+                          "dropped": f"{lost} pixels, "
+                                     f"{100 * lost / (shape[0] * shape[1]):.1f}%"},
+                before=Task.statistics(source), after=Task.statistics(data)))
+
+    frame.data = data
+    frame.sections = sec
+
+    if "zerocor" in allowed and params.zerocor:
+        cal = _calibration_frame("zero", calibration["zero"], frame, params, inst, kind)
+        frame.data, cor, used = _calibrate(frame.data, header, "zero", cal, params, sec,
+                                           region)
+        steps.append(cor)
+        changed = changed or not cor.skipped
+        _carry(frame, used, cor, 1.0, params, inst, "zero", sec)
 
     # The variance is born here: with the overscan and the bias off, the data
     # counts the electrons each pixel collected, dark current and all.
@@ -618,7 +723,8 @@ def _process(frame: _Frame, params, inst, calibration: dict,
                                                    MARKS["zerocor"][0]))
         if gain is not None and offset_off:
             photons = 0.0 if kind == "zero" else np.maximum(frame.data, 0.0) / gain
-            frame.var = photons + np.zeros_like(frame.data) + (readnoise / gain) ** 2
+            noise = (readnoise / gain) ** 2
+            frame.var = photons + np.zeros_like(frame.data, dtype=float) + noise
             model = ("read noise only, a zero frame: " if kind == "zero" else "data/"
                      f"{gain:g} + ") + f"({readnoise:g}/{gain:g})^2, in ADU^2"
             steps.append(Step("variance", model, why=WHY["variance"],
@@ -632,26 +738,232 @@ def _process(frame: _Frame, params, inst, calibration: dict,
                               reason="the bias level is still in the data, so its counts "
                                      "are not electrons yet: run --overscan or --zerocor"))
 
-    if "darkcor" in only and params.darkcor:
-        frame.data, step, cal = _calibrate(frame.data, header, "dark",
-                                           calibration["dark"], params)
-        steps.append(step)
-        if cal is not None:
-            _carry(frame, cal, step, cal.factor, params, inst, "dark")
-    if "flatcor" in only and params.flatcor:
+    if "darkcor" in allowed and params.darkcor:
+        cal = _calibration_frame("dark", calibration["dark"], frame, params, inst, kind)
+        flat_cal = None
+        if "flatcor" in allowed and params.flatcor and calibration.get("flat") is not None:
+            flat_cal = _calibration_frame("flat", calibration["flat"], frame, params, inst,
+                                          kind)
+        frame.data, cor, used = _calibrate(frame.data, header, "dark", cal, params, sec,
+                                           region, inst=inst, flat=flat_cal)
+        steps.append(cor)
+        changed = changed or not cor.skipped
+        if used is not None:
+            _carry(frame, used, cor, used.factor, params, inst, "dark", sec)
+    if "flatcor" in allowed and params.flatcor:
         before = frame.data
-        frame.data, step, cal = _calibrate(frame.data, header, "flat",
-                                           calibration["flat"], params)
-        steps.append(step)
-        if cal is not None:
-            n = cal.normalised
+        cal = _calibration_frame("flat", calibration["flat"], frame, params, inst, kind)
+        frame.data, cor, used = _calibrate(frame.data, header, "flat", cal, params, sec,
+                                           region)
+        steps.append(cor)
+        changed = changed or not cor.skipped
+        if used is not None:
+            n = used.normalised
             if frame.var is not None:
-                var_n = _cal_variance(cal, params, inst, step, header, "flat") \
-                    / cal.level ** 2
-                frame.var = frame.var / n ** 2 + (before / n) ** 2 * var_n / n ** 2
-            frame.dq |= cal.dq
-            frame.dq[cal.clamped] |= dq.BAD_PIXEL
+                inner = np.ones_like(frame.var)
+                inner[region] = n
+                full = _cal_variance(used, params, inst, cor, header, "flat")
+                frame.var = frame.var / inner ** 2
+                piece = _in_region(full, used, sec) / used.level ** 2
+                frame.var[region] = frame.var[region] + (
+                    (before[region] / n) ** 2 * piece / n ** 2)
+            frame.dq[region] |= _in_region(used.dq, used, sec)
+            clamped = np.broadcast_to(used.clamped, frame.dq[region].shape)
+            frame.dq[region][clamped] |= dq.BAD_PIXEL
+    for flag, key in (("illumcor", "illum"), ("fringecor", "fringe")):
+        if flag in allowed and getattr(params, flag):
+            cor = _extra(frame, key, calibration.get(key), params, inst, sec, region, warnings)
+            steps.append(cor)
+            changed = changed or not cor.skipped
+    if changed:
+        ccdsections.update_header(header, sec, frame.data.shape)
     return steps
+
+
+def _finish(frame: _Frame, kind: str, steps: list[Step], params) -> None:
+    """What is left after the lines: a flat raises what is below minreplace, so that
+    dividing by it can never divide by noise or zero; it and what has no known type take
+    a CCDMEAN. A flat missing one takes it from the file (ccdmean). A zero with --readcor
+    becomes one line or one column."""
+    import time
+
+    import numpy as np
+
+    from ..core import ccdsections
+
+    done = any(not step.skipped for step in steps)
+    if kind == "flat" and done:
+        low = frame.data < params.minreplace
+        region = getattr(frame.sections, "out_c1", None)
+        if region is not None:
+            sec = frame.sections
+            inside = np.zeros_like(low)
+            inside[sec.out_l1 - 1:sec.out_l2, sec.out_c1 - 1:sec.out_c2] = True
+            low &= inside
+        if low.any():
+            frame.data = np.where(low, np.float32(params.minreplace), frame.data).astype(
+                np.float32)
+            steps.append(Step("minreplace", f"{int(low.sum())} pixels below "
+                              f"{params.minreplace:g} set to it",
+                              why=WHY["minreplace"],
+                              measured={"replaced": int(low.sum())}))
+    if done and kind not in ("zero", "dark", "illum", "object", "comp"):
+        sec = frame.sections
+        inner = frame.data[sec.out_l1 - 1:sec.out_l2, sec.out_c1 - 1:sec.out_c2]
+        total = np.float32(0.0)
+        for line in inner:
+            total = np.float32(total + ccdsections.asum(line))
+        mean = np.float32(np.float32(total / np.float32(inner.shape[1]))
+                          / np.float32(inner.shape[0]))
+        frame.header["CCDMEAN"] = (_real_card(mean), "mean of the image after ccdproc")
+        frame.header["CCDMEANT"] = (int(time.time()), "when CCDMEAN was computed")
+    if kind == "zero" and params.readcor and "READCOR" not in frame.header:
+        before = Task.statistics(frame.data)
+        frame.data = ccdsections.readcor(frame.data, frame.header, params.readaxis == "line")
+        _mark_as(frame.header, "READCOR", "converted to readout format by harwood")
+        quality, variance = frame.dq, frame.var
+        frame.dq = _one_d(quality, params.readaxis == "line", "or")
+        frame.var = None if variance is None else _one_d(variance / max(
+            quality.shape[0 if params.readaxis == "line" else 1], 1),
+            params.readaxis == "line", "mean")
+        steps.append(Step("readcor", f"to {frame.data.shape[1]}x{frame.data.shape[0]}",
+                          why=WHY["readcor"], before=before,
+                          after=Task.statistics(frame.data)))
+
+
+def _one_d(plane, line_axis: bool, how: str):
+    import numpy as np
+
+    axis = 0 if line_axis else 1
+    if how == "or":
+        return np.bitwise_or.reduce(plane, axis=axis, keepdims=True)
+    return plane.mean(axis=axis, keepdims=True)
+
+
+def _mark_as(header, keyword: str, comment: str) -> None:
+    from datetime import datetime
+
+    header[keyword] = (datetime.now(UTC).isoformat(timespec="seconds"), comment)
+
+
+def _real_card(value) -> float:
+    """A real as hdmputr leaves it in a card, seven digits, which is what is read back
+    from it: a flat is divided by that, not by the mean it worked out."""
+    return float(f"{float(value):.7g}")
+
+
+def _in_region(plane, cal, sec):
+    """A calibration's plane, for this frame's lines."""
+    from ..core import ccdsections
+
+    cut = ccdsections.cal_region(plane.shape, cal.header, sec, str(cal))
+    return plane[cut]
+
+
+def _extra(frame, key, image, params, inst, sec, region, warnings) -> Step:
+    """set_illum and set_fringe: what stops them only warns, and the frame goes on."""
+    import numpy as np
+
+    from ..core import ccdsections, dq
+
+    flag = {"illum": "illumcor", "fringe": "fringecor"}[key]
+    header = frame.header
+    if _already(header, flag):
+        return Step(key, skipped=True, reason=f"{MARKS[flag][0]} already in the header")
+    if image is None:
+        raise ValueError(f"{flag} was asked for but no --{key} image was given")
+    cal = image if isinstance(image, _Frame) else _Frame.load(image)
+    needed = {"illum": "MKILLUM", "fringe": "MKFRINGE"}[key]
+    if needed not in cal.header:
+        message = advice.warn(
+            f"{needed} flag missing from the {key} image {Path(str(image)).name}, so it was "
+            "not used.", f"mark it with `hedit {Path(str(image)).name} {needed} yes` if it "
+            f"is what mk{key}cor makes.")
+        if warnings is not None:
+            warnings.append(message)
+        return Step(key, skipped=True, reason=f"{needed} is not in {Path(str(image)).name}")
+    cut = ccdsections.cal_region(cal.data.shape, cal.header, sec, Path(str(image)).name)
+    plane = np.asarray(cal.data[cut], np.float32)
+    data = frame.data
+    before_stats = Task.statistics(data)
+    if key == "illum":
+        if "CCDMEAN" in cal.header:
+            scale = _hdm_real(cal.header, "CCDMEAN")
+        else:
+            scale = np.float32(_real_card(ccdsections.mean_of(cal.data)))
+        inner = (data[region] * scale).astype(np.float32)
+        data[region] = (inner / plane).astype(np.float32)
+        if frame.var is not None:
+            frame.var[region] = frame.var[region] * (scale / plane.astype(float)) ** 2
+        detail = f"divided by {Path(str(image)).name} with scale {float(scale):g}"
+    else:
+        time1 = _hdm_real(header, "EXPTIME", params.exposure_key)
+        time2 = _hdm_real(cal.header, "EXPTIME", params.exposure_key)
+        each = np.float32(_hdm_real(cal.header, "FRINGSCL")) if "FRINGSCL" in cal.header \
+            else np.float32(1.0)
+        scale = np.float32(np.float32(time1 / time2) * each)
+        data[region] = (data[region] - (scale * plane).astype(np.float32)).astype(np.float32)
+        if frame.var is not None and cal.var is not None:
+            frame.var[region] = frame.var[region] + float(scale) ** 2 * cal.var[cut]
+        detail = f"subtracted {Path(str(image)).name} with scale {float(scale):g}"
+    frame.dq[region] |= cal.dq[cut].astype(dq.DTYPE)
+    _mark(header, flag)
+    return Step(key, detail, why=WHY[key], measured={"image": Path(str(image)).name,
+                                                     "scale": f"{float(scale):g}"},
+                before=before_stats, after=Task.statistics(data))
+
+
+def _hdm_real(header, key: str, fallback: str = ""):
+    """hdmgetr: a card's text through IRAF's reading of numbers, as a real."""
+    import numpy as np
+
+    from ..core import mwcs
+
+    name = key
+    if fallback and key == "EXPTIME":
+        name = fallback
+    return np.float32(mwcs._number(header, name, 0.0))
+
+
+def _calibration_frame(role, image, frame, params, inst, kind):
+    """The calibration for this frame: with --scancor, what a frame with its scan saw.
+    ccdnscan: the frame's NSCANROW, or for an object the parameter, and with a calibration
+    or no scan, the image itself. cal_scan names the one made from it, as `Flat.3.fits`
+    or `Flat.1d.fits`, and it is used if it is there."""
+    if not params.scancor or image is None:
+        return image
+    from ..core import ccdsections, mef
+
+    calibrating = kind in ("zero", "dark", "flat", "illum", "fringe")
+    header = frame.header
+    if "NSCANROW" in header:
+        nscan = int(header["NSCANROW"])
+    elif calibrating:
+        nscan = 1
+    elif params.scantype == "shortscan":
+        nscan = params.nscan
+    else:
+        nscan = None
+    if nscan == 1:
+        return image
+    base = image if isinstance(image, _Frame) else _Frame.load(image)
+    path = Path(base.path)
+    tag = "1d" if nscan is None else str(nscan)
+    made = path.with_name(f"{path.stem}.{tag}{path.suffix}")
+    if made.exists():
+        return made
+    head = base.header.copy()
+    line_axis = params.readaxis == "line"
+    floor = params.minreplace if role == "flat" else None
+    if nscan is None:
+        data, mean = ccdsections.longscan(base.data, head, line_axis)
+    else:
+        data, mean = ccdsections.shortscan(base.data, head, nscan, floor, line_axis)
+        head["NSCANROW"] = nscan
+    head["CCDMEAN"] = (_real_card(mean), "mean of the image after scancor")
+    _mark_as(head, "SCANCOR", "converted to a scan by harwood")
+    mef.save(made, data, head, None, None, "VAR", "harwood")
+    return made
 
 
 def _cal_variance(cal, params, inst, step, frame_header, key):
@@ -678,34 +990,43 @@ def _cal_variance(cal, params, inst, step, frame_header, key):
     return (photons + (readnoise / gain) ** 2) / count
 
 
-def _carry(frame, cal, step, factor, params, inst, key) -> None:
+def _carry(frame, cal, step, factor, params, inst, key, sec) -> None:
     """A subtracted calibration: its variance adds (scaled by the square of
     what it was multiplied by), its DQ joins the frame's."""
     if cal is None:
         return
+    region = (slice(sec.out_l1 - 1, sec.out_l2), slice(sec.out_c1 - 1, sec.out_c2))
     if frame.var is not None:
-        frame.var = frame.var + factor ** 2 * _cal_variance(cal, params, inst, step,
-                                                             frame.header, key)
-    frame.dq |= cal.dq
+        full = _cal_variance(cal, params, inst, step, frame.header, key)
+        frame.var[region] = frame.var[region] + factor ** 2 * _in_region(full, cal, sec)
+    frame.dq[region] |= _in_region(cal.dq, cal, sec)
 
 
 def _calibration_for(header, survey, params) -> dict:
-    """The zero, dark and flat that apply to one frame."""
+    """The zero, dark, flat, illumination and fringe that apply to one frame."""
     subset = survey["instrument"].subset(header)
-    flat = params.flat
-    if flat is None and survey["flats"]:
-        flat = survey["flats"].get(subset)
-        if flat is None and len(survey["flats"]) == 1:
-            flat = next(iter(survey["flats"].values()))
-        elif flat is None:
+
+    def by_subset(key, label):
+        given = getattr(params, key)
+        found = survey[f"{key}s"]
+        if given is not None or not found:
+            return given
+        chosen = found.get(subset)
+        if chosen is None and len(found) == 1:
+            return next(iter(found.values()))
+        if chosen is None:
             raise ValueError(
-                f"no flat field for subset '{subset}'. Flats were found for "
-                + ", ".join(repr(s) for s in survey["flats"])
-                + ". Give --flat, or check the instrument translation."
+                f"no {label} for subset '{subset}'. They were found for "
+                + ", ".join(repr(s) for s in found)
+                + f". Give --{key}, or check the instrument translation."
             )
+        return chosen
+
     return {"zero": params.zero or survey["zero"],
             "dark": params.dark or survey["dark"],
-            "flat": flat}
+            "flat": by_subset("flat", "flat field"),
+            "illum": by_subset("illum", "illumination image"),
+            "fringe": by_subset("fringe", "fringe image")}
 
 
 def _peek(spec):
@@ -727,128 +1048,127 @@ def _mark(header, flag: str) -> None:
     header[keyword] = (datetime.now(UTC).isoformat(timespec="seconds"), comment)
 
 
-def _fixpix(data, bpm_path, header):
+def _fixpix(raw, data, bpm_path, header, sec, region):
+    """xt_fps over the lines and columns of the data section, not past them, and the mask
+    goes pixel by pixel from the raw image's first, or from the trimmed frame's if that
+    is its size."""
+    import numpy as np
+
     from ..core import images
 
     if _already(header, "fixpix"):
-        return data, Step("fixpix", skipped=True, reason="FIXPIX already in the header")
+        return data, Step("fixpix", skipped=True, reason="FIXPIX already in the header"), None
     mask, _ = images.read(bpm_path)
+    if mask.shape == raw.shape:
+        mask = mask[sec.in_l1 - 1:sec.in_l2, sec.in_c1 - 1:sec.in_c2]
+    else:
+        mask = mask[region]
     bad = mask != 0
     if not bad.any():
-        return data, Step("fixpix", "mask marks no bad pixels")
+        return data, Step("fixpix", "mask marks no bad pixels"), bad
     # IRAF's fixpix, the same code the fixpix task runs: across the narrowest
     # side of each bad region. (This used to interpolate along x always,
     # which is right for a bad column and wrong for a bad row.)
     from ..core import fixpix
 
-    fixed, summary = fixpix.fix(data, mask)
+    inner, summary = fixpix.fix(data[region], mask)
+    out = data.copy()
+    out[region] = np.asarray(inner, np.float32)
     _mark(header, "fixpix")
-    return fixed, Step(
+    return out, Step(
         "fixpix", f"{int(bad.sum())} pixels replaced", why=WHY["fixpix"],
         measured={"replaced": f"{int(bad.sum())} pixels, "
                               f"{100 * bad.mean():.3f}%",
                   "along lines": summary["along lines"],
                   "along columns": summary["along columns"]},
-        before=Task.statistics(data), after=Task.statistics(fixed))
+        before=Task.statistics(data), after=Task.statistics(out)), bad
 
 
-def _overscan(data, header, params):
+def _overscan(data, header, params, sec, section):
+    """setoverscan: (what to subtract from the frame's lines, in the shape that goes, and
+    the step). The fit is IRAF's in real, to the last digit, or the panel's by hand."""
     import numpy as np
 
-    from ..core import icfit, pixels
+    from ..core import ccdsections, icfit, icfitbits
 
     if _already(header, "overscan"):
-        return data, Step("overscan", skipped=True, reason="OVERSCAN already in the header")
-    section = params.biassec or header.get("BIASSEC")
+        return None, Step("overscan", skipped=True, reason="OVERSCAN already in the header")
     if not section:
         raise ValueError(
             "overscan was asked for but no section was given and the header has no BIASSEC. "
             "Pass --biassec '[2049:2080,*]'."
         )
-    slices = pixels.parse_section(section, data.shape)
-    strip = data[slices]
-    axis = 1 if params.readaxis == "column" else 0
-    profile = strip.mean(axis=axis)
+    if sec.bias_c1 < 1 or sec.bias_c2 > sec.nc or sec.bias_l1 < 1 or sec.bias_l2 > sec.nl:
+        raise ValueError(f"error in the bias section: the image is {sec.nc} by {sec.nl}, "
+                         f"the section {section}.")
+    if (sec.bias_c1, sec.bias_c2, sec.bias_l1, sec.bias_l2) == (1, sec.nc, 1, sec.nl):
+        raise ValueError("bias section not specified or given as full image.")
+    line_axis = params.readaxis == "line"
+    if params.function in ("mean", "median", "minmax"):
+        if not line_axis:
+            raise ValueError(f"overscan function {params.function} is not allowed with "
+                             "readaxis column.")
+        strip = data[sec.in_l1 - 1:sec.in_l2, sec.bias_c1 - 1:sec.bias_c2]
+        level = ccdsections.find_overscan(strip, params.function)
+        _mark(header, "overscan")
+        return level[:, None], Step(
+            "overscan", f"{params.function} over {section}", why=WHY["overscan"],
+            measured={"level": round(float(level.mean()), 2),
+                      "drift": f"{float(level.min()):.2f} to {float(level.max()):.2f}"})
 
-    # The positions are the *image's* row (or column) numbers, 1-based -- not
-    # positions within the strip. A bias section like [335:350,2:510] covers
-    # rows 2 to 510, so the profile describes those rows and nothing else, and
-    # --sample given in image coordinates has to mean the same thing here as it
-    # does everywhere else on the image.
-    along = slices[0] if axis == 1 else slices[1]
-    indices = np.arange(data.shape[0 if axis == 1 else 1])[along]
-    position = indices.astype(float) + 1.0
-
+    x, values = ccdsections.overscan_vector(data, sec, line_axis)
     spec = icfit.FitSpec(
         function=params.function, order=params.order, sample=params.sample,
         naverage=params.naverage, niterate=params.niterate,
         low_reject=params.low_reject, high_reject=params.high_reject,
         grow=params.grow,
     )
+    deleted = 0
+    level = None
     if params.interactive:
         from ..viewer.icfit_panel import run as run_icfit
 
-        result = run_icfit(position, profile, spec,
+        result = run_icfit(x.astype(float), values.astype(float), spec,
                            title=f"ccdproc · overscan {section}",
-                           xlabel="line (pixels)", ylabel="overscan level (ADU)")
+                           xlabel="pixel", ylabel="overscan level (ADU)")
         spec = result.spec
-    else:
-        result = icfit.fit(position, profile, spec)
-    if result.model is None:
-        raise ValueError(f"the overscan fit failed: {result.message}")
-
-    # Evaluate the fit over *every* row of the image, not only the rows the
-    # bias section sampled. A section that stops short of the edges -- which is
-    # the normal case, because the first and last rows are usually bad -- still
-    # has to correct the whole frame, and extrapolating a low-order fit a few
-    # rows past its sample is exactly what it is for.
-    full = np.arange(1.0, data.shape[0 if axis == 1 else 1] + 1.0)
-    level = np.asarray(result(full), dtype=float)
-    corrected = data - (level[:, None] if axis == 1 else level[None, :])
+        deleted = int(result.deleted.sum())
+        if result.model is None:
+            raise ValueError(f"the overscan fit failed: {result.message}")
+        if deleted:
+            level = np.asarray(result(x.astype(float)), np.float32)
+    ic = icfitbits.Ic(function=spec.function, order=spec.order, sample=spec.sample,
+                      naverage=spec.naverage, niterate=spec.niterate,
+                      low_reject=spec.low_reject, high_reject=spec.high_reject, grow=spec.grow)
+    weights = np.ones(x.size, np.float32)
+    if level is None:
+        curve = icfitbits.fit(ic, x, values, weights)
+        level = np.asarray(curve.vector_at(x), np.float32)
+    rms = float(np.sqrt(np.mean((values.astype(float) - level.astype(float)) ** 2)))
+    nrejected = int(getattr(ic, "nreject", 0) or 0)
     _mark(header, "overscan")
-    header["BIASSEC"] = section
     detail = (f"{spec.function} order {spec.order} over {section}, "
-              f"mean level {float(level.mean()):.2f}, rms {result.rms:.2f}")
+              f"mean level {float(level.mean()):.2f}, rms {rms:.2f}")
     if spec.sample != "*":
         detail += f", sample {spec.sample}"
-    if int(result.deleted.sum()):
-        detail += f", {int(result.deleted.sum())} points deleted by hand"
-    if result.nrejected:
-        detail += f", {result.nrejected} points rejected"
-    return corrected, Step(
+    if deleted:
+        detail += f", {deleted} points deleted by hand"
+    if nrejected:
+        detail += f", {nrejected} points rejected"
+    return (level[:, None] if line_axis else level[None, :]), Step(
         "overscan", detail, why=WHY["overscan"],
         measured={"level": round(float(level.mean()), 2),
                   "drift": f"{float(level.min()):.2f} to {float(level.max()):.2f}",
-                  "fit rms": round(float(result.rms), 3),
-                  "rejected": f"{result.nrejected} of {int(result.mask.size)}"},
-        before=Task.statistics(data), after=Task.statistics(corrected))
+                  "fit rms": round(rms, 3),
+                  "rejected": f"{nrejected} of {x.size}"})
 
 
-def _trim(data, header, params):
-    from ..core import pixels
-
-    if _already(header, "trim"):
-        return data, Step("trim", skipped=True, reason="TRIM already in the header")
-    section = params.trimsec or header.get("TRIMSEC")
-    if not section:
-        raise ValueError(
-            "trim was asked for but no section was given and the header has no TRIMSEC. "
-            "Pass --trimsec '[1:2048,1:2048]'."
-        )
-    trimmed = data[pixels.parse_section(section, data.shape)]
-    _mark(header, "trim")
-    header["TRIMSEC"] = section
-    lost = data.size - trimmed.size
-    return trimmed, Step(
-        "trim", f"{section} -> {trimmed.shape[1]}x{trimmed.shape[0]}",
-        why=WHY["trim"],
-        measured={"kept": f"{trimmed.shape[1]}x{trimmed.shape[0]}",
-                  "dropped": f"{lost} pixels, {100 * lost / data.size:.1f}%"},
-        before=Task.statistics(data), after=Task.statistics(trimmed))
-
-
-def _calibrate(data, header, key, image, params):
+def _calibrate(data, header, key, image, params, sec, region, inst=None, flat=None):
+    """set_zero, set_dark and set_flat, and each one's part of cor.gx. The scale of a dark
+    and a flat in real, from the header's cards as IRAF reads them."""
     import numpy as np
+
+    from ..core import ccdsections
 
     flag = {"zero": "zerocor", "dark": "darkcor", "flat": "flatcor"}[key]
     if _already(header, flag):
@@ -858,26 +1178,35 @@ def _calibrate(data, header, key, image, params):
         raise ValueError(f"{flag} was asked for but no --{key} image was given")
 
     cal = image if isinstance(image, _Frame) else _Frame.load(image)
-    calibration, cal_header = cal.data, cal.header
-    if calibration.shape != data.shape:
-        raise ValueError(
-            f"{key} image {image} is {calibration.shape} but the frame is "
-            f"{data.shape}. Was one of them trimmed and the other not?"
-        )
+    name = Path(str(image)).name
+    cut = ccdsections.cal_region(cal.data.shape, cal.header, sec, name)
+    calibration = np.asarray(cal.data[cut], np.float32)
+    cal_header = cal.header
+    in_line = cal.data.shape[0] == 1
+    in_column = cal.data.shape[1] == 1
 
-    measured = {"image": Path(str(image)).name}
+    measured = {"image": name}
+    out = data.copy()
     if key == "zero":
-        out = data - calibration
-        detail = f"subtracted {Path(str(image)).name}"
+        out[region] = (data[region] - calibration).astype(np.float32)
+        detail = f"subtracted {name}"
         measured["level removed"] = round(float(np.median(calibration)), 3)
     elif key == "dark":
-        frame_time = float(header.get(params.exposure_key, 1.0))
-        dark_time = float(cal_header.get(params.exposure_key, 1.0))
-        factor = frame_time / dark_time if dark_time else 1.0
-        out = data - calibration * factor
-        cal.factor = factor
-        detail = f"subtracted {Path(str(image)).name} scaled by {factor:.3f}"
-        measured["scale"] = f"{frame_time:g}s / {dark_time:g}s = {factor:.3f}"
+        frame_time = _time(header, params, inst)
+        dark_time = _time(cal_header, params, inst)
+        if dark_time <= 0:
+            raise ValueError(f"the dark {name} has a time of {float(dark_time):g}.")
+        factor = np.float32(frame_time / dark_time)
+        if in_line and params.readaxis == "line":
+            # proc1's own: a dark of one line is scaled by the flat's scale, or by a
+            # zero left in the structure with no flat.
+            factor = _flat_scale(flat, params) if flat is not None else np.float32(0.0)
+        out[region] = (data[region] - (factor * calibration).astype(np.float32)).astype(
+            np.float32)
+        cal.factor = float(factor)
+        detail = f"subtracted {name} scaled by {float(factor):.3f}"
+        measured["scale"] = (f"{float(frame_time):g}s / {float(dark_time):g}s = "
+                             f"{float(factor):.3f}")
     else:
         # IRAF: out = data * scale / flat, the scale being the flat's CCDMEAN --
         # the mean, not the median, of the flat as ccdproc left it. A flat
@@ -885,28 +1214,52 @@ def _calibrate(data, header, key, image, params):
         # which replaces values below minreplace and then takes the mean; that
         # is done here. (harwood used to normalise by the median: 0.11% off on
         # the 1987 M92 flat, a constant 1.2 mmag in every magnitude.)
-        safe = np.where(calibration < params.minreplace, params.minreplace, calibration)
-        if "CCDMEAN" in cal_header:
-            level = float(cal_header["CCDMEAN"])
-            source = "its CCDMEAN"
+        floor = np.float32(params.minreplace)
+        safe = np.where(calibration < floor, floor, calibration).astype(np.float32)
+        source = "its CCDMEAN" if "CCDMEAN" in cal_header else "its mean"
+        level = _flat_scale(cal, params)
+        if in_column and params.readaxis == "column":
+            # flatval = flatscale / flat[line]
+            out[region] = (data[region] * (level / safe).astype(np.float32)).astype(np.float32)
         else:
-            level = float(np.mean(safe))
-            source = "its mean"
-        normalised = safe / level
-        out = data / normalised
-        cal.normalised, cal.level = normalised, level
-        cal.clamped = calibration < params.minreplace
-        detail = f"divided by {Path(str(image)).name}, normalised to {source}"
-        measured["flat level"] = round(level, 3)
+            out[region] = ((data[region] * level).astype(np.float32) / safe).astype(np.float32)
+        normalised = safe.astype(float) / float(level)
+        cal.normalised, cal.level = normalised, float(level)
+        cal.clamped = calibration < floor
+        detail = f"divided by {name}, normalised to {source}"
+        measured["flat level"] = round(float(level), 3)
         measured["response range"] = (f"{float(normalised.min()):.3f} to "
                                       f"{float(normalised.max()):.3f}")
-        replaced = int((calibration < params.minreplace).sum())
+        replaced = int((calibration < floor).sum())
         if replaced:
             measured["clamped"] = f"{replaced} pixels below {params.minreplace}"
 
     _mark(header, flag)
     return out, Step(key, detail, why=WHY[key], measured=measured,
                      before=Task.statistics(data), after=Task.statistics(out)), cal
+
+
+def _flat_scale(cal, params):
+    """FLATSCALE: the flat's CCDMEAN as read from its card, or the mean of what ccdproc
+    would leave of it."""
+    import numpy as np
+
+    from ..core import ccdsections
+
+    cal = cal if isinstance(cal, _Frame) else _Frame.load(cal)
+    if "CCDMEAN" in cal.header:
+        return _hdm_real(cal.header, "CCDMEAN")
+    floor = np.float32(params.minreplace)
+    safe = np.where(np.asarray(cal.data, np.float32) < floor, floor,
+                    np.asarray(cal.data, np.float32)).astype(np.float32)
+    return np.float32(_real_card(ccdsections.mean_of(safe)))
+
+
+def _time(header, params, inst):
+    """set_dark: the dark time if there is one, or the exposure time."""
+    if "DARKTIME" in header:
+        return _hdm_real(header, "DARKTIME")
+    return _hdm_real(header, params.exposure_key)
 
 
 class SetInstrumentParams(TaskParams):

@@ -62,6 +62,24 @@ def write(where):
     (where / "rays.txt").write_text(COSRAYS)
     (where / "stars.txt").write_text(STARS)
     (where / "galaxies.txt").write_text(GALAXIES)
+    # Profiles and functions from a file
+    profile = [np.exp(-0.5 * (i / 3.0) ** 2) for i in range(16)]
+    (where / "prof.txt").write_text("".join(f"{value:.6f}\n" for value in profile))
+    growth = [1.0 - np.exp(-0.5 * (i / 3.0) ** 2) for i in range(16)]
+    (where / "grow.txt").write_text("".join(f"{value:.6f}\n" for value in growth))
+    (where / "protos.txt").write_text(STARS + "30.2 20.6 13.0 prof.txt 6.0 0.7 25.0\n"
+                                      "12.4 33.8 13.5 grow.txt 4.0 1.0 0.0\n")
+    y, x = np.mgrid[-10:11, -12:13].astype(np.float64)
+    star = np.exp(-(x * x / 8.0 + y * y / 5.0)) + 0.002 * (x + 12)
+    fits.PrimaryHDU(star.astype(np.float32)).writeto(where / "psfimg.fits", overwrite=True)
+    disk = np.exp(-np.hypot(x, y * 1.3) / 3.0)
+    fits.PrimaryHDU(disk.astype(np.float32)).writeto(where / "galimg.fits", overwrite=True)
+    (where / "imgals.txt").write_text(STARS + "30.2 20.6 13.0 galimg.fits 6.0 0.7 0.0\n"
+                                      "12.4 33.8 13.5 galimg.fits 4.0 1.0 35.0\n")
+    (where / "density.txt").write_text("".join(f"{r} {np.exp(-r / 80.0):.5f}\n"
+                                               for r in range(0, 400, 10)))
+    (where / "lum.txt").write_text("".join(f"{m} {10 ** (0.3 * (m - 5)):.5f}\n"
+                                           for m in range(5, 21)))
     a = (np.arange(48).reshape(6, 8) * 1.5 + 3).astype(np.float32)
     h = fits.Header({"OBJECT": "base", "EXPTIME": 3.0})
     fits.PrimaryHDU(a, h).writeto(where / "base.fits", overwrite=True)

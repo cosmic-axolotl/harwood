@@ -78,6 +78,29 @@ def test_references_when_nothing_is_about_it(run):
     assert "A shorter word" in result.output
 
 
+def test_help_of_one_parameter(run):
+    result = run("help", "imcombine", "--parameter", "reject")
+    assert result.exit_code == 0 and "Rejection algorithm" in result.output
+    assert "Combines images" not in result.output
+    assert run("help", "imcombine", "--parameter", "offs").exit_code == 0, "a start will do"
+    assert run("help", "imcombine", "-p", "nosuch").exit_code == 3
+
+
+def test_help_of_one_section(run):
+    result = run("help", "imcombine", "--section", "pixel masks")
+    assert result.exit_code == 0 and "goodvalue" in result.output
+    assert "Which rejection" not in result.output
+    missing = run("help", "imcombine", "--section", "nosuch")
+    assert missing.exit_code == 3 and "Which rejection" in missing.output
+
+
+def test_help_searches_the_manuals(run):
+    result = run("help", "--search", "cosmic")
+    assert result.exit_code == 0 and "cosmicrays" in result.output
+    assert run("help", "--search", "nosuchwordanywhere").exit_code == 3
+    assert run("help").exit_code == 2
+
+
 def test_phelp_is_help_in_the_pager(run):
     result = run("phelp", "curfit")
     assert result.exit_code == 0

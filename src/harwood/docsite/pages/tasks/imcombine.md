@@ -46,10 +46,55 @@ where to measure them. `--lthreshold`/`--hthreshold` drop saturated pixels
 before anything else. `--combine median` is noisier than the average by
 about a quarter and almost unmoved by whatever rejection missed.
 
+`--weight ivar`, which IRAF does not have, weights each pixel by the inverse of its variance,
+for the lowest noise any average of them can have, and the variance of the result is
+1 / sum(1 / var). It needs every image to carry a VAR, as ccdproc's do, and the average.
+
+`--scale`, `--zero` and `--weight` also take `@file`, a number for each image, or
+`!KEYWORD`; a scale from those is a factor to multiply by and a zero an offset to
+add, where a measured one is a level. `--gain`, `--rdnoise` and `--snoise` take a
+keyword as well as a number, for images that differ.
+
 The combined image names every input in `IMCMB` cards. `--sigmas` writes
 the standard deviation at each pixel, `--nrejmasks` how many values were
-rejected there; `--ccdtype` and `--subsets` pick frames by type and combine
-each filter apart, as the presets do.
+rejected there, `--bpmasks` where nothing was combined, `--rejmasks` a plane for each
+image with what it did not give, and `--expmasks` the exposure each pixel got, each by
+the name asked for, a `.pl` or a FITS image. `--ccdtype` and `--subsets` pick frames by
+type and combine each filter apart, as the presets do.
+
+`--combine quadrature` combines images of errors, the square root of the sum of the
+squares over n; `--combine nmodel` works out what the noise of the average would be
+from `--rdnoise`, `--gain` and `--snoise`. IRAF gets each value's model from its place
+in the list rather than its image, which only shows when they differ, and so does this.
+
+## Frames that do not line up
+
+```
+harwood imcombine frames/*.fits stack.fits --offsets wcs --masktype goodvalue \
+    --reject crreject --gain GAIN --rdnoise RDNOISE --expmasks exposure.pl
+```
+
+`--offsets` says where each image starts in an output that holds them all: `wcs` or
+`world` from their world coordinates, `physical`, `grid nx dx ny dy`, or a file with `x y`
+for each, rounded to whole pixels, with a `# absolute` line if they are not relative to
+one another. There is no interpolation: for subpixel alignment `imalign` or `imshift` come
+first. `--outlimits x1 x2 y1 y2` keeps part of the output, and images of different sizes
+with no offsets go from the first pixel. Each output pixel combines the images that reach
+it, and its WCS follows the first image. `--statsec` may start with `input`, `output` or
+`overlap` to say where a section is measured, and `--project` takes the planes of a cube.
+
+## Pixel masks
+
+`--masktype` reads the mask each image's `BPM` keyword names, or another with `!KEYWORD`:
+`goodvalue` keeps the pixels with `--maskvalue`, 0 by default, `badvalue` leaves them out,
+`goodbits` and `badbits` go by their bits, and `<v` or `>v` as the value keeps what is below
+or above it. `novalue` calls the pixels with `--maskvalue` no data at all, and the others
+bad, but used if a pixel has nothing better. A mask is matched pixel by pixel, whatever
+the LTV, and is not used through `pmmatch`. Images with no mask are all good.
+
+All of IRAF's is compared with IRAF 2.18, bit by bit, on 103 cases. One difference, on purpose:
+`--project`'s output keeps no card of the axis it took away, where IRAF keeps them behind a
+`WAXMAP`, which only IRAF reads.
 
 ## The variance, and what each pixel is worth
 

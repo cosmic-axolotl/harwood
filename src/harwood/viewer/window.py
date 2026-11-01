@@ -1308,14 +1308,20 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         settings = self.examine_settings
         for name in ("radius", "buffer", "width", "rplot", "fittype"):
             setattr(settings, name, params[name])
+        settings.image, settings.header = frame.name, frame.header
+        settings.logname = self.examine_logfile or ""
 
+        if key == "d":
+            self._load_another()
+            return None
         result = examine.examine(examine.native(frame.data, frame.header), key, x, y,
                                  settings)
         self.measurements.append((frame.name, result))
         for number, text in enumerate(result.line.splitlines()):
             self.log(("  " if number == 0 else "    ") + text)
-        logfile.write(self.examine_logfile, "imexamine", frame.name,
-                      result.line.splitlines())
+        if settings.keeplog:
+            logfile.write(self.examine_logfile, "imexamine", frame.name,
+                          result.line.splitlines())
 
         if result.plot is not None:
             self._plot(result)
@@ -1324,9 +1330,34 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self._mark_star(frame, result.x, result.y, result.values["radius"], params)
         return result
 
+    def _redraw_examine(self) -> None:
+        """A colon command that changes what the last graph shows redraws it, as IRAF's
+        autoredraw does."""
+        settings = self.examine_settings
+        if settings.redraw and settings.graph and settings.last_position:
+            settings.redraw = False
+            self.examine_at("f", *settings.last_position)
+
+    def _load_another(self) -> None:
+        """The d key: IRAF's prompts for an image and a frame, in a dialog."""
+        name, chosen = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Load the image display", "", "FITS images (*.fits *.fit *.fts);;All (*)")
+        if not chosen or not name:
+            return
+        frame, accepted = QtWidgets.QInputDialog.getInt(
+            self, "Load the image display", "Frame", self.current, 1, 999)
+        if not accepted:
+            return
+        from ..core import display, images
+
+        data, header = images.read(name)
+        display.get().show(data, header, frame=frame, name=name)
+        self.select_frame(frame)
+
     def _plot(self, result: examine.Result) -> None:
         plot = result.plot
-        self.plot.clear()
+        if not plot.get("append"):
+            self.plot.clear()
         self.plot.setAspectLocked(False)
         self.plot.setTitle(f"imexamine · {result.key} ({plot['title']})", color=_c().ink,
                            size="10pt")
@@ -1552,6 +1583,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             answer = self.colon_hook(line)
             if answer:
                 self.log("  " + answer)
+            self._redraw_examine()
             return True, answer
         if line.startswith(":"):
             try:

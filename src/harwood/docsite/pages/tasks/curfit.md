@@ -19,6 +19,10 @@ weight `1/sigma**2`). `--listdata` prints only the points and `--verbose` adds t
 
 `--sample`, `--naverage`, `--low-reject`, `--high-reject`, `--niterate` and `--grow` are what in
 IRAF only the interactive session sets, with `:sample` and the rest, and they give what the
-session gives after `f` and `q`: 36 sessions were compared. The session itself, the graph and
-its keys, is not here; IRAF's default of `interactive=yes` has no counterpart. As in IRAF, the
-rejection does nothing until `--niterate` is more than 0.
+session gives after `f` and `q`: 36 sessions were compared. As in IRAF, the rejection does
+nothing until `--niterate` is more than 0.
+
+`--interactive` opens that session in the icfit panel, with IRAF's keys, before the output; or
+`--cursor` takes them from a file, `x y 1 key` a line or just the key, and 7 of those were
+compared, with `d`, `u`, the colon commands and a `q` with no `f`. IRAF has `interactive=yes` by
+default and harwood `no`: a task that opens a window has to be asked to.

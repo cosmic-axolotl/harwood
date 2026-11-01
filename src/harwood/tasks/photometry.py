@@ -606,6 +606,8 @@ def _in_window(session, data, header, params) -> None:
                        + " ".join(f"{m:.3f}" for m in last.mags.mag)
                        if last.mags is not None else ""))
             window.log(what)
+            if last.profile is not None and last.profile.intensity.size:
+                _plot_profile(window, last)
         window._redraw()
 
     def key(name: str, x: float, y: float) -> bool:
@@ -632,6 +634,22 @@ def _in_window(session, data, header, params) -> None:
     finally:
         window.key_hook = window.colon_hook = None
         window.set_task_keys(None)
+
+
+def _plot_profile(window, row) -> None:
+    """ap_rpplot: the profile and the light inside each radius, against the radius."""
+    import pyqtgraph as pg
+
+    from ..viewer.theme import palette
+
+    profile = row.profile
+    window.plot.clear()
+    window.plot.setTitle(f"radprof · star {row.id}: FWHM {profile.fwhm:.3f}", size="10pt")
+    window.plot.setLabel("bottom", "radius")
+    window.plot.setLabel("left", "intensity")
+    window.plot.plot(profile.radius, profile.intensity, pen=pg.mkPen(palette().sky, width=1))
+    dashed = pg.mkPen(palette().accent, width=1, style=pg.QtCore.Qt.PenStyle.DashDotLine)
+    window.plot.plot(profile.radius, profile.tintensity, pen=dashed)
 
 
 def _sky_sources(params):
@@ -1242,6 +1260,12 @@ class RadprofParams(_DataPars, _CenterPars, _SkyPars):
     kreject: float = Field(3.0, ge=0, description="Reject pixels beyond this many times "
                                                   "the fit's rms; 0 rejects nothing.")
     nreject: int = Field(1, ge=0, description="Most rejection passes.")
+    format: Literal["harwood", "iraf"] = Field(
+        "harwood", description="harwood writes an ECSV table at full precision; iraf writes "
+                               "IRAF's own .prf text file, rounded as IRAF rounds it.")
+    interactive: bool = Field(False, description="Measure with the cursor in the window, with "
+                                                 "phot's keys and each profile in the plot.")
+    icommands: str = Field("", description="Those keys from a file, 'x y 1 key' per line.")
 
 
 RPWHY = {
@@ -1282,30 +1306,72 @@ class Radprof(Task[RadprofParams]):
 
     def execute(self, params: RadprofParams) -> TaskResult:
         import numpy as np
-        from astropy.table import Table
 
-        from ..core import apphot, catalog, images, output, provenance, radprof
+        from ..core import apphot, catalog, images, photsession, radprof
 
         data, header = images.read(params.image)
-        if params.coords is None:
+        if params.coords is None and not (params.interactive or params.icommands):
             advice.fail("no coordinates to measure", "give the list daofind wrote, with "
                                                      "--coords.")
-        catalogue = catalog.read(params.coords)
-        x0, y0 = catalog.coordinates(catalogue, params.coords)
+        stars = []
+        catalogue = None
+        if params.coords is not None:
+            catalogue = catalog.read(params.coords)
+            x0, y0 = catalog.coordinates(catalogue, params.coords)
+            stars = [(float(a), float(b)) for a, b in zip(x0, y0, strict=True)]
         dpars = _datapars(params, header)
         cpars, spars = _centerpars(params), _skypars(params)
         radii = sorted(params.apertures)
         cursor, skyfile = _sky_sources(params)
         fitter = radprof.Fitter(params.radius, params.step, params.order, params.kreject,
                                 params.nreject)
-        rows = []
-        for a, b in zip(x0, y0, strict=True):
-            c = apphot.center(data, a, b, cpars, dpars)
-            s = apphot.fitsky(data, c.x, c.y, spars, dpars, cursor, skyfile)
-            rows.append((c, s, fitter.fit(data, c.x, c.y, s, radii, params.zmag, dpars)))
+        messages = []
+        if params.interactive or params.icommands:
+            session = photsession.Session(data, dpars, cpars, spars, radii, params.zmag, stars,
+                                          "radprof", cursor, skyfile, fitter=fitter)
+            if params.icommands:
+                if not Path(params.icommands).exists():
+                    advice.fail(f"cursor file '{params.icommands}' does not exist",
+                                "write 'x y 1 key' lines, or use --interactive for the window",
+                                FileNotFoundError)
+                for x, y, key in photsession.read_commands(params.icommands):
+                    session.colon(key) if key.startswith(":") else session.key(key, x, y)
+                    if session.done:
+                        break
+            else:
+                _in_window(session, data, header, params)
+            messages = session.messages
+            rows = [(r.center, r.sky, r.profile) for r in session.rows]
+            settings = [(r.settings, r.cards) for r in session.rows]
+            x0 = np.array([r.xinit for r in session.rows])
+            y0 = np.array([r.yinit for r in session.rows])
+            ids = [r.id for r in session.rows]
+            lids = [r.lid for r in session.rows]
+        else:
+            rows = []
+            for a, b in stars:
+                c = apphot.center(data, a, b, cpars, dpars)
+                s = apphot.fitsky(data, c.x, c.y, spars, dpars, cursor, skyfile)
+                rows.append((c, s, fitter.fit(data, c.x, c.y, s, radii, params.zmag, dpars)))
+            x0, y0 = np.asarray(x0), np.asarray(y0)
+            ids = list(_ids(catalogue, len(stars)))
+            lids = list(range(1, len(stars) + 1))
+            same = {"radius": params.radius, "step": params.step, "order": params.order,
+                    "kreject": params.kreject, "nreject": params.nreject}
+            settings = [(same, []) for _ in rows]
+        return self._written(params, dpars, header, fitter, rows, x0, y0, ids, lids, radii,
+                             messages, settings)
+
+    def _written(self, params, dpars, header, fitter, rows, x0, y0, ids, lids, radii,
+                 messages, settings) -> TaskResult:
+        import numpy as np
+        from astropy.table import Table
+
+        from ..core import apphot, catalog, output, provenance
+
         npts = fitter.npts
         blank = np.full(npts, np.nan)
-        out = Table({"id": _ids(catalogue, len(x0)), "xinit": x0, "yinit": y0,
+        out = Table({"id": ids, "lid": lids, "xinit": x0, "yinit": y0,
                      "x": [c.x for c, _, _ in rows], "y": [c.y for c, _, _ in rows],
                      "cier": [c.ier for c, _, _ in rows],
                      "msky": [s.value for _, s, _ in rows],
@@ -1325,10 +1391,14 @@ class Radprof(Task[RadprofParams]):
         out["intensity"] = [p.intensity if p.intensity.size else blank for _, _, p in rows]
         out["tintensity"] = [p.tintensity if p.tintensity.size else blank for _, _, p in rows]
         destination = params.output or output.named_for(params.image, ".prf")
-        catalog.write(out, destination, harwood_image=str(params.image),
-                      harwood_radius=(np.arange(npts) * params.step).tolist(),
-                      harwood_apertures=[float(r) for r in radii],
-                      harwood_call=provenance.current_stamp() or "")
+        if params.format == "iraf":
+            _write_rprof(destination, params, dpars, rows, x0, y0, lids, settings)
+        else:
+            catalog.write(out, destination, harwood_image=str(params.image),
+                          harwood_radius=(np.arange(npts) * params.step).tolist(),
+                          harwood_apertures=[float(r) for r in radii],
+                          harwood_call=provenance.current_stamp() or "")
+        outputs = [destination]
 
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
@@ -1355,9 +1425,63 @@ class Radprof(Task[RadprofParams]):
                 f"an aperture ({max(radii):g}) is larger than the radius ({params.radius:g}): "
                 "its sum stops at the profile's box, as in IRAF, and is short of light.",
                 "raise radius, or keep the apertures within it."))
-        return TaskResult(outputs=[destination], steps=steps, warnings=warnings,
-                          data={"stars": len(out),
-                                "fwhm": float(np.median(fwhm[good])) if good.any() else None})
+        data_out = {"stars": len(out),
+                    "fwhm": float(np.median(fwhm[good])) if good.any() else None}
+        if messages:
+            data_out["text"] = messages
+        return TaskResult(outputs=outputs, steps=steps, warnings=warnings, data=data_out)
+
+
+def _write_rprof(destination, params, dpars, rows, x0, y0, lids, settings):
+    """IRAF's .prf."""
+    import numpy as np
+
+    from ..core import apphot, apphot_text
+
+    p = params.model_dump()
+    p.update(epadu=dpars.epadu, readnoise=dpars.readnoise,
+             apertures=",".join(f"{r:g}" for r in params.apertures))
+    for key in ("exposure", "airmass", "filter", "obstime", "gain", "ccdread"):
+        p.setdefault(key, "")
+    radii = sorted(params.apertures)
+    stars = []
+    for k, (c, sky, profile) in enumerate(rows, start=1):
+        m = profile.measured
+        if m is None:
+            pier = (apphot.APERT_NOSKYMODE if not np.isfinite(sky.value)
+                    else apphot.APERT_NOAPERT)
+        else:
+            pier = m.ier
+        nothing = [0.0] * len(radii)
+        star = apphot_text.Star(
+            xinit=float(x0[k - 1]), yinit=float(y0[k - 1]), id=k, lid=lids[k - 1],
+            x=c.x, y=c.y, xshift=c.xshift, yshift=c.yshift, xerr=c.xerr, yerr=c.yerr,
+            cier=c.ier,
+            msky=sky.value, stdev=sky.sigma, sskew=sky.skew, nsky=sky.nsky,
+            nsrej=sky.nreject, sier=sky.ier, itime=dpars.itime, xairmass=float("nan"),
+            ifilter="INDEF", otime="INDEF",
+            radii=list(m.radii) if m else [float(r) for r in radii],
+            sums=list(m.sums) if m else nothing, areas=list(m.areas) if m else nothing,
+            flux=list(m.flux) if m else nothing,
+            mag=list(m.mag) if m else [float("nan")] * len(radii),
+            merr=list(m.merr) if m else [float("nan")] * len(radii),
+            pier=pier, nmin=m.nmin if m else 0, nmax=m.nmax if m else 0)
+        done = profile.intensity.size > 0
+        now, cards = settings[k - 1]
+        npts = int(np.float32(np.float32(now["radius"]) / np.float32(now["step"]))) + 1
+        grid = (np.arange(npts, dtype=np.float32) * np.float32(now["step"])).astype(np.float32)
+        indef = np.full(npts, np.nan)
+        stars.append((star, {"fwhm": profile.fwhm, "inorm": profile.inorm,
+                             "tinorm": profile.tinorm, "ier": profile.ier,
+                             "radius": profile.radius if done else grid,
+                             "intensity": profile.intensity if done else indef,
+                             "tintensity": profile.tintensity if done else indef},
+                      now, cards))
+    first = settings[0][0] if settings else {"radius": params.radius, "step": params.step,
+                                             "order": params.order, "kreject": params.kreject,
+                                             "nreject": params.nreject}
+    apphot_text.write_rprof(destination, p, Path(params.image).name,
+                            Path(params.coords).name if params.coords else "", stars, first)
 
 
 def _ids(table, n):

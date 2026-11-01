@@ -175,6 +175,7 @@ class IcfitSession:
     # ---------------------------------------------------------------- the fit
 
     def _refit(self) -> None:
+        self.fitted_wts = self.wts.copy()
         """ic_fit, f. The range the spline's pieces are laid over only ever grows. If
         it cannot be done the fit stays what it was, as cv does, and says so."""
         self._changed = False

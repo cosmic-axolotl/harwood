@@ -9,12 +9,36 @@ applies, in IRAF's order, each correction you switch on --
 | zero | `--zerocor` | subtracts the master bias (`--zero`) |
 | dark | `--darkcor` | subtracts the master dark, scaled by exposure time (`--dark`) |
 | flat | `--flatcor` | divides by the master flat (`--flat`), normalised to one |
+| illumination | `--illumcor` | divides by an illumination image (`--illum`), normalised by its mean |
+| fringe | `--fringecor` | subtracts a fringe image (`--fringe`), scaled by the exposure times and its `FRINGSCL` |
 
-The arithmetic is IRAF's ccdproc, ported, and checked against IRAF's output
-on real frames. The overscan fit is IRAF's icfit -- a Legendre, Chebyshev
-or spline of `--order` terms, with rejection -- and `--interactive` opens it
-in a panel to fit by hand, with the parameters you settle on written to the
-log so the run can be repeated in batch.
+The arithmetic is IRAF's ccdproc, ported, and compared with what IRAF writes bit by bit on 58
+cases: each kind of overscan, trim and fixpix, each calibration and image type, sections of the
+chip with calibrations of other sections. All of it runs in real, one operation at a time, as
+IRAF's does; the overscan comes from the raw lines and goes over the trimmed ones, its limits
+along the readout replaced by the trim's. The overscan fit is IRAF's icfit -- a Legendre,
+Chebyshev or spline of `--order` terms, with rejection, or with `mean`, `median` or `minmax`
+no fit, a value for each line -- and `--interactive` opens it in a panel to fit by hand, with
+the parameters you settle on written to the log so the run can be repeated in batch.
+
+The image type decides which steps run, as in IRAF: a zero only the first three, a dark up to
+the zero, a flat up to the dark, an illumination image up to the flat. `--readaxis` is IRAF's:
+`line` (the default) takes the overscan as a function of the line, with the strip at the end
+of each, and `column` of the column, with the strip across the top.
+
+`--illumcor` and `--fringecor` need `MKILLUM` and `MKFRINGE` in the image's header, as
+mkillumcor and mkfringecor leave them. Without it the frame goes on with no correction and a
+warning, as in IRAF.
+
+`--readcor` averages a zero across the readout axis, leaving one line or one column that goes
+for the whole frame. `--scancor` makes the calibrations what a scanned detector saw: with
+`--scantype shortscan` a moving average over `NSCANROW` steps, or `--nscan` for an object with
+none, and with `longscan` a single line. They are written beside the one they came from, as
+`Flat.3.fits` or `Flat.1d.fits`, and used from there the next time, as IRAF does.
+
+A frame can be part of the chip: `DATASEC` says where its data is, `CCDSEC` where that is on
+the chip, and a calibration is read for the same place of the chip, whatever its own size.
+`CCDSEC` is written after processing, and `BIASSEC` and `DATASEC` follow a trim.
 
 The panel has IRAF's keys, listed along its foot: `f` fits, `d` and `u` delete and
 undelete, `h i j k l` choose the graph (`j` residuals, `k` ratio, `l` the non-linear
@@ -55,6 +79,9 @@ step whose mark is there is skipped -- the bookkeeping that keeps a night
 from having its bias subtracted twice, silently and for good.
 
 ## The calibrations can be found, not named
+
+A calibration, found or named, goes through the steps it still needs by its own type before
+it is used, as IRAF's does, but in memory: IRAF rewrites it, and harwood leaves the file alone.
 
 Give the bias and the flat among the inputs, without `--zero` and
 `--flat`, and ccdproc picks them out by their image type, processes them

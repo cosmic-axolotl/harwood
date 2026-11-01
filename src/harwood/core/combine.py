@@ -52,9 +52,10 @@ MAX_REAL = 3.4028235e38
 TOL = 0.001
 
 # combine / reject codes, as in icombine.h
-AVERAGE, MEDIAN, SUM = 1, 2, 4
+AVERAGE, MEDIAN, SUM, QUAD, NMODEL = 1, 2, 4, 5, 6
 NONE, CCDCLIP, CRREJECT, MINMAX, PCLIP, SIGCLIP, AVSIGCLIP = 1, 2, 3, 4, 5, 6, 7
-COMBINES = {"average": AVERAGE, "median": MEDIAN, "lmedian": MEDIAN, "sum": SUM}
+COMBINES = {"average": AVERAGE, "median": MEDIAN, "lmedian": MEDIAN, "sum": SUM,
+            "quadrature": QUAD, "nmodel": NMODEL}
 REJECTS = {"none": NONE, "ccdclip": CCDCLIP, "crreject": CRREJECT, "minmax": MINMAX,
            "pclip": PCLIP, "sigclip": SIGCLIP, "avsigclip": AVSIGCLIP}
 
@@ -117,22 +118,64 @@ def ic_mode(sorted_values: np.ndarray, zrange: float = 0.7) -> float:
     return float(mode)
 
 
+def stat_section(text: str, shape: tuple[int, ...], offset=None, reference=None) -> tuple:
+    """ic_section and ic_stat's limits, as slices of an image of `shape` (numpy
+    order). The section is read in `reference` when one is given, the output's shape,
+    and moved by the image's `offset`, numpy order too. A step in it is never used,
+    ic_stat overwrites it, and a limit the image does not reach is pulled in; off the
+    image altogether, one pixel is left in that axis."""
+    from . import advice
+
+    lens = (reference if reference is not None else shape)[::-1]
+    moved = offset[::-1] if offset is not None else (0,) * len(lens)
+    first, last = [1] * len(lens), list(lens)
+    body = text.strip()
+    if body:
+        if not (body.startswith("[") and body.endswith("]")):
+            advice.fail(f"error in the section '{text}'", "write it as [x1:x2,y1:y2]")
+        for axis, part in enumerate(body[1:-1].split(",")[:len(lens)]):
+            part = part.strip().split(":")
+            head = part[0].strip()
+            if head in ("*", ""):
+                continue
+            if head in ("-*", "-"):
+                first[axis], last[axis] = last[axis], first[axis]
+                continue
+            try:
+                first[axis] = int(head)
+                last[axis] = int(part[1]) if len(part) > 1 else first[axis]
+            except ValueError:
+                advice.fail(f"error in the section '{text}'", "write it as [x1:x2,y1:y2]")
+    slices = []
+    for axis in range(len(lens)):
+        low = max(1, min(first[axis], last[axis]) - moved[axis])
+        high = min(shape[::-1][axis], max(first[axis], last[axis]) - moved[axis])
+        slices.append(slice(low - 1, max(high, low)))
+    return tuple(slices[::-1])
+
+
 def ic_stat(frame: np.ndarray, section=None, lthresh=None, hthresh=None,
-            nmax: int = 100000, zrange: float = 0.7, sorted_first: bool = True):
+            nmax: int = 100000, zrange: float = 0.7, sorted_first: bool = True, mask=None):
     """ic_stat: the mode, median and mean of a sample of the image.
 
     IRAF steps through the section with the smallest stride, 1 to 10, that
     keeps the sample under 100,000 pixels, and ignores pixels outside the
-    thresholds.
+    thresholds and those the mask excludes.
     """
     region = frame[section] if section is not None else frame
+    masked = None
+    if mask is not None:
+        masked = mask[section] if section is not None else mask
     for step in range(1, 11):
         n = 1
         for length in region.shape:
             n *= max(1, (length - 1) // step + 1)
         if n < nmax:
             break
-    sample = region[tuple(slice(None, None, step) for _ in region.shape)].ravel()
+    strides = tuple(slice(None, None, step) for _ in region.shape)
+    sample = region[strides].ravel()
+    if masked is not None:
+        sample = sample[~masked[strides].ravel()]
     if lthresh is not None or hthresh is not None:
         low = -MAX_REAL if lthresh is None else lthresh
         high = MAX_REAL if hthresh is None else hthresh
@@ -147,9 +190,41 @@ def ic_stat(frame: np.ndarray, section=None, lthresh=None, hthresh=None,
             "mean": float(real(np.add.accumulate(summed)[-1] / real(summed.size)))}
 
 
+def _given(name: str, kind: str, headers, nimages: int) -> np.ndarray:
+    """ic_gscale: a value for each image from a file (@) or a keyword (!)."""
+    from pathlib import Path
+
+    from . import advice
+
+    if name.startswith("!"):
+        found = []
+        for header in headers[:nimages]:
+            if name[1:] not in header:
+                advice.fail(f"{kind} {name}: an image has no keyword {name[1:]}",
+                            "give it to every image, or use a file with @")
+            found.append(float(header[name[1:]]))
+        return np.array(found)
+    path = Path(name[1:])
+    if not path.exists():
+        advice.fail(f"{kind} {name}: no such file", "a file with one number on each line")
+    found = []
+    for line in path.read_text().splitlines():
+        words = line.split()
+        if len(words) != 1:
+            continue
+        try:
+            found.append(float(words[0]))
+        except ValueError:
+            continue
+    if len(found) < nimages:
+        advice.fail(f"insufficient {kind} values in {path}",
+                    f"it needs one for each of the {nimages} images")
+    return np.array(found[:nimages])
+
+
 def ic_scale(stack, headers, scale="none", zero="none", weight="none",
              exposure_key="", section=None, lthresh=None, hthresh=None,
-             sigscale=0.1, flavor="imcombine") -> Scaling:
+             sigscale=0.1, flavor="imcombine", masks=None) -> Scaling:
     """ic_scale: scales, zeros and weights.
 
     Two IRAFs. imcombine (images.immatch) refers everything to the first
@@ -157,8 +232,13 @@ def ic_scale(stack, headers, scale="none", zero="none", weight="none",
     flatcombine -- refers scales and zeros to their means instead, so a
     combined dark comes out at the mean exposure rather than the first
     frame's, and its sigma scaling also switches on for a zero offset.
+
+    `stack` is anything indexed by image, and images of different shapes come as a
+    list; `section` is then a section for each, as `masks` is, True where excluded.
+    Scales and zeros from a file or a keyword are multiplicative factors to invert
+    and offsets to add, rather than levels.
     """
-    nimages = stack.shape[0]
+    nimages = len(stack)
     ncombine = np.array([int(h.get("NCOMBINE", 1)) for h in headers], dtype=float)
     exptime = np.array([float(h.get(exposure_key, 0.0)) if exposure_key else 0.0
                         for h in headers])
@@ -168,19 +248,26 @@ def ic_scale(stack, headers, scale="none", zero="none", weight="none",
     # in whatever order it then lies.
     sorted_first = "mode" in (scale, zero, weight) or "median" in (scale, zero, weight)
 
-    def values(kind):
+    def values(kind, what):
         if kind == "none":
             return np.full(nimages, np.nan)
         if kind == "exposure":
             return np.maximum(0.001, exptime)
+        if kind[0] in "@!":
+            return _given(kind, what, headers, nimages)
         for index in range(nimages):
             if index not in stats:
-                stats[index] = ic_stat(stack[index], section, lthresh, hthresh,
+                region = section[index] if isinstance(section, list) else section
+                stats[index] = ic_stat(stack[index], region, lthresh, hthresh,
                                        *((10000, 0.8) if flavor == "ccdred"
-                                         else (100000, 0.7)), sorted_first)
+                                         else (100000, 0.7)), sorted_first,
+                                       None if masks is None else masks[index])
         return np.array([stats[index][kind] for index in range(nimages)])
 
-    scales, zeros, wts = values(scale), values(zero), values(weight)
+    snorm = scale[0] in "@!"
+    znorm = zero[0] in "@!"
+    wflag = weight[0] in "@!"
+    scales, zeros, wts = values(scale, "scale"), values(zero, "zero"), values(weight, "weight")
     scales = np.where(np.isnan(scales), 1.0, scales)
     zeros = np.where(np.isnan(zeros), 0.0, zeros)
     wts = np.where(np.isnan(wts), 1.0, wts)
@@ -197,28 +284,33 @@ def ic_scale(stack, headers, scale="none", zero="none", weight="none",
     def mean_of(values):
         return real(np.add.accumulate(values)[-1] / real(nimages))
 
+    if snorm:
+        scales = (real(1.0) / scales).astype(real)
     scales = (scales / (mean_of(scales) if ccdred else scales[0])).astype(real)
     zeros = (zeros / scales).astype(real)
     reference = mean_of(zeros) if ccdred else zeros[0]
     if weight != "none":
         if np.any(wts <= 0 if ccdred else wts < 0):
             wts = ncombine.copy()
-        elif zero == "none":
+        elif zero == "none" or znorm or wflag:
             wts = ncombine * wts
         elif np.any(zeros <= 0):
             wts = ncombine * wts
         else:
             wts = ncombine * wts * reference / zeros
-    zeros = (zeros - reference).astype(real)
-    if np.all(zeros[1:] == zeros[0]):
-        zeros[:] = 0.0
+    if znorm:
+        zeros = (-zeros).astype(real)
+    else:
+        zeros = (zeros - reference).astype(real)
+        if np.all(zeros[1:] == zeros[0]):
+            zeros[:] = 0.0
     total = real(np.add.accumulate(wts.astype(real))[-1])
     wts = (wts.astype(real) / total).astype(real) if total > 0 else np.ones(nimages, real)
     scales, zeros, wts = (scales.astype(np.float64), zeros.astype(np.float64),
                           wts.astype(np.float64))
 
-    doscale = bool(np.any(scales[1:] != scales[0]))
-    dozero = bool(np.any(zeros[1:] != zeros[0]))
+    doscale = snorm or bool(np.any(scales[1:] != scales[0]))
+    dozero = znorm or bool(np.any(zeros[1:] != zeros[0]))
     dowts = bool(np.any(wts[1:] != wts[0]))
     doscale1 = bool(doscale and sigscale != 0 and np.any(np.abs(scales - 1) > sigscale))
     if ccdred and doscale and sigscale != 0 and not doscale1 and reference > 0:
@@ -821,7 +913,11 @@ def ic_median(d, n1, mclip, medavg, blank):
 
 
 @_jit
-def ic_average(d, ids, n1, wts, dowts, average, blank):
+def ic_average(d, ids, n, wts, dowts, average, blank, dall=False):
+    """icaverage.gx. With nothing on the line left out (dall) the weights are taken
+    to sum to one; n below zero is what a mask's novalue left for a pixel with no good
+    value."""
+    n1 = abs(n)
     if n1 <= 0:
         return blank
     if dowts and average:
@@ -831,6 +927,8 @@ def ic_average(d, ids, n1, wts, dowts, average, blank):
             wt = np.float32(wts[ids[j]])
             total = np.float32(total + np.float32(np.float32(d[j]) * wt))
             sumwt = np.float32(sumwt + wt)
+        if dall:
+            return float(total)
         if sumwt > 0:
             return float(np.float32(total / sumwt))
         total = np.float32(0.0)
@@ -844,8 +942,79 @@ def ic_average(d, ids, n1, wts, dowts, average, blank):
 
 
 @_jit
-def ic_sigma(d, ids, n1, wts, dowts, centre, blank):
+def ic_quad(d, ids, n, wts, dowts, blank, dall=False):
+    """icquad.gx: the quadrature average, in real up to the square root, which is
+    double, and rounded once."""
+    n1 = abs(n)
+    if n1 <= 0:
+        return blank
+    real = np.float32
+    total = real(0.0)
+    if dowts:
+        sumwt = real(0.0)
+        for j in range(n1):
+            wt = real(wts[ids[j]])
+            x = real(real(d[j]) * wt)
+            total = real(total + real(x * x))
+            sumwt = real(sumwt + wt)
+        if dall:
+            return float(real(np.sqrt(np.float64(total))))
+        if sumwt > 0:
+            return float(real(np.sqrt(np.float64(total)) / np.float64(sumwt)))
+        total = real(0.0)
+    for j in range(n1):
+        x = real(d[j])
+        total = real(total + real(x * x))
+    return float(real(np.sqrt(np.float64(total)) / np.float64(n1)))
+
+
+@_jit
+def ic_nmodel(d, ids, n, nm1, nm2, nm3, wts, dowts, blank, dall=False):
+    """icnmodel.gx: the noise the model gives each value, in quadrature. Its model
+    terms go by a value's place in the list, not its image: IRAF's nm[1,j]."""
+    n1 = abs(n)
+    if n1 <= 0:
+        return blank
+    real = np.float32
+
+    def model(j):
+        val = max(real(0.0), real(d[j]))
+        x = real(val * real(nm3[j]))
+        return real(real(real(nm1[j]) + real(val / real(nm2[j]))) + real(x * x))
+
+    total = real(0.0)
+    if dowts:
+        sumwt = real(0.0)
+        for j in range(n1):
+            wt = real(wts[ids[j]])
+            total = real(total + real(model(j) * real(wt * wt)))
+            sumwt = real(sumwt + wt)
+        if dall:
+            return float(real(np.sqrt(np.float64(total))))
+        if sumwt > 0:
+            return float(real(np.sqrt(np.float64(total)) / np.float64(sumwt)))
+        total = real(0.0)
+    for j in range(n1):
+        total = real(total + model(j))
+    return float(real(np.sqrt(np.float64(total)) / np.float64(n1)))
+
+
+@_jit
+def _value(d, ids, n, code, mclip, medavg, wts, dowts, blank, nm1, nm2, nm3, dall):
+    """The switch at the end of icomb.gx's loop."""
+    if code == MEDIAN:
+        return ic_median(d, abs(n), mclip and n >= 0, medavg, blank)
+    if code == QUAD:
+        return ic_quad(d, ids, n, wts, dowts, blank, dall)
+    if code == NMODEL:
+        return ic_nmodel(d, ids, n, nm1, nm2, nm3, wts, dowts, blank, dall)
+    return ic_average(d, ids, n, wts, dowts, code == AVERAGE, blank, dall)
+
+
+@_jit
+def ic_sigma(d, ids, n, wts, dowts, centre, blank, dall=False):
     """icsigma.gx, in real."""
+    n1 = abs(n)
     if n1 <= 0:
         return blank
     real = np.float32
@@ -859,18 +1028,20 @@ def ic_sigma(d, ids, n1, wts, dowts, centre, blank):
             r = real(real(d[j]) - a)
             total = real(total + real(real(r * r) * wt))
             sumwt = real(sumwt + wt)
+        if dall:
+            return float(real(np.sqrt(np.float64(real(total * sigcor)))))
         if sumwt > 0:
-            return float(real(np.sqrt(float(real(real(total / sumwt) * sigcor)))))
+            return float(real(np.sqrt(np.float64(real(real(total / sumwt) * sigcor)))))
         total = real(0.0)
         for j in range(n1):
             r = real(real(d[j]) - a)
             total = real(total + real(r * r))
-        return float(real(np.sqrt(float(real(real(total / real(n1)) * sigcor)))))
+        return float(real(np.sqrt(np.float64(real(real(total / real(n1)) * sigcor)))))
     sigcor = real(real(1.0) / real(n1 - 1)) if n1 > 1 else real(1.0)
     for j in range(n1):
         r = real(real(d[j]) - a)
         total = real(total + real(r * r))
-    return float(real(np.sqrt(float(real(total * sigcor)))))
+    return float(real(np.sqrt(np.float64(real(total * sigcor)))))
 
 
 # ------------------------------------------------------------- one line
@@ -879,13 +1050,17 @@ def ic_sigma(d, ids, n1, wts, dowts, centre, blank):
 @_jit
 def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mclip,
           flow, fhigh, nkeep, lsigma, hsigma, pclip, grow, blank, scales, zeros,
-          wts, dowts, doscale1, nm1, nm2, nm3, ccdred, tail, kept):
+          wts, dowts, doscale1, nm1, nm2, nm3, ccdred, tail, kept, dall, fallback,
+          mod1, mod2, mod3):
     """One image line: gather, reject, combine, sigma -- icomb.gx's loop body.
 
     data[nimages, npts] is the line already scaled; valid marks the pixels
     the thresholds and masks leave in. Writes out, sigma, how many values
     were used, and which (image, pixel) the rejection took; and for ccdred's
     grow, the ids past n (tail) and those before it (kept), in their order.
+    dall is IRAF's dflag == D_ALL, nothing on the line left out, and how the line's
+    last step is done depends on it; a pixel with no good value uses the values of
+    fallback, a count below zero.
     """
     nimages, npts = data.shape
     d = np.empty(nimages)
@@ -899,9 +1074,16 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
     if reject == AVSIGCLIP and nimages >= max(3, maxkeep_all + 1):
         _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg,
                         mclip, nkeep, lsigma, hsigma, grow, blank, scales, zeros,
-                        wts, dowts, doscale1, ccdred, tail, kept)
+                        wts, dowts, doscale1, ccdred, tail, kept, dall, fallback,
+                        mod1, mod2, mod3)
         return
 
+    D = np.empty((npts, nimages))
+    IDS = np.empty((npts, nimages), dtype=np.int64)
+    N = np.zeros(npts, dtype=np.int64)
+    NIN = np.zeros(npts, dtype=np.int64)
+    centre = np.empty(npts)
+    combined = np.empty(npts, dtype=np.bool_)
     for i in range(npts):
         n = 0
         for k in range(nimages):
@@ -944,28 +1126,64 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
                               grow, blank, resid)
             docombine = not is_median
 
-        if docombine:
-            if is_median:
-                value = ic_median(d, n, mclip, medavg, blank)
-            else:
-                value = ic_average(d, ids, n, wts, dowts and not is_median,
-                                   combine == AVERAGE, blank)
+        D[i, :nimages] = d
+        IDS[i, :nimages] = ids
+        N[i] = n
+        NIN[i] = n_in
+        centre[i] = med
+        combined[i] = docombine
+    _finish_line(D, IDS, N, NIN, centre, combined, data, valid, out, sigma, used, rejected,
+                 combine, medavg, mclip, wts, dowts, blank, tail, kept, dall, fallback,
+                 mod1, mod2, mod3, nimages)
+
+
+@_jit
+def _finish_line(D, IDS, N, NIN, centre, combined, data, valid, out, sigma, used, rejected,
+                 combine, medavg, mclip, wts, dowts, blank, tail, kept, dall, fallback,
+                 mod1, mod2, mod3, nimages):
+    """What is left of the line once the rejection is over: a rejection that left a
+    pixel short turns off dall for all of it, hence the second pass. Weights have no
+    place in a median. What was rejected is what is valid and not among the ids before
+    n: past n, the low ones have been written over, unless growing."""
+    npts = N.size
+    for i in range(npts):
+        if N[i] != NIN[0]:
+            dall = False
+            break
+    is_median = combine == MEDIAN
+    for i in range(npts):
+        n = N[i]
+        d = D[i]
+        ids = IDS[i]
+        if NIN[i] == 0 and n == 0:
+            for k in range(nimages):
+                if fallback[k, i]:
+                    d[-n] = data[k, i]
+                    ids[-n] = k
+                    n -= 1
+        weighted = dowts and not is_median
+        if combined[i] or n < 0:
+            value = (blank if n < 0 and not combined[i] else
+                     _value(d, ids, n, combine, mclip, medavg, wts, weighted, blank,
+                            mod1, mod2, mod3, dall))
         else:
-            value = med
+            value = centre[i]
         out[i] = value
-        sigma[i] = ic_sigma(d, ids, n, wts, dowts and not is_median, value, blank)
-        used[i] = max(0, n)
-        for j in range(max(0, n), n_in):
-            rejected[ids[j], i] = True
+        sigma[i] = ic_sigma(d, ids, n, wts, weighted, value, blank, dall)
+        used[i] = n
+        for j in range(max(0, n), NIN[i]):
             tail[j - max(0, n), i] = ids[j]
+        for k in range(nimages):
+            rejected[k, i] = valid[k, i]
         for j in range(max(0, n)):
             kept[j, i] = ids[j]
+            rejected[ids[j], i] = False
 
 
 @_jit
 def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mclip,
                     nkeep, lsigma, hsigma, grow, blank, scales, zeros, wts, dowts,
-                    doscale1, ccdred, tail, kept):
+                    doscale1, ccdred, tail, kept, dall, fallback, mod1, mod2, mod3):
     nimages, npts = data.shape
     D = np.empty((npts, nimages))
     IDS = np.empty((npts, nimages), dtype=np.int64)
@@ -1162,26 +1380,10 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
             for i in range(npts):
                 centre[i] = blank if N[i] <= 0 else float(fcentre[i])
 
-    for i in range(npts):
-        n = N[i]
-        d = D[i]
-        ids = IDS[i]
-        if docombine:
-            if is_median:
-                value = ic_median(d, n, mclip, medavg, blank)
-            else:
-                value = ic_average(d, ids, n, wts, dowts and not is_median,
-                                   combine == AVERAGE, blank)
-        else:
-            value = centre[i]
-        out[i] = value
-        sigma[i] = ic_sigma(d, ids, n, wts, dowts and not is_median, value, blank)
-        used[i] = max(0, n)
-        for j in range(max(0, n), NIN[i]):
-            rejected[ids[j], i] = True
-            tail[j - max(0, n), i] = ids[j]
-        for j in range(max(0, n)):
-            kept[j, i] = ids[j]
+    combined = np.full(npts, docombine, dtype=np.bool_)
+    _finish_line(D, IDS, N, NIN, centre, combined, data, valid, out, sigma, used, rejected,
+                 combine, medavg, mclip, wts, dowts, blank, tail, kept, dall, fallback,
+                 mod1, mod2, mod3, nimages)
 
 
 # ------------------------------------------------------------- the image
@@ -1192,11 +1394,14 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
             nlow: float = 1, nhigh: float = 1, nkeep: int = 1, lsigma: float = 3.0,
             hsigma: float = 3.0, pclip: float = -0.5, grow: float = 0.0,
             blank: float = 0.0, rdnoise=0.0, gain=1.0, snoise=0.0,
-            flavor: str = "imcombine"):
+            flavor: str = "imcombine", marked=None, fallback=None):
     """imcombine over a stack[nimages, ny, nx]: out, sigma, used, rejected.
 
-    `valid` is False where a threshold or a mask removes a pixel. rdnoise,
-    gain and snoise may be one number or one per image.
+    `valid` is False where a threshold or a mask removes a pixel, or an image does not
+    reach. rdnoise, gain and snoise may be one number or one per image. `marked` says
+    which lines have a mask with something on them, even what leaves the pixel good,
+    and `fallback` which values a pixel with no good one falls back on (masktype
+    novalue); `used` is then below zero, by how many.
     """
     nimages = stack.shape[0]
     code = COMBINES[combine]
@@ -1241,7 +1446,15 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
     divided = np.asarray(stack, real) / scaling.scales[:, None, None].astype(real)
     scaled = (divided.astype(real)
               + (-scaling.zeros[:, None, None]).astype(real)).astype(real).astype(np.float64)
-    dowts = scaling.dowts and code in (AVERAGE, SUM)
+    dowts = scaling.dowts and code in (AVERAGE, SUM, QUAD, NMODEL)
+    # icomb.gx's other noise model, for combine nmodel: the gain with the scale in it.
+    mod2 = (gn.astype(real) * scaling.scales.astype(real)).astype(real)
+    ratio = (rd.astype(real) / mod2).astype(real)
+    mod1 = np.maximum((ratio * ratio).astype(real), real(1e4 / MAX_REAL)).astype(np.float64)
+    mod2 = mod2.astype(np.float64)
+    mod3 = sn.astype(np.float64)
+    if fallback is None:
+        fallback = np.zeros(stack.shape, dtype=bool)
     lsig = MAX_REAL if lsigma is None else float(lsigma)
     hsig = MAX_REAL if hsigma is None else float(hsigma)
 
@@ -1251,6 +1464,9 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
         sig = np.empty((ny, nx))
         used = np.empty((ny, nx), dtype=np.int64)
         rej = np.zeros((nimages, ny, nx), dtype=bool)
+        filled = valid_now.all(axis=(0, 2))
+        if marked is not None:
+            filled = filled & ~marked
         tails = np.full((nimages, ny, nx), -1, dtype=np.int64)
         keeps = np.full((nimages, ny, nx), -1, dtype=np.int64)
         line_out = np.empty(nx)
@@ -1266,7 +1482,9 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
                   int(nkeep), lsig, hsig, float(pclip), float(grow), float(blank),
                   scaling.scales.astype(np.float64), scaling.zeros.astype(np.float64),
                   scaling.weights.astype(np.float64), dowts, scaling.doscale1,
-                  nm1, nm2, nm3, flavor == "ccdred", line_tail, line_kept)
+                  nm1, nm2, nm3, flavor == "ccdred", line_tail, line_kept,
+                  bool(filled[y]), np.ascontiguousarray(fallback[:, y, :]),
+                  mod1, mod2, mod3)
             out[y], sig[y], used[y] = line_out, line_sig, line_used
             rej[:, y, :] = line_rej
             tails[:, y, :], keeps[:, y, :] = line_tail, line_kept
@@ -1281,7 +1499,7 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
             order = None
             grown = _grow(rejected, grow)
         out2, sig2, used2 = _second_pass(scaled, valid, grown, code, medavg, mclip,
-                                         scaling, dowts, blank, order)
+                                         scaling, dowts, blank, order, mod1, mod2, mod3)
         keep_first = (used2 == 0) & (nkeep > 0)
         out = np.where(keep_first, out, out2)
         sig, used = sig2, used2
@@ -1349,7 +1567,7 @@ def _grow(rejected: np.ndarray, grow: float) -> np.ndarray:
 
 @_jit
 def _second_line(data, valid, grown, out, sigma, used, code, medavg, mclip, wts,
-                 dowts, blank):
+                 dowts, blank, mod1, mod2, mod3):
     """icomb.gx's second loop, for one line: re-read, remove the grown pixels
     the way ic_grow removes them (the last value into the gap, image by
     image), and combine without rejecting again."""
@@ -1375,17 +1593,16 @@ def _second_line(data, valid, grown, out, sigma, used, code, medavg, mclip, wts,
                         ids[j] = ids[n - 1]
                     n -= 1
                     break
-        if code == MEDIAN:
-            value = ic_median(d, n, mclip, medavg, blank)
-        else:
-            value = ic_average(d, ids, n, wts, dowts, code == AVERAGE, blank)
+        value = _value(d, ids, n, code, mclip, medavg, wts, dowts, blank, mod1, mod2, mod3,
+                       False)
         out[i] = value
         sigma[i] = ic_sigma(d, ids, n, wts, dowts, value, blank)
         used[i] = n
 
 
 @_jit
-def _ordered_line(data, order, out, sigma, used, code, medavg, mclip, wts, dowts, blank):
+def _ordered_line(data, order, out, sigma, used, code, medavg, mclip, wts, dowts, blank,
+                  mod1, mod2, mod3):
     """ccdred's combine after its grow: the values that are left, as they lie."""
     nimages, npts = data.shape
     d = np.empty(nimages)
@@ -1396,17 +1613,15 @@ def _ordered_line(data, order, out, sigma, used, code, medavg, mclip, wts, dowts
             ids[n] = order[n, i]
             d[n] = data[ids[n], i]
             n += 1
-        if code == MEDIAN:
-            value = ic_median(d, n, mclip, medavg, blank)
-        else:
-            value = ic_average(d, ids, n, wts, dowts, code == AVERAGE, blank)
+        value = _value(d, ids, n, code, mclip, medavg, wts, dowts, blank, mod1, mod2, mod3,
+                       False)
         out[i] = value
         sigma[i] = ic_sigma(d, ids, n, wts, dowts, value, blank)
         used[i] = n
 
 
 def _second_pass(scaled, valid, grown, code, medavg, mclip, scaling, dowts, blank,
-                 order=None):
+                 order, mod1, mod2, mod3):
     nimages, ny, nx = scaled.shape
     out = np.empty((ny, nx))
     sig = np.empty((ny, nx))
@@ -1418,13 +1633,15 @@ def _second_pass(scaled, valid, grown, code, medavg, mclip, scaling, dowts, blan
         if order is not None:
             _ordered_line(np.ascontiguousarray(scaled[:, y, :]),
                           np.ascontiguousarray(order[:, y, :]), line_out, line_sig,
-                          line_used, code, medavg, mclip, wts, dowts, float(blank))
+                          line_used, code, medavg, mclip, wts, dowts, float(blank),
+                          mod1, mod2, mod3)
             out[y], sig[y], used[y] = line_out, line_sig, line_used
             continue
         _second_line(np.ascontiguousarray(scaled[:, y, :]),
                      np.ascontiguousarray(valid[:, y, :]),
                      np.ascontiguousarray(grown[:, y, :]), line_out, line_sig,
-                     line_used, code, medavg, mclip, wts, dowts, float(blank))
+                     line_used, code, medavg, mclip, wts, dowts, float(blank),
+                     mod1, mod2, mod3)
         out[y], sig[y], used[y] = line_out, line_sig, line_used
     return out, sig, used
 

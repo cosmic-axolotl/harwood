@@ -6,9 +6,9 @@ object frame, their CCDMEAN, and the line-by-line level of the bias under six
 overscan fits (chebyshev, spline3 with rejection, naverage, a median of 5, a
 sample with a gap, spline1). harwood has to land on the same numbers.
 
-The tolerance is IRAF's own arithmetic: it fits and stores in single
-precision, which leaves about 1e-3 counts on a bias level of 500, and it
-sums CCDMEAN in single precision too (4e-6 of the mean).
+The samples are IRAF's to the last bit, which took its arithmetic: all of it in real, the
+overscan from the trim's lines, and the flat divided by its CCDMEAN as the seven digits of a
+card. The overscan fits below are held to what is printed of them, 2e-3.
 
 Skipped without the tutorial data, like tests/test_m92.py.
 """
@@ -59,15 +59,11 @@ def reduced(tmp_path_factory):
     return work
 
 
-@pytest.mark.parametrize("name, tolerance", [("Zero", 1e-4), ("Flat", 1e-3),
-                                             ("Obj", 3e-4)])
-def test_each_stage_is_what_iraf_wrote(reduced, name, tolerance):
-    ours = fits.getdata(reduced / f"{name}.fits").astype(float)
+@pytest.mark.parametrize("name", ["Zero", "Flat", "Obj"])
+def test_each_stage_is_what_iraf_wrote(reduced, name):
+    ours = fits.getdata(reduced / f"{name}.fits")
     rows, cols = np.array(REFERENCE["pixels"]).T - 1
-    theirs = np.array(REFERENCE[name]["values"])
-    # The object is divided by the flat, so its tolerance is relative.
-    scale = np.maximum(np.abs(theirs), 1.0) if name == "Obj" else 1.0
-    assert np.max(np.abs(ours[rows, cols] - theirs) / scale) < tolerance
+    assert np.array_equal(ours[rows, cols], np.float32(REFERENCE[name]["values"]))
     if name != "Obj":
         assert fits.getheader(reduced / f"{name}.fits")["CCDMEAN"] == pytest.approx(
             REFERENCE[name]["ccdmean"], rel=1e-5, abs=1e-4)

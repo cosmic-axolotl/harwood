@@ -5,6 +5,7 @@ there). Its .prf text holds the profile and its integral to seven figures and th
 to three decimals, and harwood's agree to the last of them, with the error codes.
 """
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,8 @@ from harwood.core import catalog, curfit, radprof
 from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data" / "iraf_radprof"
+KEYS = json.loads((Path(__file__).parent / "data" / "iraf_radprof_keys" / "radprof_keys.json")
+                  .read_text())
 PARAMS = dict(epadu=2.0, apertures=[3.0, 5.0], cbox=5.0, annulus=10.0, dannulus=10.0,
               calgorithm="centroid", salgorithm="centroid")
 EDGE = [*CURSOR[:2], (4.0, 100.0), (196.5, 3.0), (-50.0, 10.0), (100.0, 100.0)]
@@ -79,6 +82,38 @@ def test_radprof_writes_what_iraf_writes(tmp_path, monkeypatch, case):
         assert row["tinorm"] == pytest.approx(star["tinorm"], rel=1e-6)
         assert np.allclose(row["intensity"], star["rows"][:, 1], atol=1e-6, rtol=1e-6)
         assert np.allclose(row["tintensity"], star["rows"][:, 2], atol=1e-6, rtol=1e-6)
+
+
+@pytest.mark.parametrize("case", CASES)
+def test_format_iraf_is_iraf_s_file(tmp_path, monkeypatch, case):
+    """Byte by byte, but for who, where and when."""
+    stars, radius, step, settings = CASES[case]
+    monkeypatch.chdir(tmp_path)
+    fits.writeto("field.fits", np.asarray(field(), "f4"))
+    coords = "edge.coo" if stars is EDGE else "field.coo"
+    catalog.write(Table({"x": [s[0] for s in stars], "y": [s[1] for s in stars]}), coords)
+    get_task("radprof").run(image="field.fits", radius=radius, step=step, coords=Path(coords),
+                            output=Path("out.prf"), format="iraf", **PARAMS, **settings)
+    ours = Path("out.prf").read_text().splitlines()
+    theirs = (DATA / f"{case}.prf").read_text().splitlines()
+    assert ours[5:] == theirs[5:]
+
+
+@pytest.mark.parametrize("case", list(KEYS))
+def test_by_the_cursor_it_writes_iraf_s_file(tmp_path, monkeypatch, case):
+    """What each key writes and with which numbers: tests/data/iraf_radprof_keys."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HARWOOD_DISPLAY", "headless")
+    fits.writeto("field.fits", np.asarray(field(), "f4"))
+    catalog.write(Table({"x": [s[0] for s in CURSOR], "y": [s[1] for s in CURSOR]}),
+                  "field.coo")
+    Path("keys.cur").write_text(KEYS[case]["keys"])
+    get_task("radprof").run(image="field.fits", radius=12.0, step=0.5,
+                            coords=Path("field.coo"), output=Path("out.prf"), format="iraf",
+                            icommands="keys.cur", order=5, kreject=3.0, nreject=1, **PARAMS)
+    ours = Path("out.prf").read_text().splitlines()
+    theirs = KEYS[case]["prf"].splitlines()
+    assert ours[5:] == theirs[5:]
 
 
 def test_a_failed_fit_leaves_its_code_for_the_stars_after_it():

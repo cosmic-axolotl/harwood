@@ -1,0 +1,1202 @@
+{
+"ov": {
+"shape": [
+40,
+60
+],
+"sha": "bef89a4dfd7fdc6cc1c9aab342e22264c86e23994da0d92614cb3cc9c7b9ae1d",
+"flags": [
+"OVERSCAN"
+],
+"text": {
+"CCDSEC": "[1:60,1:40]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-part": {
+"shape": [
+40,
+60
+],
+"sha": "bef89a4dfd7fdc6cc1c9aab342e22264c86e23994da0d92614cb3cc9c7b9ae1d",
+"flags": [
+"OVERSCAN"
+],
+"text": {
+"CCDSEC": "[1:60,1:40]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-trim": {
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-short": {
+"shape": [
+27,
+50
+],
+"sha": "d686fe4d8c04afe0e5ffc6a2df8336dc9b775f01baf4467fa4e090ca74dc4537",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[3:52,4:30]"
+},
+"number": {
+"LTV1": -2.0,
+"LTV2": -3.0,
+"CRPIX1": 18.5,
+"CRPIX2": 7.5
+},
+"error": ""
+},
+"ov-o3": {
+"shape": [
+37,
+52
+],
+"sha": "dbc86444848a8aaccd443bec6aed84412337bcd6ce68029998c39811d82a2a07",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-cheb": {
+"shape": [
+37,
+52
+],
+"sha": "b0e9ff8be267187377dd4997f893a95b18df1fcb55670da2dc9fc284789bc45e",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-spl3": {
+"shape": [
+37,
+52
+],
+"sha": "6a20509ad432e4d7c2754ce6e34c8a80506ed4dc2a5d368b545c1510a1b3ea4b",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-spl1": {
+"shape": [
+37,
+52
+],
+"sha": "e928f492ab9889f1045e0d95ea30643e4926f2f178df4ae15acaf7b48c5ffcf0",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-avg": {
+"shape": [
+37,
+52
+],
+"sha": "1a04fd95a667ec04792f011b069bddd14cd05e39023dc4f9b0fe1455ac670717",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-med": {
+"shape": [
+37,
+52
+],
+"sha": "ef723aaebe7cc0a9c0ad3f0fe87841cf742af49fdb8aefb719cbde36f81d9073",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-samp": {
+"shape": [
+37,
+52
+],
+"sha": "3a281ea9225be77caf923f0716322809c701a31c37ef82316ade39e807dc6c17",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-grow": {
+"shape": [
+37,
+52
+],
+"sha": "1d1504728b014d935c6238adbdbca8060afbfb67fafd0abbfaace6532bc0413f",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-mean": {
+"shape": [
+37,
+52
+],
+"sha": "994e71d88a1b9726668647f6d14618b6fea5293ffaa7286a1247806ae247eb49",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-median": {
+"shape": [
+37,
+52
+],
+"sha": "aad56ed76fafd901e081d4a6e83a81f0887dcb33022f6b902c930d18b65ad192",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-minmax": {
+"shape": [
+37,
+52
+],
+"sha": "51f74487c4ee49473d87e6bfb3ee995aa1368f818bc70d6e36ccb92162e82e53",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-col": {
+"shape": [
+35,
+60
+],
+"sha": "ca7d240fabe8b3860ea4eb4ced446bf4eab1def63219b6f33471955616824993",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:60,1:35]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"ov-col-o3": {
+"shape": [
+35,
+60
+],
+"sha": "e9b6f4bf00eb0af7e7bec1273087bcf216ab550a777f86ed61e1070013fdcee9",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:60,1:35]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"trim": {
+"shape": [
+33,
+46
+],
+"sha": "b87f7ac049a3816bda847b9589b670bdf24b9c8e953bd739bb0fde04e021647b",
+"flags": [
+"TRIM"
+],
+"text": {
+"CCDSEC": "[5:50,3:35]",
+"BIASSEC": "[1:46,1:33]"
+},
+"number": {
+"LTV1": -4.0,
+"LTV2": -2.0,
+"CRPIX1": 16.5,
+"CRPIX2": 8.5
+},
+"error": ""
+},
+"zero": {
+"shape": [
+37,
+52
+],
+"sha": "41dd90eca634c0940c8025630d31173f4f57f4553ac56bd94fcc63c520418242",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"dark": {
+"shape": [
+37,
+52
+],
+"sha": "5c689f78aee86961119d165709a8ca600fa04f5cfb7319d7461660fa0e245fc2",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"flat": {
+"shape": [
+37,
+52
+],
+"sha": "57c4c4dfb8c52b5690740c6439ebbf1532e8be43e3ff3ac527135a8d29028c07",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"full": {
+"shape": [
+37,
+52
+],
+"sha": "a6b6f94213ac79c28be2c01c9c180606f03e691896c76bcdf99326d55c329e8c",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"full-norm": {
+"shape": [
+37,
+52
+],
+"sha": "4f1d7555420ad9f1672b0a1d3a8ca88021ea7dbc0b43d1e6208c08be00b4bbd3",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"comp": {
+"shape": [
+37,
+52
+],
+"sha": "881c7f9811fcb2bbf83f0b546a5c04f701bcf68f08cfc2105c7d7aa6bdb53d34",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"other": {
+"shape": [
+37,
+52
+],
+"sha": "4fb91ede31cbfe3465ebf1405e547cf372a577d23286245b2ce6d9a8ce736a66",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CCDMEAN": -935.4086,
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"notype": {
+"shape": [
+37,
+52
+],
+"sha": "f74e5e7865595f4248b840bccbbe7c41f0b4de80c1575b844d228729c10bf075",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CCDMEAN": -935.7575,
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"t-zero": {
+"shape": [
+37,
+52
+],
+"sha": "57e05b0aceef432dd497509e6dc57cee0b8c4a7c283d5f0a7bd17bcddaab5d0a",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"t-dark": {
+"shape": [
+37,
+52
+],
+"sha": "a6190b75fdc7fd00c5e7a7cc37e9d50c9c4fb0359d86c98c4c2bd1a4cbbe0f39",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"t-flat": {
+"shape": [
+37,
+52
+],
+"sha": "c9073bc59a200e035d43923306599df66cd1dca7de762f4ce77a6b96ffc4af87",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CCDMEAN": 7585.556,
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"t-flat-min": {
+"shape": [
+37,
+52
+],
+"sha": "d4756f90add2c1760d37767b05518134460e368c4427f968fde67072c5f52d9a",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CCDMEAN": 8300.0,
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"t-illum": {
+"shape": [
+37,
+52
+],
+"sha": "e25b4c1c631a77e25d2196057bf6c759eb89d56041f046260ba422baf8c07d98",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"t-fringe": {
+"shape": [
+37,
+52
+],
+"sha": "0d312ee831a303df427317f8238be70aceef611170a10f6d162bc7f2b472b8f5",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CCDMEAN": -1202.774,
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"illum": {
+"shape": [
+37,
+52
+],
+"sha": "cf749833297792b004123086578d60b20df7213b6d1394faeedcddc8d149581c",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR",
+"ILLUMCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"illum-mean": {
+"shape": [
+37,
+52
+],
+"sha": "a00f239b011db0b20891a3ade0759480bfe88570febf6e28698e91b99f918432",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR",
+"ILLUMCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"illum-noflag": {
+"shape": [
+37,
+52
+],
+"sha": "a6b6f94213ac79c28be2c01c9c180606f03e691896c76bcdf99326d55c329e8c",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": "Warning: MKILLUM flag missing from illumination image\n"
+},
+"fringe": {
+"shape": [
+37,
+52
+],
+"sha": "76ca2468c092b68499cd31f093047e961eb0a56bbf9e631f8cdf4135d0dd2908",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR",
+"FRINGCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"fringe-scl": {
+"shape": [
+37,
+52
+],
+"sha": "6cbae136a7ff0e29255da92017cf2812752e749bc1af9b22855021050b65857b",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR",
+"FRINGCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"fringe-noflag": {
+"shape": [
+37,
+52
+],
+"sha": "a6b6f94213ac79c28be2c01c9c180606f03e691896c76bcdf99326d55c329e8c",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": "Warning: MKFRINGE flag missing from fringe image.\n"
+},
+"both": {
+"shape": [
+37,
+52
+],
+"sha": "745cd6b5890f6fbe7c0651ccc73df3a0035070e1e933a1b0ade76842f6dea8bc",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR",
+"ILLUMCOR",
+"FRINGCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"read": {
+"shape": [
+37,
+52
+],
+"sha": "77270d5355f8abb33c3813b11227fb9b75778568e111592df15cbd738cabd1c1",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"read-target": {
+"shape": [
+1,
+52
+],
+"sha": "b4c5d35254ce447f17ec2cbb420bea85a4e39497441867ae62230c223ca986f3",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"READCOR"
+],
+"text": {
+"DATASEC": "[1:52,1:1]",
+"CCDSEC": "[1:52,*]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"read-col": {
+"shape": [
+35,
+60
+],
+"sha": "08af592e91e6188efa8d1a4f686f121af4c6069bb4a6008a5739bfb66d3575b9",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR"
+],
+"text": {
+"CCDSEC": "[1:60,1:35]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"read-col-target": {
+"shape": [
+35,
+1
+],
+"sha": "49bedf0697f6f3f10b9ee2e445f0219b39c68d8b4428a591454ca1ac912dcb01",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"READCOR"
+],
+"text": {
+"DATASEC": "[1:1,1:35]",
+"CCDSEC": "[*,1:35]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"scan-short": {
+"shape": [
+37,
+52
+],
+"sha": "55bb78e104c94a8f1ed066183b63a5aebfbc7e9b156c4ede26b7dd7136dc736c",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"scan-1": {
+"shape": [
+37,
+52
+],
+"sha": "a6b6f94213ac79c28be2c01c9c180606f03e691896c76bcdf99326d55c329e8c",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"scan-key": {
+"shape": [
+37,
+52
+],
+"sha": "8ea58039a5bfc09ca30538a06e090824249be431e0e4cc63303bf5c2d4ffac4e",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"scan-long": {
+"shape": [
+37,
+52
+],
+"sha": "92b0f12d17cc82e756a1cfdebdd8baf60090d0a0c766609c17ab658ea1809336",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"scan-long-col": {
+"shape": [
+35,
+60
+],
+"sha": "6e95ab3cb4bd36eb39a1cd2ed418b86d2de6401f1e4b551d3992ac18253a21e3",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:60,1:35]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"scan-short-col": {
+"shape": [
+35,
+60
+],
+"sha": "b6d7c3b26439907d7f1507c9d11869dcc5111c3cd3ac6d7df6135d0ea733063f",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"FLATCOR"
+],
+"text": {
+"CCDSEC": "[1:60,1:35]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"fix": {
+"shape": [
+37,
+52
+],
+"sha": "afbc6f31322719856b5bb7c174a27765379216d0ca653cb974430f9ca490a2ac",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"FIXPIX"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"fix-only": {
+"shape": [
+40,
+60
+],
+"sha": "2c138a86b31b7ad564826e30252711e5d521e040909b658b9a0772af021eaf29",
+"flags": [
+"FIXPIX"
+],
+"text": {
+"CCDSEC": "[1:60,1:40]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"fix-fits": {
+"shape": [
+37,
+52
+],
+"sha": "ad04f9d818c5eb9c5ee3f48a1c96ef637ae4370d541b940230eed2266b3ea1f2",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"ZEROCOR",
+"DARKCOR",
+"FLATCOR",
+"FIXPIX"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"fix-median": {
+"shape": [
+37,
+52
+],
+"sha": "1ded8e3155cefd28e4f5f748c539a08933c8e58f697fb67fae463b9c8b3a51cd",
+"flags": [
+"OVERSCAN",
+"TRIM",
+"FIXPIX"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"sub": {
+"shape": [
+40,
+60
+],
+"sha": "acf8b05903939f7347a8c8f346bff3b0dbf1c7a5d6fae4b6e904040d3729289d",
+"flags": [
+"OVERSCAN"
+],
+"text": {
+"DATASEC": "[3:52,2:37]",
+"CCDSEC": "[3:52,2:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+},
+"sub-trim": {
+"shape": [
+33,
+46
+],
+"sha": "c5c004a16f4bc0fa5db0754d9ea93ad40fc19519944a8f5b898d2a0deaacfe18",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[5:50,3:35]"
+},
+"number": {
+"LTV1": -4.0,
+"LTV2": -2.0,
+"CRPIX1": 16.5,
+"CRPIX2": 8.5
+},
+"error": ""
+},
+"sub-cal": {
+"shape": [
+40,
+60
+],
+"sha": "cefbcdd6d4622fdd6c74ffc458fd11011d34332aed9779c05c48a73df661ccf1",
+"flags": [
+"ZEROCOR",
+"FLATCOR"
+],
+"text": {
+"DATASEC": "[1:30,1:20]",
+"CCDSEC": "[11:40,6:25]"
+},
+"number": {
+"LTV1": -10.0,
+"LTV2": -5.0,
+"CRPIX1": 10.5,
+"CRPIX2": 5.5
+},
+"error": ""
+},
+"sub-cal-illum": {
+"shape": [
+40,
+60
+],
+"sha": "2c59c305f2759454472c9b3c6314ffe9627dc5f4a2df3a058d139b949dcb978b",
+"flags": [
+"ILLUMCOR",
+"FRINGCOR"
+],
+"text": {
+"DATASEC": "[1:30,1:20]",
+"CCDSEC": "[11:40,6:25]"
+},
+"number": {
+"LTV1": -10.0,
+"LTV2": -5.0,
+"CRPIX1": 10.5,
+"CRPIX2": 5.5
+},
+"error": ""
+},
+"hdr": {
+"shape": [
+37,
+52
+],
+"sha": "267b9b80e9d215f12ddd262562ea9020715798cddb2e61ba6a9a2790581be945",
+"flags": [
+"OVERSCAN",
+"TRIM"
+],
+"text": {
+"CCDSEC": "[1:52,1:37]"
+},
+"number": {
+"CRPIX1": 20.5,
+"CRPIX2": 10.5
+},
+"error": ""
+}
+}

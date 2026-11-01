@@ -577,6 +577,12 @@ class ImexamineParams(TaskParams):
                         "none, as IRAF's keeplog=no; the run itself is always in "
                         "harwood.log.jsonl.",
     )
+    output: str = Field(
+        "", description="Root of the images the t key writes, as root.001.fits. Empty is "
+                        "the image's own name."
+    )
+    ncoutput: int = Field(101, ge=1, description="Columns of the t key's section.")
+    nloutput: int = Field(101, ge=1, description="Lines of the t key's section.")
     defkey: str = Field(
         "a", min_length=1, max_length=1,
         description="Key for a cursor-file line that gives only x and y, so a "
@@ -643,6 +649,12 @@ class Imexamine(Task[ImexamineParams]):
         l   plot the line                    e   contour plot of a box
         c   plot the column                  s   surface plot of a box
         x   coordinates and value            z   the 11x11 pixels around it
+        b   box of two positions             y   set the origin for x
+        u   vector centred on a position     v   vector between two positions
+        ,   quick photometry                 .   quick profile and fit
+        t   a section as a new image         o   overplot the next graph
+        f   redraw the last graph            w   start or stop the logfile
+        d   load an image (in the window)    g, i  change cursor: both are live here
         n   next frame                       p   previous frame
         ?   list the keys                    q   end the task
         :   a colon command -- `:radius 7` sets, `:radius` shows
@@ -710,6 +722,7 @@ class Imexamine(Task[ImexamineParams]):
         # The task's naverage and sigma are for j and k alike; IRAF keeps a
         # kimexam beside jimexam, which colon commands can tell apart.
         settings.knaverage, settings.ksigma = params.naverage, params.sigma
+        settings.logname = params.logfile
 
         if params.imagecur:
             results = self._from_cursor(params, specs, settings)
@@ -753,18 +766,23 @@ class Imexamine(Task[ImexamineParams]):
                             "column of the cursor file")
             if frame not in loaded:
                 data, header = images.read(specs[index])
-                loaded[frame] = (str(specs[index]), examine.native(data, header))
-            name, data = loaded[frame]
+                loaded[frame] = (str(specs[index]), examine.native(data, header), header)
+            name, data, settings.header = loaded[frame]
+            settings.image = name
             if key.startswith(":"):
+                settings.redraw = False
                 answer = examine.colon(settings, key)
                 result = examine.Result(":", x, y, f"[{key}] {answer}",
                                         ok=not answer.startswith("Parameter does not"))
                 results.append((name, result))
                 logfile.write(params.logfile, "imexamine", name, [result.line])
+                if settings.redraw and settings.graph and settings.last_position:
+                    results.append((name, examine.examine(data, "f", x, y, settings)))
                 continue
             result = examine.examine(data, key, x, y, settings)
             results.append((name, result))
-            logfile.write(params.logfile, "imexamine", name, result.line.splitlines())
+            if settings.keeplog:
+                logfile.write(params.logfile, "imexamine", name, result.line.splitlines())
         return results
 
     def _interactive(self, params, specs, settings):

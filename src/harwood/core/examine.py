@@ -52,12 +52,25 @@ KEYS: dict[str, str] = {
     "s": "surface plot of a box around the cursor",
     "x": "print the cursor position and the pixel value there",
     "z": "print the 11x11 pixel values around the cursor",
+    "b": "box coordinates of two cursor positions, c1 c2 l1 l2",
+    "y": "set the origin x then measures from",
+    "t": "write a section around the cursor as a new image",
+    "u": "plot a vector centred on a position, to a second one",
+    "v": "plot a vector between two cursor positions",
+    ",": "quick photometry, with one fit and no iterating",
+    ".": "quick radial profile and fit",
+    "o": "overplot the next graph on this one",
+    "f": "redraw the last graph",
+    "w": "start or stop writing to the logfile",
+    "g": "go to the graph's cursor: here both are live",
+    "i": "go to the image's cursor: here both are live",
+    "d": "load another image into a frame",
 }
 
 #: The keys that draw a graph: a colon command that names a parameter
 #: several psets share (width, rplot, naverage, ncolumns...) changes the one
 #: of the last of these, as IRAF's does.
-GRAPH_KEYS = "cehjklrs"
+GRAPH_KEYS = "cehjklrsuv."
 
 
 @dataclass
@@ -124,10 +137,32 @@ class Settings:
     sceiling: float | None = None
     angh: float = -33.0            #: simexam
     angv: float = 25.0             #: simexam
+    vnaverage: int = 1             #: vimexam, the strip's width
+    boundary: str = "constant"     #: vimexam
+    constant: float = 0.0          #: vimexam
     defkey: str = "a"              #: imexamine, for cursor lines without a key
+    output: str = ""               #: imexamine, the root of what t writes
+    ncoutput: int = 101            #: imexamine, t's section
+    nloutput: int = 101
+    xorigin: float = 0.0           #: y
+    yorigin: float = 0.0
+    keeplog: bool = True           #: w
     #: The last key, and the last key that drew a graph (IRAF's gtype).
     lastkey: str = ""
     graph: str = ""
+    #: Where the image's name and header are, for t and the log.
+    image: str = ""
+    header: Any = None
+    logname: str = ""
+    #: A position waiting for its second, for b, u and v; and o's asking to overplot.
+    first: tuple | None = None
+    overplot: bool = False
+    redraw: bool = False           #: a colon command has changed what the graph shows
+    last_second: tuple | None = None
+    #: The last position, for f. And the last of IE_LASTKEY's keys, for , 's labels.
+    last_position: tuple | None = None
+    labelkey: str = ""
+    last_data: Any = None
 
 
 @dataclass
@@ -167,12 +202,60 @@ def examine(data: np.ndarray, key: str, x: float, y: float,
     The settings remember the key, and the last key that drew a graph, for
     the colon commands that follow (see `colon`)."""
     s = settings if settings is not None else Settings()
-    result = _answer(data, key, x, y, s)
+    if key == "f":
+        if not s.graph or s.last_position is None:
+            return Result(key, x, y, "[f] no graph to redraw", ok=False)
+        x, y = s.last_position
+        key = s.graph
+        if key in ("u", "v"):
+            return _second(data, key, x, y, *s.last_second, s)
+    if key in ("b", "u", "v"):
+        family = "b" if key == "b" else "uv"
+        if s.first is None or s.first[0] != family:
+            s.first = (family, x, y)
+            return Result(key, x, y, "again:")
+        second = (x, y)
+        _, x, y = s.first
+        s.first = None
+        s.last_second = second
+        result = _second(data, key, x, y, *second, s)
+    else:
+        s.first = None
+        result = _answer(data, key, x, y, s)
+        if result.plot is not None and key in GRAPH_KEYS and key != ".":
+            _overplot(result.plot, s)
     if key in KEYS:
         s.lastkey = key
+        if key in ("?", "a", "b", "d", "m", "w", "x", "y", "z", ","):
+            s.labelkey = key
         if key in GRAPH_KEYS:
             s.graph = key
+            s.last_position = (x, y)
     return result
+
+
+def _second(data, key, x1, y1, x2, y2, s: Settings) -> Result:
+    """b, u and v, once they have their two positions."""
+    from . import examkeys
+
+    if key == "b":
+        line = examkeys.box(x1, y1, x2, y2)
+        c1, c2, l1, l2 = (int(word) for word in line.split())
+        return Result(key, x1, y1, line, {"c1": c1, "c2": c2, "l1": l1, "l2": l2})
+    axis, values, ends = examkeys.vector(data, key, x1, y1, x2, y2, s.vnaverage, s.boundary,
+                                         s.constant)
+    title = (f"Vector {ends[0]:.1f},{ends[1]:.1f} to {ends[2]:.1f},{ends[3]:.1f} "
+             f"naverage: {s.vnaverage}")
+    plot = {"kind": "cut", "title": title, "x": axis.astype(float), "y": values.astype(float),
+            "xlabel": "vector distance (pixels)", "ylabel": "pixel value"}
+    _overplot(plot, s)
+    return Result(key, x1, y1, f"[{key}] {title}", {"npts": int(values.size)}, plot)
+
+
+def _overplot(plot, s: Settings) -> None:
+    if s.overplot:
+        plot["append"] = True
+        s.overplot = False
 
 
 def _answer(data: np.ndarray, key: str, x: float, y: float, s: Settings) -> Result:
@@ -183,6 +266,27 @@ def _answer(data: np.ndarray, key: str, x: float, y: float, s: Settings) -> Resu
     if key not in KEYS:
         return Result(key, x, y, f"[{key}] is not an imexamine key; ? lists them",
                       ok=False)
+    from . import examkeys
+
+    if key == "y":
+        s.xorigin, s.yorigin = float(np.float32(x)), float(np.float32(y))
+        return Result(key, x, y, examkeys.origin(x, y), {"xorigin": s.xorigin,
+                                                         "yorigin": s.yorigin})
+    if key == "o":
+        s.overplot = True
+        return Result(key, x, y, "[o] the next graph goes over this one")
+    if key in ("g", "i"):
+        return Result(key, x, y, f"[{key}] the image and the graph take the cursor at once "
+                                 "here, so there is nothing to change to")
+    if key == "w":
+        if not s.logname:
+            return Result(key, x, y, "No log file defined")
+        s.keeplog = not s.keeplog
+        return Result(key, x, y, f"Log file {s.logname} open" if s.keeplog
+                      else f"Logfile {s.logname} closed")
+    if key == "d":
+        return Result(key, x, y, "[d] loads an image in the window; in a cursor file name "
+                                 "the images on the command line", ok=False)
     if not _inside(data, x, y):
         return Result(key, x, y, f"[{key}] x={x:.2f} y={y:.2f} is outside the "
                       f"{data.shape[1]}x{data.shape[0]} image", ok=False)
@@ -243,8 +347,36 @@ def _answer(data: np.ndarray, key: str, x: float, y: float, s: Settings) -> Resu
 
     if key == "x":
         value = _value(data, x, y)
-        return Result(key, x, y, f"[x] x={x:.2f} y={y:.2f}  value={value:.6g}",
+        return Result(key, x, y, examkeys.position(data, x, y, s.xorigin, s.yorigin),
                       {"value": value})
+
+    if key == "t":
+        path, line = examkeys.write_section(data, s.header, x, y, s.ncoutput, s.nloutput,
+                                            s.output, s.image)
+        return Result(key, x, y, line, {"output": str(path) if path else ""},
+                      ok=path is not None)
+
+    if key in (",", "."):
+        got = examkeys.quick(raw, x, y, s)
+        if "error" in got:
+            return Result(key, x, y, f"Warning: {got['error']}", ok=False)
+        label = examkeys.GLABEL if s.fittype == "gaussian" else examkeys.MLABEL
+        lines = [] if s.labelkey == "," else [label]
+        if got["warning"]:
+            lines.insert(0, got["warning"])
+        lines.append(got["line"])
+        plot = None
+        if key == ".":
+            plot = {"kind": "profile", "title": "quick radial profile", "x": got["plot_x"],
+                    "y": got["plot_y"], "xlabel": "radius (pixels)",
+                    "ylabel": "counts above sky"}
+            if got["grid"] is not None:
+                plot.update(fit_x=got["grid"], fit_y=got["fit"])
+            _overplot(plot, s)
+        values = {name: got[name] for name in ("x", "y", "mag", "flux", "sky", "n", "rmom",
+                                               "e", "pa", "peak", "fwhm", "beta")}
+        return Result(key, got["x"], got["y"], "\n".join(lines), values, plot,
+                      ok=got["fwhm"] is not None)
 
     return _print_box(raw, x, y)
 
@@ -608,7 +740,7 @@ def _gaussian_cut(data: np.ndarray, x: float, y: float, key: str, s: Settings) -
         bkg = f32(_amedr(outside)) if outside.size else f32(0)
 
     xs = np.arange(x1, x2 + 1, dtype=f32)
-    k0 = max(0, _nint(f32(xc - x1)))
+    k0 = min(nx - 1, max(0, _nint(f32(xc - x1))))
     dr = f32(abs(f32(xc - f32(xc + sigma))))
     fit = np.array([bkg, f32(0), f32(ys[k0] - bkg), xc, dr], dtype=f32)
     flags = [2]                                 # the amplitude, then
@@ -751,8 +883,6 @@ _STYLING = set(
 
 #: Not in harwood: what to do instead.
 _ELSEWHERE = {
-    "boundary": "the v key (vectors) is not in harwood",
-    "constant": "the v key (vectors) is not in harwood",
     "eparam": "change the task's parameters with --editpar",
     "logfile": "name the log with the task's --logfile",
     "select": "use n and p to move between frames",
@@ -760,9 +890,6 @@ _ELSEWHERE = {
     "wcs": "harwood's positions are logical pixels; the window shows the WCS",
     "xformat": "harwood's positions are logical pixels",
     "yformat": "harwood's positions are logical pixels",
-    "output": "the t key (image output) is not in harwood",
-    "ncoutput": "the t key (image output) is not in harwood",
-    "nloutput": "the t key (image output) is not in harwood",
     "yorder": "a surface fit to the annulus is not in harwood; the median is used",
 }
 
@@ -777,15 +904,18 @@ def _field(name: str, graph: str) -> tuple[str | None, str]:
         "nlstat": "imexamine", "nbins": "himexam", "z1": "himexam", "z2": "himexam",
         "autoscale": "himexam", "top_closed": "himexam", "zero": "eimexam",
         "ncontours": "eimexam", "interval": "eimexam", "defkey": "imexamine",
+        "boundary": "vimexam", "constant": "vimexam", "output": "imexamine",
+        "ncoutput": "imexamine", "nloutput": "imexamine",
     }
     if name in always:
         return name, always[name]
     prefix = {"r": "", "j": "j", "k": "k", "l": "l", "c": "c", "e": "e", "s": "s",
-              "h": ""}
+              "h": "", "u": "v", "v": "v", ".": ""}
     psets = {"r": "rimexam", "j": "jimexam", "k": "kimexam", "l": "limexam",
-             "c": "cimexam", "e": "eimexam", "s": "simexam", "h": "himexam"}
-    applies = {"width": "rjk", "rplot": "rjk", "center": "rjk", "background": "rjk",
-               "xorder": "jk", "naverage": "jklc", "ncolumns": "esh", "nlines": "esh",
+             "c": "cimexam", "e": "eimexam", "s": "simexam", "h": "himexam",
+             "u": "vimexam", "v": "vimexam", ".": "rimexam"}
+    applies = {"width": "rjk.", "rplot": "rjk.", "center": "rjk.", "background": "rjk.",
+               "xorder": "jk", "naverage": "jklcuv", "ncolumns": "esh", "nlines": "esh",
                "floor": "es", "ceiling": "es"}
     if not graph or graph not in applies.get(name, ""):
         return None, ""
@@ -822,8 +952,8 @@ def colon(settings: Settings, command: str) -> str:
         advice.fail(f"':{name}' is not available in harwood", _ELSEWHERE[name])
 
     graph = settings.graph
-    if settings.lastkey == "a" and name in ("background", "center", "naverage", "rplot",
-                                            "xorder", "width"):
+    if settings.labelkey in ("a", ",") and name in ("background", "center", "naverage",
+                                                    "rplot", "xorder", "width"):
         graph = "r"
     if name == "unlearn":
         pset = {"r": "rimexam", "j": "jimexam", "k": "kimexam", "l": "limexam",
@@ -849,6 +979,7 @@ def colon(settings: Settings, command: str) -> str:
         return f"{name} {shown}"
     parsed = _parse(name, args[0], current)
     setattr(settings, field_name, parsed)
+    settings.redraw = True
     return f"{name} {args[0]}"
 
 

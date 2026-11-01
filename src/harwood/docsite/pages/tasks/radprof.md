@@ -25,6 +25,15 @@ misses the core: the column of `tintensity` should rise smoothly and settle near
 `radius` is summed only as far as the profile's box and is short of light, which
 IRAF does not mention and harwood warns of.
 
+`--interactive` measures with the cursor in the window, with phot's keys, each profile in the
+plot and the light inside it; `--icommands` takes the keys from a file, and `:radius`, `:step`,
+`:order`, `:kreject` and `:nreject` change the fit as it goes. Five such sessions are compared
+with IRAF's, byte by byte, and what they write is what its keys write.
+
+`--format iraf` writes IRAF's own `.prf` file, byte for byte but for who ran it and when,
+which is what IRAF's own tools, like `txdump`, read; the table is otherwise an ECSV at full
+precision.
+
 **Identical to IRAF**, to the digits it writes, with its error codes, on the
 synthetic field with the spline's order from 1 to 8, with and without rejection, and
 with stars at the edges and off them. One habit is kept: when a fit fails, `rier`

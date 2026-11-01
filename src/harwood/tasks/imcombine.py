@@ -71,8 +71,18 @@ WHY = {
     "grow": "A cosmic ray's bright core is rejected, and its fainter edge would "
             "not be; rejecting its neighbours within grow pixels, in the same "
             "image, takes the edge too. The combine is then redone without them.",
+    "offsets": "Dithered frames do not start at the same pixel. Each goes where its offset "
+               "puts it in an output large enough for all of them, and at each output pixel "
+               "only the images that reach it are combined.",
+    "mask": "Each image's mask leaves out the pixels it marks before anything is measured "
+            "or combined, the scaling statistics included.",
+    "project": "The images are the planes of one cube, combined along its last axis.",
     "weight": "Each image counts in the average in proportion to its level or its "
               "exposure -- IRAF's weighting, by the signal itself.",
+    "weight:ivar": "Each pixel of each image counts by the inverse of its variance, which "
+                   "gives the lowest noise any average of them can have: a pixel in a poor "
+                   "frame or under a bright star counts for less. It is not one of IRAF's, "
+                   "whose weights go by the image and by the level, whatever the noise is.",
     "combine:lmedian": "The median, except that of two values the lower is taken "
                        "rather than their average.",
     "combine:average": "The mean of what survived. Lowest noise when the "
@@ -86,14 +96,19 @@ WHY = {
     "combine:sum": "Added rather than averaged, so the result is in the units of "
                    "the total exposure. Only sensible when the frames are already "
                    "on a common scale.",
+    "combine:quadrature": "The square root of the sum of the squares, over n: how to "
+                          "combine images of errors or sigmas.",
+    "combine:nmodel": "The noise the CCD model gives each value, from rdnoise, gain and "
+                      "snoise, combined in quadrature: an estimate of the sigma of the "
+                      "average, with no need of a sigma image from the data.",
     "write": "The combined frame carries IMCMB cards naming every input, so what "
              "went into it survives being copied somewhere else.",
 }
 
-Combine = Literal["average", "median", "lmedian", "sum"]
+Combine = Literal["average", "median", "lmedian", "sum", "quadrature", "nmodel"]
 Reject = Literal["none", "minmax", "sigclip", "avsigclip", "ccdclip", "crreject", "pclip"]
-Scale = Literal["none", "mode", "median", "mean", "exposure"]
-Zero = Literal["none", "mode", "median", "mean"]
+SCALES = ("none", "mode", "median", "mean", "exposure")
+ZEROS = ("none", "mode", "median", "mean")
 
 
 class ImCombineParams(TaskParams):
@@ -109,7 +124,7 @@ class ImCombineParams(TaskParams):
         "average",
         description="How surviving pixels are combined once rejection is done. "
                     "lmedian takes the lower of two values where median "
-                    "would average them.",
+                    "would average them; quadrature and nmodel combine errors.",
     )
     reject: Reject = Field(
         "none",
@@ -157,31 +172,53 @@ class ImCombineParams(TaskParams):
                                "scale, as IRAF does."
     )
 
-    gain: float = Field(
-        1.0, gt=0, description="Detector gain in electrons per ADU. Used by ccdclip."
+    gain: float | str = Field(
+        1.0, description="Detector gain in electrons per ADU, or the keyword that has it. "
+                         "Used by ccdclip, crreject and nmodel."
     )
-    rdnoise: float = Field(0.0, ge=0, description="Read noise in electrons. Used by ccdclip.")
-    snoise: float = Field(
-        0.0, ge=0,
-        description="Sensitivity noise as a fraction, for flat-field error. Used by ccdclip.",
+    rdnoise: float | str = Field(
+        0.0, description="Read noise in electrons, or the keyword that has it. Used by "
+                         "ccdclip, crreject and nmodel."
+    )
+    snoise: float | str = Field(
+        0.0, description="Sensitivity noise as a fraction, for flat-field error, or the "
+                         "keyword that has it. Used by ccdclip, crreject and nmodel.",
     )
 
-    scale: Scale = Field(
+    scale: str = Field(
         "none",
-        description="Scale each image before combining, by its level or its exposure time.",
+        description="Scale each image before combining: none, mode, median, mean, "
+                    "exposure, @file of numbers or !keyword (factors to multiply by).",
     )
-    zero: Zero = Field(
-        "none", description="Subtract an additive offset from each image before combining."
+    zero: str = Field(
+        "none", description="Subtract an additive offset from each image before combining: "
+                            "none, mode, median, mean, @file or !keyword (offsets to add)."
     )
-    weight: Scale = Field(
+    weight: str = Field(
         "none", description="Weight each image in the average by its level or its "
                             "exposure time, as IRAF does (by the level itself, not "
-                            "by its inverse variance)."
+                            "by its inverse variance), or by @file or !keyword; or ivar, "
+                            "not IRAF's: each pixel by the inverse of its variance."
     )
     statsec: str | None = Field(
         None,
         description="Section used to measure scale and zero, e.g. '[100:400,100:400]'. "
-                    "Default is the whole image.",
+                    "Default is the whole image. Before it, input means in each image, "
+                    "output in the output's pixels, and overlap alone the part all share.",
+    )
+
+    project: bool = Field(
+        False, description="The first image is a cube: combine its planes, along the last "
+                           "axis, into an image of one dimension less."
+    )
+    offsets: str = Field(
+        "none", description="Where each image goes in the output: none, wcs or world, "
+                            "physical, grid nx dx ny dy, or a file with x y for each image "
+                            "(a line '# absolute' makes them absolute)."
+    )
+    outlimits: str = Field(
+        "", description="Keep part of the output: x1 x2 y1 y2, in pixels of the output "
+                        "before them, INDEF for an open end."
     )
 
     lthreshold: float | None = Field(
@@ -218,16 +255,39 @@ class ImCombineParams(TaskParams):
     nrejmasks: Path | None = Field(
         None, description="Optional output image counting rejections at each pixel."
     )
-    masktype: Literal["dq", "none"] = Field(
+    bpmasks: Path | None = Field(
+        None, description="Optional output mask: 0 where something was combined, 1 where "
+                          "nothing was, 2 where only values the masks call bad were."
+    )
+    rejmasks: Path | None = Field(
+        None, description="Optional output mask with a plane for each image: 1 where it "
+                          "was rejected, masked or does not reach."
+    )
+    expmasks: Path | None = Field(
+        None, description="Optional output mask of the exposure time that went into each "
+                          "pixel, from --exposure-key; MASKSCAL and MASKZERO scale it."
+    )
+    masktype: str = Field(
         "dq", description="dq leaves out the pixels each image's DQ flags -- saturated, "
                           "cosmic rays, bad columns -- unless every image flags it; an "
                           "image without a DQ flags nothing. none uses every pixel, as "
-                          "IRAF does by default.")
+                          "IRAF does by default. IRAF's: goodvalue, badvalue, goodbits, "
+                          "badbits or novalue, for the mask named by BPM, or !KEYWORD and "
+                          "one of them for the mask another keyword names.")
+    maskvalue: str = Field(
+        "0", description="The value for --masktype; with < or > before it, good pixels "
+                         "are those below or above it."
+    )
     uncertainty: Literal["VAR", "ERR", "UNCERT"] = uncertainty_field()
     format: Literal["harwood", "iraf"] = format_field()
 
     @model_validator(mode="after")
     def _check(self) -> ImCombineParams:
+        for name, value, allowed in (("scale", self.scale, SCALES), ("zero", self.zero, ZEROS),
+                                     ("weight", self.weight, (*SCALES, "ivar"))):
+            if value not in allowed and value[:1] not in ("@", "!"):
+                raise ValueError(f"{name}='{value}': it is one of {', '.join(allowed)}, "
+                                 "@file or !keyword")
         if self.reject in ("ccdclip", "crreject") and self.rdnoise == 0.0 and self.gain == 1.0:
             raise ValueError(
                 f"reject='{self.reject}' needs the detector's gain and rdnoise; "
@@ -262,6 +322,15 @@ class ImCombine(Task[ImCombineParams]):
         specs = images.expand(params.input)
         steps = [Step("read", f"{len(specs)} images, first is {specs[0]}",
                       why=WHY["read"])]
+        if params.project:
+            steps.append(Step("project", f"the planes of {specs[0]}", why=WHY["project"]))
+        if params.offsets.strip() not in ("", "none") or params.outlimits.strip():
+            steps.append(Step("offsets", params.offsets
+                              + (f", output {params.outlimits}" if params.outlimits else ""),
+                              why=WHY["offsets"]))
+        if params.masktype not in ("none", "dq", ""):
+            steps.append(Step("mask", f"{params.masktype}, value {params.maskvalue}",
+                              why=WHY["mask"]))
         if params.lthreshold is not None or params.hthreshold is not None:
             steps.append(Step("threshold",
                               f"keep {params.lthreshold} .. {params.hthreshold}",
@@ -298,13 +367,19 @@ class ImCombine(Task[ImCombineParams]):
                               why=WHY["reject:sigclip"]))
         if params.grow > 0 and params.reject != "none":
             steps.append(Step("grow", f"radius {params.grow:g} px", why=WHY["grow"]))
-        if params.weight != "none":
+        if params.weight == "ivar":
+            steps.append(Step("weight", "each pixel by the inverse of its variance",
+                              why=WHY["weight:ivar"]))
+        elif params.weight != "none":
             steps.append(Step("weight", f"by {params.weight}", why=WHY["weight"]))
         steps.append(Step("combine", params.combine,
                           why=WHY[f"combine:{params.combine}"]))
         steps.append(Step("write", str(params.output), why=WHY["write"]))
         for extra, what in ((params.sigmas, "sigma image"),
-                            (params.nrejmasks, "rejection counts")):
+                            (params.nrejmasks, "rejection counts"),
+                            (params.bpmasks, "pixels with no data"),
+                            (params.rejmasks, "pixels left out of each image"),
+                            (params.expmasks, "exposure in each pixel")):
             if extra:
                 steps.append(Step("write", f"{what} -> {extra}"))
         return steps
@@ -330,12 +405,12 @@ class ImCombine(Task[ImCombineParams]):
 
     def _combine(self, specs, params: ImCombineParams, output) -> TaskResult:
         import numpy as np
-        from astropy.io import fits
 
-        from ..core import images, mef, provenance
+        from ..core import mef, provenance
 
         output = Path(output)
-        stack, headers = images.read_stack(specs)
+        frames, headers = _frames(specs, params)
+        nimages = len(frames)
 
         # minmax drops a fixed number of values whether or not they deserve it,
         # so with too few frames it drops them all -- and every pixel then gets
@@ -343,16 +418,16 @@ class ImCombine(Task[ImCombineParams]):
         # frame. Refuse rather than write it.
         if params.reject == "minmax":
             dropped = params.nlow + params.nhigh
-            if dropped >= len(specs):
+            if dropped >= nimages:
                 raise ValueError(
                     f"minmax would drop {params.nlow} low and {params.nhigh} high "
-                    f"from {len(specs)} image(s), leaving nothing. Lower --nlow and "
+                    f"from {nimages} image(s), leaving nothing. Lower --nlow and "
                     f"--nhigh, give more frames, or use --reject none for a single "
                     f"frame."
                 )
-            if len(specs) - dropped < params.nkeep:
+            if nimages - dropped < params.nkeep:
                 raise ValueError(
-                    f"minmax would leave {len(specs) - dropped} of {len(specs)} "
+                    f"minmax would leave {nimages - dropped} of {nimages} "
                     f"images, fewer than the {params.nkeep} --nkeep requires."
                 )
 
@@ -366,59 +441,126 @@ class ImCombine(Task[ImCombineParams]):
                         "combine is called with grow=0 and weight=no",
                         "use imcombine for those, with this preset's other values")
 
-        valid = np.ones(stack.shape, dtype=bool)
+        from ..core import icsetout
+
+        if params.offsets.split()[:1] == ["physical"]:
+            frames, headers = _flipped(specs, frames, headers, params)
+        geometry = icsetout.setout([frame.shape for frame in frames], headers, params.offsets,
+                                   params.outlimits, params.project)
+        out_shape = tuple(geometry.lengths[::-1])
+        stack = np.zeros((nimages, *out_shape), dtype=np.float64)
+        covered = np.zeros(stack.shape, dtype=bool)
+        where = []
+        for index, frame in enumerate(frames):
+            spot = icsetout.place(frame, geometry.offsets[index], geometry.lengths)
+            where.append(spot)
+            if spot is not None:
+                stack[index][spot[0]] = frame[spot[1]]
+                covered[index][spot[0]] = True
+
+        # A mask is in each image's own pixels, for the statistics, and in the output's.
+        kind = None if params.masktype in ("dq", "") else icsetout.masktype(params.masktype,
+                                                                            params.maskvalue)
+        masks = [np.zeros(frame.shape, dtype=bool) for frame in frames]
+        fallback = None
+        marked = np.zeros(out_shape, dtype=bool)
+        if kind is not None and kind.kind != "none":
+            if kind.kind == "novalue":
+                fallback = np.zeros(stack.shape, dtype=bool)
+            raws = _raw_masks(kind, frames, headers, specs, params)
+            for index, raw in enumerate(raws):
+                bad, gone = icsetout.bad_pixels(kind, raw, frames[index].shape)
+                masks[index] = bad
+                if where[index] is None or raw is None:
+                    continue
+                target, source = where[index]
+                marked_here = np.zeros(out_shape, dtype=bool)
+                marked_here[target] = raw[source] != 0
+                marked |= marked_here
+                if fallback is not None:
+                    fallback[index][target] = (bad & ~gone)[source]
+                covered[index][target] &= ~bad[source]
+
+        valid = covered.copy()
+        over = np.zeros(stack.shape, dtype=bool)
         if params.lthreshold is not None:
-            valid &= stack >= params.lthreshold
+            over |= stack < params.lthreshold
         if params.hthreshold is not None:
-            valid &= stack <= params.hthreshold
-        variances, qualities = _planes(specs, stack.shape)
+            over |= stack > params.hthreshold
+        if fallback is not None:
+            fallback |= covered & over
+            for index, spot in enumerate(where):
+                if spot is None:
+                    fallback[index] = False
+        valid &= ~over
+        variances, qualities, own = _planes(specs, frames, where, stack.shape, params.project)
         flagged_everywhere = None
         if params.masktype == "dq":
             good = qualities == 0
+            masks = [plane != 0 for plane in own]
             # A pixel every image flags is still combined -- the DQ of the
             # result keeps what they all said -- rather than left empty.
             flagged_everywhere = ~(good & valid).any(axis=0)
             valid &= good | flagged_everywhere[None]
 
-        section = _stat_slice(params.statsec, stack.shape[1:]) if params.statsec else None
-        uses_exposure = "exposure" in (params.scale, params.weight)
+        sections = _sections(params.statsec, frames, geometry, out_shape)
+        uses_exposure = "exposure" in (params.scale, params.weight) or bool(params.expmasks)
         if uses_exposure:
-            missing = [str(s) for s, h in zip(specs, headers, strict=True)
+            missing = [str(s) for s, h in zip(specs, headers, strict=False)
                        if params.exposure_key not in h]
-            if missing:
+            if missing and not params.expmasks:
                 raise ValueError(
                     f"scale or weight 'exposure' needs {params.exposure_key} in every "
                     f"header; {', '.join(missing[:3])} has none. Name the keyword "
                     "with --exposure-key.")
+        ivar = params.weight == "ivar"
+        if ivar and (params.combine != "average" or any(v is None for v in variances)):
+            advice_needs = ("every image has to carry a variance: ccdproc writes one when it "
+                            "knows the gain" if params.combine == "average"
+                            else "use --combine average")
+            raise ValueError(f"--weight ivar: {advice_needs}.")
         scaling = engine.ic_scale(
-            stack, headers, scale=params.scale, zero=params.zero, weight=params.weight,
+            frames, headers, scale=params.scale, zero=params.zero,
+            weight="none" if ivar else params.weight,
             exposure_key=params.exposure_key if uses_exposure else "",
-            section=section, lthresh=params.lthreshold, hthresh=params.hthreshold,
-            sigscale=params.sigscale, flavor=self.flavor)
+            section=sections, lthresh=params.lthreshold, hthresh=params.hthreshold,
+            sigscale=params.sigscale, flavor=self.flavor, masks=masks)
+        lines = stack.reshape(nimages, -1, out_shape[-1])
         combined, sigma, used, rejected = engine.combine(
-            stack, valid, scaling, combine=params.combine, reject=params.reject,
+            lines, valid.reshape(lines.shape), scaling, combine=params.combine,
+            reject=params.reject,
             mclip=params.mclip, nlow=params.nlow, nhigh=params.nhigh,
             nkeep=params.nkeep, lsigma=params.lsigma, hsigma=params.hsigma,
             pclip=params.pclip, grow=params.grow, blank=params.blank,
-            rdnoise=params.rdnoise, gain=params.gain, snoise=params.snoise,
-            flavor=self.flavor)
+            rdnoise=_noise_values(params.rdnoise, headers),
+            gain=_noise_values(params.gain, headers),
+            snoise=_noise_values(params.snoise, headers),
+            flavor=self.flavor, marked=marked.reshape(lines.shape[1], -1).any(axis=1),
+            fallback=None if fallback is None else fallback.reshape(lines.shape))
+        combined, sigma = combined.reshape(out_shape), sigma.reshape(out_shape)
+        used, rejected = used.reshape(out_shape), rejected.reshape(stack.shape)
         nrej = (stack.shape[0] - used).astype(np.int32)
         factors, offsets = scaling.scales, scaling.zeros
         keep = valid & ~rejected
-        if not np.array_equal(keep.sum(axis=0), used):
+        if not np.array_equal(keep.sum(axis=0), np.maximum(used, 0)):
             # nkeep can hand rejected values back; the count is the engine's,
             # and the variance follows the count where the two disagree.
             keep = _restore(keep, valid, used, stack, scaling)
         var, quality, notes = _uncertainty(variances, qualities, keep, scaling, params,
                                            flagged_everywhere, specs)
-        working = (stack / factors[:, None, None] - offsets[:, None, None])
+        if ivar:
+            combined, var = _inverse_variance(stack, np.array(variances), keep, scaling,
+                                              params.blank)
+        along = (slice(None),) + (None,) * len(out_shape)
+        working = np.where(covered, stack / factors[along] - offsets[along], np.nan)
         backend_label = engine.backend()
 
         steps = self.plan(params)
-        _measure_steps(steps, stack, working, combined, nrej, factors, offsets,
-                       backend_label, params)
+        _measure_steps(steps, np.where(covered, stack, np.nan), working, combined, nrej,
+                       factors, offsets, backend_label, params)
 
         header = headers[0].copy()
+        icsetout.update_wcs(header, geometry, params.project, len(out_shape))
         provenance.record_inputs(header, [s.path for s in specs])
         # As ic_scale writes them: how many exposures went in, and -- when the
         # inputs carry one -- the CCDMEAN a flat is later divided by.
@@ -458,14 +600,28 @@ class ImCombine(Task[ImCombineParams]):
         outputs = list(written)
         for path, array in ((params.sigmas, sigma), (params.nrejmasks, nrej)):
             if path:
-                fits.PrimaryHDU(data=np.asarray(array, dtype=np.float32),
-                                header=header).writeto(path, overwrite=True)
+                _write_plane(path, array, header)
                 outputs.append(path)
+        if params.bpmasks:
+            bad = np.where(used > 0, 0, np.where(used == 0, 1, 2))
+            _write_plane(params.bpmasks, bad, header)
+            outputs.append(params.bpmasks)
+        if params.rejmasks:
+            _write_plane(params.rejmasks, np.where(used == nimages, False, ~keep), header)
+            outputs.append(params.rejmasks)
+        if params.expmasks:
+            exposure, scaled = _exposure(keep, headers, scaling.weights, params.exposure_key)
+            mask_header = header.copy()
+            if scaled != 1.0:
+                mask_header["MASKZERO"] = 0.0
+                mask_header["MASKSCAL"] = scaled
+            _write_plane(params.expmasks, exposure, mask_header)
+            outputs.append(params.expmasks)
 
         return TaskResult(
             outputs=outputs,
             data={
-                "images": len(specs),
+                "images": nimages,
                 "rejected": int(np.asarray(nrej).sum()),
                 "mean_level": float(np.nanmean(combined)),
             },
@@ -479,19 +635,193 @@ class ImCombine(Task[ImCombineParams]):
 # --------------------------------------------------------------- helpers
 
 
-def _planes(specs, shape):
-    """Each input's variance (None where it has none) and DQ, as stacks."""
+def _inverse_variance(stack, variances, keep, scaling, blank):
+    """The average of what the rejection left, each pixel by the inverse of its variance,
+    and the variance of that, 1 / sum(1 / var)."""
+    import numpy as np
+
+    along = (slice(None),) + (None,) * (stack.ndim - 1)
+    scaled = stack / scaling.scales[along] - scaling.zeros[along]
+    var = variances / scaling.scales[along] ** 2
+    weight = np.where(keep & (var > 0), 1.0 / np.where(var > 0, var, 1.0), 0.0)
+    total = weight.sum(axis=0)
+    none = total <= 0
+    with np.errstate(invalid="ignore", divide="ignore"):
+        combined = np.where(none, blank, (weight * scaled).sum(axis=0) / total)
+        variance = np.where(none, 0.0, 1.0 / total)
+    return combined, variance
+
+
+def _frames(specs, params):
+    """The images, each with its own shape, and their headers; or the planes of a cube,
+    all with its one header."""
+    from ..core import advice, images
+
+    if params.project:
+        cube, header = images.read(specs[0])
+        if cube.ndim < 2:
+            advice.fail("can't project one dimensional images", "--project is for a cube")
+        return [plane for plane in cube], [header] * cube.shape[0]
+    pairs = [images.read(spec) for spec in specs]
+    if not pairs:
+        raise ValueError("no input images")
+    return [pair[0] for pair in pairs], [pair[1] for pair in pairs]
+
+
+def _flipped(specs, frames, headers, params):
+    """offsets physical reads an image against the first's sense with -* on the axis."""
+    from ..core import icsetout, images
+
+    if params.project:
+        return frames, headers
+    frames, headers = list(frames), list(headers)
+    for index, section in enumerate(icsetout.flips(headers, frames[0].ndim)):
+        if section:
+            frames[index], headers[index] = images.read(f"{specs[index]}{section}")
+    return frames, headers
+
+
+def _raw_masks(kind, frames, headers, specs, params):
+    """Each image's mask, by the keyword; for a cube the planes of its one mask."""
+    import numpy as np
+
+    from ..core import icsetout
+
+    if params.project:
+        shape = (len(frames), *frames[0].shape)
+        cube = icsetout.read_mask(kind, headers[0], shape, specs[0].path)
+        return [None] * len(frames) if cube is None else list(np.asarray(cube))
+    return [icsetout.read_mask(kind, header, frame.shape, spec.path)
+            for header, frame, spec in zip(headers, frames, specs, strict=True)]
+
+
+def _sections(statsec, frames, geometry, out_shape):
+    """ic_scale's reading of statsec: in each image's pixels, or the output's."""
+    from ..core import combine as engine
+
+    words = (statsec or "").split()
+    word = words[0] if words else ""
+    place = next((name for name in ("input", "output", "overlap")
+                  if word and name.startswith(word)), "")
+    text = (words[1] if len(words) > 1 else "") if place else word
+    out = []
+    if place == "overlap":
+        first = [max(int(off[j]) + 1 for off in geometry.offsets)
+                 for j in range(len(out_shape))]
+        last = [min(int(off[j]) + frame.shape[::-1][j]
+                    for off, frame in zip(geometry.offsets, frames, strict=True))
+                for j in range(len(out_shape))]
+        text = "[" + ",".join(f"{a}:{b}" for a, b in zip(first, last, strict=True)) + "]"
+    for index, frame in enumerate(frames):
+        if place in ("output", "overlap"):
+            moved = tuple(int(value) for value in geometry.offsets[index][::-1])
+            out.append(engine.stat_section(text, frame.shape, moved, out_shape))
+        else:
+            out.append(engine.stat_section(text, frame.shape))
+    return out
+
+
+def _noise_values(value, headers):
+    """A number for all the images, or the keyword each has its own in."""
+    import numpy as np
+
+    from ..core import advice
+
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    found = []
+    for header in headers:
+        if value not in header:
+            advice.fail(f"an image has no keyword {value}",
+                        "give the number, or a keyword every image has")
+        found.append(float(header[value]))
+    return np.array(found)
+
+
+def _write_plane(path, array, header) -> None:
+    """A mask by the name asked for: IRAF's .pl, or else a FITS image."""
+    import numpy as np
+    from astropy.io import fits
+
+    from ..core import plio
+
+    path = Path(path)
+    if path.suffix == ".pl":
+        plio.write(path, np.asarray(array, dtype=np.int32))
+        return
+    fits.PrimaryHDU(data=np.asarray(array, dtype=np.float32),
+                    header=header).writeto(path, overwrite=True)
+
+
+def _exposure(keep, headers, weights, key):
+    """ic_einit and ic_emask: the exposure of what went into each pixel, as whole units
+    of a scale that fits; (values, the scale). Missing keyword: an exposure of 1."""
+    import numpy as np
+
+    from ..core.icsetout import nint
+
+    real = np.float32
+    times = np.array([max(real(0.0), real(float(h.get(key, 1.0)))) for h in headers], real)
+    emax = real(0.0)
+    emin = real(3.4028235e38)
+    efrac = real(0.0)
+    for exp in times:
+        emax = real(emax + exp)
+        if exp > 0:
+            emin = min(exp, emin)
+        efrac = max(real(abs(exp - nint(float(exp)))), efrac)
+    escale = real(1.0)
+    if emin < 1.0:
+        escale = emin
+        emin = real(emin / escale)
+        emax = real(emax / escale)
+    elif emin == real(3.4028235e38):
+        emin = real(0.0)
+    if efrac > 0.001 and emax - emin < 1000.0:
+        escale = real(escale / 1000.0)
+        emin = real(emin * 1000.0)
+        emax = real(emax * 1000.0)
+    while emax > 2 ** 27 - 1:
+        escale = real(escale * 10.0)
+        emin = real(emin / 10.0)
+        emax = real(emax / 10.0)
+    use = times * (weights > 0).astype(real)
+    total = np.zeros(keep.shape[1:], real)
+    for index in range(keep.shape[0]):
+        total = (total + np.where(keep[index], use[index], real(0.0))).astype(real)
+    ratio = (total / escale).astype(np.float64)
+    return np.where(ratio >= 0, np.floor(ratio + 0.5), -np.floor(-ratio + 0.5)), float(escale)
+
+
+def _planes(specs, frames, where, shape, project=False):
+    """Each input's variance (None where it has none) and DQ, in the output's pixels, and
+    the DQ in its own."""
     import numpy as np
 
     from ..core import dq, mef
 
-    variances, qualities = [], np.zeros(shape, dtype=dq.DTYPE)
+    qualities = np.zeros(shape, dtype=dq.DTYPE)
+    own = [np.zeros(frame.shape, dtype=dq.DTYPE) for frame in frames]
+    if project:
+        return [None] * len(frames), qualities, own
+    variances = []
     for index, spec in enumerate(specs):
         _, _, var, quality = mef.load(spec)
-        variances.append(var)
-        if quality.shape == shape[1:]:
-            qualities[index] = quality
-    return variances, qualities
+        spot = where[index]
+        if var is None:
+            variances.append(None)
+        else:
+            plane = np.zeros(shape[1:])
+            if spot is not None:
+                plane[spot[0]] = var[spot[1]]
+            variances.append(plane)
+        if quality.shape == frames[index].shape:
+            own[index] = quality
+            if spot is not None:
+                qualities[index][spot[0]] = quality[spot[1]]
+    return variances, qualities, own
 
 
 def _restore(keep, valid, used, stack, scaling):
@@ -502,7 +832,8 @@ def _restore(keep, valid, used, stack, scaling):
     short = keep.sum(axis=0) < used
     if not short.any():
         return keep
-    scaled = stack / scaling.scales[:, None, None] - scaling.zeros[:, None, None]
+    along = (slice(None),) + (None,) * (stack.ndim - 1)
+    scaled = stack / scaling.scales[along] - scaling.zeros[along]
     centre = np.nanmedian(np.where(valid, scaled, np.nan), axis=0)
     distance = np.where(valid, np.abs(scaled - centre), np.inf)
     ranks = np.argsort(np.argsort(distance, axis=0), axis=0)
@@ -518,12 +849,13 @@ def _uncertainty(variances, qualities, keep, scaling, params, flagged_everywhere
 
     notes = []
     var = None
-    missing = [Path(str(s)).name for s, v in zip(specs, variances, strict=True) if v is None]
-    if not missing:
+    missing = [Path(str(specs[min(i, len(specs) - 1)])).name
+               for i, v in enumerate(variances) if v is None]
+    if not missing and params.combine not in ("quadrature", "nmodel"):
         var = engine.propagate(np.array(variances), keep, scaling, params.combine)
-    elif len(missing) < len(specs):
+    elif missing and len(missing) < len(variances):
         notes.append(advice.warn(
-            f"{len(missing)} of the {len(specs)} images carry no variance "
+            f"{len(missing)} of the {len(variances)} images carry no variance "
             f"({', '.join(missing[:3])}{'...' if len(missing) > 3 else ''}), so the "
             "combined one has none either.",
             "give them one: ccdproc writes it when it knows the gain."))
@@ -534,14 +866,6 @@ def _uncertainty(variances, qualities, keep, scaling, params, flagged_everywhere
         quality = np.where(flagged_everywhere & keep.any(axis=0), common, 0).astype(dq.DTYPE)
     quality[keep.sum(axis=0) == 0] |= dq.NO_DATA
     return var, quality, notes
-
-
-def _stat_slice(statsec, shape):
-    from ..core import pixels
-
-    if not statsec:
-        return tuple(slice(None) for _ in shape)
-    return pixels.parse_section(statsec, shape)
 
 
 def _level(frame, how: str):
@@ -692,6 +1016,8 @@ def _measure_steps(steps, stack, working, combined, nrej, factors, offsets,
     afterwards. Matching by action name rather than by position, because the
     plan's shape depends on which corrections were asked for.
     """
+    import warnings
+
     import numpy as np
 
     from ..core.task import Task
@@ -699,11 +1025,11 @@ def _measure_steps(steps, stack, working, combined, nrej, factors, offsets,
     found = {step.action: step for step in steps}
 
     if "read" in found:
+        levels = [float(np.nanmedian(frame)) for frame in stack]
         found["read"].measured = {
             "frames": stack.shape[0],
             "shape": "x".join(str(n) for n in reversed(stack.shape[1:])),
-            "levels": f"{float(np.median(stack, axis=(1, 2)).min()):.4g} to "
-                      f"{float(np.median(stack, axis=(1, 2)).max()):.4g}",
+            "levels": f"{min(levels):.4g} to {max(levels):.4g}",
         }
     if "scale" in found:
         found["scale"].measured = {
@@ -735,7 +1061,10 @@ def _measure_steps(steps, stack, working, combined, nrej, factors, offsets,
         # latter makes a nine-frame average look better than 1/sqrt(N), which
         # is impossible and would have gone unnoticed.
         count = working.shape[0]
-        noise = float(np.median(np.std(working, axis=0, ddof=1))) if count > 1 else 0.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            spread = np.nanstd(working, axis=0, ddof=1)
+        noise = float(np.nanmedian(spread)) if count > 1 and np.isfinite(spread).any() else 0.0
         expected = noise / np.sqrt(count) if noise else 0.0
         actual = float(np.std(combined))
         structure = float(np.sqrt(max(actual ** 2 - expected ** 2, 0.0)))
@@ -750,7 +1079,7 @@ def _measure_steps(steps, stack, working, combined, nrej, factors, offsets,
                                  "is what this frame is for"
                                  if structure > 0.3 * actual else ""),
         }
-        found["combine"].before = Task.statistics(working[0])
+        found["combine"].before = Task.statistics(working[0][np.isfinite(working[0])])
         found["combine"].after = Task.statistics(combined)
 
 

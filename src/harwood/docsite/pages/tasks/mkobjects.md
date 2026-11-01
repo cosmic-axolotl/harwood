@@ -10,16 +10,16 @@ axial ratio and position angle:
 310.1 250.9 13.5 devauc 8.0 0.8 110.0
 ```
 
-The models are `expdisk`, `devauc` and `sersic` with its index, as `sersic2.5`. A galaxy is
-convolved with the star's seeing. Off the image is passed over, what does not begin with
+The models are `expdisk`, `devauc`, `sersic` with its index, as `sersic2.5`, an image, whose
+half width is the radius, or a text file with the profile, a value a line from the centre to
+the radius; if its first value is 0 the file is the integral of the profile. A galaxy is convolved with the star's seeing. Off the image is passed over, what does not begin with
 three numbers too.
 
-`--star` is `moffat` or `gaussian`, of half width `--radius`, with `--beta`, `--ar` and
-`--pa`. A magnitude is `--magzero` for one data number in a second, for `--exptime`
+`--star` is `moffat`, `gaussian`, or such an image or text file, of half width `--radius`, with `--beta`,
+`--ar` and `--pa`. A magnitude is `--magzero` for one data number in a second, for `--exptime`
 seconds. `--distance` divides positions and radii and dims. `--background`, per second,
 and the noise are for a new image, the noise on all of it; on an image that exists, on the
 objects only.
 
-These are the bits of IRAF 2.18, seeing and all. An image or a file as the profile of a star
-or galaxy, and `save` in the list, which only saves time, are not here; such an object
-is said and passed over.
+These are the bits of IRAF 2.18, seeing and all. `save` in the list only saves time, and is
+not needed here; an object of no known model is said and passed over.
