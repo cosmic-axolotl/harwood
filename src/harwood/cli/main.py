@@ -40,7 +40,8 @@ _previous_directory: str | None = None
 #: (project, directory) already mentioned in this process.
 _inherited_told: set[tuple[Path, Path]] = set()
 
-BUILTINS = ("list", "help", "lpar", "init", "doctor", "log", "history", "edit", "docs",
+BUILTINS = ("list", "help", "phelp", "references", "lpar",
+            "init", "doctor", "log", "history", "edit", "docs",
             "gui", "cd", "pwd")
 
 #: What the prompts pass as click's `obj`: this process goes on after the
@@ -252,6 +253,40 @@ def help_cmd(task: str) -> None:
     console.print(f"[dim]Effective values and where they come from: "
                   f"harwood lpar {task}. The same manual, with examples three "
                   f"ways: harwood docs {task}[/dim]\n")
+
+
+@app.command("phelp")
+@click.argument("task", shell_complete=_task_names)
+@click.pass_context
+def phelp_cmd(ctx: click.Context, task: str) -> None:
+    """The manual for a task, in the pager."""
+    global console
+
+    held = console
+    with open(os.devnull, "w") as sink:
+        console = Console(record=True, file=sink, width=held.width)
+        try:
+            ctx.invoke(help_cmd, task=task)
+            text = console.export_text()
+        finally:
+            console = held
+    click.echo_via_pager(text)
+
+
+@app.command("references")
+@click.argument("topic")
+def references_cmd(topic: str) -> None:
+    """Which tasks are about a topic: their names and what they do are searched, and
+    the tasks of IRAF not here, with what became of each."""
+    from ..core import migration
+
+    found = migration.references(topic)
+    for name, line in found:
+        console.print(f"{escape(name)} - {escape(line)}", highlight=False, soft_wrap=True)
+    if not found:
+        error_console.print(f"Nothing is about '{escape(topic)}'. A shorter word finds more; "
+                            "harwood list shows every task.")
+        raise SystemExit(1)
 
 
 @app.command("lpar")

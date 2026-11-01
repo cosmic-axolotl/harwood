@@ -692,8 +692,13 @@ class ImCopy(Task[ImCopyParams]):
             data, header = images.read(spec)
             provenance.stamp_header(header, [f"imcopy: from {spec}"])
             destination.parent.mkdir(parents=True, exist_ok=True)
-            fits.PrimaryHDU(np.asarray(data, dtype=np.float32),
-                            header).writeto(destination, overwrite=True)
+            if destination.suffix == ".pl":
+                from ..core import plio
+
+                plio.write(destination, data.astype(np.int64), header=header)
+            else:
+                fits.PrimaryHDU(np.asarray(data, dtype=np.float32),
+                                header).writeto(destination, overwrite=True)
             outputs.append(destination)
             rows.append({"from": str(spec), "to": str(destination),
                          "shape": "x".join(str(n) for n in reversed(data.shape))})
@@ -1983,7 +1988,13 @@ class ImExpr(Task[ImExprParams]):
             advice.fail(f"in the expression: {e}", f"the expression was: {params.expr}")
         target = images.parse(params.output)
         line = f"imexpr: {result.expression}"
-        if target.section:
+        if target.path.suffix == ".pl" and not target.section:
+            from ..core import plio
+
+            header = (None if result.header is None
+                      else images.forget_limits(result.header.copy()))
+            plio.write(target.path, result.data, header=header)
+        elif target.section:
             with fits.open(str(target.path), mode="update", memmap=False) as hdul:
                 hdu = hdul[images._resolve_extension(hdul, target.extension)]
                 section = hdu.data[result.section]

@@ -12,12 +12,26 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 J2000 = 2000.0
 JD2000 = 2451545.0
 JYEAR = 365.25
 
 #: Solar to sidereal time, as t_setairmass.x's SOLTOSID.
 SOLTOSID = 1.00273790935
+
+
+#: math.h's RADIAN is a real, and DEGTORAD and RADTODEG use it for a double too: 1.2e-8 off.
+RADIAN = float(np.float32(57.295779513082320877))
+
+
+def _rad(degrees: float) -> float:
+    return degrees / RADIAN
+
+
+def _deg(radians: float) -> float:
+    return radians * RADIAN
 
 
 def _int(value: float) -> int:
@@ -89,9 +103,9 @@ def rotmatrix(epoch: float) -> list[list[float]]:
     a = t * (0.6406161 + t * (0.0000839 + t * 0.0000050))
     b = t * (0.6406161 + t * (0.0003041 + t * 0.0000051))
     c = t * (0.5567530 - t * (0.0001185 + t * 0.0000116))
-    ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
-    cb, sb = math.cos(math.radians(b)), math.sin(math.radians(b))
-    cc, sc = math.cos(math.radians(c)), math.sin(math.radians(c))
+    ca, sa = math.cos(_rad(a)), math.sin(_rad(a))
+    cb, sb = math.cos(_rad(b)), math.sin(_rad(b))
+    cc, sc = math.cos(_rad(c)), math.sin(_rad(c))
     p = [[0.0] * 3 for _ in range(3)]
     p[0][0] = ca * cb * cc - sa * sb
     p[1][0] = -sa * cb * cc - ca * sb
@@ -111,8 +125,8 @@ def precess(ra1: float, dec1: float, epoch1: float | None,
     epoch of 0 or none means the coordinates are already of epoch2."""
     if not epoch1 or epoch1 == epoch2:
         return ra1, dec1
-    ra2 = math.radians(ra1 * 15.0)
-    dec2 = math.radians(dec1)
+    ra2 = _rad(ra1 * 15.0)
+    dec2 = _rad(dec1)
     r0 = [math.cos(ra2) * math.cos(dec2), math.sin(ra2) * math.cos(dec2),
           math.sin(dec2)]
     if epoch1 != 2000.0:
@@ -126,8 +140,8 @@ def precess(ra1: float, dec1: float, epoch1: float | None,
         r0 = [p[0][0] * r0[0] + p[1][0] * r0[1] + p[2][0] * r0[2],
               p[0][1] * r0[0] + p[1][1] * r0[1] + p[2][1] * r0[2],
               p[0][2] * r0[0] + p[1][2] * r0[1] + p[2][2] * r0[2]]
-    ra = math.degrees(math.atan2(r0[1], r0[0])) / 15.0
-    dec = math.degrees(math.asin(r0[2]))
+    ra = _deg(math.atan2(r0[1], r0[0])) / 15.0
+    dec = _deg(math.asin(r0[2]))
     if ra < 0.0:
         ra = ra + 24.0
     return ra, dec
@@ -148,16 +162,16 @@ def airmassx(ha: float, dec: float, lat: float, scale: float = 750.0) -> float:
     declination and a latitude (degrees), with the atmosphere's scale height
     -- the plane-parallel secant, rounded off near the horizon by a spherical
     atmosphere `scale` times thinner than the Earth is wide."""
-    cos_zd = (math.sin(math.radians(lat)) * math.sin(math.radians(dec))
-              + math.cos(math.radians(lat)) * math.cos(math.radians(dec))
-              * math.cos(math.radians(ha * 15.0)))
+    cos_zd = (math.sin(_rad(lat)) * math.sin(_rad(dec))
+              + math.cos(_rad(lat)) * math.cos(_rad(dec))
+              * math.cos(_rad(ha * 15.0)))
     x = scale * cos_zd
     return math.sqrt(x ** 2 + 2.0 * scale + 1.0) - x
 
 
 def elevation_airmass(elevation: float, scale: float = 750.0) -> float:
     """t_airmass: the airmass at an elevation above the horizon, degrees."""
-    x = scale * math.sin(math.radians(elevation))
+    x = scale * math.sin(_rad(elevation))
     return math.sqrt(x ** 2 + 2 * scale + 1) - x
 
 
@@ -200,8 +214,8 @@ def jd_to_hjd(ra: float, dec: float, jd: float) -> tuple[float, float]:
     eccen = 0.01675104 - t * (0.00004180 + t * 0.000000126)
     manom = math.fmod(manom, 360.0)
     lperi = math.fmod(lperi, 360.0)
-    r, d = math.radians(ra * 15), math.radians(dec)
-    manom, lperi, oblq = math.radians(manom), math.radians(lperi), math.radians(oblq)
+    r, d = _rad(ra * 15), _rad(dec)
+    manom, lperi, oblq = _rad(manom), _rad(lperi), _rad(oblq)
     tanom = (manom + (2 * eccen - 0.25 * eccen ** 3) * math.sin(manom)
              + 1.25 * eccen ** 2 * math.sin(2 * manom)
              + 13.0 / 12.0 * eccen ** 3 * math.sin(3 * manom))

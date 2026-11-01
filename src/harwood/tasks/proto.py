@@ -19,6 +19,9 @@ from ..core.registry import register
 from ..core.task import Step, Task, TaskParams, TaskResult, format_field, uncertainty_field
 
 WHY = {
+    "regions": "A mask marks what no interpolation can recover. The value says the shape, "
+               "so that a bad column is fixed from its neighbours across and a dead row "
+               "from those above and below.",
     "extensions": "A multi-extension file is several images. This names them as a task "
                   "reads them, so the list can go to any task as an @file.",
     "through a mask": "The pixels a mask marks are left out of every number, and the "
@@ -456,7 +459,7 @@ class MimStatistics(Task[MimStatisticsParams]):
         import numpy as np
         from astropy.io import fits
 
-        from ..core import images, iraffmt, provenance
+        from ..core import images, iraffmt, plio, provenance
         from .imutil import MAX_REAL, imstat
 
         specs = images.expand(params.images)
@@ -500,14 +503,16 @@ class MimStatistics(Task[MimStatisticsParams]):
                 hi = MAX_REAL if high is None else np.float32(high)
                 pixels = data.astype(np.float32)
                 kept = good & (pixels >= lo) & (pixels <= hi)
-                target = Path(outs[k] if Path(outs[k]).suffix else outs[k] + ".fits")
-                if target.suffix == ".pl":
-                    target = target.with_suffix(".fits")
                 out = images.forget_limits(header.copy())
-                provenance.stamp_header(out, [f"mimstatistics: mask of {spec}"])
                 # 1 is a pixel that did not count, as a mask has it.
-                fits.PrimaryHDU((~kept).astype(np.int16), out).writeto(target, overwrite=True)
-                written.append(target)
+                target = outs[k]
+                if target.endswith((".fits", ".fit")):
+                    provenance.stamp_header(out, [f"mimstatistics: mask of {spec}"])
+                    fits.PrimaryHDU((~kept).astype(np.int16), out).writeto(target,
+                                                                           overwrite=True)
+                    written.append(Path(target))
+                else:
+                    written.append(plio.write(target, (~kept).astype(np.int64), header=out))
         return TaskResult(data={"rows": rows}, stdout=lines, outputs=written,
                           steps=self.plan(params))
 
@@ -546,3 +551,350 @@ def _row(row: dict, fields: list[str], fixed: bool, iraffmt) -> str:
         else:
             parts.append(iraffmt.g(value))
     return " " + "".join(parts) if fixed else "  ".join(parts)
+
+
+# ---------------------------------------------------------------- text2mask
+
+class Text2MaskParams(TaskParams):
+    text: str = Field(..., description="File of regions: column line, or c1 c2 l1 l2.",
+                      json_schema_extra={"positional": True})
+    mask: str = Field(..., description="The mask to make; .pl is added if not there.",
+                      json_schema_extra={"positional": True})
+    ncols: int = Field(..., ge=1, description="Columns of the mask.",
+                       json_schema_extra={"positional": True})
+    nlines: int = Field(..., ge=1, description="Lines of the mask.",
+                        json_schema_extra={"positional": True})
+    linterp: int = Field(1, ge=1, description="Value for regions narrower along lines: "
+                                              "fixpix interpolates along the line.")
+    cinterp: int = Field(2, ge=1, description="Value for regions narrower along columns.")
+    square: int = Field(3, ge=1, description="Value for squares of more than a pixel.")
+    pixel: int = Field(4, ge=1, description="Value for single pixels.")
+
+
+def scan_ints(line: str) -> list[int]:
+    """fscan and gargi: the integers at the start of a line, as far as they go. A
+    real is cut to an integer; after anything else no more is read, so 8, 9 is an 8."""
+    import re
+
+    from ..core import iraffmt
+
+    values = []
+    for word in line.split():
+        found = re.match(r"[-+]?(\d+\.?\d*|\.\d+)([eEdD][-+]?\d+)?", word)
+        if found is None:
+            break
+        values.append(int(iraffmt.ctod(found[0])))
+        if found.end() != len(word):
+            break
+    return values
+
+
+def _region(values: list[int]) -> tuple[int, int, int, int] | None:
+    """Two numbers are a pixel, four a rectangle, and the rest is not a region."""
+    if len(values) >= 4:
+        return values[0], values[1], values[2], values[3]
+    if len(values) == 2:
+        return values[0], values[0], values[1], values[1]
+    return None
+
+
+@register
+class Text2Mask(Task[Text2MaskParams]):
+    """IRAF's text2mask: a mask from a list of pixels and rectangles, coded by the
+    shape of each so that fixpix interpolates across the narrow way."""
+
+    name = "text2mask"
+    package = "proto"
+    description = "A pixel mask from a text file of regions."
+    Params = Text2MaskParams
+
+    def plan(self, params: Text2MaskParams) -> list[Step]:
+        return [Step("write", f"{params.text} -> {params.mask}", why=WHY["regions"])]
+
+    def execute(self, params: Text2MaskParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import plio
+
+        file = Path(params.text)
+        if not file.is_file():
+            advice.fail(f"Cannot open file ({params.text})", "check the name of the text file")
+        nc, nl = params.ncols, params.nlines
+        # IRAF keeps the codes in shorts, and 70000 is 4464.
+        codes = np.array([params.linterp, params.cinterp, params.square, params.pixel],
+                         dtype=np.int64).astype(np.int16).tolist()
+        pixels = np.zeros((nl, nc), dtype=np.int64)
+        mask = plio.Mask([nc, nl])
+        regions = 0
+        for line in file.read_text(errors="replace").splitlines():
+            region = _region(scan_ints(line))
+            if region is None:
+                continue
+            c1, c2 = max(1, region[0]), min(nc, region[1])
+            l1, l2 = max(1, region[2]), min(nl, region[3])
+            width, height = c2 - c1 + 1, l2 - l1 + 1
+            if width < 1 or height < 1:
+                continue
+            if width < height:
+                value = codes[0]
+            elif width > height:
+                value = codes[1]
+            else:
+                value = codes[3] if width == 1 else codes[2]
+            pixels[l1 - 1:l2, c1 - 1:c2] = value
+            for y in range(l1 - 1, l2):
+                mask.update(y, pixels[y])
+            regions += 1
+        written = plio.write(params.mask, mask, f"Pixel mask from file {params.text}")
+        return TaskResult(data={"regions": regions, "bad": int((pixels != 0).sum())},
+                          outputs=[written], steps=self.plan(params))
+
+
+# ------------------------------------------------------------------ mskexpr
+
+class MskExprParams(TaskParams):
+    expr: str = Field(..., description="The expression, or @file. i is the reference image, m "
+                                       "the reference mask, I J K the pixel.",
+                      json_schema_extra={"positional": True})
+    masks: str = Field(..., description="The masks to make; .pl is added if not there.",
+                       json_schema_extra={"positional": True})
+    refimages: str = Field("", description="A reference image for each mask: its size, its "
+                                           "header, the operand i.")
+    refmasks: str = Field("", description="A reference mask for each: the operand m.")
+    dims: str = Field("512,512", description="The mask's axes with nothing to refer to.")
+    depth: int = Field(0, description="The mask's depth in bits, up to and by default 27.")
+    exprdb: str = Field("none", description="A file of macros for the expression.")
+    verbose: bool = Field(True, description="Say what is being made.")
+
+
+REGIONS = {"point": 2, "circle": 3, "ellipse": 5, "box": 4, "rectangle": 5, "vector": 5,
+           "pie": 4, "cannulus": 4, "eannulus": 6, "rannulus": 6}
+
+
+def _region_function(name: str, args: list, npix: int, y: int, axlen: list[int]):
+    """me_fcn. None when it is not one of these, or has the wrong arguments."""
+    import numpy as np
+
+    from ..core import evexpr, evvexpr, mskregions
+
+    def number(o):
+        if o.type == evvexpr.CHAR:
+            value = evexpr._ctod(o.value.strip()) if o.value.strip() else 0.0
+            return np.float32(0.0 if value is None else value)
+        return np.float32(o.value) if not o.length else np.float32(0.0)
+
+    def done(stat):
+        return evvexpr.Op(evvexpr.BOOL, np.asarray(stat, dtype=np.int32))
+
+    nargs = len(args)
+    ix0 = np.arange(1, npix + 1, dtype=np.int32)
+    iy0 = np.full(npix, y, np.int32)
+    width, height = axlen[0], axlen[1] if len(axlen) > 1 else 1
+    if name in REGIONS:
+        if nargs == REGIONS[name] + 2:
+            ix, iy, values = args[0].value, args[1].value, args[2:]
+        elif nargs == REGIONS[name]:
+            ix, iy, values = ix0, iy0, args
+        else:
+            return None
+        numbers = [number(a) for a in values]
+        if name == "pie":
+            return done(mskregions.pie(ix, iy, *numbers, width, height))
+        return done(getattr(mskregions, name)(ix, iy, *numbers))
+    if name == "polygon" or name == "pannulus":
+        least = 6 if name == "polygon" else 7
+        if nargs < least:
+            return None
+        vectors = args[0].length > 0 and args[1].length > 0
+        ix, iy = (args[0].value, args[1].value) if vectors else (ix0, iy0)
+        numbers = [number(a) for a in (args[2:] if vectors else args)]
+        if name == "polygon":
+            nver = len(numbers) // 2
+            return done(mskregions.polygon(ix, iy, numbers[0:2 * nver:2],
+                                           numbers[1:2 * nver:2]))
+        nver = (len(numbers) - 1) // 2
+        xin, yin = numbers[1:2 * nver + 1:2], numbers[2:2 * nver + 1:2]
+        xout, yout = mskregions.expand(xin, yin, numbers[0])
+        return done(mskregions.apolygon(ix, iy, xin, yin, xout, yout))
+    if name in ("cols", "lines"):
+        if nargs == 2:
+            along, text = args[0].value, args[1]
+        elif nargs == 1:
+            along, text = (ix0 if name == "cols" else iy0), args[0]
+        else:
+            return None
+        try:
+            ranges = _decode_ranges(str(text.value), 1)
+        except ValueError:
+            ranges = _decode_ranges("-", 1)
+        if name == "cols":
+            stat = np.array([_in_ranges(ranges, k) for k in range(1, npix + 1)])
+        else:
+            stat = np.array([_in_ranges(ranges, int(k)) for k in along])
+        return done(stat)
+    return None
+
+
+@register
+class MskExpr(Task[MskExprParams]):
+    """IRAF's mskexpr: a mask from an expression over a reference image and a reference
+    mask, with regions: circle, box, polygon and the rest."""
+
+    name = "mskexpr"
+    package = "proto"
+    description = "A pixel mask from an expression and geometric regions."
+    Params = MskExprParams
+
+    def plan(self, params: MskExprParams) -> list[Step]:
+        return [Step("evaluate", params.expr, why=WHY["through a mask"]),
+                Step("write", params.masks, why=WHY["regions"])]
+
+    def execute(self, params: MskExprParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import evvexpr, images, imexpr, plio
+
+        text = params.expr
+        if text.startswith("@"):
+            file = Path(text[1:])
+            if not file.is_file():
+                advice.fail(f"no expression file '{file}'", "check the name after the @")
+            text = file.read_text().replace("\n", " ")
+        if params.exprdb not in ("none", ""):
+            text = imexpr.spaced(imexpr.expand(text, imexpr.read_macros(params.exprdb)))
+        masks = images.split_list(params.masks)
+        refs = images.split_list(params.refimages) if params.refimages.strip() else []
+        rmasks = images.split_list(params.refmasks) if params.refmasks.strip() else []
+        if refs and len(refs) != len(masks):
+            advice.fail("The reference image and output mask lists are not the same size",
+                        "give one reference image for each mask, or none")
+        if rmasks and len(rmasks) != len(masks):
+            advice.fail("The reference image and output mask lists are not the same size",
+                        "give one reference mask for each output mask, or none")
+        try:
+            expression = evvexpr.Expression(text)
+        except evvexpr.ExprError as e:
+            advice.fail(f"in the expression: {e}", f"the expression was: {params.expr}")
+        lines = [f"Expr: {text}"]
+        written = []
+        for k, name in enumerate(masks):
+            target = name if name.endswith(".pl") else name + ".pl"
+            if Path(target).exists():
+                lines.append(f"Mask {target} already exists")
+                continue
+            ref = refs[k] if refs else None
+            rmask = rmasks[k] if rmasks else None
+            lines += _saying(target, ref, rmask)
+            data, header = _evaluate(expression, ref, rmask, params, np, images, evvexpr,
+                                     imexpr)
+            mask = plio.Mask(list(reversed(data.shape)))
+            for line, pixels in enumerate(data.reshape(-1, data.shape[-1])):
+                mask.update(line, pixels)
+            written.append(plio.write(target, mask, header=header))
+        return TaskResult(data={"masks": len(written), "expression": text},
+                          stdout=lines if params.verbose else [], outputs=written,
+                          steps=self.plan(params))
+
+
+def _saying(target: str, ref, rmask) -> list[str]:
+    if ref and rmask:
+        return [f"Creating mask {target}",
+                f"    Using reference image {ref} and mask {rmask}"]
+    if ref or rmask:
+        return [f"Creating mask {target} using reference image {ref or rmask}"]
+    return [f"Creating mask {target}"]
+
+
+def _logical(name: str, shape, images, np):
+    """yt_mappm with a logical match: the mask cut or padded to the image."""
+    from ..core import pixmask
+
+    file, invert = pixmask.resolve(name)
+    data, _ = images.read(file)
+    mask = (data <= 0).astype(np.int64) if invert else data.astype(np.int64)
+    if mask.ndim != len(shape):
+        advice.fail(f"Reference image and mask for {name} don't match",
+                    "give them the same number of dimensions")
+    out = np.zeros(shape, np.int64)
+    box = tuple(slice(0, min(a, b)) for a, b in zip(shape, mask.shape, strict=True))
+    out[box] = mask[box]
+    return out
+
+
+def _evaluate(expression, ref, rmask, params, np, images, evvexpr, imexpr):
+    """me_mkmask: the expression once for each line, and an integer out of it."""
+    image = mask = header = None
+    kind = evvexpr.INT
+    if ref:
+        spec = images.parse(ref)
+        if not spec.path.exists():
+            advice.fail(f"Cannot open reference image {ref}", "check the name")
+        data, header = images.read(spec)
+        pixtype = imexpr.pixel_type(spec)
+        kind = {imexpr.USHORT: evvexpr.INT, evvexpr.SHORT: evvexpr.INT}.get(pixtype, pixtype)
+        image = data.astype(evvexpr.DTYPE[kind])
+        shape = image.shape
+    if rmask:
+        if ref:
+            mask = _logical(rmask, shape, images, np).astype(np.int32)
+        else:
+            spec = images.parse(rmask)
+            if not spec.path.exists():
+                advice.fail(f"Cannot open reference mask {rmask}", "check the name")
+            data, header = images.read(spec)
+            mask = data.astype(np.int32)
+            shape = mask.shape
+    if not ref and not rmask:
+        axes = [int(part) for part in params.dims.replace(",", " ").split()]
+        shape = tuple(reversed(axes))
+    mask_header = images.read_header(images.parse(rmask)) if rmask else None
+    npix = shape[-1]
+    nlines = int(np.prod(shape[:-1])) if len(shape) > 1 else 1
+    axlen = list(reversed(shape))
+    image_lines = None if image is None else image.reshape(-1, npix)
+    mask_lines = None if mask is None else mask.reshape(-1, npix)
+    position = [1] * 7
+    current = {"line": 0}
+
+    def getop(name):
+        line = current["line"]
+        if name == "i" and image_lines is not None:
+            return evvexpr.Op(kind, image_lines[line])
+        if name == "m" and mask_lines is not None:
+            return evvexpr.Op(evvexpr.INT, mask_lines[line])
+        if len(name) > 2 and name[0] in "im" and name[1] == ".":
+            source = header if name[0] == "i" and ref else mask_header
+            return None if source is None else imexpr._keyword(source, name[2:], name)
+        if len(name) == 1 and name.isupper():
+            axis = ord(name) - ord("I") + 1
+            if axis == 1:
+                return evvexpr.Op(evvexpr.INT, np.arange(1, npix + 1, dtype=np.int32))
+            at = position[axis - 1] if 1 <= axis <= 7 else 1
+            return evvexpr.Op(evvexpr.INT, np.full(npix, at, np.int32))
+        return None
+
+    def ufcn(name, args):
+        return _region_function(name, args, npix, position[1], axlen)
+
+    out = np.zeros((nlines, npix), np.int64)
+    limit = 2 ** (min(params.depth, 27) if params.depth > 0 else 27) - 1
+    for line in range(nlines):
+        current["line"] = line
+        for axis in range(1, len(axlen)):
+            span = int(np.prod(axlen[1:axis]))
+            position[axis] = line // span % axlen[axis] + 1
+        try:
+            value = expression.evaluate(getop, False, ufcn)
+        except evvexpr.ExprError as e:
+            advice.fail(f"in the expression: {e}", f"the expression was: {params.expr}")
+        if value.type in (evvexpr.REAL, evvexpr.DOUBLE):
+            advice.fail("Type real expressions are not supported",
+                        "a mask holds integers: use a comparison, or int() or nint()")
+        if value.type == evvexpr.CHAR:
+            advice.fail("Unknown expression value type", "a mask holds integers, not strings")
+        # A scalar gives nothing: IRAF's raster op for it is PIX_CLR, and clears the line.
+        if value.length:
+            n = min(value.length, npix)
+            out[line, :n] = np.asarray(value.value[:n], np.int64) & limit
+    kept = None if header is None else images.forget_limits(header.copy())
+    return out.reshape(shape), kept

@@ -251,12 +251,15 @@ class Expression:
             return ("operand", value)
         raise ExprError("syntax error")
 
-    def evaluate(self, getop: Callable[[str], Op | None], rangecheck: bool = True) -> Op:
+    def evaluate(self, getop: Callable[[str], Op | None], rangecheck: bool = True,
+                 ufcn: Callable[[str, list[Op]], Op | None] | None = None) -> Op:
+        """The value of the expression; ufcn, the caller's own functions, gets
+        what is not an intrinsic one, and None from it means no such function."""
         with np.errstate(all="ignore"):
-            return _run(self.tree, getop, rangecheck)
+            return _run(self.tree, getop, rangecheck, ufcn)
 
 
-def _run(node, getop, check: bool) -> Op:
+def _run(node, getop, check: bool, ufcn=None) -> Op:
     kind = node[0]
     if kind == "constant":
         return node[1]
@@ -266,15 +269,22 @@ def _run(node, getop, check: bool) -> Op:
             raise ExprError(f"unknown operand `{node[1]}'")
         return o
     if kind == "unop":
-        return unop(node[1], _run(node[2], getop, check))
+        return unop(node[1], _run(node[2], getop, check, ufcn))
     if kind == "binop":
-        return binop(node[1], _run(node[2], getop, check), _run(node[3], getop, check), check)
+        return binop(node[1], _run(node[2], getop, check, ufcn),
+                     _run(node[3], getop, check, ufcn), check)
     if kind == "boolop":
-        return boolop(node[1], _run(node[2], getop, check), _run(node[3], getop, check))
+        return boolop(node[1], _run(node[2], getop, check, ufcn),
+                      _run(node[3], getop, check, ufcn))
     if kind == "quest":
-        return quest(_run(node[1], getop, check), _run(node[2], getop, check),
-                     _run(node[3], getop, check))
-    return call(node[1], [_run(arg, getop, check) for arg in node[2]], check)
+        return quest(_run(node[1], getop, check, ufcn), _run(node[2], getop, check, ufcn),
+                     _run(node[3], getop, check, ufcn))
+    args = [_run(arg, getop, check, ufcn) for arg in node[2]]
+    if node[1] not in FUNCTIONS and ufcn is not None:
+        found = ufcn(node[1], args)
+        if found is not None:
+            return found
+    return call(node[1], args, check)
 
 
 # -------------------------------------------------------------- the operators

@@ -1,0 +1,145 @@
+{
+"cases": {
+"noimage": {
+"params": {
+"image": ""
+},
+"text": "1.5 2.5 \n10. 20. 101\n10.25 20.75 101 a\n33.3 44.4 101 \\040\n5. 6. 101 :command with words\n7.125 8.5 102 b\n9. 9. \n100. 2.01666666666667 101 x y   \n3. 4. 101    z\n",
+"error": ""
+},
+"logical": {
+"params": {
+"image": "tan.fits"
+},
+"text": "1.5 2.5 \n10. 20. 101\n10.25 20.75 101 a\n33.3 44.4 101 \\040\n5. 6. 101 :command with words\n7.125 8.5 102 b\n9. 9. \n100. 2.01666666666667 101 x y   \n3. 4. 101    z\n",
+"error": ""
+},
+"physical": {
+"params": {
+"image": "tan.fits",
+"wcs": "physical"
+},
+"text": "1.5 2.5 \n10. 20. 101\n10.25 20.75 101 a\n33.3 44.4 101 \\040\n5. 6. 101 :command with words\n7.125 8.5 102 b\n9. 9. \n100. 2.01666666666667 101 x y   \n3. 4. 101    z\n",
+"error": ""
+},
+"world": {
+"params": {
+"image": "tan.fits",
+"wcs": "world"
+},
+"text": "150.253861535357 -33.5021399401058 \n150.253057967996 -33.4998699624415 101\n150.253039976613 -33.4997749628822 101 a\n150.250290195781 -33.4964759996662 101 \\040\n150.253441783771 -33.5016499524199 101 :command with words\n150.253195929429 -33.501307458975 102 b\n150.252938093164 -33.5012099653275 \n150.239675218137 -33.5002275718394 101 x y   \n150.253681641238 -33.5019299455567 101    z\n",
+"error": ""
+},
+"section-log": {
+"params": {
+"image": "tan.fits[11:40,6:20]"
+},
+"text": "1.5 2.5 \n10. 20. 101\n10.25 20.75 101 a\n33.3 44.4 101 \\040\n5. 6. 101 :command with words\n7.125 8.5 102 b\n9. 9. \n100. 2.01666666666667 101 x y   \n3. 4. 101    z\n",
+"error": ""
+},
+"section-phy": {
+"params": {
+"image": "tan.fits[11:40,6:20]",
+"wcs": "physical"
+},
+"text": "11.5 7.5 \n20. 25. 101\n20.25 25.75 101 a\n43.3 49.4 101 \\040\n15. 11. 101 :command with words\n17.125 13.5 102 b\n19. 14. \n110. 7.01666666666667 101 x y   \n13. 9. 101    z\n",
+"error": ""
+},
+"section-wor": {
+"params": {
+"image": "tan.fits[11:40,6:20]",
+"wcs": "world"
+},
+"text": "150.252542353822 -33.5013399740386 \n150.251738828478 -33.4990699878564 101\n150.251720838709 -33.4989749881064 101 a\n150.248971133557 -33.4956759957568 101 \\040\n150.252122613582 -33.5008499819036 101 :command with words\n150.25187676673 -33.5005074858529 102 b\n150.251618934334 -33.500409989473 \n150.238356196888 -33.4994274554604 101 x y   \n150.252362464566 -33.5011299775827 101    z\n",
+"error": ""
+},
+"step": {
+"params": {
+"image": "lin.fits[*:2,*:3]",
+"wcs": "physical"
+},
+"text": "-2. 15. \n32. 120. 101\n33. 124.5 101 a\n125.2 266.4 101 \\040\n12. 36. 101 :command with words\n20.5 51. 102 b\n28. 54. \n392. 12.1 101 x y   \n4. 24. 101    z\n",
+"error": ""
+},
+"lin-world": {
+"params": {
+"image": "lin.fits",
+"wcs": "world"
+},
+"text": "4001.25 7.75 \n4022.5 16.5 101\n4023.125 16.875 101 a\n4080.75 28.7 101 \\040\n4010. 9.5 101 :command with words\n4015.3125 10.75 102 b\n4020. 11. \n4247.5 7.50833333333333 101 x y   \n4005. 8.5 101    z\n",
+"error": ""
+},
+"attrs": {
+"params": {
+"image": "attrs.fits",
+"wcs": "world"
+},
+"text": "      150.      -34. \n      150.      -33. 101\n      150.      -33. 101 a\n      150.      -33. 101 \\040\n      150.      -34. 101 :command with words\n      150.      -34. 102 b\n      150.      -34. \n      150.      -34. 101 x y   \n      150.      -34. 101    z\n",
+"error": ""
+},
+"wx": {
+"params": {
+"image": "tan.fits",
+"wcs": "world",
+"wxformat": "%12.2H",
+"wyformat": "%12.1h"
+},
+"text": " 10:01:00.93  -33:30:07.7 \n 10:01:00.73  -33:29:59.5 101\n 10:01:00.73  -33:29:59.2 101 a\n 10:01:00.07  -33:29:47.3 101 \\040\n 10:01:00.83  -33:30:05.9 101 :command with words\n 10:01:00.77  -33:30:04.7 102 b\n 10:01:00.71  -33:30:04.4 \n 10:00:57.52  -33:30:00.8 101 x y   \n 10:01:00.88  -33:30:06.9 101    z\n",
+"error": ""
+},
+"wf": {
+"params": {
+"image": "lin.fits",
+"wcs": "world",
+"wxformat": "%8.3f"
+},
+"text": "4001.250 7.75 \n4022.500 16.5 101\n4023.125 16.875 101 a\n4080.750 28.7 101 \\040\n4010.000 9.5 101 :command with words\n4015.312 10.75 102 b\n4020.000 11. \n4247.500 7.50833333333333 101 x y   \n4005.000 8.5 101    z\n",
+"error": ""
+},
+"wy": {
+"params": {
+"image": "lin.fits",
+"wyformat": "%g"
+},
+"text": "1.5 2.5 \n10. 20. 101\n10.25 20.75 101 a\n33.3 44.40000000000001 101 \\040\n5. 6. 101 :command with words\n7.125 8.5 102 b\n9. 9. \n100. 2.016666666666667 101 x y   \n3. 4. 101    z\n",
+"error": ""
+},
+"none": {
+"params": {
+"image": "nothing.fits"
+},
+"text": "1.5 2.5 \n10. 20. 101\n10.25 20.75 101 a\n33.3 44.4 101 \\040\n5. 6. 101 :command with words\n7.125 8.5 102 b\n9. 9. \n100. 2.01666666666667 101 x y   \n3. 4. 101    z\n",
+"error": ""
+},
+"badwcs": {
+"params": {
+"image": "tan.fits",
+"wcs": "bogus"
+},
+"text": "",
+"error": "Error running IRAF task rimcursor IRAF task terminated abnormally ERROR (995, \"MWCS: coordinate system not defined (bogus)\u0007\") "
+}
+},
+"bad": {
+"one": {
+"cursor": "1\n",
+"text": "",
+"error": "Error running IRAF task rimcursor IRAF task terminated abnormally ERROR (1, \"bad cursor read\u0007\") "
+},
+"word": {
+"cursor": "abc 3\n",
+"text": "",
+"error": "Error running IRAF task rimcursor IRAF task terminated abnormally ERROR (1, \"bad cursor read\u0007\") "
+},
+"blank": {
+"cursor": "1 2\n\n3 4\n",
+"text": "1. 2. \n",
+"error": "Error running IRAF task rimcursor IRAF task terminated abnormally ERROR (1, \"bad cursor read\u0007\") "
+},
+"comment": {
+"cursor": "1 2\n# c\n3 4\n",
+"text": "1. 2. \n",
+"error": "Error running IRAF task rimcursor IRAF task terminated abnormally ERROR (1, \"bad cursor read\u0007\") "
+}
+}
+}

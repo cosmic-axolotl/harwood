@@ -281,11 +281,14 @@ def test_the_migration_map_tells_the_truth_about_what_runs():
 
 def test_a_task_listed_as_available_is_actually_registered():
     """The other direction: the map must not promise what does not exist."""
+    from harwood.cli.main import app
     from harwood.core.registry import exists
 
     for name, entry in migration.tasks().items():
         if entry["status"] in ("available", "partial"):
-            assert exists(entry.get("harwood", name)), \
+            target = entry.get("harwood", name)
+            # help, phelp and references are commands of the line, not tasks
+            assert exists(target) or target in app.commands, \
                 f"the map claims '{name}' runs, but no task is registered for it"
 
 
@@ -434,7 +437,9 @@ def test_the_counts_in_the_map_are_the_counts_in_the_map():
 
     milestone = Counter(entry["milestone"] for entry in tasks.values()
                         if entry.get("milestone"))
-    running = list_tasks()
+    from harwood.cli.main import app
+
+    running = set(list_tasks()) | set(app.commands)
     done = sum(1 for name, entry in tasks.items()
                if entry.get("milestone") == "mvp"
                and entry.get("harwood", name) in running)

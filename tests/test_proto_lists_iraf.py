@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 from astropy.io import fits
 
+from harwood.core import plio
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_proto_lists"
@@ -116,8 +117,8 @@ def test_mimstatistics_prints_what_iraf_prints(work, case):
     result = _mimstat(expected["params"])
     assert result.stdout == expected["stdout"]
     if "omask" in expected:
-        name = Path(expected["params"]["omasks"]).with_suffix(".fits")
-        assert fits.getdata(name).ravel().tolist() == expected["omask"]
+        name = Path(expected["params"]["omasks"]).with_suffix(".pl")
+        assert plio.read(name)[0].ravel().tolist() == expected["omask"]
 
 
 @pytest.mark.parametrize("case", sorted(MIMSTAT_REFUSED))

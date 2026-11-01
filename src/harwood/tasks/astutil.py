@@ -1077,3 +1077,85 @@ def _site(params, observatory, header):
             "reduction's own with `harwood observatory set <code>`. "
             "'harwood observatory' lists the sites it knows.")
     return site
+
+
+# ------------------------------------------------------------------ precess
+
+class PrecessParams(TaskParams):
+    input: list[str] = Field(
+        ..., description="Files of coordinates: ra dec, and if different the years of "
+                         "that line. STDIN reads them from the terminal.",
+        json_schema_extra={"positional": True},
+    )
+    startyear: float = Field(1950.0, description="The equinox of the coordinates.")
+    endyear: float = Field(1984.0, description="The year to precess them to.")
+    stdepoch: float = Field(0.0, description="A second year to give each in, 0 for none.")
+
+
+def scan_doubles(line: str) -> list[float]:
+    """fscan and gargd: the numbers at the start of a line, sexagesimal or not."""
+    import re
+
+    from ..core import iraffmt
+
+    values = []
+    for word in line.split():
+        found = re.match(r"[-+]?(\d+\.?\d*|\.\d+)(:\d+\.?\d*)*([eEdD][-+]?\d+)?", word)
+        if found is None:
+            break
+        values.append(iraffmt.ctod(found[0]))
+        if found.end() != len(word):
+            break
+    return values
+
+
+@register
+class Precess(Task[PrecessParams]):
+    """IRAF's precess: coordinates in a file from one equinox to another, printed as it
+    prints them."""
+
+    name = "precess"
+    package = "astutil"
+    description = "Precess a list of coordinates to another year."
+    Params = PrecessParams
+
+    def plan(self, params: PrecessParams) -> list[Step]:
+        return [Step("compute", f"from {params.startyear:g} to {params.endyear:g}",
+                     why="A catalogue's coordinates and the telescope's are of different "
+                         "years, and the sky has turned between them.")]
+
+    def execute(self, params: PrecessParams) -> TaskResult:
+        import sys
+
+        from ..core import asttools, images, iraffmt
+
+        hms = iraffmt.Format("%13.2h")
+        year = iraffmt.Format("%7.1f")
+        second = iraffmt.Format("%18.2h")
+        dec2 = iraffmt.Format("%12.2h")
+        lines, warnings = [], []
+        names = [word for item in params.input for word in images.split_list(item)]
+        for name in names:
+            if name == "STDIN":
+                text = sys.stdin.read()
+            else:
+                file = Path(name)
+                if not file.is_file():
+                    advice.fail(f"Cannot open file ({name})", "check the name of the list")
+                text = file.read_text(errors="replace")
+            for line in text.splitlines():
+                values = scan_doubles(line)
+                if len(values) < 2:
+                    warnings.append(advice.warn("Bad entry in coordinate list", line[:60]))
+                    continue
+                ra, dec = values[0], values[1]
+                y1 = values[2] if len(values) > 2 else params.startyear
+                y2 = values[3] if len(values) > 3 else params.endyear
+                ra2, dec2_ = asttools.precess(ra, dec, y1, y2)
+                out = f"{hms(ra2)} {hms(dec2_)} {year(y2)}"
+                if params.stdepoch != 0:
+                    ra3, dec3 = asttools.precess(ra, dec, y1, params.stdepoch)
+                    out += f"{second(ra3)} {dec2(dec3)} {year(params.stdepoch)}"
+                lines.append(out)
+        return TaskResult(data={"coordinates": len(lines)}, stdout=lines, warnings=warnings,
+                          steps=self.plan(params))

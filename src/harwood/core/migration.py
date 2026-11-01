@@ -89,3 +89,27 @@ def explain(name: str) -> str | None:
     else:
         base = f"'{name}' ({entry['pkg']}) will not be ported"
     return f"{base}: {note}." if note else f"{base}."
+
+
+def references(topic: str) -> list[tuple[str, str]]:
+    """IRAF's references: `keyword - one line` for what matches the topic, a pattern as
+    match takes it and without regard to case. The tasks that run here first, by their
+    name and description; then the IRAF names that do not, by name and note."""
+    from .evexpr import patmatch
+    from .registry import list_tasks
+
+    pattern = "{" + topic + "}"
+    found = [
+        (name, cls.description)
+        for name, cls in sorted(list_tasks().items())
+        if patmatch(f"{name} - {cls.description}", pattern) > 0
+    ]
+    running = {name for name, _ in found}
+    for name, entry in sorted(tasks().items()):
+        if name in running or name in list_tasks():
+            continue
+        note = entry.get("note", "")
+        if patmatch(f"{name} - {note}", pattern) > 0:
+            said = f"{entry['status']} in harwood" + (f": {note}" if note else "")
+            found.append((name, said))
+    return found

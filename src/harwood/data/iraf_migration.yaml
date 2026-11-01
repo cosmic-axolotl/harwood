@@ -22,8 +22,8 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 55, partial: 17, planned: 283, replaced: 94, wontport: 161
-#   milestone mvp: 57 (42 of them running), later: 298
+#   available: 66, partial: 21, planned: 268, replaced: 94, wontport: 161
+#   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
 # through the MVP can still be counted. Dropping it on completion --
@@ -257,7 +257,8 @@ tasks:
   astcalc: {pkg: astutil, domain: headers, status: planned, milestone: later}
   asthedit: {pkg: astutil, domain: headers, status: planned, milestone: later}
   ccdhedit: {pkg: imred.ccdred, domain: headers, status: planned, milestone: later}
-  ccdinstrument: {pkg: imred.ccdred, domain: headers, status: planned, milestone: mvp}
+  ccdinstrument: {pkg: imred.ccdred, domain: headers, status: available, milestone: mvp, harwood: ccdinstrument,
+    note: "IRAF's table and commands, character by character"}
   ccdlist: {pkg: imred.ccdred, domain: headers, status: available, milestone: mvp, harwood: ccdlist}
   hedit: {pkg: images.imutil, domain: headers, status: available, milestone: mvp, harwood: hedit,
     note: "hedit.x ported with IRAF's evexpr: parenthesised expressions ($, $I, $F, the functions, IRAF's integer and single-precision rules), . to print, wildcards, add, addonly, delete, verify, show -- the same lines and cards as IRAF 2.18 on 52 edits. Where IRAF writes an unquoted word into a numeric or logical card (invalid FITS) harwood writes the valid card; the old value goes to HISTORY"}
@@ -323,7 +324,7 @@ tasks:
   imsum: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imtile: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   mimstatistics: {pkg: proto, domain: arithmetic, status: available, milestone: mvp, harwood: mimstatistics,
-    note: "IRAF's lines through masks, limits and clipping; the output mask is FITS until harwood writes .pl"}
+    note: "IRAF's lines through masks, limits and clipping; output masks as .pl"}
   minmax: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: minmax,
     note: "IRAF's values, positions and limits, line by line; a section is always measured and NaN left out"}
   phistogram: {pkg: plot, domain: arithmetic, status: planned, milestone: later}
@@ -408,10 +409,12 @@ tasks:
   zerocombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: zerocombine}
 
   # --- ccd-reduction (core, 42 tasks) ---------------------------
-  badpiximage: {pkg: [imred.ccdred, nobsolete], domain: ccd-reduction, status: planned, milestone: mvp}
+  badpiximage: {pkg: [imred.ccdred, nobsolete], domain: ccd-reduction, status: available, milestone: mvp, harwood: badpiximage,
+    note: "IRAF's pixels and header; untrimmed coordinates, where IRAF dies, by its formula"}
   ccdgroups: {pkg: imred.ccdred, domain: ccd-reduction, status: available, milestone: mvp, harwood: ccdgroups,
     note: "every grouping, checked against IRAF's group files"}
-  ccdmask: {pkg: imred.ccdred, domain: ccd-reduction, status: planned, milestone: mvp}
+  ccdmask: {pkg: imred.ccdred, domain: ccd-reduction, status: available, milestone: mvp, harwood: ccdmask,
+    note: "IRAF's bytes on a frame of one block of columns; over that but for what was in its buffer"}
   ccdproc: {pkg: imred.ccdred, domain: ccd-reduction, status: partial, milestone: mvp, harwood: ccdproc,
     note: "fixpix, overscan, trim, zero, dark and flat, with header marks, ccdtype selection and calibrations discovered from the input list by type and subset; no illum, fringe, readcor or scancor"}
   cosmicrays: {pkg: imred.crutil, domain: ccd-reduction, status: partial,
@@ -471,10 +474,12 @@ tasks:
   fixpix: {pkg: proto, domain: masks, status: available, milestone: mvp,
     note: "IRAF's interpolation, ported and identical to IRAF's output; masks as FITS, .pl, BPM/!KEY, sections or region files (IRAF's 2/3 values), matched by LTV; verbose and the pixels listing, and the FIXPIX keyword, as IRAF writes them. Writes a new file unless --output names the input's directory"}
   imedit: {pkg: images.tv, domain: masks, status: planned, milestone: later}
-  mskexpr: {pkg: proto, domain: masks, status: planned, milestone: mvp}
+  mskexpr: {pkg: proto, domain: masks, status: available, milestone: mvp, harwood: mskexpr,
+    note: "IRAF's bytes for every region and operand; more than 8 vertices allowed"}
   mskregions: {pkg: proto, domain: masks, status: planned, milestone: later}
   objmasks: {pkg: nproto, domain: masks, status: planned, milestone: later}
-  text2mask: {pkg: proto, domain: masks, status: planned, milestone: mvp}
+  text2mask: {pkg: proto, domain: masks, status: available, milestone: mvp, harwood: text2mask,
+    note: "IRAF's bytes for regions of a line; a rectangle of several lines is whole, where IRAF's loses most of it"}
 
   # --- astrometry (later, 36 tasks) -----------------------------
   acatpars: {pkg: astcat, domain: astrometry, status: replaced,
@@ -518,7 +523,8 @@ tasks:
   imcctran: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
   mkcwcs: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
   mkcwwcs: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
-  precess: {pkg: astutil, domain: astrometry, status: planned, milestone: mvp}
+  precess: {pkg: astutil, domain: astrometry, status: available, milestone: mvp, harwood: precess,
+    note: "IRAF's lines"}
   skyctran: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
   skygroup: {pkg: nproto, domain: astrometry, status: planned, milestone: later}
   skysep: {pkg: nproto, domain: astrometry, status: planned, milestone: later}
@@ -588,7 +594,8 @@ tasks:
   rgbto8: {pkg: proto.color, domain: display, status: wontport,
     note: "raster and text-image conversion: any image library does this. For pictures of an image as displayed (PNG, JPEG, TIFF, WebP), harwood has impicture"}
   rgcursor: {pkg: lists, domain: display, status: planned, milestone: later}
-  rimcursor: {pkg: lists, domain: display, status: planned, milestone: mvp}
+  rimcursor: {pkg: lists, domain: display, status: available, milestone: mvp, harwood: rimcursor,
+    note: "IRAF's lines from a list of reads, and from the window's cursor"}
   sgidecode: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   sgikern: {pkg: plot, domain: display, status: wontport,
@@ -856,11 +863,15 @@ tasks:
   daotest: {pkg: digiphot.daophot, domain: synthetic-data, status: planned, milestone: later}
   gallist: {pkg: artdata, domain: synthetic-data, status: planned, milestone: later}
   mkexamples: {pkg: artdata, domain: synthetic-data, status: planned, milestone: later}
-  mknoise: {pkg: artdata, domain: synthetic-data, status: planned, milestone: mvp}
-  mkobjects: {pkg: artdata, domain: synthetic-data, status: planned, milestone: mvp}
-  mkpattern: {pkg: artdata, domain: synthetic-data, status: planned, milestone: mvp}
+  mknoise: {pkg: artdata, domain: synthetic-data, status: available, milestone: mvp, harwood: mknoise,
+    note: "IRAF's numbers for a seed, generator included; no ranbuf"}
+  mkobjects: {pkg: artdata, domain: synthetic-data, status: partial, milestone: mvp, harwood: mkobjects,
+    note: "IRAF's numbers for a seed, with stars and galaxies by formula; profiles from files or images not here"}
+  mkpattern: {pkg: artdata, domain: synthetic-data, status: available, milestone: mvp, harwood: mkpattern,
+    note: "IRAF's pixels for every pattern and type"}
   pttest: {pkg: digiphot.ptools, domain: synthetic-data, status: planned, milestone: later}
-  starlist: {pkg: artdata, domain: synthetic-data, status: planned, milestone: mvp}
+  starlist: {pkg: artdata, domain: synthetic-data, status: partial, milestone: mvp, harwood: starlist,
+    note: "IRAF's lines for a seed; functions from files and the interactive plots not here"}
 
   # --- tables (out, 37 tasks) -----------------------------------
   gtedit: {pkg: utilities.nttools, domain: tables, status: replaced,
@@ -941,8 +952,8 @@ tasks:
   # --- fitting-lists (later, 20 tasks) --------------------------
   bases: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
   columns: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
-  curfit: {pkg: utilities, domain: fitting-lists, status: planned, milestone: mvp,
-    note: "icfit lives here: the interactive fit reused by dozens of tasks"}
+  curfit: {pkg: utilities, domain: fitting-lists, status: partial, milestone: mvp, harwood: curfit,
+    note: "IRAF's digits in real and double; what a session sets is in options, and the session itself not here"}
   detab: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
   entab: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
   fields: {pkg: proto, domain: fitting-lists, status: planned, milestone: later}
@@ -1025,8 +1036,8 @@ tasks:
   fcache: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   gripes: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   head: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
-  help: {pkg: system, domain: system, status: planned, milestone: mvp,
-    note: "harwood help <task> prints the manual -- the text of the task's page in the documentation (harwood docs); IRAF's help as a task of its own, with its parameters, is not built"}
+  help: {pkg: system, domain: system, status: partial, milestone: mvp, harwood: help,
+    note: "harwood help <task> prints the manual, the text of the task's page in the documentation (harwood docs); IRAF's options of help, by parameter or section, are not here"}
   lprint: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   mkdir: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   mkscript: {pkg: system, domain: system, status: wontport,
@@ -1037,11 +1048,12 @@ tasks:
   page: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   pathnames: {pkg: system, domain: system, status: wontport,
     note: the shell does this; harwood tasks run from bash (S4)}
-  phelp: {pkg: system, domain: system, status: planned, milestone: mvp}
+  phelp: {pkg: system, domain: system, status: available, milestone: mvp, harwood: phelp,
+    note: "harwood help, in the pager"}
   protect: {pkg: system, domain: system, status: wontport,
     note: the shell does this; harwood tasks run from bash (S4)}
-  references: {pkg: system, domain: system, status: planned, milestone: mvp,
-    note: "search by description: the discoverability fix of S2"}
+  references: {pkg: system, domain: system, status: available, milestone: mvp, harwood: references,
+    note: "search by description, of what runs here and of IRAF's names: the discoverability fix of S2"}
   rename: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   sort: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   spy: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}

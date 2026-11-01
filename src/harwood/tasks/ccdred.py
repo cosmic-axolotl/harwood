@@ -1335,3 +1335,239 @@ class CcdGroups(Task[CcdGroupsParams]):
         outputs = sorted({Path(target) for _, target in assignments})
         return TaskResult(outputs=outputs, data={"rows": rows}, warnings=warnings,
                           steps=self.plan(params))
+
+
+# -------------------------------------------------------------- badpiximage
+
+class BadPixImageParams(TaskParams):
+    fixfile: str = Field(..., description="The bad pixel file: column line, or c1 c2 l1 l2.",
+                         json_schema_extra={"positional": True})
+    template: str = Field(..., description="The image that gives the size and the header.",
+                          json_schema_extra={"positional": True})
+    image: str = Field(..., description="The image to make; .pl makes a mask file.",
+                       json_schema_extra={"positional": True})
+    goodvalue: int = Field(1, description="The value of a good pixel.")
+    badvalue: int = Field(0, description="The value of a bad pixel.")
+
+
+@register
+class BadPixImage(Task[BadPixImageParams]):
+    """IRAF's badpiximage: an image of the template's size from a bad pixel file, with
+    its sense of good and bad: 1 is good, unlike a mask. A comment with the word
+    untrimmed says the coordinates are of the frame before its trim."""
+
+    name = "badpiximage"
+    package = "ccdred"
+    description = "An image of the bad pixels from a bad pixel file."
+    Params = BadPixImageParams
+
+    def plan(self, params: BadPixImageParams) -> list[Step]:
+        return [Step("write", f"{params.fixfile} -> {params.image}",
+                     why="To see the bad pixels against the data, blink one against the "
+                         "other, or to carry them through arithmetic.")]
+
+    def execute(self, params: BadPixImageParams) -> TaskResult:
+        import re
+
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import images, plio, provenance
+        from .proto import _region, scan_ints
+
+        file = Path(params.fixfile)
+        if not file.is_file():
+            advice.fail(f"Cannot open file ({params.fixfile})",
+                        "check the bad pixel file's name")
+        header = images.read_header(params.template)
+        nc, nl = int(header["NAXIS1"]), int(header["NAXIS2"])
+        pixels = np.full((nl, nc), params.goodvalue, dtype=np.int16)
+        x1, xstep, y1, ystep = 1, 1, 1, 1
+        for line in file.read_text(errors="replace").splitlines():
+            words = line.split()
+            if words and words[0].startswith("#"):
+                if "untrimmed" in line.lower() and "TRIM" in header:
+                    found = re.search(r"\[(.*?)\]", str(header["TRIM"]))
+                    if found:
+                        x1, xstep, y1, ystep = _section(found[1], nc, nl)
+                continue
+            region = _region(scan_ints(line))
+            if region is None:
+                continue
+            c1 = max(1, _idiv(region[0] - x1 + xstep - 1, xstep) + 1)
+            c2 = min(nc, _idiv(region[1] - x1, xstep) + 1)
+            l1 = max(1, _idiv(region[2] - y1 + ystep - 1, ystep) + 1)
+            l2 = min(nl, _idiv(region[3] - y1, ystep) + 1)
+            if c1 > c2 or l1 > l2:
+                continue
+            pixels[l1 - 1:l2, c1 - 1:c2] = params.badvalue
+        out = images.forget_limits(header.copy())
+        out["OBJECT"] = f"Bad pixel image from bad pixel file {params.fixfile}"
+        target = images.parse(params.image).path
+        if target.suffix == ".pl":
+            written = plio.write(target, pixels.astype(np.int64), header=out)
+        else:
+            provenance.stamp_header(out, [f"badpiximage: from {params.fixfile}"])
+            fits.PrimaryHDU(pixels, out).writeto(target, overwrite=True)
+            written = target
+        return TaskResult(data={"bad": int((pixels == params.badvalue).sum())},
+                          outputs=[written], steps=self.plan(params))
+
+
+def _idiv(a: int, b: int) -> int:
+    """Fortran's integer division, toward zero."""
+    return int(a / b)
+
+
+def _section(text: str, nc: int, nl: int) -> tuple[int, int, int, int]:
+    """ccd_section, of what it takes here: first and step along x and y."""
+    out = []
+    for part in text.split(",")[:2]:
+        pieces = part.strip().split(":")
+        first = 1 if pieces[0] in ("", "*") else int(pieces[0])
+        step = int(pieces[2]) if len(pieces) > 2 else 1
+        out += [first, step]
+    while len(out) < 4:
+        out += [1, 1]
+    return out[0], out[1], out[2], out[3]
+
+
+# ------------------------------------------------------------------ ccdmask
+
+class CcdMaskParams(TaskParams):
+    image: str = Field(..., description="A flat field, or better the ratio of two at "
+                                        "different exposure levels.",
+                       json_schema_extra={"positional": True})
+    mask: str = Field(..., description="The mask to make; .pl is added if not there.",
+                      json_schema_extra={"positional": True})
+    ncmed: int = Field(7, ge=1, description="Columns of the moving median.")
+    nlmed: int = Field(7, ge=1, description="Lines of the moving median.")
+    ncsig: int = Field(15, ge=10, description="Columns of the box the sigma is measured in.")
+    nlsig: int = Field(15, ge=10, description="Lines of the box the sigma is measured in.")
+    lsigma: float = Field(6.0, description="How many sigma below the median is bad.")
+    hsigma: float = Field(6.0, description="How many sigma above the median is bad.")
+    ngood: int = Field(5, ge=1, description="A good stretch of a column shorter than this "
+                                            "is bad too.")
+    linterp: int = Field(2, ge=1, description="Value where the run is narrower along lines.")
+    cinterp: int = Field(3, ge=1, description="Value where it is narrower along columns.")
+    eqinterp: int = Field(2, ge=1, description="Value where they are equal.")
+
+
+@register
+class CcdMask(Task[CcdMaskParams]):
+    """IRAF's ccdmask: a mask of the pixels that deviate from a local median, with a
+    search along columns for traps too weak to show pixel by pixel."""
+
+    name = "ccdmask"
+    package = "ccdred"
+    description = "A bad pixel mask from a flat field or a ratio of flats."
+    Params = CcdMaskParams
+
+    def plan(self, params: CcdMaskParams) -> list[Step]:
+        return [Step("measure", f"{params.image}: median {params.ncmed}x{params.nlmed}, "
+                                f"sigma in {params.ncsig}x{params.nlsig}",
+                     why="A ratio of two flats at different levels leaves only what does "
+                         "not flat field, and what stands out from it is really bad."),
+                Step("write", params.mask, why="A mask, to give to fixpix or ccdproc.")]
+
+    def execute(self, params: CcdMaskParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import images, plio
+        from ..core.ccdmask import ccdmask
+
+        data, header = images.read(params.image)
+        if data.ndim != 2:
+            advice.fail(f"{params.image} is not two-dimensional",
+                        "give a frame, or a section of one")
+        if data.shape[1] <= params.ncsig or data.shape[0] < params.nlsig:
+            advice.fail(f"{params.image} is smaller than the box for the sigma, "
+                        f"{params.ncsig}x{params.nlsig}",
+                        "use a larger frame, or a smaller --ncsig and --nlsig")
+        mask = ccdmask(data, params.ncmed, params.nlmed, params.ncsig, params.nlsig,
+                       params.lsigma, params.hsigma, params.ngood, params.linterp,
+                       params.cinterp, params.eqinterp)
+        written = plio.write(params.mask, mask.astype(np.int64), header=header)
+        return TaskResult(data={"bad": int((mask != 0).sum()), "pixels": int(mask.size)},
+                          outputs=[written], steps=self.plan(params))
+
+
+class CcdInstrumentParams(TaskParams):
+    images: list[str] = Field(
+        ..., description="The images to try the translations on.",
+        json_schema_extra={"positional": True},
+    )
+    instrument: str = Field(
+        "", description="The translation file, or the one in harwood.yaml if not given."
+    )
+    ssfile: str = Field("subsets", description="The record of subset identifiers, added to.")
+    edit: bool = Field(True, description="Take commands; without it, only the table.")
+    parameters: Literal["basic", "common", "all"] = Field(
+        "basic", description="How many of the parameters the table has."
+    )
+
+
+@register
+class CcdInstrument(Task[CcdInstrumentParams]):
+    """IRAF's ccdinstrument: what an instrument file makes of an image's header, a table
+    of parameter, keyword, default and values, and the commands to change it."""
+
+    name = "ccdinstrument"
+    package = "ccdred"
+    description = "Review and edit instrument translation files."
+    Params = CcdInstrumentParams
+
+    def plan(self, params: CcdInstrumentParams) -> list[Step]:
+        return [
+            Step(
+                "show",
+                f"the translations of {params.instrument or 'harwood.yaml'} for "
+                f"{', '.join(params.images)}",
+                why="A wrong keyword here is a frame processed as what it is not.",
+            )
+        ]
+
+    def execute(self, params: CcdInstrumentParams) -> TaskResult:
+        import sys
+
+        from ..core import ccdinstsession, images
+        from ..core import params as store
+
+        name = params.instrument
+        if not name:
+            document, _ = store.load_project(None)
+            name = str(document.get("instrument") or "")
+        table: list[str] = []
+
+        def read():
+            line = sys.stdin.readline()
+            return line.rstrip("\n") if line else None
+
+        def live(text):
+            sys.stdout.write(text)
+            sys.stdout.flush()
+
+        def err(text):
+            sys.stderr.write(text)
+            sys.stderr.flush()
+
+        write = live if params.edit else table.append
+        session = ccdinstsession.Session(
+            name, params.ssfile, params.parameters, read, write, err
+        )
+        for spec in images.expand(params.images):
+            label = str(spec)
+            header = ccdinstsession.open_image(label)
+            if header is None:
+                err(f"Warning: Cannot open image ({label})\n")
+                continue
+            session.image, session.header = label, header
+            if params.edit:
+                session.edit(label, header)
+            else:
+                session.show()
+            if session.ncmd == "quit":
+                break
+        session.finish()
+        stdout = "".join(table).split("\n")[:-1] if table else []
+        return TaskResult(data={"instrument": name}, stdout=stdout, steps=self.plan(params))

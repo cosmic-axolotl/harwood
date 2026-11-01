@@ -72,6 +72,8 @@ def pixel_type(spec) -> str:
     """IM_PIXTYPE: BITPIX and the scaling on disk, which astropy hides."""
     from astropy.io import fits
 
+    if spec.path.suffix == ".pl":
+        return INT
     with fits.open(str(spec.path), memmap=False, do_not_scale_image_data=True) as hdul:
         index = images._resolve_extension(hdul, spec.extension)
         h = hdul[index].header
@@ -223,6 +225,16 @@ def expand(text: str, macros: dict[str, tuple[int, str]], depth: int = 0) -> str
             body = body.replace(f"${n}", arg)
         out.append(expand(body, macros, depth + 1))
     return "".join(out)
+
+
+_TOKEN = re.compile(r"""\"[^\"]*\"|\'[^\']*\'|[A-Za-z_][A-Za-z0-9_$.]*"""
+                    r"""|\d+\.?\d*(?:[eEdD][-+]?\d+)?|\.\d+(?:[eEdD][-+]?\d+)?"""
+                    r"""|&&|\|\||==|!=|<=|>=|\*\*|//|\?=|\S""")
+
+
+def spaced(text: str) -> str:
+    """gt_expand's text: a blank after every token."""
+    return " ".join(_TOKEN.findall(text))
 
 
 def _arguments(text: str, at: int) -> tuple[list[str], int]:

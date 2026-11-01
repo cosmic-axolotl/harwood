@@ -288,12 +288,18 @@ def read(spec: ImageSpec | str) -> tuple[Any, Any]:
     import numpy as np
 
     spec = parse(spec) if not isinstance(spec, ImageSpec) else spec
-    hdul, hdu = open_hdu(spec)
-    try:
-        data = np.asarray(hdu.data, dtype=np.float64)
-        header = inherited(hdul, hdu)
-    finally:
-        hdul.close()
+    if spec.path.suffix == ".pl":
+        from . import plio
+
+        mask, text = plio.read(spec.path)
+        data, header = mask.astype(np.float64), plio.fits_header(mask, text)
+    else:
+        hdul, hdu = open_hdu(spec)
+        try:
+            data = np.asarray(hdu.data, dtype=np.float64)
+            header = inherited(hdul, hdu)
+        finally:
+            hdul.close()
     forget_limits(header)
     if spec.section:
         slices = pixels.parse_section(spec.section, data.shape)
@@ -315,6 +321,10 @@ def read_header(spec: ImageSpec | str):
     """The header images.read would give, without the pixels: the
     extension's over the primary's when it says INHERIT = T."""
     spec = parse(spec) if not isinstance(spec, ImageSpec) else spec
+    if spec.path.suffix == ".pl":
+        from . import plio
+
+        return plio.fits_header(*plio.read(spec.path))
     hdul, hdu = open_hdu(spec)
     try:
         return inherited(hdul, hdu)
@@ -337,6 +347,20 @@ def inherited(hdul, hdu):
     for key in ("BITPIX", "NAXIS", "NAXIS1", "NAXIS2", "NAXIS3"):
         if key in header:
             out[key] = header[key]
+    return out
+
+
+def expand_outputs(items: list[str] | str) -> list[ImageSpec]:
+    """A list of images that may not be there yet: an expand without the search."""
+    if isinstance(items, str):
+        items = [items]
+    out: list[ImageSpec] = []
+    for item in items:
+        for piece in split_list(str(item)):
+            if piece.startswith("@") or any(char in split_brackets(piece)[0] for char in "*?"):
+                out.extend(expand(piece))
+            else:
+                out.append(parse(piece))
     return out
 
 

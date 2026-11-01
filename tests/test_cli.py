@@ -59,6 +59,32 @@ def test_an_iraf_name_harwood_does_not_run_gets_an_answer_not_an_error(run):
         assert result.exit_code == 3
 
 
+def test_references_finds_what_is_about_a_topic(run):
+    result = run("references", "curve")
+    assert result.exit_code == 0
+    assert "curfit - Fit a curve" in result.output
+    assert run("references", "CURVE").output == result.output
+
+
+def test_references_says_what_became_of_iraf_s_names(run):
+    result = run("references", "continuum")
+    assert result.exit_code == 0
+    assert "continuum - planned in harwood" in result.output
+
+
+def test_references_when_nothing_is_about_it(run):
+    result = run("references", "xyzzyq")
+    assert result.exit_code == 1
+    assert "A shorter word" in result.output
+
+
+def test_phelp_is_help_in_the_pager(run):
+    result = run("phelp", "curfit")
+    assert result.exit_code == 0
+    assert "curfit -- Fit a curve" in result.output
+    assert "IRAF's `curfit`" in result.output or "IRAF's curfit" in result.output
+
+
 def test_a_typo_suggests_the_real_name(run):
     result = run("help", "daofnd")
     assert "daofind" in result.output

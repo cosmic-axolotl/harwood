@@ -32,7 +32,7 @@ CONNECTORS = (";", "&&", "||")
 
 #: Commands whose arguments are never file names, so an empty completion stays
 #: empty instead of filling up with the directory.
-NO_FILES = {"help", "lpar", "list", "history", "pwd"}
+NO_FILES = {"help", "phelp", "references", "lpar", "list", "history", "pwd"}
 
 #: Characters a completed word has to escape to stay one word.
 _SPECIAL = set(" \t;&|'\"\\")

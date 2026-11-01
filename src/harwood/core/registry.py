@@ -27,6 +27,8 @@ _LOADED = False
 #: Task modules, in the order `list` should present their packages.
 _MODULES = (
     "harwood.tasks.imutil",
+    "harwood.tasks.artdata",
+    "harwood.tasks.utilities",
     "harwood.tasks.imcombine",
     "harwood.tasks.immatch",
     "harwood.tasks.ccdred",
