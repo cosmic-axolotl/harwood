@@ -10,6 +10,10 @@
   brief: "Every task, grouped as IRAF groups them. Pick a package to go in; the path above always takes you back."
   icon: "✦"
 
+harwood:
+  brief: "What IRAF has no task for: today's methods, each held to an answer known beforehand."
+  icon: "✚"
+
 images:
   brief: "Working with images in general: arithmetic, statistics, headers, matching frames, display."
   icon: "▦"

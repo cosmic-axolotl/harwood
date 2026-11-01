@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 66, partial: 21, planned: 268, replaced: 94, wontport: 161
+#   available: 75, partial: 12, planned: 268, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -46,6 +46,43 @@ added:
     note: "names the atom, ion or molecule behind each feature of a calibrated
            spectrum, from a curated catalogue. IRAF has no task for this -- the
            nearest thing is reading a line list by eye in splot."}
+  skymodel: {pkg: harwood, domain: photometry, status: available,
+    note: "the sky as a surface, from a mesh of clipped boxes: SExtractor's method (Bertin & Arnouts 1996),
+           held box for box to photutils' Background2D and to a sky known beforehand. IRAF measures an annulus
+           around each star, and has no image of the sky."}
+  psfphot: {pkg: harwood, domain: photometry, status: available,
+    note: "photometry with an effective PSF (Anderson & King 2000), built from the frame's own stars with no
+           function assumed, and fitted with the neighbours out. Held to stars and a PSF known beforehand.
+           IRAF's daophot fits an analytic function and a table of residuals."}
+  zogy: {pkg: harwood, domain: photometry, status: available,
+    note: "image subtraction by ZOGY (Zackay, Ofek & Gal-Yam 2016): neither image blurred to match, a
+           difference with white noise and a score in sigma. Held to transients put there beforehand.
+           IRAF's way is psfmatch and imarith."}
+  coadd: {pkg: harwood, domain: ccd-reduction, status: available,
+    note: "proper coaddition (Zackay & Ofek 2017): each frame counts at each spatial frequency for
+           what it knows there, and the noise comes out white. Held to stars put there beforehand.
+           IRAF's way is imcombine, a weighted mean of the pixels."}
+  skyspline: {pkg: harwood, domain: spec-2d, status: available,
+    note: "the sky of a long-slit frame as one spectrum (Kelson 2003): a spline in where each pixel is
+           along it, with nothing resampled. Held to skies put there beforehand and run on the
+           tutorial's twilights. IRAF's background and apall fit each line across the slit."}
+  flexure: {pkg: harwood, domain: spec-2d, status: available,
+    note: "how far a spectrograph has bent, from the sky's own lines against a frame whose
+           wavelengths are known. IRAF has fxcor and specshift, as separate steps by hand."}
+  platesolve: {pkg: harwood, domain: astrometry, status: available,
+    note: "the plate of an image against a catalogue, Gaia DR3 or a table, with the pairs found and
+           TAN and SIP in the header. Held to fields put there beforehand, and it refuses what chance
+           can make. IRAF's ccmap fits a plate from pairs given by hand."}
+  drizzle: {pkg: harwood, domain: geometry, status: available,
+    note: "drizzle (Fruchter & Hook 2002): dithered frames on a finer grid, with no interpolation and
+           the flux kept. Held to overlaps done by hand and to reproject's exact overlap. IRAF has
+           imshift, imcombine and geotran, which each interpolate."}
+  lombscargle: {pkg: harwood, domain: time-observatory, status: available,
+    note: "the Lomb-Scargle periodogram, by astropy.timeseries, with a false alarm probability and
+           the sampling's own peaks named as aliases. IRAF has pdm, which it is not a port of."}
+  bls: {pkg: harwood, domain: time-observatory, status: available,
+    note: "box least squares for transits and eclipses, by astropy.timeseries, with the odd and even
+           dips compared, which tells a binary at half its period. IRAF has nothing for this."}
   impicture: {pkg: tv, domain: display, status: available,
     note: "an image as displayed (limits, stretch, colour map) to PNG, JPEG, TIFF
            or WebP -- the same pixels as the window's File > Export image. Not
@@ -401,8 +438,8 @@ tasks:
   crcombine: {pkg: imred.crutil, domain: combine, status: planned, milestone: later}
   darkcombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: darkcombine}
   flatcombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: flatcombine}
-  imcombine: {pkg: images.immatch, domain: combine, status: partial, milestone: mvp, harwood: imcombine,
-    note: "IRAF's combining and rejection ported and checked against IRAF's output -- every combine and reject, scale, zero, weight, thresholds, grow, nkeep, the sigma and rejection-count images; no offsets, pixel masks, project, quadrature or nmodel"}
+  imcombine: {pkg: images.immatch, domain: combine, status: available, milestone: mvp, harwood: imcombine,
+    note: "IRAF's combining and rejection bit by bit -- every combine and reject, scale, zero and weight (files and keywords too), thresholds, grow, nkeep, offsets, outlimits, project, pixel masks, and the sigma, rejection, bad pixel and exposure outputs; no headers, imcmb or outtype, the output is real"}
   lscombine: {pkg: twodspec.longslit, domain: combine, status: planned, milestone: later}
   odcombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
   scombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
@@ -415,14 +452,13 @@ tasks:
     note: "every grouping, checked against IRAF's group files"}
   ccdmask: {pkg: imred.ccdred, domain: ccd-reduction, status: available, milestone: mvp, harwood: ccdmask,
     note: "IRAF's bytes on a frame of one block of columns; over that but for what was in its buffer"}
-  ccdproc: {pkg: imred.ccdred, domain: ccd-reduction, status: partial, milestone: mvp, harwood: ccdproc,
-    note: "fixpix, overscan, trim, zero, dark and flat, with header marks, ccdtype selection and calibrations discovered from the input list by type and subset; no illum, fringe, readcor or scancor"}
-  cosmicrays: {pkg: imred.crutil, domain: ccd-reduction, status: partial,
+  ccdproc: {pkg: imred.ccdred, domain: ccd-reduction, status: available, milestone: mvp, harwood: ccdproc,
+    note: "every step of IRAF's bit by bit -- fixpix, overscan, trim, zero, dark, flat, illum, fringe, readcor, scancor -- with its image types, sections and scales, the calibrations prepared in memory; no noproc and no max_cache"}
+  cosmicrays: {pkg: imred.crutil, domain: ccd-reduction, status: available,
     milestone: mvp, harwood: cosmicrays,
-    note: "L.A.Cosmic (van Dokkum 2001) by default, with IRAF's 1989 flux-ratio
-           algorithm kept for reproducing old reductions, and --verify to score the
-           detector against a set of exposures. No interactive training, and no
-           per-object thresholds."}
+    note: "L.A.Cosmic (van Dokkum 2001) by default; --algorithm iraf is IRAF's, with its
+           training and its graph, pixel for pixel against 2.18; --verify scores the
+           detector against a set of exposures. No plotfile: the graph is the panel."}
   craverage: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
   credit: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
   crfix: {pkg: imred.crutil, domain: ccd-reduction, status: planned, milestone: later}
@@ -566,8 +602,8 @@ tasks:
   hafton: {pkg: plot, domain: display, status: wontport, note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   imdkern: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
-  imexamine: {pkg: images.tv, domain: display, status: partial, milestone: mvp,
-    note: "keys r a m l c j k h e s x z, n and p, IRAF's colon commands, and imagecur for batch; r a m j k z checked against IRAF's output; no b, g, i, o, t, u, v or w keys"}
+  imexamine: {pkg: images.tv, domain: display, status: available, milestone: mvp,
+    note: "every key, IRAF's colon commands and imagecur for batch, held to IRAF's text, images and metacode; the rimexam surface fit (xorder) and the wcs and format of its positions are not here: positions are logical pixels and the window shows the WCS"}
   implot: {pkg: plot, domain: display, status: available, milestone: mvp, harwood: implot,
     note: "t_implot.x ported: every key (l c a e j k m n o p r s space q) and colon command (:a :c :l :i :o :log :step :w :x :y), image lists, the right-axis mapping, the profile and statistics -- identical to IRAF 2.18 through a cursor file, which --coords also takes"}
   lumatch: {pkg: images.tv.iis, domain: display, status: wontport,
@@ -688,8 +724,8 @@ tasks:
   pstselect: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   qphot: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: qphot,
     note: "phot with IRAF's fixed choices, the .mag file byte for byte IRAF's"}
-  radprof: {pkg: digiphot.apphot, domain: photometry, status: partial, milestone: mvp, harwood: radprof,
-    note: "the fit, rejection, integral, FWHM and error codes to the digits IRAF writes; harwood's table for its .prf text, and no cursor or plots: imexamine r is the interactive way"}
+  radprof: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp, harwood: radprof,
+    note: "the fit, rejection, integral, FWHM and error codes to the digits IRAF writes; IRAF's .prf byte for byte, and its keys by the cursor or from icommands, each profile in the plot; d and i, its quick plot and setup with the cursor, are imexamine r and :radius here"}
   seepsf: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   setimpars: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
   substar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
@@ -865,13 +901,13 @@ tasks:
   mkexamples: {pkg: artdata, domain: synthetic-data, status: planned, milestone: later}
   mknoise: {pkg: artdata, domain: synthetic-data, status: available, milestone: mvp, harwood: mknoise,
     note: "IRAF's numbers for a seed, generator included; no ranbuf"}
-  mkobjects: {pkg: artdata, domain: synthetic-data, status: partial, milestone: mvp, harwood: mkobjects,
-    note: "IRAF's numbers for a seed, with stars and galaxies by formula; profiles from files or images not here"}
+  mkobjects: {pkg: artdata, domain: synthetic-data, status: available, milestone: mvp, harwood: mkobjects,
+    note: "IRAF's bits for a seed, with stars and galaxies by formula, from an image or from a text file"}
   mkpattern: {pkg: artdata, domain: synthetic-data, status: available, milestone: mvp, harwood: mkpattern,
     note: "IRAF's pixels for every pattern and type"}
   pttest: {pkg: digiphot.ptools, domain: synthetic-data, status: planned, milestone: later}
-  starlist: {pkg: artdata, domain: synthetic-data, status: partial, milestone: mvp, harwood: starlist,
-    note: "IRAF's lines for a seed; functions from files and the interactive plots not here"}
+  starlist: {pkg: artdata, domain: synthetic-data, status: available, milestone: mvp, harwood: starlist,
+    note: "IRAF's lines for a seed, with every spatial and luminosity function, files too; its interactive plots are not here"}
 
   # --- tables (out, 37 tasks) -----------------------------------
   gtedit: {pkg: utilities.nttools, domain: tables, status: replaced,
@@ -952,8 +988,8 @@ tasks:
   # --- fitting-lists (later, 20 tasks) --------------------------
   bases: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
   columns: {pkg: lists, domain: fitting-lists, status: planned, milestone: later}
-  curfit: {pkg: utilities, domain: fitting-lists, status: partial, milestone: mvp, harwood: curfit,
-    note: "IRAF's digits in real and double; what a session sets is in options, and the session itself not here"}
+  curfit: {pkg: utilities, domain: fitting-lists, status: available, milestone: mvp, harwood: curfit,
+    note: "IRAF's digits in real and double; the session in the icfit panel or from a cursor file, held to IRAF's text"}
   detab: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
   entab: {pkg: utilities, domain: fitting-lists, status: planned, milestone: later}
   fields: {pkg: proto, domain: fitting-lists, status: planned, milestone: later}
@@ -1036,8 +1072,8 @@ tasks:
   fcache: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   gripes: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   head: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
-  help: {pkg: system, domain: system, status: partial, milestone: mvp, harwood: help,
-    note: "harwood help <task> prints the manual, the text of the task's page in the documentation (harwood docs); IRAF's options of help, by parameter or section, are not here"}
+  help: {pkg: system, domain: system, status: available, milestone: mvp, harwood: help,
+    note: "harwood help <task> prints the manual, the text of the task's page in the documentation (harwood docs), or with --parameter, --section and --search what IRAF's options do; its base is harwood's, so nothing to compare with IRAF's"}
   lprint: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   mkdir: {pkg: system, domain: system, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}
   mkscript: {pkg: system, domain: system, status: wontport,
