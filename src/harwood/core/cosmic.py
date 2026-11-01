@@ -61,6 +61,10 @@ class Detection:
     significance: np.ndarray | None = None   #: the Laplacian S/N image
     structure: np.ndarray | None = None      #: the fine-structure ratio
     saturated: int = 0
+    replaced: int = 0                        #: IRAF's: what it counts, pixels found again too
+    fluxratio: float = 0.0                   #: IRAF's: where the session left the threshold
+    saved: list = field(default_factory=list)    #: IRAF's: the training, for the save file
+    printed: list = field(default_factory=list)  #: IRAF's: what the space bar printed
 
     @property
     def count(self) -> int:
@@ -331,44 +335,21 @@ def lacosmic(data, gain: float = 1.0, rdnoise: float = 0.0, sigclip: float = 4.5
 
 
 def iraf_cosmicrays(data, threshold: float = 25.0, fluxratio: float = 2.0,
-                    npasses: int = 5, window: int = 5) -> Detection:
-    """IRAF's original algorithm, kept so old reductions can be reproduced.
+                    npasses: int = 5, window: int = 5, objects=None, examine=None,
+                    pixtype=np.float32, title: str = "") -> Detection:
+    """IRAF's original algorithm, core.crfind, kept so old reductions can be reproduced.
 
-    A pixel is a candidate when it stands `threshold` above the mean of its
-    neighbours; it is called a cosmic ray when the ratio of that mean to the
-    peak is below `fluxratio` per cent -- that is, when the neighbours are
-    dark, so the spike is alone. It has no way to tell a lone spike from the
-    core of an undersampled star, which is why IRAF's task is interactive.
+    It has no way to tell a lone spike from the core of an undersampled star, which is why
+    IRAF's task is interactive: `objects` and `examine` are its training and its graph.
     """
-    from scipy.ndimage import uniform_filter
+    from . import crfind
 
-    data = np.asarray(data, dtype=float)
-    found = np.zeros(data.shape, dtype=bool)
-    working = data.copy()
-    per_pass = []
-
-    half = max(1, window // 2)
-    for _ in range(max(1, npasses)):
-        background = _median(working, 2 * half + 1)
-        residual = working - background
-
-        # The mean of the neighbours, excluding the pixel itself.
-        area = (2 * half + 1) ** 2
-        neighbours = (uniform_filter(residual, size=2 * half + 1, mode="nearest")
-                      * area - residual) / (area - 1)
-
-        peak = residual
-        with np.errstate(divide="ignore", invalid="ignore"):
-            ratio = 100.0 * np.where(peak > 0, neighbours / peak, np.inf)
-        new = (peak > threshold) & (ratio < fluxratio) & ~found
-        per_pass.append(int(new.sum()))
-        if not new.any():
-            break
-        found |= new
-        working = _clean(data, found)
-
-    return Detection(mask=found, cleaned=working, passes=len(per_pass),
-                     found_per_pass=per_pass)
+    done = crfind.run(data, threshold, fluxratio, npasses, window, objects, examine, pixtype,
+                      title)
+    return Detection(mask=done.mask, cleaned=np.asarray(done.image, pixtype),
+                     passes=len(done.per_pass), found_per_pass=done.per_pass,
+                     replaced=done.replaced, fluxratio=done.fluxratio, saved=done.saved,
+                     printed=done.printed)
 
 
 def verify(frames, detector, gain: float = 1.0, rdnoise: float = 0.0,

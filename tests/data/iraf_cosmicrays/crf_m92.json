@@ -1,0 +1,22 @@
+{
+"a": {
+"image": "a9a3785b90dee4dbc6a8caf3eec086c07a9bb89f6936b6dd4f8b06c81e0b50b0",
+"mask": "da26da28e977ea1593afbb11cde1ab1a2d5697715f99c557206a2dfd32d33789",
+"crcor": "Threshold= 25.0, fluxratio=  2.00, removed=77"
+},
+"b": {
+"image": "ea62f5d1456986fd05ea27bdff78dbfd51c89283536dddcb937892f95a4c070f",
+"mask": "380e6df082824b137a624aa8b1b98b509a416d1b7e6648ae527442e9842d4b7a",
+"crcor": "Threshold= 25.0, fluxratio=  2.00, removed=104"
+},
+"c": {
+"image": "6f8ce58cbb0967e71b489e72a8093a99a5855c359cc66f09e3bfa87c8ec8ea1a",
+"mask": "4353405230d7a220d7d0f73d875cf833ff96dccc6fd9f175fea92a747e783eed",
+"crcor": "Threshold= 10.0, fluxratio= 10.00, removed=9856"
+},
+"d": {
+"image": "e99e9ea866dff66b5ed5ee53300395a2b820e0835c5d1aed00e2f48b25c866f1",
+"mask": "390150140a402a6f3f2bb7b7fa01683c7599324e8ca83e957abff3e87bc15322",
+"crcor": "Threshold=  5.0, fluxratio= 30.00, removed=31669"
+}
+}

@@ -140,12 +140,30 @@ class CosmicRaysParams(TaskParams):
                     "times faster on a large frame.",
     )
     threshold: float = Field(
-        25.0, description="IRAF algorithm: counts above the background."
+        25.0, description="IRAF algorithm: counts above the mean of the window."
     )
     fluxratio: float = Field(
-        2.0, description="IRAF algorithm: neighbour-to-peak ratio, per cent."
+        2.0, description="IRAF algorithm: mean of the window to peak, per cent. Above it a "
+                         "candidate is an object, and stays.",
     )
     npasses: int = Field(5, ge=1, description="IRAF algorithm: passes.")
+    window: Literal[5, 7] = Field(
+        5, description="IRAF algorithm: the side of the detection window.")
+    interactive: bool = Field(
+        False, description="IRAF algorithm: look at the flux against the flux ratio of the "
+                           "candidates of each frame, and change what is replaced.")
+    cursor: str = Field(
+        "", description="IRAF algorithm: a file of cursor reads for the graph instead of the "
+                        "window: x y wcs key.")
+    train: bool = Field(
+        False, description="IRAF algorithm: mark stars and cosmic rays in the first frame, s "
+                           "and c, and g sets the flux ratio that errs least on them.")
+    objects: str = Field(
+        "", description="IRAF algorithm: a file of cursor reads for the training instead of "
+                        "the window: x y wcs key.")
+    savefile: str = Field(
+        "", description="IRAF algorithm: a file to add the training's reads to, which "
+                        "--objects can read back.")
     verify: bool = Field(
         False,
         description="Score the detector against what the frames agree on. "
@@ -171,16 +189,16 @@ class CosmicRays(Task[CosmicRaysParams]):
     def plan(self, params: CosmicRaysParams) -> list[Step]:
         steps = [
             Step("read", ", ".join(params.input), why=WHY["read"]),
-            Step("detect", f"{params.algorithm}, {params.sigclip} sigma"
-                 + (f", dispersion along axis {params.dispaxis}"
-                    if params.dispaxis else ""), why=WHY["detect"]),
+            Step("detect", self._method(params), why=WHY["detect"]),
         ]
         if params.algorithm == "lacosmic":
             steps.append(Step(
                 "grow", f"{params.sigfrac} x sigclip"
                         + (", fine structure still applies" if params.strict_growth
                            else ", as published"), why=WHY["grow"]))
-        steps.append(Step("clean", "median of unflagged neighbours",
+        steps.append(Step("clean", "median of unflagged neighbours"
+                          if params.algorithm == "lacosmic"
+                          else "mean of the four nearest, but for the next highest",
                           why=WHY["clean"], skipped=not params.clean,
                           reason="" if params.clean else "--no-clean"))
         if params.verify:
@@ -188,6 +206,14 @@ class CosmicRays(Task[CosmicRaysParams]):
         steps.append(Step("write", params.output or "this run's directory",
                           why=WHY["write"]))
         return steps
+
+    @staticmethod
+    def _method(params: CosmicRaysParams) -> str:
+        if params.algorithm == "iraf":
+            return (f"iraf, threshold {params.threshold}, flux ratio {params.fluxratio}, "
+                    f"window {params.window}, {params.npasses} passes")
+        return f"{params.algorithm}, {params.sigclip} sigma" + (
+            f", dispersion along axis {params.dispaxis}" if params.dispaxis else "")
 
     def execute(self, params: CosmicRaysParams) -> TaskResult:
         import numpy as np
@@ -200,6 +226,13 @@ class CosmicRays(Task[CosmicRaysParams]):
                 f"no algorithm called '{params.algorithm}'.",
                 "use 'lacosmic' (van Dokkum 2001, the default) or 'iraf' (the "
                 "1989 flux ratio, for reproducing an old reduction).")
+        asked = [name for name, given in (
+            ("--interactive", params.interactive), ("--cursor", params.cursor),
+            ("--train", params.train), ("--objects", params.objects),
+            ("--savefile", params.savefile), ("--window", params.window != 5)) if given]
+        if asked and params.algorithm != "iraf":
+            advice.fail(f"{', '.join(asked)} only work with IRAF's algorithm.",
+                        "add --algorithm iraf, or leave them out for L.A.Cosmic.")
 
         frames = images.expand(params.input)
         if not frames:
@@ -211,8 +244,9 @@ class CosmicRays(Task[CosmicRaysParams]):
         steps = self.plan(params)
         by_action = {step.action: step for step in steps}
         detector = self._detector(params, cosmic)
+        asking = _Asking(params) if params.algorithm == "iraf" else None
 
-        warnings, rows, written = list(said), [], []
+        warnings, rows, written, printed = list(said), [], [], []
         loaded, results = [], []
         for spec in frames:
             data, header = images.read(spec)
@@ -223,7 +257,7 @@ class CosmicRays(Task[CosmicRaysParams]):
                     "section if the file holds a cube.")
             axis = params.dispaxis or _header_dispaxis(header)
             found = (detector(data, axis) if params.algorithm == "lacosmic"
-                     else detector(data))
+                     else asking.frame(data, header, spec))
             loaded.append((spec, data, header))
             results.append(found)
             rows.append({
@@ -233,6 +267,8 @@ class CosmicRays(Task[CosmicRaysParams]):
                 "passes": found.passes,
                 "per pass": " ".join(str(n) for n in found.found_per_pass),
             })
+            if found.printed:
+                printed += found.printed
 
         total = sum(item.count for item in results)
         pixels = sum(item.mask.size for item in results)
@@ -276,8 +312,10 @@ class CosmicRays(Task[CosmicRaysParams]):
                 warnings.extend(notes)
 
         by_action["write"].measured = {"files": len(written)}
+        if asking is not None:
+            asking.save()
         return TaskResult(outputs=written, steps=steps, warnings=warnings,
-                          data={"rows": rows},
+                          data={"rows": rows}, stdout=printed or None,
                           history=[f"cosmicrays: {params.algorithm}, "
                                    f"{total} pixels flagged"])
 
@@ -286,8 +324,8 @@ class CosmicRays(Task[CosmicRaysParams]):
         if params.algorithm == "iraf":
             def run(data):
                 return cosmic.iraf_cosmicrays(
-                    data, threshold=params.threshold,
-                    fluxratio=params.fluxratio, npasses=params.npasses)
+                    data, threshold=params.threshold, fluxratio=params.fluxratio,
+                    npasses=params.npasses, window=params.window)
             return run
 
         def run(data, dispaxis=None):
@@ -369,6 +407,9 @@ class CosmicRays(Task[CosmicRaysParams]):
                 var = _local_variance(var, hit)
         header = header.copy()
         header["HRWDCRM"] = (found.count, "pixels flagged as cosmic rays (DQ bit 8)")
+        if params.algorithm == "iraf":
+            header["CRCOR"] = (f"Threshold={params.threshold:5.1f}, fluxratio="
+                               f"{found.fluxratio:6.2f}, removed={found.replaced}")
         header.add_history(f"cosmicrays: {params.algorithm}, {found.count} pixels "
                            + ("replaced" if params.clean else "flagged"))
 
@@ -387,6 +428,115 @@ class CosmicRays(Task[CosmicRaysParams]):
         files, notes = mef.save(destination, out, header, var, quality,
                                 params.uncertainty, params.format)
         return files + written, notes
+
+
+class _Asking:
+    """t_cosmicrays' loop over the frames, on what outlives a frame: the first is trained, the
+    reads of a file go on from one to the next, and so does the threshold they have set."""
+
+    def __init__(self, params: CosmicRaysParams) -> None:
+        self.params = params
+        self.fluxratio = params.fluxratio
+        self.saved: list[str] = []
+        self.cursor = None
+        self.objects = None
+        if params.cursor:
+            self.cursor = _reads(params.cursor, "--cursor")
+        if params.train and params.objects:
+            self.objects = _reads(params.objects, "--objects")
+        self.train = params.train
+
+    def frame(self, data, header, spec):
+        from ..core import cosmic, crfind
+
+        params = self.params
+        title = str(header.get("OBJECT", ""))
+        objects = None
+        if self.train:
+            objects = self.objects if self.objects is not None else _window_reads(
+                data, header, spec)
+            self.train = False
+        examine = None
+        if self.cursor is not None:
+            def examine(session):
+                crfind.examine_reads(session, self.cursor)
+        elif params.interactive:
+            def examine(session):
+                from ..viewer import crgraph_panel
+
+                crgraph_panel.run(session, data, f"cosmicrays · {Path(spec.path).name}")
+        found = cosmic.iraf_cosmicrays(
+            data, threshold=params.threshold, fluxratio=self.fluxratio, npasses=params.npasses,
+            window=params.window, objects=objects, examine=examine, pixtype=_pixtype(header),
+            title=title)
+        self.fluxratio = found.fluxratio
+        self.saved += found.saved
+        return found
+
+    def save(self) -> None:
+        if self.params.savefile and self.saved:
+            with open(self.params.savefile, "a") as file:
+                file.write("".join(self.saved))
+
+
+def _reads(name: str, option: str):
+    """The reads of a cursor file: it goes on from where it was, as a cursor does."""
+    from ..core import crfind
+
+    file = Path(name)
+    if not file.is_file():
+        advice.fail(f"cursor file '{name}' does not exist",
+                    f"{option} takes lines of x y wcs key; leave it out for the window.",
+                    FileNotFoundError)
+    return crfind.reads(file.read_text())
+
+
+def _window_reads(data, header, spec):
+    """The training from the image in the window: s, c and q, and g to go to the graph."""
+    from ..core import display
+
+    screen = display.get(None)
+    window = getattr(screen, "window", None)
+    if window is None or not hasattr(window, "wait_for_examine"):
+        advice.fail("There is no window to mark the objects in",
+                    "run it where there is a screen, or give the marks with --objects.")
+    screen.show(data, header, name=Path(spec.path).name)
+
+    batch: list = []
+
+    def key(name: str, x: float, y: float) -> bool:
+        batch.append((x, y, 1, name))
+        if name in ("g", "q"):
+            window.examine_done.emit()
+        return True
+
+    def reads():
+        while True:
+            batch.clear()
+            window.key_hook = key
+            window.log("cosmicrays: s at a star, c at a cosmic ray, g the graph, q to end.")
+            try:
+                window.wait_for_examine()
+            finally:
+                window.key_hook = None
+            last = batch[-1][3] if batch else ""
+            yield from list(batch)
+            if last != "g":
+                return
+
+    return reads()
+
+
+def _pixtype(header):
+    """The type of the frame's pixels: IRAF writes what it replaces in it, and later passes
+    read it from there. Real, whatever is not said."""
+    import numpy as np
+
+    bitpix = header.get("BITPIX", -32)
+    if bitpix == 16 and header.get("BZERO", 0) == 32768:
+        return np.uint16
+    return {8: np.uint8, 16: np.int16, 32: np.int32, -32: np.float32,
+            -64: np.float64}.get(bitpix, np.float32)
 
 
 def _noise(params, header):
