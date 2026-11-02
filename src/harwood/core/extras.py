@@ -17,6 +17,7 @@ PROVIDED_BY = {
     "ccdproc": "ccd",
     "astroscrappy": "ccd",
     "PySide6": "gui",
+    "shiboken6": "gui",
     "pyqtgraph": "gui",
     "numba": "fast",
 }

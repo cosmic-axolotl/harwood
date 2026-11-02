@@ -288,14 +288,53 @@ def palette() -> Palette:
     return _theme.palette
 
 
-def on_change(callback) -> None:
-    """Call `callback()` whenever the look changes (panels redraw)."""
-    _listeners.append(callback)
+class _Listener:
+    """A callback, held so that it keeps nothing alive: a window's method by a weak
+    reference to the window, anything else with a weak reference to the widget it is for.
+    Gone with them, and with the C++ object under them, which Qt can destroy first."""
+
+    def __init__(self, callback, owner=None) -> None:
+        import weakref
+
+        if owner is None and hasattr(callback, "__self__"):
+            self.method = weakref.WeakMethod(callback)
+            self.function = None
+            self.owner = weakref.ref(callback.__self__)
+        else:
+            self.method = None
+            self.function = callback
+            self.owner = None if owner is None else weakref.ref(owner)
+
+    def callback(self):
+        return self.method() if self.method is not None else self.function
+
+    def alive(self) -> bool:
+        if self.owner is None:
+            return True
+        owner = self.owner()
+        if owner is None:
+            return False
+        try:
+            import shiboken6
+        except ImportError:
+            return True
+        # A widget whose C++ side is gone: calling into it is what made Qt abort
+        try:
+            return shiboken6.isValid(owner)
+        except TypeError:
+            return True
+
+
+def on_change(callback, owner=None) -> None:
+    """Call `callback()` whenever the look changes (panels redraw), for as long as `owner`,
+    or the object a method belongs to, is there."""
+    _listeners.append(_Listener(callback, owner))
 
 
 def forget(callback) -> None:
-    if callback in _listeners:
-        _listeners.remove(callback)
+    for listener in list(_listeners):
+        if listener.callback() == callback or listener.callback() is None:
+            _listeners.remove(listener)
 
 
 def update(save: bool = True, **changes) -> Theme:
@@ -310,11 +349,15 @@ def update(save: bool = True, **changes) -> Theme:
     if state:
         _theme = replace(_theme, **state)
     apply()
-    for callback in list(_listeners):
+    for listener in list(_listeners):
+        callback = listener.callback()
+        if callback is None or not listener.alive():
+            _listeners.remove(listener)
+            continue
         try:
             callback()
         except RuntimeError:           # a panel whose widgets are gone
-            forget(callback)
+            _listeners.remove(listener)
     return _theme
 
 
@@ -371,7 +414,7 @@ def follow(widget, plots, redraw=None) -> None:
         if redraw is not None:
             redraw()
 
-    on_change(again)
+    on_change(again, widget)
     widget.destroyed.connect(lambda *_: forget(again))
 
 

@@ -26,6 +26,8 @@ DISTRIBUTION = {
     "yaml": "pyyaml",
     "PIL": "pillow",
     "PySide6": "pyside6-essentials",
+    # PySide6's runtime, which pyside6-essentials brings with it
+    "shiboken6": "pyside6-essentials",
     "numba": "numba",
     "harwood_kernels": "harwood-kernels",
     "markdown_it": "markdown-it-py",
