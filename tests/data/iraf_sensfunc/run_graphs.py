@@ -12,14 +12,14 @@ name = sys.argv[1]
 vdm = Path.home() / ".iraf/uparm/vdm"
 vdm.unlink(missing_ok=True)
 keys, answers = [], []
-for line in Path(name).read_text().splitlines():
+for line in Path(name).read_text(encoding="utf-8").splitlines():
     words = line.split(None, 3)
     if words[3].startswith(":") and words[0] == "0":
         answers.append(words[3][1:])
     else:
         keys.append(line)
-Path(f"{name}.cur").write_text("\n".join(keys) + "\n")
-Path(f"{name}.ans").write_text("\n".join(answers) + "\n")
+Path(f"{name}.cur").write_text("\n".join(keys) + "\n", encoding="utf-8")
+Path(f"{name}.ans").write_text("\n".join(answers) + "\n", encoding="utf-8")
 iraf.noao(_doprint=0)
 iraf.onedspec(_doprint=0)
 iraf.sensfunc("std_mix", f"i_{name}", apertures="1", extinction="kpnoextinct.dat",

@@ -474,7 +474,7 @@ def test_the_standards_file_says_what_it_is(night):
     get_task("standard").run(input="std.ms.fits", output=work / "std",
                              caldir=CALDIR)
 
-    text = (work / "std").read_text()
+    text = (work / "std").read_text(encoding="utf-8")
     assert "wavelength,width,magnitude,flux,counts,airmass,star,used" in text
     assert "erg/cm2/s/Angstrom" in text
     assert "kpnoextinct" in text

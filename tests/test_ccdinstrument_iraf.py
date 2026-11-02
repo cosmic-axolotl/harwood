@@ -13,7 +13,7 @@ import pytest
 from harwood.core import ccdinstsession, images
 
 HERE = Path(__file__).parent / "data" / "iraf_ccdinstrument"
-GOLD = json.loads((HERE / "ccdinstrument.json").read_text())
+GOLD = json.loads((HERE / "ccdinstrument.json").read_text(encoding="utf-8"))
 sys.path.insert(0, str(HERE))
 from ccdinst_cases import CASES  # noqa: E402
 from ccdinst_inputs import write  # noqa: E402
@@ -53,7 +53,7 @@ def session_of(name):
 def work(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     write(tmp_path)
-    Path("o2.dat").write_text("exptime OTHER\nsubset  'OF ME' 'a b'\n")
+    Path("o2.dat").write_text("exptime OTHER\nsubset  'OF ME' 'a b'\n", encoding="utf-8")
 
 
 @pytest.mark.parametrize("case", list(GOLD))
@@ -69,7 +69,7 @@ def test_a_session_types_what_iraf_types(work, case):
         return
     assert text == expected["text"]
     files = {
-        p.name: p.read_text(errors="replace")
+        p.name: p.read_text(errors="replace", encoding="utf-8")
         for p in Path().iterdir()
         if before.get(p.name) != p.read_bytes()
     }
@@ -84,5 +84,5 @@ def test_the_session_s_commands_from_the_terminal(work, monkeypatch, capsys):
     monkeypatch.setattr("sys.stdin", io.StringIO("exptime EXPTIME\nq\nyes\n"))
     get_task("ccdinstrument").run(images=["a.fits"], instrument="inst.dat")
     assert "exptime   EXPTIME" in capsys.readouterr().out
-    assert "exptime" in Path("inst.dat").read_text()
-    assert "EXPTIME" in Path("inst.dat").read_text()
+    assert "exptime" in Path("inst.dat").read_text(encoding="utf-8")
+    assert "EXPTIME" in Path("inst.dat").read_text(encoding="utf-8")

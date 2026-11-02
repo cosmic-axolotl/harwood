@@ -46,7 +46,7 @@ def write(where):
                   im(a, "C")]).writeto(where / "tables.fits", overwrite=True)
     fits.PrimaryHDU(a).writeto(where / "simple.fits", overwrite=True)
     fits.PrimaryHDU().writeto(where / "empty.fits", overwrite=True)
-    (where / "notfits.txt").write_text("hello\n")
+    (where / "notfits.txt").write_text("hello\n", encoding="utf-8")
     fits.PrimaryHDU(mask()).writeto(where / "m.fits", overwrite=True)
     fits.PrimaryHDU(mask() * 0).writeto(where / "m0.fits", overwrite=True)
     fits.PrimaryHDU(a + 5).writeto(where / "b.fits", overwrite=True)

@@ -23,7 +23,8 @@ import yaml
 import harwood
 from harwood.core import implot
 
-REF = json.loads((Path(__file__).parent / "data" / "iraf_implot.json").read_text())
+REF = json.loads((Path(__file__).parent / "data" / "iraf_implot.json").read_text(
+        encoding="utf-8"))
 GRAPHS = Path(__file__).parent / "data" / "iraf_implot"
 
 
@@ -42,12 +43,12 @@ def _frames(where: Path) -> None:
 def test_implot_prints_what_iraf_prints(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _frames(tmp_path)
-    (tmp_path / "scur").write_text(REF["cursor"])
+    (tmp_path / "scur").write_text(REF["cursor"], encoding="utf-8")
     result = harwood.run("implot", image=["sa.fits", "sb.fits"], line=20, coords="scur")
     assert result.data["text"] == REF["printed"]
 
 
-CASES = yaml.safe_load((GRAPHS / "CASES.yaml").read_text())
+CASES = yaml.safe_load((GRAPHS / "CASES.yaml").read_text(encoding="utf-8"))
 GKI_UNITS = 2.5
 
 
@@ -96,8 +97,9 @@ def _session(case):
     engine = Recording(settings["images"], line=settings.get("line", 20),
                        wcs=settings.get("wcs", "logical"))
     second = GRAPHS / f"{case}.2nd"
-    positions = iter(second.read_text().splitlines() if second.exists() else [])
-    for line in (GRAPHS / f"{case}.cur").read_text().splitlines():
+    positions = iter(second.read_text(
+            encoding="utf-8").splitlines() if second.exists() else [])
+    for line in (GRAPHS / f"{case}.cur").read_text(encoding="utf-8").splitlines():
         x, y, _, key = line.split(None, 3)
         key = key.replace("\\040", " ")
         if key == "q":
@@ -124,13 +126,14 @@ def test_implot_prints_and_draws_what_iraf_does(frames_here, case):
     # What IRAF has in the second place of a 1-D image's world is memory; and p gives
     # all four lines at once, where / walks IRAF's through them.
     said = iter(engine.messages)
-    for line in (GRAPHS / f"{case}.out").read_text().replace("again:", "").splitlines():
+    for line in (GRAPHS / f"{case}.out").read_text(
+            encoding="utf-8").replace("again:", "").splitlines():
         if line in ("", "\a"):
             continue
         if case == "spec":
             line = re.sub(r"world=\[([^,]*),[^\]]*\]", r"world=[\1,1.]", line)
         assert any(line == mine for mine in said), line
-    frames = json.loads((GRAPHS / f"{case}.json").read_text())
+    frames = json.loads((GRAPHS / f"{case}.json").read_text(encoding="utf-8"))
     assert len(plots) == len(frames)
     for number, (plot, frame) in enumerate(zip(plots, frames, strict=True)):
         where = f"frame {number}"

@@ -28,7 +28,7 @@ def night(tmp_path, monkeypatch):
     yy, xx = np.indices((50, 60))
     data = (100 + xx + 0.5 * yy).astype(np.float32)
     fits.PrimaryHDU(data).writeto("field.fits")
-    (tmp_path / "field.coo").write_text(COO)
+    (tmp_path / "field.coo").write_text(COO, encoding="utf-8")
     yield tmp_path
     display.reset()
 
@@ -73,12 +73,13 @@ def test_a_logfile_replays_to_the_same_marks(night):
 
     commands = night / "cmds"
     commands.write_text("20 20 1 c\n25 25 1 +\n1 1 1 :color 204\n30 30 1 x\n"
-                        "5 5 1 s\n15 5 1 s\n1 1 1 :write a.fits\n")
+                        "5 5 1 s\n15 5 1 s\n1 1 1 :write a.fits\n", encoding="utf-8")
     harwood.run("tvmark", frame=1, coords="", image="field.fits", commands=str(commands),
                 radii="4", autolog=True, logfile="log1")
-    logged = (night / "log1").read_text()
+    logged = (night / "log1").read_text(encoding="utf-8")
     assert logged.splitlines()[0] == "20 20 1 c"
-    (night / "log2").write_text(logged.replace(":write a.fits", ":write b.fits"))
+    (night / "log2").write_text(logged.replace(":write a.fits", ":write b.fits"),
+                                encoding="utf-8")
     harwood.run("tvmark", frame=1, coords="", image="field.fits", commands="log2",
                 radii="4")
     first, again = fits.getdata(night / "a.fits"), fits.getdata(night / "b.fits")
@@ -88,14 +89,15 @@ def test_a_logfile_replays_to_the_same_marks(night):
 
 def test_objects_added_and_deleted_keep_the_rest_of_the_list(night):
     commands = night / "cmds"
-    commands.write_text("30 20.5 1 d\n52 8 1 a\n")
+    commands.write_text("30 20.5 1 d\n52 8 1 a\n", encoding="utf-8")
     result = harwood.run("tvmark", frame=1, coords="field.coo", image="field.fits",
                          commands=str(commands), deletions="del")
-    lines = (night / "field.coo").read_text().splitlines()
+    lines = (night / "field.coo").read_text(encoding="utf-8").splitlines()
     assert lines[:3] == COO.splitlines()[:3], "the daofind header stays"
     assert not any(line.startswith("  30.500") for line in lines)
     assert lines[-1] == "52.000 8.000"
-    assert (night / "field.coo.del").read_text().startswith("30.500 20.000 -2.000")
+    assert (night / "field.coo.del").read_text(
+            encoding="utf-8").startswith("30.500 20.000 -2.000")
     assert result.data["marked"] >= 2
 
 
@@ -159,5 +161,5 @@ def test_marking_with_the_cursor_in_the_window(night, monkeypatch):
     assert any(m.shape == "circle" and m.radius == 5 for m in marks)
     assert [m.label for m in marks if m.shape == "text"] == ["4"], "numbered after :number"
     assert result.data["marked"] == len(marks)
-    assert (night / "field.coo").read_text().splitlines()[-1] == "52.000 8.000"
+    assert (night / "field.coo").read_text(encoding="utf-8").splitlines()[-1] == "52.000 8.000"
     assert window.key_hook is None, "the keys go back to imexamine"

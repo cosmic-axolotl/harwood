@@ -70,7 +70,7 @@ def test_a_translation_file_of_your_own(tmp_path):
     path.write_text("subset      BAND\n"
                     "exptime     ITIME\n"
                     "'SKY FLAT'  flat\n"
-                    "CALIB       comp\n")
+                    "CALIB       comp\n", encoding="utf-8")
     mine = instruments.load(path)
     assert mine.keyword("subset") == "BAND"
     assert mine.keyword("exptime") == "ITIME"
@@ -80,7 +80,7 @@ def test_a_translation_file_of_your_own(tmp_path):
 
 def test_a_bad_image_type_in_a_translation_file_is_refused(tmp_path):
     path = tmp_path / "bad.dat"
-    path.write_text("'DOME FLAT'  flatfield\n")
+    path.write_text("'DOME FLAT'  flatfield\n", encoding="utf-8")
     with pytest.raises(ValueError, match="not an image type"):
         instruments.load(path)
 
@@ -277,7 +277,7 @@ def test_setinstrument_applies_the_instruments_settings(tmp_path):
     from harwood.core.registry import get_task
 
     result = get_task("setinstrument").run(instrument="direct", workdir=tmp_path)
-    document = yaml.safe_load((tmp_path / "harwood.yaml").read_text())
+    document = yaml.safe_load((tmp_path / "harwood.yaml").read_text(encoding="utf-8"))
     assert document["instrument"] == "kpno/direct"
     ccdproc = document["params"]["ccdproc"]
     assert ccdproc["flatcor"] is True, "direct.cl after default.cl"

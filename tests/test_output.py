@@ -78,12 +78,12 @@ def test_the_record_says_what_made_the_files(frames):
         output.end(token)
 
     assert written is not None
-    document = yaml.safe_load(written.read_text())
+    document = yaml.safe_load(written.read_text(encoding="utf-8"))
     assert document["task"] == "imarith"
     assert document["command"].startswith("harwood imarith")
     assert document["origins"]["operand1"] == "command line"
     assert document["outputs"] == ["a1.fits"]
-    assert written.read_text().startswith("#"), "it explains itself"
+    assert written.read_text(encoding="utf-8").startswith("#"), "it explains itself"
 
 
 def test_the_record_carries_each_step_with_its_explanation(frames, tmp_path):
@@ -107,7 +107,7 @@ def test_the_record_carries_each_step_with_its_explanation(frames, tmp_path):
     finally:
         output.end(token)
 
-    steps = yaml.safe_load(written.read_text())["steps"]
+    steps = yaml.safe_load(written.read_text(encoding="utf-8"))["steps"]
     assert steps[0]["why"] == "because the amplifier"
     assert steps[0]["measured"]["level"] == "505.4"
     assert steps[0]["before"]["npix"] == 100, "a count stays a count"
@@ -132,7 +132,7 @@ def test_the_record_keeps_a_notice_and_what_to_do_about_it(frames, tmp_path):
         written = output.record("lineid", {}, result, "harwood lineid x")
     finally:
         output.end(token)
-    assert yaml.safe_load(written.read_text())["notes"] == [
+    assert yaml.safe_load(written.read_text(encoding="utf-8"))["notes"] == [
         "note: 4 of 4 features are not in the catalogue. -- try: nothing, usually."]
 
 

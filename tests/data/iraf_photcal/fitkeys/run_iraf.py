@@ -12,7 +12,7 @@ import yaml
 from pyraf import iraf
 
 name = sys.argv[1]
-kw = yaml.safe_load(Path("CASES.yaml").read_text())[name]
+kw = yaml.safe_load(Path("CASES.yaml").read_text(encoding="utf-8"))[name]
 cfg = kw.pop("config", "configuration.mkconfig")
 observations = kw.pop("observations", "observations.obsfile")
 vdm = Path.home() / ".iraf/uparm/vdm"

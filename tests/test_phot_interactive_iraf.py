@@ -22,7 +22,7 @@ import harwood
 from harwood.core import catalog
 
 REF = json.loads((Path(__file__).parent / "data" / "iraf_phot_interactive.json")
-                 .read_text())
+                 .read_text(encoding="utf-8"))
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def night(tmp_path, monkeypatch):
 
 
 def test_phot_by_the_cursor_writes_iraf_s_rows(night):
-    (night / "icur").write_text(REF["phot_commands"])
+    (night / "icur").write_text(REF["phot_commands"], encoding="utf-8")
     result = harwood.run("phot", image="field.fits", coords="field.coo", icommands="icur",
                          annulus=10, dannulus=10, output=night / "f.mag")
     table = catalog.read(result.outputs[0])
@@ -54,7 +54,7 @@ def test_phot_by_the_cursor_writes_iraf_s_rows(night):
 
 
 def test_center_by_the_cursor_writes_iraf_s_rows(night):
-    (night / "ccur").write_text(REF["center_commands"])
+    (night / "ccur").write_text(REF["center_commands"], encoding="utf-8")
     result = harwood.run("center", image="field.fits", coords="field.coo",
                          icommands="ccur", output=night / "f.ctr")
     table = catalog.read(result.outputs[0])

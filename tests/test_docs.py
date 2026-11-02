@@ -46,7 +46,7 @@ def test_the_site_builds_without_a_problem(site):
 
 def test_every_task_has_a_page_with_every_parameter_and_a_manual(built):
     for name, cls in list_tasks().items():
-        page = (built / "tasks" / f"{name}.html").read_text()
+        page = (built / "tasks" / f"{name}.html").read_text(encoding="utf-8")
         for field in cls.Params.model_fields:
             assert f'id="param-{field}"' in page, f"{name}: {field} missing"
         assert (builder.PAGES / "tasks" / f"{name}.md").exists(), f"{name}: no manual"
@@ -55,14 +55,15 @@ def test_every_task_has_a_page_with_every_parameter_and_a_manual(built):
 def test_every_link_inside_the_site_goes_somewhere(built):
     broken = []
     for page in built.rglob("*.html"):
-        for target in re.findall(r'href="([^"#:]+)(?:#[^"]*)?"', page.read_text()):
+        for target in re.findall(r'href="([^"#:]+)(?:#[^"]*)?"', page.read_text(
+                encoding="utf-8")):
             if not (page.parent / target).resolve().exists():
                 broken.append(f"{page.relative_to(built)} -> {target}")
     assert broken == []
 
 
 def test_the_search_knows_every_page(built, site):
-    index = (built / "assets" / "search-index.js").read_text()
+    index = (built / "assets" / "search-index.js").read_text(encoding="utf-8")
     for page in site.pages:
         assert f'"u": "{page.url}"' in index
 
@@ -70,7 +71,7 @@ def test_the_search_knows_every_page(built, site):
 def test_the_pages_look_like_the_window_in_every_mode(built):
     from harwood.viewer import theme
 
-    css = (built / "assets" / "look.css").read_text()
+    css = (built / "assets" / "look.css").read_text(encoding="utf-8")
     for palette in (theme.DARK, theme.LIGHT, theme.DARK_CB, theme.LIGHT_CB):
         assert f"--ground: {palette.ground};" in css and f"--accent: {palette.accent};" in css
     assert theme.CREAM in css, "the dyslexia mode's cream ground"
@@ -79,7 +80,8 @@ def test_the_pages_look_like_the_window_in_every_mode(built):
 def test_a_broken_link_stops_the_build(monkeypatch, tmp_path):
     pages = tmp_path / "pages"
     shutil.copytree(builder.PAGES, pages)
-    (pages / "index.md").write_text("# harwood\n\nSee [this](task:nosuchtask).\n")
+    (pages / "index.md").write_text("# harwood\n\nSee [this](task:nosuchtask).\n",
+                                    encoding="utf-8")
     monkeypatch.setattr(builder, "PAGES", pages)
     with pytest.raises(docsite.BuildError) as raised:
         docsite.build(tmp_path / "out")
@@ -90,7 +92,8 @@ def test_an_example_harwood_would_refuse_stops_the_build(monkeypatch, tmp_path):
     pages = tmp_path / "pages"
     shutil.copytree(builder.PAGES, pages)
     (pages / "index.md").write_text(
-        "# harwood\n\n```example\nrun: harwood daofind obj001.fits --fwhm 3\n```\n")
+        "# harwood\n\n```example\nrun: harwood daofind obj001.fits --fwhm 3\n```\n",
+                encoding="utf-8")
     monkeypatch.setattr(builder, "PAGES", pages)
     with pytest.raises(docsite.BuildError) as raised:
         docsite.build(tmp_path / "out")
@@ -154,6 +157,11 @@ def _squeeze(text):
     return " ".join(text.split())
 
 
+def _slashes(text: str) -> str:
+    """The pages write paths as red/obj001.fits, and Windows prints red\\obj001.fits."""
+    return re.sub(r"(?<=[\w.])\\(?=[\w.])", "/", text) if os.sep == "\\" else text
+
+
 @pytest.mark.parametrize("example", EXAMPLES,
                          ids=[f"{e.page}:{e.title or e.lines[0]}" for e in EXAMPLES])
 def test_every_example_does_what_its_page_says(example, stages, tmp_path, monkeypatch):
@@ -166,7 +174,8 @@ def test_every_example_does_what_its_page_says(example, stages, tmp_path, monkey
     else:
         assert all(code == 0 for code in codes), printed
     for line in example.output.splitlines():
-        assert _squeeze(line) in _squeeze(printed), f"the page says it prints {line!r}"
+        assert _squeeze(line) in _squeeze(_slashes(printed)), \
+            f"the page says it prints {line!r}"
 
 
 @pytest.mark.parametrize("example", [e for e in EXAMPLES
@@ -231,10 +240,10 @@ def test_help_prints_the_same_manual_as_the_page():
 def test_the_built_site_is_rebuilt_when_a_page_changes(tmp_path, monkeypatch):
     out = tmp_path / "site"
     docsite.ensure(out)
-    stamp = (out / ".source").read_text()
+    stamp = (out / ".source").read_text(encoding="utf-8")
     monkeypatch.setattr(builder, "_fingerprint", lambda: "something changed")
     docsite.ensure(out)
-    assert (out / ".source").read_text() == "something changed" != stamp
+    assert (out / ".source").read_text(encoding="utf-8") == "something changed" != stamp
 
 
 # ------------------------------------------------------------------ window

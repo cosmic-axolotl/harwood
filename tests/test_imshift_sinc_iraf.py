@@ -24,7 +24,7 @@ from harwood.core import imshift
 from harwood.core.iraffmt import ctod
 
 HERE = Path(__file__).parent / "data"
-CASES = json.loads((HERE / "iraf_imshift_sinc_drizzle.json").read_text())
+CASES = json.loads((HERE / "iraf_imshift_sinc_drizzle.json").read_text(encoding="utf-8"))
 OUT = np.load(HERE / "iraf_imshift_sinc_drizzle.npz")
 
 

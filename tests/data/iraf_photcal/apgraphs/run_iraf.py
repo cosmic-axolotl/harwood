@@ -19,5 +19,6 @@ iraf.photcal(_doprint=0)
 iraf.mkapfile("@all.lis", 20, f"{name}.apercors", magfile=f"{name}.mkapfile",
               logfile=f"{name}.log", interactive="yes", verify="no",
               gcommands=f"{name}.cur", graphics="stdvdm", Stdout=f"{name}.out",
-              Stderr=f"{name}.err", **yaml.safe_load(Path("CASES.yaml").read_text())[name])
+              Stderr=f"{name}.err", **yaml.safe_load(Path("CASES.yaml").read_text(
+                      encoding="utf-8"))[name])
 shutil.move(vdm, f"{name}.vdm")

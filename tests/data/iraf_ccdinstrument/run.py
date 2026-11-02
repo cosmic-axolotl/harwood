@@ -25,7 +25,7 @@ for name, kw in CASES.items():
     kw = dict(kw)
     shutil.rmtree(work, ignore_errors=True)
     shutil.copytree(fresh, work)
-    (work / "o2.dat").write_text("exptime OTHER\nsubset  'OF ME' 'a b'\n")
+    (work / "o2.dat").write_text("exptime OTHER\nsubset  'OF ME' 'a b'\n", encoding="utf-8")
     iraf.chdir(str(work))
     stdin = kw.pop("stdin", "")
     images = kw.pop("images")
@@ -44,10 +44,11 @@ for name, kw in CASES.items():
     except Exception as e:  # noqa: BLE001
         message = re.sub(r"\s+", " ", str(e))[-160:]
     files = {
-        p.name: p.read_text(errors="replace")
+        p.name: p.read_text(errors="replace", encoding="utf-8")
         for p in work.iterdir()
         if p.is_file() and before.get(p.name) != p.read_bytes() and p.suffix != ".par"
     }
     gold[name] = {"text": text.getvalue(), "files": files, "error": message}
-(Path(__file__).parent / "ccdinstrument.json").write_text(json.dumps(gold, indent=0))
+(Path(__file__).parent / "ccdinstrument.json").write_text(json.dumps(gold, indent=0),
+                                                          encoding="utf-8")
 print(len(gold))

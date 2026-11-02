@@ -93,7 +93,7 @@ def test_phot_takes_every_iraf_algorithm_by_name(tmp_path):
     task.run(output=tmp_path / "dirty.mag", **params)
     table = catalog.read(tmp_path / "dirty.mag")
     reference = json.loads((Path(__file__).parent / "data"
-                            / "iraf_apphot_algorithms.json").read_text())
+                            / "iraf_apphot_algorithms.json").read_text(encoding="utf-8"))
     rows = reference["cases"]["s_mode_clip"]["rows"]
     assert list(table["msky"]) == pytest.approx([r[7] for r in rows], rel=6e-7)
     assert list(table["nsrej"]) == [r[11] for r in rows]
@@ -113,7 +113,8 @@ def test_xyxymatch_recovers_a_known_shift(tmp_path):
     # IRAF's transformation runs from the input to the reference.
     assert result.data["xshift"] == pytest.approx(-3.25, abs=1e-3)
     assert result.data["yshift"] == pytest.approx(1.5, abs=1e-3)
-    rows = [line.split() for line in (tmp_path / "pairs.txt").read_text().splitlines()
+    rows = [line.split() for line in (tmp_path / "pairs.txt").read_text(
+            encoding="utf-8").splitlines()
             if line.strip() and not line.startswith("#")]
     assert len(rows) == 40
     assert np.allclose([float(r[2]) - float(r[0]) for r in rows], 3.25, atol=1e-3)
@@ -151,7 +152,7 @@ def test_histplot_and_radplot_read_the_graphics_cursor(frame, monkeypatch):
     none = catalog.read(run(salgorithm="histplot", output=frame / "a.sky",
                             **common).outputs[0])
     assert set(none["sier"]) == {208}
-    (frame / "hcur").write_text("0 0 1 m\n105.25 5 1 m\n0 0 1 q\n0 0 1 q\n")
+    (frame / "hcur").write_text("0 0 1 m\n105.25 5 1 m\n0 0 1 q\n0 0 1 q\n", encoding="utf-8")
     marked = catalog.read(run(salgorithm="histplot", gcommands=str(frame / "hcur"),
                               output=frame / "h.sky", **common).outputs[0])
     assert set(marked["sier"]) == {0}
@@ -163,7 +164,7 @@ def test_histplot_and_radplot_read_the_graphics_cursor(frame, monkeypatch):
                                 CURSOR[1][1], 10.0, 10.0, apphot.DataPars())
     middle = fitsky._medr(a, np.arange(a.n + 1), a.n)        # apmedr, the first guess
     assert marked["msky"][1] == pytest.approx(float(middle)), "q at once keeps it"
-    (frame / "rcur").write_text("3 101.5 1 m\n0 0 1 q\n")
+    (frame / "rcur").write_text("3 101.5 1 m\n0 0 1 q\n", encoding="utf-8")
     radial = catalog.read(run(salgorithm="radplot", gcommands=str(frame / "rcur"),
                               output=frame / "r.sky", **common).outputs[0])
     assert radial["msky"][0] == pytest.approx(101.5)
@@ -173,7 +174,7 @@ def test_phot_reads_the_sky_from_a_file(frame):
     """salgorithm=file: phot's skyfile, one 'x y msky stdev sskew nsky nsrej'
     line per star; fitsky has no sky file and flags 209, as in IRAF."""
     lines = [f"{c[0]} {c[1]} 100.0 2.5 0.1 300 4" for c in CURSOR]
-    (frame / "skies").write_text("\n".join(lines[:-1]) + "\n")
+    (frame / "skies").write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
     result = get_task("phot").run(image=str(frame / "field.fits"),
                                   coords=frame / "field.coo", salgorithm="file",
                                   skyfile=str(frame / "skies"), output=frame / "f.mag")
@@ -196,7 +197,7 @@ def test_absorption_features_centre_as_iraf_centres_them():
     from harwood.core import apphot
 
     ref = json.loads((Path(__file__).parent / "data" / "iraf_center_absorption.json")
-                     .read_text())
+                     .read_text(encoding="utf-8"))
     yy, xx = np.indices((80, 90))
     data = 1000 + ((xx * 7 + yy * 13) % 11).astype(float)
     for cx, cy, depth in ((20.3, 30.6, 300), (55.8, 40.2, 150), (70.1, 65.4, 400)):

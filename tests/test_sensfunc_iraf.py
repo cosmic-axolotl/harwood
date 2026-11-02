@@ -46,7 +46,7 @@ CURSOR = ["del", "delw", "shift", "comp", "move", "add", "wts", "ext", "order", 
 
 def lines(path: Path) -> list[str]:
     """A logfile without its first line of each block, which names the system."""
-    return [line for line in path.read_text().splitlines()
+    return [line for line in path.read_text(encoding="utf-8").splitlines()
             if not line.startswith(("Community IRAF", "harwood "))]
 
 
@@ -84,7 +84,9 @@ def test_the_keys_do_what_iraf_s_do(case, tmp_path, monkeypatch):
     if stats.exists():
         assert lines(tmp_path / f"st_{case}") == lines(stats)
     if case == "ext":
-        assert (tmp_path / "ext_ext").read_text() == (REF / "ext_ext").read_text()
+        assert (tmp_path / "ext_ext").read_text(
+                encoding="utf-8") == (REF / "ext_ext").read_text(
+                encoding="utf-8")
     if case in ("ext", "ecancel"):
         assert any("Significance =  1.7 sigma" in line for line in result.data["text"])
     if case == "del":
@@ -148,7 +150,8 @@ def test_the_graphs_are_iraf_s(case, tmp_path, monkeypatch):
         extinction=str(DATA / "kpnoextinct.dat"), interactive=True, answer="YES",
         cursor=tmp_path / "cursor", logfile=f"log_{case}", newextinction=f"ext_{case}")
     # The frames of icfit, in e, have no title of sensfunc's.
-    frames = [frame for frame in json.loads((REF / "graphs" / f"{case}.json").read_text())
+    frames = [frame for frame in json.loads((REF / "graphs" / f"{case}.json").read_text(
+            encoding="utf-8"))
               if any(text.startswith("Aperture=") for text in frame["text"])]
     assert len(frames) == len(drawn)
     for number, (frame, (title, graphs)) in enumerate(zip(frames, drawn, strict=True)):
@@ -197,7 +200,7 @@ def test_the_panel_draws_every_graph_there_is():
     from harwood.viewer.sensfunc_panel import SensfuncPanel
 
     _qt.application()
-    stars = sf.read_iraf((REF / "std_mix").read_text(), [1], False)
+    stars = sf.read_iraf((REF / "std_mix").read_text(encoding="utf-8"), [1], False)
     curve = flux.read_extinction(DATA / "kpnoextinct.dat")
     session = sf.Session(stars, curve, "spline3", 6, graphs="sace")
     panel = SensfuncPanel(session)
@@ -231,7 +234,8 @@ def test_the_window_drives_the_same_session():
 
     application()
     curve = flux.read_extinction(str(DATA / "kpnoextinct.dat"))
-    stars = sf.read_iraf((REF / "std_mix").read_text(), ranges.parse("1"), False)
+    stars = sf.read_iraf((REF / "std_mix").read_text(
+            encoding="utf-8"), ranges.parse("1"), False)
     session = sf.Session(stars, curve, "spline3", 6)
     panel = SensfuncPanel(session)
     assert len(panel.plots) == 2

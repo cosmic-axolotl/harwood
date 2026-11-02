@@ -13,6 +13,7 @@ import importlib.util
 import json
 import shutil
 import struct
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -22,7 +23,7 @@ from astropy.io import fits
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_imexpr"
-CASES = json.loads((HERE / "imexpr.json").read_text())
+CASES = json.loads((HERE / "imexpr.json").read_text(encoding="utf-8"))
 
 _spec = importlib.util.spec_from_file_location("expr_images", HERE / "expr_images.py")
 expr_images = importlib.util.module_from_spec(_spec)
@@ -77,6 +78,10 @@ def _run(case):
     return params["output"].split("[")[0]
 
 
+#: What Windows' libm gives a bit away from glibc's, as its CI found
+OTHER_LIBM = {"f_cosh_double", "f_sinh_double", "f_tanh_double"}
+
+
 @pytest.mark.parametrize("case", SAME)
 def test_imexpr_writes_the_pixels_iraf_writes(work, case):
     expected = CASES[case]
@@ -86,7 +91,12 @@ def test_imexpr_writes_the_pixels_iraf_writes(work, case):
         assert list(hdul[0].data.shape)[::-1] == expected["shape"]
     data = fits.getdata(name).astype(np.float64).ravel()
     pixels = [struct.unpack(">d", bytes.fromhex(x))[0] for x in expected["bits"]]
-    assert np.array_equal(data, np.array(pixels), equal_nan=True)
+    if sys.platform == "win32" and case in OTHER_LIBM:
+        # IRAF's bits are glibc's: Windows' libm is another, and a hyperbolic function can
+        # come out a bit away there, which is as near as another libm can be held
+        np.testing.assert_array_max_ulp(data, np.array(pixels), maxulp=1)
+    else:
+        assert np.array_equal(data, np.array(pixels), equal_nan=True)
     header = fits.getheader(name)
     for key, value in expected["cards"].items():
         have = header.get(key, 1.0 if key.startswith("LTM") else "")

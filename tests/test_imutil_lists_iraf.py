@@ -21,8 +21,8 @@ from harwood.core import iraffmt
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_lists"
-LISTS = json.loads((HERE / "listpixels.json").read_text())
-MINMAX = json.loads((HERE / "minmax.json").read_text())
+LISTS = json.loads((HERE / "listpixels.json").read_text(encoding="utf-8"))
+MINMAX = json.loads((HERE / "minmax.json").read_text(encoding="utf-8"))
 # Told apart below: DIFFERENT by a test, UNTOUCHED because harwood leaves the card alone.
 DIFFERENT = {"section_valid"}
 UNTOUCHED = {"lfine_update", "lmin_update", "lmax_update", "lzero_update"}

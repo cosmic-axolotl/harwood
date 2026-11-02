@@ -46,7 +46,7 @@ def test_preferences_are_kept_where_a_person_can_read_them(tmp_path, monkeypatch
     prefs = theme.Preferences(theme="light", dyslexia=True, scale=1.4)
     path = prefs.save()
     assert path == tmp_path / "harwood" / "interface.json"
-    assert '"theme": "light"' in path.read_text()
+    assert '"theme": "light"' in path.read_text(encoding="utf-8")
     assert theme.Preferences.load() == prefs
 
 
@@ -54,9 +54,9 @@ def test_a_broken_preferences_file_falls_back_to_the_defaults(tmp_path, monkeypa
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     path = tmp_path / "harwood" / "interface.json"
     path.parent.mkdir(parents=True)
-    path.write_text("{not json")
+    path.write_text("{not json", encoding="utf-8")
     assert theme.Preferences.load() == theme.Preferences()
-    path.write_text('{"theme": "neon", "scale": 99, "unknown": 1}')
+    path.write_text('{"theme": "neon", "scale": 99, "unknown": 1}', encoding="utf-8")
     loaded = theme.Preferences.load()
     assert loaded.theme == "dark" and loaded.scale == theme.SCALES[-1]
 
@@ -112,7 +112,7 @@ def test_changing_the_theme_restyles_the_window_and_is_saved(window):
     assert window.graphics.backgroundBrush().color().name() == theme.LIGHT_CB.ground
     assert window._theme_actions["light"].isChecked()
     assert window._look_actions["colorblind"].isChecked()
-    assert '"colorblind": true' in theme.Preferences.path().read_text()
+    assert '"colorblind": true' in theme.Preferences.path().read_text(encoding="utf-8")
 
 
 def test_examine_marks_follow_the_theme(window):

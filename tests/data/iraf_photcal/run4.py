@@ -12,12 +12,13 @@ iraf.fitparams("observations.obsfile", "catalogo.mkcatalog", "config3.cfg", "fit
                log_results="yes", Stdout="/dev/null")
 
 # The parameters file with a record gone, and with one that did not converge.
-text = Path("fit3.txt").read_text()
+text = Path("fit3.txt").read_text(encoding="utf-8")
 start, end = text.index("begin\tBFIT"), text.index("begin\tCFIT")
-Path("fit3noB.txt").write_text(text[:start] + text[end:])
+Path("fit3noB.txt").write_text(text[:start] + text[end:], encoding="utf-8")
 Path("fit3stat.txt").write_text(
     text[:start] + text[start:end].replace("status\t0\t(Solution converged)",
-                                           "status\t1\t(Singular matrix)") + text[end:])
+                                           "status\t1\t(Singular matrix)") + text[end:],
+                                                   encoding="utf-8")
 
 OBS, CAT = "observations.obsfile", "catalogo.mkcatalog"
 F = "%-10s" + " %14.7f" * 9 + "\\n"
@@ -61,5 +62,5 @@ for name, (obs, config, parameters, kw) in CASES.items():
     try:
         iraf.evalfit(obs, config, parameters, f"ev{name}.txt", Stderr=f"ev{name}.err", **kw)
     except iraf.IrafError as error:
-        with open(f"ev{name}.err", "a") as handle:
+        with open(f"ev{name}.err", "a", encoding="utf-8") as handle:
             handle.write(f"IRAF stopped: {error}\n")

@@ -238,13 +238,14 @@ def test_the_frames_are_matched_and_the_shift_is_recovered(reduced):
     for name, table in (("m92010", first), ("m92011", second)):
         (reduced / f"{name}.xy").write_text(
             "".join(f"{x:.3f} {y:.3f}\n" for x, y in zip(table["x"], table["y"],
-                                                          strict=True)))
+                                                          strict=True)), encoding="utf-8")
     xr, yr, rl = xyxymatch.read_list(reduced / "m92010.xy")
     xi, yi, il = xyxymatch.read_list(reduced / "m92011.xy")
     result = xyxymatch.xyxymatch(xr, yr, xi, yi)
     written = xyxymatch.format_output(result, xr, yr, rl, xi, yi, il, "m92011.xy",
                                       "m92010.xy")
-    iraf = (Path(__file__).parent / "data" / "iraf_xyxymatch_m92.out").read_text()
+    iraf = (Path(__file__).parent / "data" / "iraf_xyxymatch_m92.out").read_text(
+            encoding="utf-8")
     assert written == iraf
 
     pairs = np.array(result.pairs)

@@ -170,7 +170,7 @@ for key, table, task, base2 in (
         if not error and (work / target).exists():
             done.update(read(work / target))
         if (work / "new.txt").exists():
-            done["written"] = (work / "new.txt").read_text()
+            done["written"] = (work / "new.txt").read_text(encoding="utf-8")
         out[key][name] = done
 base3 = dict(
     interactive="no",
@@ -209,7 +209,7 @@ for name, params in STARLIST.items():
     lines, error = run(iraf.starlist, "list.txt", merged.pop("nstars"), **merged)
     done = {"params": params, "stdout": lines, "error": error}
     if (work / "list.txt").exists():
-        done["text"] = (work / "list.txt").read_text()
+        done["text"] = (work / "list.txt").read_text(encoding="utf-8")
     out["starlist"][name] = done
-(here / "artdata.json").write_text(json.dumps(out))
+(here / "artdata.json").write_text(json.dumps(out), encoding="utf-8")
 print({k: [c for c, v in out[k].items() if v["error"]] for k in out})

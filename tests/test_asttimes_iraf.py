@@ -9,13 +9,14 @@ import pytest
 
 from harwood.core.registry import get_task
 
-DATA = json.loads((Path(__file__).parent / "data" / "iraf_asttimes.json").read_text())
+DATA = json.loads((Path(__file__).parent / "data" / "iraf_asttimes.json").read_text(
+        encoding="utf-8"))
 
 
 @pytest.mark.parametrize("site", ["kpno", "lna"])
 def test_asttimes_prints_irafs_table(site, tmp_path):
     dates = tmp_path / "dates.txt"
-    dates.write_text("\n".join(row[0] for row in DATA[site]) + "\n")
+    dates.write_text("\n".join(row[0] for row in DATA[site]) + "\n", encoding="utf-8")
     rows = get_task("asttimes").run(files=[str(dates)], observatory=site).data["rows"]
     for row, expected in zip(rows, DATA[site], strict=True):
         assert list(row.values()) == expected[1:]

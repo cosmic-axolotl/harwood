@@ -20,7 +20,7 @@ ncombine  NCOMBINE 1
 
 def write(folder):
     folder = Path(folder)
-    (folder / "inst.dat").write_text(INST)
+    (folder / "inst.dat").write_text(INST, encoding="utf-8")
     h = fits.Header()
     for key, value in (
         ("OBJECT", "M 92 V"), ("IMAGETYP", "OBJECT"), ("EXPTIME", 120.5), ("DARKTIME", 121),

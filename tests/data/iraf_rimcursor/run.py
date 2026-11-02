@@ -20,7 +20,7 @@ iraf.chdir(str(folder))
 
 
 def run(image, cursor, **kw):
-    (folder / "cur").write_text(cursor)
+    (folder / "cur").write_text(cursor, encoding="utf-8")
     text = io.StringIO()
     message = ""
     try:
@@ -38,7 +38,8 @@ for name, kw in CASES.items():
     gold["cases"][name] = {"params": {"image": image, **kw}, **run(image, CURSOR, **kw)}
 for name, cursor in BAD.items():
     gold["bad"][name] = {"cursor": cursor, **run("", cursor)}
-(Path(__file__).parent / "rimcursor.json").write_text(json.dumps(gold, indent=0))
+(Path(__file__).parent / "rimcursor.json").write_text(json.dumps(gold, indent=0),
+                                                      encoding="utf-8")
 print(len(gold["cases"]))
 for k, v in {**gold["cases"], **gold["bad"]}.items():
     print(k, repr(v["text"][:220]), v["error"][-70:])

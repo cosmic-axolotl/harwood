@@ -18,7 +18,7 @@ iraf.utilities(_doprint=0)
 folder = Path(sys.argv[1]).resolve()
 iraf.chdir(str(folder))
 for name, text in LISTS.items():
-    (folder / name).write_text(text)
+    (folder / name).write_text(text, encoding="utf-8")
 if not (folder / "im2.imh").exists():
     iraf.images(_doprint=0)
     iraf.imutil(_doprint=0)
@@ -50,10 +50,12 @@ SWAP = {"low_reject": "low", "high_reject": "high", "niterate": "niterate", "sam
         "naverage": "naverage", "grow": "grow"}
 for name, kw in SESSIONS.items():
     cursor = folder / "cursor"
-    cursor.write_text("".join(f":{SWAP[k]} {v}\n" for k, v in kw["cmds"].items()) + "f\nq\n")
+    cursor.write_text("".join(f":{SWAP[k]} {v}\n" for k, v in kw["cmds"].items()) + "f\nq\n",
+                      encoding="utf-8")
     gold["sessions"][name] = {
         "params": kw,
         **run(kw, interactive="yes", device="stdvdm", cursor=str(cursor)),
     }
-(Path(__file__).parent / "curfit.json").write_text(json.dumps(gold, indent=0))
+(Path(__file__).parent / "curfit.json").write_text(json.dumps(gold, indent=0),
+                                                   encoding="utf-8")
 print(len(gold["cases"]), len(gold["sessions"]))

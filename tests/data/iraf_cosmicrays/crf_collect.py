@@ -21,8 +21,10 @@ for work in sorted(results.iterdir()):
                     for y, x in zip(*changed, strict=True)],
         "mask": [[int(x) + 1, int(y) + 1] for y, x in zip(*np.nonzero(mask), strict=True)],
         "crcor": fits.getheader(work / "o.fits")["CRCOR"],
-        "saved": (work / "saved.txt").read_text() if (work / "saved.txt").exists() else "",
-        "printed": re.findall(r"(\d+ \d+)$", (work / "stdout.txt").read_text(), re.M),
-        "error": (work / "error.txt").read_text(),
+        "saved": (work / "saved.txt").read_text(
+                encoding="utf-8") if (work / "saved.txt").exists() else "",
+        "printed": re.findall(r"(\d+ \d+)$", (work / "stdout.txt").read_text(
+                encoding="utf-8"), re.M),
+        "error": (work / "error.txt").read_text(encoding="utf-8"),
     }
-Path(__file__).with_name("crf.json").write_text(json.dumps(out, indent=0))
+Path(__file__).with_name("crf.json").write_text(json.dumps(out, indent=0), encoding="utf-8")

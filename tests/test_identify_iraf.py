@@ -21,7 +21,7 @@ from harwood.core import arc, database
 from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data"
-REFERENCE = json.loads((DATA / "iraf_autoidentify.json").read_text())
+REFERENCE = json.loads((DATA / "iraf_autoidentify.json").read_text(encoding="utf-8"))
 SPEC = Path(os.environ.get("HARWOOD_TEST_DATA", "~/iraf/exercises")).expanduser() / "spec"
 
 

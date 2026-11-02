@@ -31,7 +31,8 @@ if __name__ == "__main__":
                       "flags": [key for key in FLAGS if key in header],
                       "text": {key: header[key] for key in TEXT if key in header},
                       "number": {key: header[key] for key in NUMBER if key in header},
-                      "error": (results / name / "err.txt").read_text()
+                      "error": (results / name / "err.txt").read_text(encoding="utf-8")
                       if (results / name / "err.txt").exists() else ""}
-    (Path(__file__).parent / "ccdp.json").write_text(json.dumps(gold, indent=0))
+    (Path(__file__).parent / "ccdp.json").write_text(json.dumps(gold, indent=0),
+                                                     encoding="utf-8")
     print(len(gold))

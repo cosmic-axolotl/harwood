@@ -31,7 +31,7 @@ def run(name, params):
     iraf.chdir(str(work))
     merged = {k: v for k, v in {**BASE, **params}.items() if k not in ("input", "keys")}
     if "keys" in params:
-        (work / "keys.cur").write_text(params["keys"])
+        (work / "keys.cur").write_text(params["keys"], encoding="utf-8")
     text = io.StringIO()
     error = ""
     try:
@@ -42,8 +42,8 @@ def run(name, params):
             iraf.imcopy("m.pl", "m.fits", verbose="no", Stdout=io.StringIO())
     except Exception as e:  # noqa: BLE001
         error = str(e)[-200:]
-    (work / "stdout.txt").write_text(text.getvalue())
-    (work / "error.txt").write_text(error)
+    (work / "stdout.txt").write_text(text.getvalue(), encoding="utf-8")
+    (work / "error.txt").write_text(error, encoding="utf-8")
     print(name, error[-100:], flush=True)
 
 

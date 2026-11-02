@@ -107,12 +107,12 @@ def test_what_it_writes(work):
     folded = catalog.read("f.ecsv")
     assert folded.meta["period"] == pytest.approx(2.0, rel=0.01)
     assert np.all(np.diff(np.asarray(folded["phase"], float)) >= 0)
-    assert Path("p.svg").read_text().lstrip().startswith("<svg")
+    assert Path("p.svg").read_text(encoding="utf-8").lstrip().startswith("<svg")
 
 
 def test_indef_is_left_out_and_said(work):
     rows = "\n".join(f"{t:.3f} {np.sin(t):.4f}" for t in np.linspace(0, 50, 100))
-    with open("c.txt", "w") as file:
+    with open("c.txt", "w", encoding="utf-8") as file:
         file.write(rows + "\n51.0 INDEF\n52.0 INDEF\n")
     done = get_task("lombscargle").run(input="c.txt")
     assert any("2 measures" in warning.message for warning in done.warnings)

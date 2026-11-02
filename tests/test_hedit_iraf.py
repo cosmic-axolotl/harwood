@@ -20,7 +20,8 @@ import pytest
 import harwood
 from harwood.core import evexpr, iraffmt
 
-REF = json.loads((Path(__file__).parent / "data" / "iraf_hedit.json").read_text())
+REF = json.loads((Path(__file__).parent / "data" / "iraf_hedit.json").read_text(
+        encoding="utf-8"))
 NUMBER = re.compile(r"^-?(\d+\.?\d*|\.\d+)(E-?\d+)?$")
 
 

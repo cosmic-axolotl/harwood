@@ -56,8 +56,8 @@ def _run(case):
         for cls, original in zip(classes, originals, strict=True):
             cls.graph = recording(original)
         session = _session()
-        session.run_commands((KEYS / f"{case}.cur").read_text(),
-                             (KEYS / f"{case}.ans").read_text())
+        session.run_commands((KEYS / f"{case}.cur").read_text(encoding="utf-8"),
+                             (KEYS / f"{case}.ans").read_text(encoding="utf-8"))
     finally:
         for cls, original in zip(classes, originals, strict=True):
             cls.graph = original
@@ -97,15 +97,16 @@ def _on_screen(window, x, y):
 @pytest.mark.parametrize("case", CASES)
 def test_the_keys_say_and_write_what_iraf_s_do(case):
     session, _ = _run(case)
-    ours, theirs = _text(session.stdout), _text((KEYS / f"{case}.out").read_text())
+    ours, theirs = _text(session.stdout), _text((KEYS / f"{case}.out").read_text(
+            encoding="utf-8"))
     assert len(ours) == len(theirs)
     for mine, iraf_s in zip(ours, theirs, strict=True):
         assert _same(mine, iraf_s), (mine, iraf_s)
-    assert session.stderr == (KEYS / f"{case}.err").read_text()
+    assert session.stderr == (KEYS / f"{case}.err").read_text(encoding="utf-8")
     record = KEYS / f"{case}.db"
     assert session.write == record.exists()
     if record.exists():
-        rows = [line.split() for line in record.read_text().splitlines()
+        rows = [line.split() for line in record.read_text(encoding="utf-8").splitlines()
                 if line.startswith("\t ")]
         rows = [row for row in rows if len(row) >= 6 and re.fullmatch(r"[-\d.]+", row[0])
                 and row[4] in ("1", "2")]
@@ -123,7 +124,7 @@ def test_the_keys_say_and_write_what_iraf_s_do(case):
 @pytest.mark.parametrize("case", CASES)
 def test_the_graphs_are_what_iraf_draws(case):
     _, drawn = _run(case)
-    frames = json.loads((KEYS / f"{case}.json").read_text())
+    frames = json.loads((KEYS / f"{case}.json").read_text(encoding="utf-8"))
     assert len(frames) == len(drawn)
     for number, (frame, graph) in enumerate(zip(frames, drawn, strict=True)):
         where = f"frame {number}"

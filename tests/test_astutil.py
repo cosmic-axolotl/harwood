@@ -202,12 +202,12 @@ def test_the_sites_are_irafs_and_a_reduction_can_add_its_own(tmp_path, monkeypat
     monkeypatch.chdir(tmp_path)
     assert len(observatory.SITES) > 70, "IRAF's table, not a short list"
     assert observatory.find("saao").east == pytest.approx(20.8107, abs=1e-3)
-    (tmp_path / "harwood.yaml").write_text("params: {}\n")
+    (tmp_path / "harwood.yaml").write_text("params: {}\n", encoding="utf-8")
     get_task("observatory").run(command="set", obsid="skinakas",
                                 name="Skinakas Observatory", latitude=35.212,
                                 longitude=-24.8989, altitude=1750, timezone=-2)
-    assert 'observatory = "skinakas"' in (tmp_path / "obsdb.dat").read_text()
-    assert "observatory: skinakas" in (tmp_path / "harwood.yaml").read_text()
+    assert 'observatory = "skinakas"' in (tmp_path / "obsdb.dat").read_text(encoding="utf-8")
+    assert "observatory: skinakas" in (tmp_path / "harwood.yaml").read_text(encoding="utf-8")
     assert observatory.find("skinakas").altitude == 1750
     assert observatory.default().code == "skinakas"
     get_task("observatory").run(command="set", obsid="kpno")

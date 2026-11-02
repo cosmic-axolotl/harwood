@@ -234,7 +234,8 @@ def test_the_rms_and_the_counts_are_what_iraf_s_title_says(case):
     """Averaged points are what the rms is over, and outside the sample is not
     rejected: IRAF's fit1d, its graph's title, tests/data/iraf_icfit_titles.json."""
     reference = json.loads(
-        (Path(__file__).parent / "data" / "iraf_icfit_titles.json").read_text())
+        (Path(__file__).parent / "data" / "iraf_icfit_titles.json").read_text(
+                encoding="utf-8"))
     y = np.array(reference["y"])
     x = np.arange(1.0, y.size + 1.0)
     settings = dict(reference["cases"][case])

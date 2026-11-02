@@ -26,7 +26,7 @@ for name, cursor in CASES.items():
     shutil.rmtree(work, ignore_errors=True)
     shutil.copytree(fresh, work)
     iraf.chdir(str(work))
-    (work / "keys.cur").write_text(cursor)
+    (work / "keys.cur").write_text(cursor, encoding="utf-8")
     # The psets stay as the last case left them
     for key, value in (("fittype", "moffat"), ("radius", 5.0), ("rplot", 8.0),
                        ("beta", "INDEF"), ("background", "yes"), ("center", "yes"),
@@ -43,8 +43,8 @@ for name, cursor in CASES.items():
                        ncoutput=21, nloutput=21, mode="h", Stdout=text, Stderr=text)
     except Exception as e:  # noqa: BLE001
         error = str(e)[-200:]
-    (work / "stdout.txt").write_text(text.getvalue())
-    (work / "error.txt").write_text(error)
+    (work / "stdout.txt").write_text(text.getvalue(), encoding="utf-8")
+    (work / "error.txt").write_text(error, encoding="utf-8")
     if vdm.exists():
         shutil.copy(vdm, work / "metacode")
     print(name, error[-100:])

@@ -21,7 +21,7 @@ from harwood.core import icfit, icfitsession
 DATA = Path(__file__).parent / "data"
 KEYS = DATA / "iraf_icfit"
 CASES = sorted(path.stem for path in KEYS.glob("*.cur"))
-Y = np.array(json.loads((DATA / "iraf_icfit_titles.json").read_text())["y"])
+Y = np.array(json.loads((DATA / "iraf_icfit_titles.json").read_text(encoding="utf-8"))["y"])
 X = np.arange(1.0, Y.size + 1.0)
 START = {"function": "spline3", "order": 3, "sample": "*", "naverage": 1, "low_reject": 0.0,
          "high_reject": 0.0, "niterate": 1, "grow": 0.0}
@@ -39,8 +39,8 @@ class Recording(icfitsession.IcfitSession):
 def _session(case, cursor=None):
     session = Recording(X, Y, icfit.FitSpec(**START), title="o.fits[*,2]\n", xlabel="X",
                         xrange=(1.0, float(X.size)))
-    session.run_commands(cursor or (KEYS / f"{case}.cur").read_text(),
-                         (KEYS / f"{case}.ans").read_text())
+    session.run_commands(cursor or (KEYS / f"{case}.cur").read_text(encoding="utf-8"),
+                         (KEYS / f"{case}.ans").read_text(encoding="utf-8"))
     return session
 
 
@@ -83,16 +83,19 @@ def _unmatched(points, others, within=GKI_UNITS):
 
 @pytest.mark.parametrize("case", CASES)
 def test_the_keys_say_what_iraf_s_say(case, tmp_path):
-    cursor = (KEYS / f"{case}.cur").read_text()
+    cursor = (KEYS / f"{case}.cur").read_text(encoding="utf-8")
     kept = tmp_path / "keep.txt"
     session = _session(case, cursor.replace("keep.txt", str(kept)))
-    ours, theirs = _text(session.stdout), _text((KEYS / f"{case}.out").read_text())
+    ours, theirs = _text(session.stdout), _text((KEYS / f"{case}.out").read_text(
+            encoding="utf-8"))
     assert len(ours) == len(theirs)
     for mine, iraf_s in zip(ours, theirs, strict=True):
         assert _same(mine, iraf_s), (mine, iraf_s)
-    assert session.stderr == (KEYS / f"{case}.err").read_text()
+    assert session.stderr == (KEYS / f"{case}.err").read_text(encoding="utf-8")
     if (KEYS / f"{case}.keep").exists():
-        ours, theirs = _text(kept.read_text()), _text((KEYS / f"{case}.keep").read_text())
+        ours, theirs = _text(kept.read_text(
+                encoding="utf-8")), _text((KEYS / f"{case}.keep").read_text(
+                encoding="utf-8"))
         assert len(ours) == len(theirs)
         for mine, iraf_s in zip(ours, theirs, strict=True):
             assert _same(mine, iraf_s), (mine, iraf_s)
@@ -101,7 +104,7 @@ def test_the_keys_say_what_iraf_s_say(case, tmp_path):
 @pytest.mark.parametrize("case", CASES)
 def test_the_graphs_are_what_iraf_draws(case):
     session = _session(case)
-    frames = json.loads((KEYS / f"{case}.json").read_text())
+    frames = json.loads((KEYS / f"{case}.json").read_text(encoding="utf-8"))
     drawn = []
     for graph in session.__dict__.get("drawn", []):
         if graph.overplot and drawn:

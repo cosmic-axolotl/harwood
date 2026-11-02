@@ -1,6 +1,8 @@
 """Core: parameter resolution, image specs, the registry, provenance."""
 
 
+import os
+
 import numpy as np
 import pytest
 from astropy.io import fits
@@ -85,6 +87,7 @@ def test_a_harwood_yaml_in_the_home_is_not_for_what_is_under_it(tmp_path, monkey
     deep = home / "night" / "raw"
     deep.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))  # what Windows reads
     params.write_project(home / params.PROJECT_FILE, {"demo": {"sigma": 4.0}})
 
     monkeypatch.chdir(deep)
@@ -99,6 +102,7 @@ def test_above_the_home_is_not_looked_at_either(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))  # what Windows reads
     params.write_project(tmp_path / params.PROJECT_FILE, {"demo": {"sigma": 4.0}})
     monkeypatch.chdir(home)
     assert params.find_project() is None
@@ -109,11 +113,13 @@ def test_a_reduction_under_the_home_is_still_seen_from_below(tmp_path, monkeypat
     raw = night / "raw"
     raw.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))  # what Windows reads
     params.write_project(night / params.PROJECT_FILE, {"demo": {"sigma": 4.0}})
     monkeypatch.chdir(raw)
     assert params.resolve("demo", DemoParams)["sigma"].value == 4.0
     assert params.inherited_project() == night.resolve() / params.PROJECT_FILE
-    assert "../harwood.yaml" in params.resolve("demo", DemoParams)["sigma"].describe()
+    shown = params.resolve("demo", DemoParams)["sigma"].describe()
+    assert os.path.join("..", "harwood.yaml") in shown
 
     monkeypatch.chdir(night)
     assert params.inherited_project() is None
@@ -145,7 +151,7 @@ def test_at_list_is_expanded(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "a.fits").touch()
     (tmp_path / "b.fits").touch()
-    (tmp_path / "list.lis").write_text("a.fits\n# a comment\nb.fits\n")
+    (tmp_path / "list.lis").write_text("a.fits\n# a comment\nb.fits\n", encoding="utf-8")
     assert [str(s) for s in images.expand("@list.lis")] == ["a.fits", "b.fits"]
 
 

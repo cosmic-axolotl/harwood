@@ -21,7 +21,7 @@ import pytest
 from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data" / "iraf_xyxymatch"
-CASES = json.loads((DATA / "cases.json").read_text())
+CASES = json.loads((DATA / "cases.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture
@@ -42,7 +42,8 @@ def test_xyxymatch_writes_what_iraf_writes(lists, case):
         if name in params:
             params[name] = float(params[name])
     get_task("xyxymatch").run(output=Path("ours.out"), **params)
-    assert Path("ours.out").read_text() == (DATA / f"{case}.out").read_text()
+    assert Path("ours.out").read_text(encoding="utf-8") == (DATA / f"{case}.out").read_text(
+            encoding="utf-8")
 
 
 def test_a_harwood_catalogue_is_matched_by_its_x_and_y(tmp_path, monkeypatch):

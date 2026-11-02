@@ -55,7 +55,7 @@ lists = {}
 for name, params in LISTPIXELS.items():
     renew()
     lists[name] = {"params": params, "stdout": run(iraf.listpixels, dict(params))}
-(here / "listpixels.json").write_text(json.dumps(lists, indent=0))
+(here / "listpixels.json").write_text(json.dumps(lists, indent=0), encoding="utf-8")
 
 mm = {}
 for name, steps in MINMAX.items():
@@ -71,4 +71,4 @@ for name, steps in MINMAX.items():
                      "minval": str(iraf.minmax.minval), "maxval": str(iraf.minmax.maxval),
                      "minpix": str(iraf.minmax.minpix), "maxpix": str(iraf.minmax.maxpix)})
     mm[name] = done
-(here / "minmax.json").write_text(json.dumps(mm, indent=0))
+(here / "minmax.json").write_text(json.dumps(mm, indent=0), encoding="utf-8")

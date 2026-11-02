@@ -20,7 +20,7 @@ from harwood.core import plio
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_masks"
-GOLD = json.loads((HERE / "masks.json").read_text())
+GOLD = json.loads((HERE / "masks.json").read_text(encoding="utf-8"))
 
 _load = importlib.util.spec_from_file_location("mask_images", HERE / "mask_images.py")
 mask_images = importlib.util.module_from_spec(_load)
@@ -75,7 +75,7 @@ def test_a_rectangle_of_several_lines_is_whole(work):
 
 
 def test_a_comma_ends_the_numbers(work):
-    Path("c.txt").write_text("8, 9\n")
+    Path("c.txt").write_text("8, 9\n", encoding="utf-8")
     get_task("text2mask").run(text="c.txt", mask="c.pl", ncols=12, nlines=12)
     assert not plio.read("c.pl")[0].any()
 

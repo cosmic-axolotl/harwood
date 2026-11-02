@@ -471,7 +471,7 @@ def cog(monkeypatch):
     _qt.application()
     photometry = Path(__file__).parent / "data" / "iraf_photcal" / "apfile"
     monkeypatch.chdir(photometry)
-    files = (photometry / "all.lis").read_text().split()
+    files = (photometry / "all.lis").read_text(encoding="utf-8").split()
     session = apsession.ApSession(apfile.read_photfiles(files, 20, 0.10), 20)
     return CogPanel(session)
 
@@ -588,7 +588,7 @@ def test_the_fit_panel_asks_with_buttons_and_finishes_after_the_last(fitting, tm
     fitting._answer("yes")
     assert seen == [True]
     assert fitting.session.state == "done"
-    assert (tmp_path / "out.fit").read_text().count("begin") == 1
+    assert (tmp_path / "out.fit").read_text(encoding="utf-8").count("begin") == 1
     fitting.key("d")
     assert "The results are written" in fitting.said
 

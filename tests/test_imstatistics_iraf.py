@@ -43,7 +43,7 @@ def _image(name):
 
 
 def _rows():
-    for line in DATA.read_text().splitlines():
+    for line in DATA.read_text(encoding="utf-8").splitlines():
         image, case, values = line.split("|")
         yield image, case, [float(v) for v in values.split()[1:]]
 

@@ -34,7 +34,7 @@ PHOT = "  40.313  45.687 \\\n  13.703  0.004\n  110.557  52.293 \\\n  13.290  0.
 def _ecsv(tmp_path):
     path = tmp_path / "h.coo"
     catalog.write(Table({"x": [1.5, 2.5], "y": [10.0, 20.0], "mag": [14.1, 15.2]}), path)
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 # ----------------------------------------------------------------- reading
@@ -149,7 +149,7 @@ def test_an_ecsv_header_stays_true_after_a_column_edit(tmp_path):
                       C.Operation("sort", (3,), reverse=True)):
         change = C.apply(_ecsv(tmp_path), operation, "h.coo")
         path = tmp_path / "edited.coo"
-        path.write_text(change.text)
+        path.write_text(change.text, encoding="utf-8")
         table = catalog.read(path)                   # it still reads, as a table
         if operation.kind == "delete_columns":
             assert table.colnames == ["x", "mag"]
@@ -224,9 +224,9 @@ def test_edit_check_compares_files_from_the_shell(tmp_path, monkeypatch):
     from harwood.cli.main import app
 
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "a.coo").write_text(PLAIN)
-    (tmp_path / "b.coo").write_text(PLAIN)
-    (tmp_path / "c.coo").write_text(NAMED)
+    (tmp_path / "a.coo").write_text(PLAIN, encoding="utf-8")
+    (tmp_path / "b.coo").write_text(PLAIN, encoding="utf-8")
+    (tmp_path / "c.coo").write_text(NAMED, encoding="utf-8")
     alike = CliRunner().invoke(app, ["edit", "--check", "a.coo", "b.coo"])
     assert "alike" in alike.output
     differ = CliRunner().invoke(app, ["edit", "--check", "a.coo", "c.coo"])
@@ -243,9 +243,9 @@ def window(tmp_path, monkeypatch):
     from harwood.viewer.window import HarwoodWindow
 
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "a.coo").write_text(IRAF)
-    (tmp_path / "b.coo").write_text(IRAF.replace("40.313", "41.000"))
-    (tmp_path / "c.coo").write_text(NAMED)
+    (tmp_path / "a.coo").write_text(IRAF, encoding="utf-8")
+    (tmp_path / "b.coo").write_text(IRAF.replace("40.313", "41.000"), encoding="utf-8")
+    (tmp_path / "c.coo").write_text(NAMED, encoding="utf-8")
     _qt.application()
     w = HarwoodWindow()
     yield w
@@ -303,7 +303,7 @@ def test_files_that_agree_are_edited_without_a_question(window):
     a, b = window.files.files()
     assert "43.313" in a.toPlainText() and "44.000" in b.toPlainText()
     assert a.modified and window.files.tabs.tabText(0) == "● a.coo"
-    assert a.path.read_text() == IRAF, "not saved yet"
+    assert a.path.read_text(encoding="utf-8") == IRAF, "not saved yet"
     a.undo()
     assert a.toPlainText() == IRAF, "one Ctrl+Z takes the whole edit back"
 
@@ -328,7 +328,8 @@ def test_going_ahead_anyway_is_said_in_the_session(window):
     assert "edited together anyway: delete column 3" in session
     assert "Save all" in session
     window.files.save_all()
-    assert "MAG" not in (window.files.files()[0].path.read_text().splitlines()[1])
+    assert "MAG" not in (window.files.files()[0].path.read_text(
+            encoding="utf-8").splitlines()[1])
 
 
 def test_the_confirmation_defaults_to_going_back(window):

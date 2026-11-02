@@ -28,7 +28,8 @@ from harwood.core import spectrum
 from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data"
-REFERENCE = json.loads((DATA / "iraf_dispcor_multispec" / "cases.json").read_text())
+REFERENCE = json.loads((DATA / "iraf_dispcor_multispec" / "cases.json").read_text(
+        encoding="utf-8"))
 SPECTRA = np.load(DATA / "iraf_dispcor_multispec" / "spectra.npz")
 
 
@@ -43,7 +44,7 @@ def night(tmp_path, monkeypatch):
                         for ap, centre, flux in apertures],
                        header=fits.Header(header))
     shutil.copytree(DATA / "iraf_dispcor_multispec" / "database", tmp_path / "database")
-    (tmp_path / "tbl").write_text(REFERENCE["table_text"])
+    (tmp_path / "tbl").write_text(REFERENCE["table_text"], encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 

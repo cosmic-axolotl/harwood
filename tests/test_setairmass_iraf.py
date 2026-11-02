@@ -16,7 +16,8 @@ from astropy.io import fits
 
 from harwood.core.registry import get_task
 
-DATA = json.loads((Path(__file__).parent / "data" / "iraf_setairmass.json").read_text())
+DATA = json.loads((Path(__file__).parent / "data" / "iraf_setairmass.json").read_text(
+        encoding="utf-8"))
 
 
 @pytest.fixture

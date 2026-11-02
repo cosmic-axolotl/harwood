@@ -8,7 +8,7 @@ from pathlib import Path
 from harwood.core.photcal import apfile
 
 P0 = [1.2, 0.1, 0.5, 0.9, 0.0]
-files = Path("all.lis").read_text().split()
+files = Path("all.lis").read_text(encoding="utf-8").split()
 images = apfile.read_photfiles(files, 20, 0.10)
 fit = apfile.fit_model(images, P0, 3)
 first = images[0]
@@ -60,5 +60,5 @@ CASES = {
 }
 for name, lines in CASES.items():
     text = "".join(f"{x:.7g} {y:.7g} 1 {k}\n" for x, y, k in lines) + "0 0 1 q\n"
-    Path(f"{name}.cur").write_text(text)
+    Path(f"{name}.cur").write_text(text, encoding="utf-8")
 print(len(CASES), rbar, mag, res, xs, ys, mag1, file=sys.stderr)

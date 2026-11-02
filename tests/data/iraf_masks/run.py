@@ -115,6 +115,6 @@ for name, params in MSKEXPR.items():
                             "file": (work / target).exists()}
     if not error and (work / target).exists():
         shutil.copy(work / target, here / target)
-(here / "masks.json").write_text(json.dumps(out))
+(here / "masks.json").write_text(json.dumps(out), encoding="utf-8")
 print({k: [c for c, v in out[k].items() if (v if isinstance(v, str) else v["error"])]
        for k in out})

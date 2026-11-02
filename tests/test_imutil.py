@@ -5,6 +5,8 @@ could not do it: `%m%tr%` output names, `imarith @list`, `imstat fields=`,
 `sections`, `imdelete`.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from astropy.io import fits
@@ -31,7 +33,7 @@ def frames(tmp_path, monkeypatch):
 
 def test_substitution_renames_the_way_iraf_does():
     assert str(images.substitute("m92001.fits", "%m%tr%")) == "tr92001.fits"
-    assert str(images.substitute("dir/m92001.fits", "%m%n%")) == "dir/n92001.fits"
+    assert images.substitute("dir/m92001.fits", "%m%n%") == Path("dir/n92001.fits")
 
 
 def test_a_substitution_that_matches_nothing_says_so():
@@ -50,7 +52,7 @@ def test_outputs_match_inputs_one_for_one(frames):
         ["tr92001.fits", "tr92002.fits", "tr92003.fits"]
     assert [p.name for p in images.outputs_for(specs, "a.fits,b.fits,c.fits")] == \
         ["a.fits", "b.fits", "c.fits"]
-    assert [str(p) for p in images.outputs_for(specs, "out")][0] == "out/m92001.fits"
+    assert images.outputs_for(specs, "out")[0] == Path("out/m92001.fits")
 
 
 def test_a_count_mismatch_is_refused_rather_than_guessed(frames):
@@ -77,7 +79,7 @@ def test_imarith_pairs_a_list_with_a_list(frames):
 
 
 def test_imarith_reads_an_at_list(frames):
-    (frames / "all.lis").write_text("m92001.fits\nm92002.fits\n")
+    (frames / "all.lis").write_text("m92001.fits\nm92002.fits\n", encoding="utf-8")
     result = get_task("imarith").run(operand1="@all.lis", op="/", operand2="2",
                                      result="%m%h%")
     assert len(result.outputs) == 2

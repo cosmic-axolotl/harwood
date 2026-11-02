@@ -197,7 +197,7 @@ def test_an_unknown_key_is_named_and_not_guessed(star_image):
 def test_a_cursor_file_reads_like_iraf_s(tmp_path):
     path = tmp_path / "cur"
     path.write_text("# a comment\n\n10 20 r\n11.5 21.5 2 a   # trailing\n"
-                    "30 40\n50 60 2\n")
+                    "30 40\n50 60 2\n", encoding="utf-8")
     assert examine.read_cursor(path, defkey="r") == [
         (10.0, 20.0, 1, "r"), (11.5, 21.5, 2, "a"),
         (30.0, 40.0, 1, "r"), (50.0, 60.0, 2, "r"),       # defkey fills the gap
@@ -206,7 +206,7 @@ def test_a_cursor_file_reads_like_iraf_s(tmp_path):
 
 def test_a_colon_command_in_a_cursor_file_is_kept_in_order(tmp_path):
     path = tmp_path / "cur"
-    path.write_text("10 20 1 :radius 7\n30 40 :defkey m\n50 60\n")
+    path.write_text("10 20 1 :radius 7\n30 40 :defkey m\n50 60\n", encoding="utf-8")
     assert examine.read_cursor(path, defkey="r") == [
         (10.0, 20.0, 1, ":radius 7"), (30.0, 40.0, 1, ":defkey m"),
         (50.0, 60.0, 1, "m"),                         # :defkey moved the default
@@ -216,7 +216,7 @@ def test_a_colon_command_in_a_cursor_file_is_kept_in_order(tmp_path):
 def test_imexamine_from_a_cursor_file_gives_the_numbers_and_a_log(star_image, tmp_path):
     path, _ = star_image
     cursor = tmp_path / "cur"
-    cursor.write_text("121 91 r\n121 91 j\n")
+    cursor.write_text("121 91 r\n121 91 j\n", encoding="utf-8")
     log = tmp_path / "imexam.log"
 
     result = get_task("imexamine").run(input=[str(path)], imagecur=str(cursor),
@@ -226,14 +226,14 @@ def test_imexamine_from_a_cursor_file_gives_the_numbers_and_a_log(star_image, tm
     assert j["centre"] == pytest.approx(TRUE_X, abs=0.05)
     assert [row["key"] for row in result.data["rows"]] == ["r", "j"]
 
-    text = log.read_text()
+    text = log.read_text(encoding="utf-8")
     assert "[r]" in text and "[j]" in text and "fwhm=  3.398" in text
 
 
 def test_a_frame_that_was_not_loaded_is_named(star_image, tmp_path):
     path, _ = star_image
     cursor = tmp_path / "cur"
-    cursor.write_text("121 91 3 r\n")
+    cursor.write_text("121 91 3 r\n", encoding="utf-8")
     with pytest.raises(ValueError) as raised:
         get_task("imexamine").run(input=[str(path)], imagecur=str(cursor))
     assert "frame 3" in str(raised.value)
@@ -326,7 +326,7 @@ def test_the_task_s_parameters_reach_the_window(star_image, tmp_path):
     assert window.param_widgets["fittype"].currentText() == "moffat"
     window.examine_at("r", 121.0, 91.0)
     assert window.examine_settings.fittype == "moffat"
-    assert "[r]" in log.read_text()
+    assert "[r]" in log.read_text(encoding="utf-8")
 
 
 def test_n_and_p_walk_the_frames_and_q_ends_the_wait(star_image):
@@ -394,7 +394,7 @@ def _iraf_log(fittype):
     names = ["x", "y", "wx", "wy", "radius", "mag", "flux", "sky", "peak", "e", "pa"]
     names += (["beta"] if "moffat" in fittype else []) + ["enclosed", "fwhm", "direct"]
     rows = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("#") or not line.strip():
             continue
         rows.append(dict(zip(names, (float(v) if v != "INDEF" else float("nan")
@@ -444,7 +444,8 @@ def test_m_j_k_and_z_print_what_iraf_prints():
     data = field()
     settings = examine.Settings()
     base = Path(__file__).parent / "data" / "imexam_iraf_keys"
-    log = iter(line for line in (base.with_suffix(".log")).read_text().splitlines()
+    log = iter(line for line in (base.with_suffix(".log")).read_text(
+            encoding="utf-8").splitlines()
                if not line.startswith("#"))
     for x, y, _, key in examine.read_cursor(base.with_suffix(".cur")):
         if key.startswith(":"):

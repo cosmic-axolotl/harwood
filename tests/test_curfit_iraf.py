@@ -15,13 +15,13 @@ import pytest
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_curfit"
-GOLD = json.loads((HERE / "curfit.json").read_text())
+GOLD = json.loads((HERE / "curfit.json").read_text(encoding="utf-8"))
 sys.path.insert(0, str(HERE))
 from curfit_cases import LISTS  # noqa: E402
 from curfit_images import write  # noqa: E402
 from curfit_keys_cases import KEYS as KEY_CASES  # noqa: E402
 
-KEYS = json.loads((HERE / "curfit_keys.json").read_text())
+KEYS = json.loads((HERE / "curfit_keys.json").read_text(encoding="utf-8"))
 IMAGES = {"im2": "fits.fits", "im3": "cube.fits"}
 
 
@@ -29,7 +29,7 @@ IMAGES = {"im2": "fits.fits", "im3": "cube.fits"}
 def work(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     for name, text in LISTS.items():
-        Path(name).write_text(text)
+        Path(name).write_text(text, encoding="utf-8")
     write(tmp_path)
 
 
@@ -78,7 +78,7 @@ def test_a_session_s_settings_as_options(work, case):
 @pytest.mark.parametrize("case", list(KEYS))
 def test_a_session_with_keys_prints_what_iraf_prints(work, case):
     cursor, kw = KEY_CASES[case]
-    Path("cursor").write_text(cursor)
+    Path("cursor").write_text(cursor, encoding="utf-8")
     result = get_task("curfit").run(input=["wide.txt"], cursor="cursor", **kw)
     assert clean(result.stdout) == clean(KEYS[case]["stdout"])
 
@@ -119,7 +119,8 @@ def _press(monkeypatch, reads):
     [(0.0, 0.0, "f"), (0.0, 0.0, "q")],
 ])
 def test_the_window_fits_as_the_cursor_file_does(work, monkeypatch, reads):
-    Path("cursor").write_text("".join(f"{x} {y} 1 {key}\n" for x, y, key in reads))
+    Path("cursor").write_text("".join(f"{x} {y} 1 {key}\n" for x, y, key in reads),
+                              encoding="utf-8")
     expected = get_task("curfit").run(input=["wide.txt"], cursor="cursor")
     seen = _press(monkeypatch, reads)
     result = get_task("curfit").run(input=["wide.txt"], interactive=True)
@@ -128,10 +129,12 @@ def test_the_window_fits_as_the_cursor_file_does(work, monkeypatch, reads):
 
 
 def test_a_point_deleted_in_the_window_is_out_of_the_fit(work, monkeypatch):
-    rows = [line.split() for line in Path("wide.txt").read_text().splitlines() if line.strip()]
+    rows = [line.split() for line in Path("wide.txt").read_text(
+            encoding="utf-8").splitlines() if line.strip()]
     x, y = float(rows[len(rows) // 2][0]), float(rows[len(rows) // 2][1])
     reads = [(x, y, "d"), (x, y, "f"), (x, y, "q")]
-    Path("cursor").write_text("".join(f"{a} {b} 1 {key}\n" for a, b, key in reads))
+    Path("cursor").write_text("".join(f"{a} {b} 1 {key}\n" for a, b, key in reads),
+                              encoding="utf-8")
     expected = get_task("curfit").run(input=["wide.txt"], cursor="cursor")
     plain = get_task("curfit").run(input=["wide.txt"], cursor=_quit())
     _press(monkeypatch, reads)
@@ -141,5 +144,5 @@ def test_a_point_deleted_in_the_window_is_out_of_the_fit(work, monkeypatch):
 
 
 def _quit():
-    Path("quit").write_text("0 0 1 q\n")
+    Path("quit").write_text("0 0 1 q\n", encoding="utf-8")
     return "quit"

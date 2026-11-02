@@ -35,7 +35,7 @@ iraf.photpars.apertures = "3,5"
 iraf.photpars.zmag = 25.0
 gold = {}
 for name, keys in CASES.items():
-    Path(f"{name}.cur").write_text(keys)
+    Path(f"{name}.cur").write_text(keys, encoding="utf-8")
     Path(f"{name}.prf").unlink(missing_ok=True)
     error = ""
     try:
@@ -50,6 +50,7 @@ for name, keys in CASES.items():
         error = str(e)[-300:]
     written = Path(f"{name}.prf")
     gold[name] = {"keys": keys, "error": error,
-                  "prf": written.read_text() if written.exists() else ""}
+                  "prf": written.read_text(encoding="utf-8") if written.exists() else ""}
     print(name, repr(error[-120:]), len(gold[name]["prf"]))
-(Path(__file__).parent / "radprof_keys.json").write_text(json.dumps(gold, indent=0))
+(Path(__file__).parent / "radprof_keys.json").write_text(json.dumps(gold, indent=0),
+                                                         encoding="utf-8")

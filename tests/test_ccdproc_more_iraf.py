@@ -18,7 +18,7 @@ from harwood.core import images
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_ccdproc"
-GOLD = json.loads((HERE / "ccdp.json").read_text())
+GOLD = json.loads((HERE / "ccdp.json").read_text(encoding="utf-8"))
 sys.path.insert(0, str(HERE))
 from ccdp_cases import CASES  # noqa: E402
 from ccdp_collect import FLAGS, NUMBER, TEXT, digest  # noqa: E402

@@ -69,7 +69,7 @@ def make_reference(directory) -> None:
     directory = Path(directory)
     fits.writeto(directory / "field.fits", field(), overwrite=True)
     (directory / "cursor").write_text(
-        "".join(f"{x} {y} 1 a\n" for x, y in CURSOR))
+        "".join(f"{x} {y} 1 a\n" for x, y in CURSOR), encoding="utf-8")
 
 
 def fixpix_case():
@@ -230,7 +230,7 @@ def arc_spectrum(flip=False):
     from pathlib import Path
 
     rng = np.random.default_rng(71)
-    text = (Path(__file__).parent / "data" / "arc_lines.dat").read_text()
+    text = (Path(__file__).parent / "data" / "arc_lines.dat").read_text(encoding="utf-8")
     lines = np.array([float(row.split()[0]) for row in text.splitlines()
                       if row.strip() and not row.startswith("#")])
     pix = np.arange(1, 1025, dtype=float)
@@ -381,7 +381,7 @@ def multispec_night():
     """
     from pathlib import Path
 
-    text = (Path(__file__).parent / "data" / "arc_lines.dat").read_text()
+    text = (Path(__file__).parent / "data" / "arc_lines.dat").read_text(encoding="utf-8")
     lines = np.array([float(row.split()[0]) for row in text.splitlines()
                       if row.strip() and not row.startswith("#")])
     strength = 10 ** np.random.default_rng(9).uniform(1.6, 3.8, lines.size)

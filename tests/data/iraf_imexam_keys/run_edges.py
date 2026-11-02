@@ -19,7 +19,7 @@ AT = ("2 15", "39 15", "20 2", "20 3", "20 29", "20 28", "2 2", "39 29", "60 15"
 for at in AT:
     for name in glob.glob("t.*"):
         os.remove(name)
-    with open("k.cur", "w") as file:
+    with open("k.cur", "w", encoding="utf-8") as file:
         file.write(f"{at} 1 t\n20 15 1 x\n")
     text = io.StringIO()
     error = ""

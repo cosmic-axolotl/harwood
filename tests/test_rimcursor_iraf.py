@@ -12,7 +12,7 @@ import pytest
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_rimcursor"
-GOLD = json.loads((HERE / "rimcursor.json").read_text())
+GOLD = json.loads((HERE / "rimcursor.json").read_text(encoding="utf-8"))
 sys.path.insert(0, str(HERE))
 from rimcursor_cases import CURSOR  # noqa: E402
 from rimcursor_inputs import write  # noqa: E402
@@ -27,7 +27,7 @@ def work(tmp_path, monkeypatch):
 @pytest.mark.parametrize("case", list(GOLD["cases"]))
 def test_a_read_prints_what_iraf_prints(work, case):
     expected = GOLD["cases"][case]
-    Path("cur").write_text(CURSOR)
+    Path("cur").write_text(CURSOR, encoding="utf-8")
     if expected["error"]:
         with pytest.raises(ValueError, match="coordinate system not defined"):
             get_task("rimcursor").run(cursor="cur", **expected["params"])
@@ -40,7 +40,7 @@ def test_a_read_prints_what_iraf_prints(work, case):
 @pytest.mark.parametrize("case", list(GOLD["bad"]))
 def test_a_bad_read_stops_it(work, case):
     expected = GOLD["bad"][case]
-    Path("cur").write_text(expected["cursor"])
+    Path("cur").write_text(expected["cursor"], encoding="utf-8")
     with pytest.raises(ValueError, match="bad cursor read"):
         get_task("rimcursor").run(cursor="cur")
     assert "bad cursor read" in expected["error"]

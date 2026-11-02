@@ -18,6 +18,7 @@ away (1.9e-6 in 15.16, two units in the last place of a float).
 """
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -119,7 +120,8 @@ def _stamped(line: str) -> bool:
 
 
 def _lines(path: Path) -> list[str]:
-    return [line for line in path.read_text().splitlines() if not _stamped(line)]
+    return [line for line in path.read_text(
+            encoding="utf-8").splitlines() if not _stamped(line)]
 
 
 @pytest.fixture
@@ -168,7 +170,7 @@ def test_evalfit_writes_what_iraf_writes(here, case):
     obs, cfgfile, parameters, kw = EVALS[case]
     done = evalfit.evalfit(config.parse(cfgfile), obs.split(","), parameters, "out.cal", **kw)
     assert _lines(here / "out.cal") == _lines(DATA / f"ev{case}.txt")
-    said = (DATA / f"ev{case}.err").read_text()
+    said = (DATA / f"ev{case}.err").read_text(encoding="utf-8")
     assert done.warnings == said.splitlines()
 
 
@@ -184,15 +186,16 @@ def test_evalfit_on_the_automatico_equations(here):
 def test_evalfit_appends(here):
     cfg = config.parse("config3.cfg")
     evalfit.evalfit(cfg, ["observations.obsfile"], "fit3.txt", "out.cal")
-    once = (here / "out.cal").read_text()
+    once = (here / "out.cal").read_text(encoding="utf-8")
     evalfit.evalfit(cfg, ["observations.obsfile"], "fit3.txt", "out.cal", append=True)
-    assert (here / "out.cal").read_text() == once + once
+    assert (here / "out.cal").read_text(encoding="utf-8") == once + once
 
 
 def test_evalfit_without_the_parameters_writes_nothing(here):
     """IRAF warns and leaves an empty file behind, which looks like a result."""
-    assert (DATA / "evnofile.err").read_text().startswith("Warning: Cannot open file")
-    assert (DATA / "evnofile.txt").read_text() == ""
+    assert (DATA / "evnofile.err").read_text(
+            encoding="utf-8").startswith("Warning: Cannot open file")
+    assert (DATA / "evnofile.txt").read_text(encoding="utf-8") == ""
     with pytest.raises(evalfit.EvalError, match="Cannot open file"):
         evalfit.evalfit(config.parse("config3.cfg"), ["observations.obsfile"],
                         "nosuchfile.txt", "out.cal", catalogs=[CATALOG])
@@ -219,7 +222,7 @@ def test_no_catalog_section_means_no_id(here):
     """IRAF stops with Out of memory (evnoid.err), so this is t_evalfit.x's
     meaning and not its output: column 1 is a variable, every star has a
     residual, and the equation's value is the right side."""
-    assert "Out of memory" in (DATA / "evnoid.err").read_text()
+    assert "Out of memory" in (DATA / "evnoid.err").read_text(encoding="utf-8")
     cfg = config.parse("config4.cfg")
     done = evalfit.evalfit(cfg, ["obs4.txt"], "fit3.txt", "out.cal",
                            format="%14.7f %14.7f %14.7f\\n")
@@ -267,12 +270,15 @@ def test_mkapfile_by_the_keys_says_and_writes_what_iraf_does(tmp_path, monkeypat
     monkeypatch.chdir(APFILE)
     images = apfile.read_photfiles(PHOTFILES, 20, 0.10)
     session = apsession.ApSession(images, 20)
-    said = session.run_commands((KEYS / f"{case}.cur").read_text())
+    said = session.run_commands((KEYS / f"{case}.cur").read_text(encoding="utf-8"))
     apercors, mags, log = tmp_path / "a", tmp_path / "m", tmp_path / "l"
     _, more = session.finish(str(apercors), str(mags), str(log))
-    assert said + more == (KEYS / f"{case}.out").read_text().replace("\a", "").splitlines()
-    assert apercors.read_text() == (KEYS / f"{case}.apercors").read_text()
-    assert mags.read_text() == (KEYS / f"{case}.mkapfile").read_text()
+    assert said + more == (KEYS / f"{case}.out").read_text(
+            encoding="utf-8").replace("\a", "").splitlines()
+    assert apercors.read_text(encoding="utf-8") == (KEYS / f"{case}.apercors").read_text(
+            encoding="utf-8")
+    assert mags.read_text(encoding="utf-8") == (KEYS / f"{case}.mkapfile").read_text(
+            encoding="utf-8")
     written = ("NEW LOGFILE", "APFILE")
     ours = [line for line in _lines(log) if not line.startswith(written)]
     theirs = [line for line in _lines(KEYS / f"{case}.log") if not line.startswith(written)]
@@ -320,12 +326,12 @@ def _graphs_of(case):
                 self.drawn.append(self.graph())
             return super().status()
 
-    options = yaml.safe_load((GRAPHS / "CASES.yaml").read_text())[case]
+    options = yaml.safe_load((GRAPHS / "CASES.yaml").read_text(encoding="utf-8"))[case]
     images = apfile.read_photfiles(PHOTFILES, 20, options.get("maglim", 0.10))
     session = Recording(images, 20, smallap=options.get("smallap", 1),
                         largeap=options.get("largeap", 0))
     session.drawn = [session.graph()]
-    session.run_commands((GRAPHS / f"{case}.cur").read_text())
+    session.run_commands((GRAPHS / f"{case}.cur").read_text(encoding="utf-8"))
     return session.drawn
 
 
@@ -334,7 +340,7 @@ def test_mkapfile_draws_what_iraf_draws(monkeypatch, case):
     """IRAF's own metacode (apgraphs/run_iraf.py): each frame's window, title,
     labels, marks and lines, to the resolution of the metacode."""
     monkeypatch.chdir(APFILE)
-    frames = json.loads((GRAPHS / f"{case}.json").read_text())
+    frames = json.loads((GRAPHS / f"{case}.json").read_text(encoding="utf-8"))
     graphs = _graphs_of(case)
     assert len(graphs) == len(frames)
     for number, (graph, frame) in enumerate(zip(graphs, frames, strict=True)):
@@ -379,16 +385,19 @@ def _run_mkapfile(tmp_path, **params):
 def test_mkapfile_gcommands_is_the_session_iraf_ran(tmp_path, monkeypatch):
     monkeypatch.chdir(APFILE)
     result = _run_mkapfile(tmp_path, gcommands=str(KEYS / "del.cur"))
-    assert result.data["text"] == (KEYS / "del.out").read_text().splitlines()
-    assert (tmp_path / "a").read_text() == (KEYS / "del.apercors").read_text()
-    assert (tmp_path / "m").read_text() == (KEYS / "del.mkapfile").read_text()
+    assert result.data["text"] == (KEYS / "del.out").read_text(encoding="utf-8").splitlines()
+    assert (tmp_path / "a").read_text(encoding="utf-8") == (KEYS / "del.apercors").read_text(
+            encoding="utf-8")
+    assert (tmp_path / "m").read_text(encoding="utf-8") == (KEYS / "del.mkapfile").read_text(
+            encoding="utf-8")
     assert not result.warnings
 
 
 def test_mkapfile_says_when_q_left_the_fit_out_of_date(tmp_path, monkeypatch):
     monkeypatch.chdir(APFILE)
     result = _run_mkapfile(tmp_path, gcommands=str(KEYS / "stale.cur"))
-    assert (tmp_path / "a").read_text() == (KEYS / "stale.apercors").read_text()
+    assert (tmp_path / "a").read_text(encoding="utf-8") == (KEYS / "stale.apercors").read_text(
+            encoding="utf-8")
     assert any("press f before q" in warning.fix for warning in result.warnings)
 
 
@@ -431,13 +440,16 @@ def test_mkobsfile_writes_and_says_what_iraf_does(tmp_path, monkeypatch, case):
     result = task.execute(task.Params(
         photfiles=PHOTFILES, idfilters="B,V", imsets=SKINAKAS_SETS, observations=out,
         **settings))
-    assert out.read_text() == (OBSKEYS / case).read_text()
-    assert obs.format_path(out).read_text() == (OBSKEYS / f"f{case}.dat").read_text()
+    assert out.read_text(encoding="utf-8") == (OBSKEYS / case).read_text(encoding="utf-8")
+    assert obs.format_path(out).read_text(
+            encoding="utf-8") == (OBSKEYS / f"f{case}.dat").read_text(
+            encoding="utf-8")
     if case != "mJ":        # verbose=no, which harwood's task has no use for
         written = [(set_["name"], set_["stars"]) for set_ in result.data["sets"]]
-        assert obs.summary(case, written) == (OBSKEYS / f"{case}.out").read_text()
+        assert obs.summary(case, written) == (OBSKEYS / f"{case}.out").read_text(
+                encoding="utf-8")
     if case != "mI":
-        assert (OBSKEYS / f"{case}.err").read_text() == ""
+        assert (OBSKEYS / f"{case}.err").read_text(encoding="utf-8") == ""
     assert not result.warnings
 
 
@@ -506,14 +518,14 @@ def test_fitparams_by_the_keys_says_and_writes_what_iraf_does(here, case):
     """Each case is a cursor file and the answers to the prompts, as IRAF 2.18
     ran them (fitkeys/run_iraf.py): what it printed on both streams, the
     parameters file, the log, and what a colon command wrote to a file."""
-    settings = yaml.safe_load((FITKEYS / "CASES.yaml").read_text())[case]
+    settings = yaml.safe_load((FITKEYS / "CASES.yaml").read_text(encoding="utf-8"))[case]
     session = _fit_session(settings, "out.fit", logfile="out.log", log_fit=True,
                            log_results=True)
-    session.run_commands((FITKEYS / f"{case}.cur").read_text(),
-                         (FITKEYS / f"{case}.ans").read_text())
+    session.run_commands((FITKEYS / f"{case}.cur").read_text(encoding="utf-8"),
+                         (FITKEYS / f"{case}.ans").read_text(encoding="utf-8"))
     assert _named_by_memory(_said(session.stdout)) == _named_by_memory(
-        _said((FITKEYS / f"{case}.out").read_text()))
-    assert session.stderr == (FITKEYS / f"{case}.err").read_text()
+        _said((FITKEYS / f"{case}.out").read_text(encoding="utf-8")))
+    assert session.stderr == (FITKEYS / f"{case}.err").read_text(encoding="utf-8")
     assert _written(here / "out.fit") == _written(FITKEYS / f"{case}.fit")
     assert _written(here / "out.log") == _written(FITKEYS / f"{case}.log")
     if (FITKEYS / f"{case}.keep").exists():
@@ -534,17 +546,17 @@ def test_fitparams_draws_what_iraf_draws(here, case):
             return graph
 
     Recording.drawn = []
-    settings = yaml.safe_load((FITKEYS / "CASES.yaml").read_text())[case]
+    settings = yaml.safe_load((FITKEYS / "CASES.yaml").read_text(encoding="utf-8"))[case]
     session = _fit_session(settings, "out.fit", session=Recording)
-    session.run_commands((FITKEYS / f"{case}.cur").read_text(),
-                         (FITKEYS / f"{case}.ans").read_text())
+    session.run_commands((FITKEYS / f"{case}.cur").read_text(encoding="utf-8"),
+                         (FITKEYS / f"{case}.ans").read_text(encoding="utf-8"))
     drawn = []
     for graph in Recording.drawn:
         if graph.overplot and drawn:
             drawn[-1].append(graph)
         else:
             drawn.append([graph])
-    frames = json.loads((FITKEYS / f"{case}.json").read_text())
+    frames = json.loads((FITKEYS / f"{case}.json").read_text(encoding="utf-8"))
     assert len(drawn) == len(frames)
     for number, (graphs, frame) in enumerate(zip(drawn, frames, strict=True)):
         where = f"frame {number}"
@@ -659,7 +671,7 @@ def test_the_automatico_night_is_reproduced(here):
 # ---------------------------------------------------------------- mkapfile
 
 APFILE = DATA / "apfile"
-PHOTFILES = (APFILE / "all.lis").read_text().split()
+PHOTFILES = (APFILE / "all.lis").read_text(encoding="utf-8").split()
 APCASES = {name.removesuffix(".fits.mag.1"): ([name], dict(smallap=1, largeap=11))
            for name in PHOTFILES}
 APCASES |= {
@@ -684,8 +696,9 @@ def test_mkapfile_writes_what_iraf_writes(tmp_path, monkeypatch, case):
     apfile.apfile(images, 20, str(out[f"{case}.apercors"]),
                   magfile=str(out[f"{case}.mkapfile"]), logfile=str(out[log]), **kw)
     for name, path in out.items():
-        ours = [line.replace(f"{tmp_path}/", "") for line in path.read_text().splitlines()]
-        iraf = (APFILE / name).read_text().splitlines()
+        ours = [line.replace(f"{tmp_path}{os.sep}", "") for line in path.read_text(
+                encoding="utf-8").splitlines()]
+        iraf = (APFILE / name).read_text(encoding="utf-8").splitlines()
         assert ours[1:] == iraf[1:], name                 # after NEW LOGFILE ENTRY AT
         assert ours[0] == iraf[0] or ours[0].startswith("NEW LOGFILE ENTRY AT")
 
@@ -698,7 +711,7 @@ def test_mkapfile_as_a_task(tmp_path, monkeypatch):
                  apercors=tmp_path / "ap", largeap=11)
     assert result.data["converged"]
     assert set(result.data["images"]) == {"data0097cr.fits", "data0098cr.fits"}
-    assert (tmp_path / "ap").read_text().startswith(
+    assert (tmp_path / "ap").read_text(encoding="utf-8").startswith(
         "# The aperture correction from apertures 1 to 11 in magnitudes")
 
 
@@ -726,19 +739,25 @@ def test_obsfile_writes_and_says_what_iraf_does(tmp_path, monkeypatch, case):
     obsparams, and every kind of bad line in a sets file."""
     sets, cols, kw = OBSCASES[case]
     monkeypatch.chdir(OBSFILE)
-    files = (OBSFILE / "mkapfile.lista").read_text().split()
+    files = (OBSFILE / "mkapfile.lista").read_text(encoding="utf-8").split()
     out = tmp_path / f"obs{case}"
     result = obs.obsfile(files, cols, "B,V", sets, str(out), **kw)
-    assert out.read_text() == (OBSFILE / f"obs{case}").read_text()
-    assert obs.format_path(out).read_text() == (OBSFILE / f"fobs{case}.dat").read_text()
+    assert out.read_text(encoding="utf-8") == (OBSFILE / f"obs{case}").read_text(
+            encoding="utf-8")
+    assert obs.format_path(out).read_text(
+            encoding="utf-8") == (OBSFILE / f"fobs{case}.dat").read_text(
+            encoding="utf-8")
     assert obs.summary(f"obs{case}", result.written) == (
-        OBSFILE / f"obs{case}.out").read_text()
-    assert "".join(n + "\n" for n in result.notes) == (OBSFILE / f"obs{case}.err").read_text()
+        OBSFILE / f"obs{case}.out").read_text(encoding="utf-8")
+    assert "".join(n + "\n" for n in result.notes) == (OBSFILE / f"obs{case}.err").read_text(
+            encoding="utf-8")
 
 
 def test_the_automatico_s_observations_are_what_fitparams_was_given():
     """Case A is observations.obsfile, the file the fit above starts from."""
-    assert (OBSFILE / "obsA").read_text() == (DATA / "observations.obsfile").read_text()
+    assert (OBSFILE / "obsA").read_text(
+            encoding="utf-8") == (DATA / "observations.obsfile").read_text(
+            encoding="utf-8")
 
 
 # ----------------------------------------------------- harwood's own phot
@@ -767,7 +786,7 @@ def _native_chain(tmp_path, monkeypatch, rounded: bool):
 
         monkeypatch.setattr(photfiles, "read", read)
     files = []
-    for name in (NATIVE / "mkapfile.lista").read_text().split():
+    for name in (NATIVE / "mkapfile.lista").read_text(encoding="utf-8").split():
         root = name.removesuffix(".mkapfile")
         out = tmp_path / name
         apfile.apfile(apfile.read_photfiles([str(NATIVE / f"{root}.fits.mag")], 20), 20,
@@ -784,7 +803,7 @@ def _native_chain(tmp_path, monkeypatch, rounded: bool):
 
 
 def _body(path):
-    return [line for line in Path(path).read_text().splitlines()
+    return [line for line in Path(path).read_text(encoding="utf-8").splitlines()
             if not line.startswith("#")]
 
 
@@ -795,7 +814,9 @@ def test_harwood_s_phot_rounded_as_iraf_writes_it_gives_the_automatico_s_night(
     comes out the same -- the observations, the coefficients and the
     calibrated magnitudes."""
     out = _native_chain(tmp_path, monkeypatch, rounded=True)
-    assert (out / "obs").read_text() == (DATA / "observations.obsfile").read_text()
+    assert (out / "obs").read_text(
+            encoding="utf-8") == (DATA / "observations.obsfile").read_text(
+            encoding="utf-8")
     assert _body(out / "fit") == _body(NATIVE / "fitfile.fitparams")
     assert _body(out / "cal") == _body(NATIVE / "observations.magcalibrada")
 
@@ -920,7 +941,8 @@ def test_obsfile_as_a_task_reads_an_at_list(tmp_path, monkeypatch):
     result = run("obsfile", workdir=tmp_path, photfiles=["@mkapfile.lista"],
                  incolumns=OBSCASES["A"][1], idfilters="B,V", imsets="imsets.mkimsets",
                  observations=tmp_path / "obs", tolerance=8.0)
-    assert (tmp_path / "obs").read_text() == (OBSFILE / "obsA").read_text()
+    assert (tmp_path / "obs").read_text(encoding="utf-8") == (OBSFILE / "obsA").read_text(
+            encoding="utf-8")
     assert [s["stars"] for s in result.data["sets"]] == [9, 3, 3, 3, 3, 3]
     assert result.data["notes"] == []
 
@@ -942,14 +964,19 @@ def test_mkimsets_groups_as_iraf_does(tmp_path, monkeypatch, case):
 
     listing, filters, kw = IMCASES[case]
     monkeypatch.chdir(APFILE)
-    files = (APFILE / listing).read_text().split()
+    files = (APFILE / listing).read_text(encoding="utf-8").split()
     kw = {k: str(tmp_path / v) for k, v in kw.items() if k == "imobsparams"} | {
         k: v for k, v in kw.items() if k != "imobsparams"}
     _, messages = imsets.mkimsets(files, filters, str(tmp_path / "sets"), **kw)
-    assert (tmp_path / "sets").read_text() == (MKIMSETS / f"sets{case}").read_text()
-    assert "\n".join(messages) + "\n" == (MKIMSETS / f"sets{case}.out").read_text()
+    assert (tmp_path / "sets").read_text(
+            encoding="utf-8") == (MKIMSETS / f"sets{case}").read_text(
+            encoding="utf-8")
+    assert "\n".join(messages) + "\n" == (MKIMSETS / f"sets{case}.out").read_text(
+            encoding="utf-8")
     if case == "A":
-        assert (tmp_path / "obsparA").read_text() == (MKIMSETS / "obsparA").read_text()
+        assert (tmp_path / "obsparA").read_text(
+                encoding="utf-8") == (MKIMSETS / "obsparA").read_text(
+                encoding="utf-8")
 
 
 def test_mkimsets_names_the_sets_from_the_headers(tmp_path, monkeypatch):
@@ -967,7 +994,7 @@ def test_mkimsets_names_the_sets_from_the_headers(tmp_path, monkeypatch):
         names.append(f"im{k}.fits")
     result = run("mkimsets", imlist=names, idfilters="B,V", imsets=tmp_path / "sets",
                  input="images", name_keyword="OBJECT")
-    assert (tmp_path / "sets").read_text() == (
+    assert (tmp_path / "sets").read_text(encoding="utf-8") == (
         "PG2331+055 :  im0.fits  im1.fits\nSA113 :  im2.fits  im3.fits\n")
     assert not result.warnings
 
@@ -990,9 +1017,10 @@ def test_chkconfig_says_what_iraf_says(case, verbose):
     from harwood.core.photcal import check
 
     report = check.check(CHKCONFIG / f"{case}.cfg", verbose)
-    assert report.text == (CHKCONFIG / f"{case}.{'v' if verbose else 'q'}").read_text()
+    assert report.text == (CHKCONFIG / f"{case}.{'v' if verbose else 'q'}").read_text(
+            encoding="utf-8")
     err = CHKCONFIG / f"{case}.err"
-    assert report.stderr == (err.read_text() if err.exists() else "")
+    assert report.stderr == (err.read_text(encoding="utf-8") if err.exists() else "")
 
 
 def test_a_last_comment_without_its_newline_does_not_hang():
@@ -1010,7 +1038,8 @@ def test_chkconfig_as_a_task():
     from harwood import run
 
     result = run("chkconfig", config=CHKCONFIG / "skinakas.cfg", verbose=True)
-    assert "\n".join(result.stdout) + "\n" == (CHKCONFIG / "skinakas.v").read_text()
+    assert "\n".join(result.stdout) + "\n" == (CHKCONFIG / "skinakas.v").read_text(
+            encoding="utf-8")
     assert result.data == {"errors": 0, "warnings": 0} and not result.warnings
     result = run("chkconfig", config=CHKCONFIG / "e1.cfg")
     assert result.data == {"errors": 3, "warnings": 2} and result.warnings
@@ -1039,11 +1068,15 @@ def test_mkcatalog_writes_what_iraf_writes(tmp_path, monkeypatch, case):
     names, widths, records = CATCASES[case]
     monkeypatch.chdir(tmp_path)
     made = catalog.mkcatalog(case, names, widths)
-    assert Path(case).read_text() == (MKCATALOG / f"{case}.hdr").read_text()
-    assert Path(f"f{case}.dat").read_text() == (MKCATALOG / f"f{case}.dat").read_text()
+    assert Path(case).read_text(encoding="utf-8") == (MKCATALOG / f"{case}.hdr").read_text(
+            encoding="utf-8")
+    assert Path(f"f{case}.dat").read_text(
+            encoding="utf-8") == (MKCATALOG / f"f{case}.dat").read_text(
+            encoding="utf-8")
     assert made.created and made.format_file == f"f{case}.dat"
     added = catalog.mkcatalog(case, records=records)
-    assert Path(case).read_text() == (MKCATALOG / case).read_text()
+    assert Path(case).read_text(encoding="utf-8") == (MKCATALOG / case).read_text(
+            encoding="utf-8")
     assert not added.created and added.nrecords == sum(map(bool, records))
     assert catalog.read_header(case) == (case, names, widths)
 
@@ -1059,7 +1092,8 @@ def test_a_record_longer_than_a_line_goes_on_continuation_lines():
     widths = [30] + [77] * 13
     iraf = names.copy()
     iraf[10] = ""
-    assert catalog.header("c4", iraf, widths) == (MKCATALOG / "c4.hdr").read_text()
+    assert catalog.header("c4", iraf, widths) == (MKCATALOG / "c4.hdr").read_text(
+            encoding="utf-8")
     record = catalog.data_record(["star"] + [f"{i}.25" for i in range(2, 15)], widths)
     first, second = record.split("\n")[:2]
     assert len(first) == 982 and second.startswith("* 14.25")
@@ -1080,7 +1114,7 @@ def test_mkcatalog_refuses_what_it_cannot_write(tmp_path, monkeypatch):
         catalog.mkcatalog("cat", records=[["a", "1", "2"]])
     with pytest.raises(ValueError, match="already has the columns ID, V"):
         catalog.mkcatalog("cat", ["ID", "B"])
-    Path("other").write_text("x 1 2\n")
+    Path("other").write_text("x 1 2\n", encoding="utf-8")
     with pytest.raises(ValueError, match="was not created with mkcatalog"):
         catalog.mkcatalog("other", records=[["a"]])
 
@@ -1090,15 +1124,16 @@ def test_mkcatalog_as_a_task(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     Path("recs").write_text("# id V error(V) B error(B)\n"
-                            "PG2331+055  15.182 0.0057 15.116 0.0042\n92_336 8.046\n\n")
+                            "PG2331+055  15.182 0.0057 15.116 0.0042\n92_336 8.046\n\n",
+                                    encoding="utf-8")
     result = run("mkcatalog", catalog="stds", columns=["ID", "V", "error(V)", "B",
                                                        "error(B)"], records="recs")
     assert result.data["records"] == 2 and result.data["created"]
-    assert Path("stds").read_text().endswith(
+    assert Path("stds").read_text(encoding="utf-8").endswith(
         "  92_336           8.046       INDEF       INDEF       INDEF     \n")
     result = run("mkcatalog", catalog="stds", records="recs")
     assert not result.data["created"]
-    assert Path("stds").read_text().count("PG2331+055") == 2
+    assert Path("stds").read_text(encoding="utf-8").count("PG2331+055") == 2
 
 
 # ---------------------------------------------------------------- mkconfig
@@ -1118,7 +1153,7 @@ def test_mkconfig_puts_the_sections_together_as_iraf_does(tmp_path, monkeypatch)
     Path("fobsA.dat").write_bytes((OBSFILE / "fobsA.dat").read_bytes())
     found = mkconfig.mkconfig("m1", "landolt", "obsA", "landolt")
     assert Path("m1").read_bytes() == (MKCONFIG / "m1").read_bytes()
-    assert found.catalog.endswith("data/iraf/catalogs/flandolt.dat")
+    assert Path(found.catalog).as_posix().endswith("data/iraf/catalogs/flandolt.dat")
     mkconfig.mkconfig("m2", "c1", "obsA", "mine")
     assert Path("m2").read_bytes() == (MKCONFIG / "m2").read_bytes()
     assert mkconfig.mkconfig("m3", template="m1") is None
@@ -1137,7 +1172,7 @@ def test_mkconfig_as_a_task_checks_what_it_wrote(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     Path("fobsA.dat").write_bytes((OBSFILE / "fobsA.dat").read_bytes())
     Path("tbv.dat").write_text("transformation\n\nfit v1=0, v2=0.17, v3=0\n"
-                               "VFIT : mV = V + v1 + v2 * XV + v3 * BV\n")
+                               "VFIT : mV = V + v1 + v2 * XV + v3 * BV\n", encoding="utf-8")
     result = run("mkconfig", config="bv.cfg", catalog="landolt", observations="obsA",
                  transform="bv")
     assert result.data == {"errors": 0, "warnings": 0} and not result.warnings

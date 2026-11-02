@@ -25,7 +25,7 @@ def _iraf(salgorithm):
 
     path = Path(__file__).parent / "data" / f"iraf_phot_{salgorithm}.txt"
     rows = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         values = [float(v) if v != "INDEF" else float("nan") for v in line.split()]
         row = dict(zip(COLUMNS, values[:13], strict=True))
         n = len(APERTURES)

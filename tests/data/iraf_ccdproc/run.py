@@ -44,5 +44,5 @@ for name, (image, params) in CASES.items():
         iraf.ccdproc(image, mode="h", Stderr="err.txt", **{**BASE, **params})
     except Exception as e:  # noqa: BLE001
         error = str(e)[-300:]
-    (work / "error.txt").write_text(error)
+    (work / "error.txt").write_text(error, encoding="utf-8")
     print(name, error[-160:].replace("\n", " "), flush=True)

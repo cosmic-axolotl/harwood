@@ -19,7 +19,7 @@ from iraf_field import field
 from harwood.core.registry import get_task
 
 CASES = json.loads((Path(__file__).parent / "data" / "iraf_imhistogram.json")
-                   .read_text())["cases"]
+                   .read_text(encoding="utf-8"))["cases"]
 
 
 @pytest.fixture(scope="module")
@@ -54,12 +54,13 @@ def test_without_a_screen_the_plot_is_an_svg(tmp_path, monkeypatch):
     data = (np.arange(400, dtype=np.float32).reshape(20, 20) % 37) + 100
     fits.PrimaryHDU(data, fits.Header({"OBJECT": "ramp"})).writeto("ramp.fits")
     result = harwood.run("imhistogram", image="ramp.fits", nbins=37)
-    svg = result.outputs[0].read_text()
+    svg = result.outputs[0].read_text(encoding="utf-8")
     assert result.outputs[0].name == "ramp.hist.svg"
     assert "Histogram of ramp.fits = ramp" in svg and "nbins=37" in svg
     assert svg.count("<polyline") == 1 and "rows" not in result.data
     boxes = harwood.run("imhistogram", image="ramp.fits", nbins=37, plot_type="box",
                         logy=False, device=str(tmp_path / "boxes.svg"))
     assert boxes.outputs == [tmp_path / "boxes.svg"]
-    points = boxes.outputs[0].read_text().split('points="')[1].split('"')[0].split()
+    points = boxes.outputs[0].read_text(
+            encoding="utf-8").split('points="')[1].split('"')[0].split()
     assert len(points) == 2 * 37 - 1, "two corners a bin, but hgline stops at the last's start"

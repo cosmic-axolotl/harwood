@@ -292,7 +292,7 @@ def test_lineid_writes_a_table_that_explains_its_own_columns(calibrated_star):
     get_task("lineid").run(input="star.fits", output=work / "out.csv",
                            features="absorption")
 
-    text = (work / "out.csv").read_text()
+    text = (work / "out.csv").read_text(encoding="utf-8")
     assert "air wavelengths" in text
     assert "wavelength,kind,species,line" in text
     # The prose about each species is carried into the file, so the table is

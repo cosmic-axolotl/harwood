@@ -46,8 +46,8 @@ def _run(case):
         for cls, original in zip(classes, originals, strict=True):
             cls.graph = recording(original)
         session = _session()
-        session.run_commands((KEYS / f"{case}.cur").read_text(),
-                             (KEYS / f"{case}.ans").read_text())
+        session.run_commands((KEYS / f"{case}.cur").read_text(encoding="utf-8"),
+                             (KEYS / f"{case}.ans").read_text(encoding="utf-8"))
     finally:
         for cls, original in zip(classes, originals, strict=True):
             cls.graph = original
@@ -82,7 +82,8 @@ def _on_screen(window, x, y):
 @pytest.mark.parametrize("case", CASES)
 def test_the_keys_say_what_iraf_s_say(case):
     session, _ = _run(case)
-    theirs = [LOG.sub("", line) for line in (KEYS / f"{case}.out").read_text().splitlines()
+    theirs = [LOG.sub("", line) for line in (KEYS / f"{case}.out").read_text(
+            encoding="utf-8").splitlines()
               if line not in ("Searching aperture database ...", "Finding apertures ...")
               and not LOG.fullmatch(line)]
     ours = session.stdout.splitlines()
@@ -96,7 +97,7 @@ def test_the_keys_say_what_iraf_s_say(case):
 @pytest.mark.parametrize("case", CASES)
 def test_the_graphs_are_what_iraf_draws(case):
     _, drawn = _run(case)
-    frames = json.loads((KEYS / f"{case}.json").read_text())
+    frames = json.loads((KEYS / f"{case}.json").read_text(encoding="utf-8"))
     assert len(frames) == len(drawn)
     for number, (frame, graph) in enumerate(zip(frames, drawn, strict=True)):
         where = f"frame {number}"

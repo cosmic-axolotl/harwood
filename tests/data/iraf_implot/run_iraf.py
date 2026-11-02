@@ -13,7 +13,7 @@ from pyraf import iraf
 name = sys.argv[1]
 vdm = Path.home() / ".iraf/uparm/vdm"
 vdm.unlink(missing_ok=True)
-case = yaml.safe_load(Path("CASES.yaml").read_text())[name]
+case = yaml.safe_load(Path("CASES.yaml").read_text(encoding="utf-8"))[name]
 iraf.plot(_doprint=0)
 if Path(f"{name}.2nd").exists():
     iraf.cl.gcur = f"{name}.2nd"

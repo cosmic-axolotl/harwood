@@ -25,7 +25,8 @@ import harwood
 from harwood.core import catalog, daofind, daofindsession, photsession
 from harwood.core.registry import get_task
 
-REFERENCE = json.loads((Path(__file__).parent / "data" / "iraf_daofind.json").read_text())
+REFERENCE = json.loads((Path(__file__).parent / "data" / "iraf_daofind.json").read_text(
+        encoding="utf-8"))
 REFERENCE.pop("_comment")
 COLUMNS = ("x", "y", "mag", "sharpness", "sround", "ground")
 #: Three decimals in the file, plus IRAF summing the marginals in single
@@ -125,7 +126,7 @@ def _session(case):
 
 
 def _coo(path):
-    rows = [line.split()[:6] for line in path.read_text().splitlines()
+    rows = [line.split()[:6] for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip() and not line.startswith("#")]
     return np.array(rows, dtype=float).reshape(-1, 6)
 
@@ -135,8 +136,8 @@ def test_daofind_by_the_keys_says_and_finds_what_iraf_does(case):
     """Each case is a cursor file IRAF 2.18 ran (iraf_daofindkeys/run_iraf.py):
     every line printed, each star in them, and each list written."""
     session = _session(case)
-    theirs = (KEYS / f"{case}.out").read_text().replace("\a", "").splitlines()
-    assert (KEYS / f"{case}.err").read_text() == ""
+    theirs = (KEYS / f"{case}.out").read_text(encoding="utf-8").replace("\a", "").splitlines()
+    assert (KEYS / f"{case}.err").read_text(encoding="utf-8") == ""
     assert len(session.said) == len(theirs)
     for ours, line in zip(session.said, theirs, strict=True):
         if ROW.match(line):
@@ -171,7 +172,8 @@ def test_the_stars_marked_are_the_ones_iraf_marks(case, monkeypatch):
 
     monkeypatch.setattr(daofindsession.Session, "_run", recording)
     _session(case)
-    frames = [f for f in json.loads((KEYS / f"{case}.marks.json").read_text()) if f["marks"]]
+    frames = [f for f in json.loads((KEYS / f"{case}.marks.json").read_text(
+            encoding="utf-8")) if f["marks"]]
     assert len(frames) == len([stars for stars in found if len(stars)])
     for frame, stars in zip(frames, [stars for stars in found if len(stars)], strict=True):
         wx1, wx2, wy1, wy2, sx1, sx2, sy1, sy2 = frame["windows"][0]
@@ -201,7 +203,7 @@ def test_finding_again_on_a_kernel_counts_one_pixel_too_few():
 
 def _keys(tmp_path, *lines, **params):
     cursor = tmp_path / "keys.cur"
-    cursor.write_text("".join(f"0 0 1 {line}\n" for line in lines))
+    cursor.write_text("".join(f"0 0 1 {line}\n" for line in lines), encoding="utf-8")
     image = tmp_path / "field.fits"
     fits.writeto(image, field(), overwrite=True)
     return harwood.run("daofind", image=str(image), output=tmp_path / "out.coo",

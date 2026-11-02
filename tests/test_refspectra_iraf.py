@@ -13,7 +13,8 @@ import pytest
 import harwood
 from harwood.core import iraffmt, ranges
 
-REF = json.loads((Path(__file__).parent / "data" / "iraf_refspectra.json").read_text())
+REF = json.loads((Path(__file__).parent / "data" / "iraf_refspectra.json").read_text(
+        encoding="utf-8"))
 OBJECTS = sorted(n for n, v in REF["frames"].items() if not v[3])
 ARCS = sorted(n for n, v in REF["frames"].items() if v[3])
 
@@ -79,7 +80,7 @@ def test_a_reference_table_gives_each_input_its_own_arcs(tmp_path, monkeypatch):
             header["REFSPEC1"] = name
         fits.PrimaryHDU(np.zeros(16, np.float32), header).writeto(f"{name}.fits")
     Path("table").write_text("obj01.fits arc03.fits\nobj03.fits\n"
-                             "obj05.fits arc01.fits,arc03.fits\n")
+                             "obj05.fits arc01.fits,arc03.fits\n", encoding="utf-8")
     harwood.run("refspectra", input=["obj01.fits", "obj03.fits", "obj05.fits", "obj07.fits"],
                 references=["table"], select="nearest")
     got = {n: fits.getheader(f"{n}.fits").get("REFSPEC1") for n in ("obj01", "obj03",

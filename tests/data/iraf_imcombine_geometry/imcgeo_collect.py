@@ -35,5 +35,6 @@ if __name__ == "__main__":
         gold[name] = {"files": {file: digest(results / name / file)
                                 for file in ("out.fits", *OUTPUTS.values())},
                       "cards": {key: header[key] for key in CARDS if key in header}}
-    (Path(__file__).parent / "imcgeo.json").write_text(json.dumps(gold, indent=0))
+    (Path(__file__).parent / "imcgeo.json").write_text(json.dumps(gold, indent=0),
+                                                       encoding="utf-8")
     print(len(gold))

@@ -61,21 +61,25 @@ def write(folder):
         plio.write(folder / f"m{k}.pl", mask(k))
         plio.write(folder / f"a{k}.pl", np.zeros((30, 40), "i4") if k == 4 else mask(4 - k))
         names.append(f"f{k}.fits")
-    (folder / "all.lis").write_text("\n".join(names) + "\n")
-    (folder / "offs.txt").write_text("".join(f"{dx} {dy}\n" for dx, dy in DITHER))
-    (folder / "half.txt").write_text("0.4 0.5\n3.5 -2.5\n-4.5 5.4\n6.6 2.2\n-1 -6\n")
-    (folder / "abs.txt").write_text("# absolute\n2 3\n5 1\n1 8\n9 5\n2 2\n")
-    (folder / "scale.txt").write_text("1.0\n1.25\n# a comment\n0.8\n2.5\n1.1\n")
-    (folder / "zero.txt").write_text("0\n10\n-5\n40\n7\n")
-    (folder / "wgt.txt").write_text("1\n2\n3\n4\n5\n")
+    (folder / "all.lis").write_text("\n".join(names) + "\n", encoding="utf-8")
+    (folder / "offs.txt").write_text("".join(f"{dx} {dy}\n" for dx, dy in DITHER),
+                                     encoding="utf-8")
+    (folder / "half.txt").write_text("0.4 0.5\n3.5 -2.5\n-4.5 5.4\n6.6 2.2\n-1 -6\n",
+                                     encoding="utf-8")
+    (folder / "abs.txt").write_text("# absolute\n2 3\n5 1\n1 8\n9 5\n2 2\n", encoding="utf-8")
+    (folder / "scale.txt").write_text("1.0\n1.25\n# a comment\n0.8\n2.5\n1.1\n",
+                                      encoding="utf-8")
+    (folder / "zero.txt").write_text("0\n10\n-5\n40\n7\n", encoding="utf-8")
+    (folder / "wgt.txt").write_text("1\n2\n3\n4\n5\n", encoding="utf-8")
     # Of different sizes, no offsets
     for k, shape in enumerate(((30, 40), (28, 45), (33, 35))):
         fits.writeto(folder / f"g{k}.fits", frame(k, *shape), overwrite=True)
-    (folder / "sizes.lis").write_text("g0.fits\ng1.fits\ng2.fits\n")
+    (folder / "sizes.lis").write_text("g0.fits\ng1.fits\ng2.fits\n", encoding="utf-8")
     # One dimension
     for k in range(5):
         fits.writeto(folder / f"o{k}.fits", frame(k)[12], overwrite=True)
-    (folder / "line.lis").write_text("".join(f"o{k}.fits\n" for k in range(5)))
+    (folder / "line.lis").write_text("".join(f"o{k}.fits\n" for k in range(5)),
+                                     encoding="utf-8")
     # A cube, and its mask
     h = fits.Header()
     h["EXPTIME"] = 20.0

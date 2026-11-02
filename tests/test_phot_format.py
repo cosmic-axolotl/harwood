@@ -25,7 +25,7 @@ WHO = ("#K IRAF ", "#K USER ", "#K HOST ", "#K DATE ", "#K TIME ")
 
 
 def _lines(path):
-    return [line for line in Path(path).read_text().splitlines()
+    return [line for line in Path(path).read_text(encoding="utf-8").splitlines()
             if not line.startswith(WHO)]
 
 
@@ -79,7 +79,8 @@ def test_qphot_writes_what_iraf_s_does(tmp_path, monkeypatch, case, cbox, annulu
 def test_qphot_takes_phot_s_keys_from_a_file(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     fits.writeto("field.fits", field())
-    Path("keys.cur").write_text(f"{CURSOR[0][0]} {CURSOR[0][1]} 1 \\040\n0 0 1 q\n")
+    Path("keys.cur").write_text(f"{CURSOR[0][0]} {CURSOR[0][1]} 1 \\040\n0 0 1 q\n",
+                                encoding="utf-8")
     result = get_task("qphot").run(image="field.fits", cbox=5.0, annulus=10.0, dannulus=10.0,
                                    apertures=[3.0], icommands="keys.cur", output=Path("o.mag"))
     assert len(catalog.read(result.outputs[0])) == 1

@@ -21,7 +21,7 @@ from harwood.core import spectrum
 from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data" / "iraf_dispcor"
-REFERENCE = json.loads((DATA / "cases.json").read_text())
+REFERENCE = json.loads((DATA / "cases.json").read_text(encoding="utf-8"))
 SPECTRA = np.load(DATA / "spectra.npz")
 HEADERS = {"star": {"REFSPEC1": "default"}, "starflip": {"REFSPEC1": "flip"},
            "star2": {"REFSPEC1": "default 0.7", "REFSPEC2": "cheb 0.3"}}

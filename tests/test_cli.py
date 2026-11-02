@@ -1,6 +1,7 @@
 """The command line: the four commands, and the shape section 3.1 fixes."""
 
 
+import os
 import sys
 from pathlib import Path
 
@@ -168,7 +169,7 @@ def test_invalid_parameters_are_reported_by_name(run, tmp_path):
 def test_init_creates_a_visible_commented_project_file(run, tmp_path):
     result = run("init", str(tmp_path))
     assert result.exit_code == 0
-    contents = (tmp_path / "harwood.yaml").read_text()
+    contents = (tmp_path / "harwood.yaml").read_text(encoding="utf-8")
     assert contents.startswith("#"), "the project file explains itself"
     assert "home directory" in contents
 
@@ -214,7 +215,7 @@ def test_editpar_writes_only_what_changed(run, tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert "order" in result.output
 
-    project = (tmp_path / "harwood.yaml").read_text()
+    project = (tmp_path / "harwood.yaml").read_text(encoding="utf-8")
     assert "order: 4" in project
     assert "niterate" not in project, "untouched defaults stay out of the file"
     assert project.startswith("#"), "the explanatory header survives"
@@ -229,7 +230,7 @@ def test_editpar_clearing_a_value_restores_the_default(run, tmp_path, monkeypatc
     monkeypatch.setenv("EDITOR", fake_editor(tmp_path, "clear", "order = 4", "order ="))
     run("ccdproc", "--editpar")
 
-    assert "order" not in (tmp_path / "harwood.yaml").read_text()
+    assert "order" not in (tmp_path / "harwood.yaml").read_text(encoding="utf-8")
 
 
 def test_editpar_rejects_an_unknown_parameter_without_saving(run, tmp_path, monkeypatch):
@@ -240,7 +241,7 @@ def test_editpar_rejects_an_unknown_parameter_without_saving(run, tmp_path, monk
     result = run("ccdproc", "--editpar")
     assert result.exit_code == 2
     assert "sparkle" in result.output
-    assert "sparkle" not in (tmp_path / "harwood.yaml").read_text()
+    assert "sparkle" not in (tmp_path / "harwood.yaml").read_text(encoding="utf-8")
 
 
 def test_editpar_does_not_need_the_required_arguments(run, tmp_path, monkeypatch):
@@ -449,18 +450,18 @@ def test_the_native_editor_saves_only_when_asked(tmp_path):
 
     application()
     path = tmp_path / "ccdproc.par"
-    path.write_text("# order of the fit\norder = 1\n")
+    path.write_text("# order of the fit\norder = 1\n", encoding="utf-8")
 
     closed = Editor(path)
     closed.text.setPlainText("order = 9\n")
     closed.reject()
-    assert not closed.saved and "order = 1" in path.read_text()
+    assert not closed.saved and "order = 1" in path.read_text(encoding="utf-8")
 
     saved = Editor(path)
     saved.text.setPlainText(saved.text.toPlainText().replace("order = 1", "order = 4"))
     saved._save()
-    assert saved.saved and "order = 4" in path.read_text()
-    assert path.read_text().startswith("# order"), "the comments are kept"
+    assert saved.saved and "order = 4" in path.read_text(encoding="utf-8")
+    assert path.read_text(encoding="utf-8").startswith("# order"), "the comments are kept"
 
 
 def test_the_session_survives_whatever_is_typed_at_it(monkeypatch, capsys):
@@ -570,12 +571,13 @@ def test_cd_and_pwd_at_the_prompt(tmp_path, monkeypatch, capsys):
     assert _hw("cd -")
     assert Path.cwd() == tmp_path.resolve()
     monkeypatch.setenv("HOME", str(tmp_path / "night"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "night"))  # what Windows reads
     assert _hw("cd")
     assert Path.cwd() == tmp_path.resolve() / "night"
 
 
 def test_cd_that_cannot_go_says_why_and_stays(tmp_path, monkeypatch, capsys):
-    (tmp_path / "a.fits").write_text("")
+    (tmp_path / "a.fits").write_text("", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
     assert not _hw("cd nowhere")
@@ -767,7 +769,8 @@ def _night(tmp_path, monkeypatch):
     """A reduction with a project file, and a directory below it, where we stand."""
     night = tmp_path / "night"
     (night / "raw").mkdir(parents=True)
-    (night / "harwood.yaml").write_text("params:\n  daofind:\n    sigma: 7.0\n")
+    (night / "harwood.yaml").write_text("params:\n  daofind:\n    sigma: 7.0\n",
+                                        encoding="utf-8")
     _image(night / "raw" / "a.fits")
     monkeypatch.chdir(night / "raw")
     return night
@@ -812,12 +815,13 @@ def test_the_note_stays_out_of_what_a_task_prints_for_a_pipe(tmp_path, monkeypat
 
 def test_lpar_shows_a_project_above_as_above(run, tmp_path, monkeypatch):
     _night(tmp_path, monkeypatch)
-    assert "../harwood.yaml" in _said(run("lpar", "daofind"))
+    assert os.path.join("..", "harwood.yaml") in _said(run("lpar", "daofind"))
 
 
 def test_setinstrument_in_the_home_says_it_will_not_reach_below(run, tmp_path, monkeypatch):
     """Where the trap was set in the first place."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # what Windows reads
     monkeypatch.chdir(tmp_path)
     result = run("setinstrument", "kpno/coude")
     assert result.exit_code == 0, result.output
@@ -831,12 +835,14 @@ def test_setinstrument_in_the_home_says_it_will_not_reach_below(run, tmp_path, m
 
 def test_init_in_the_home_says_it_will_not_reach_below(run, tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # what Windows reads
     monkeypatch.chdir(tmp_path)
     assert "in your home directory" in _said(run("init"))
 
 
 def test_setinstrument_in_a_night_has_no_such_note(run, tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # what Windows reads
     (tmp_path / "night").mkdir()
     monkeypatch.chdir(tmp_path / "night")
     assert "in your home directory" not in _said(run("setinstrument", "kpno/coude"))

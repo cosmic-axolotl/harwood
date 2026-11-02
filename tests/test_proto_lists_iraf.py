@@ -19,7 +19,7 @@ from harwood.core import plio
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_proto_lists"
-GOLD = json.loads((HERE / "proto.json").read_text())
+GOLD = json.loads((HERE / "proto.json").read_text(encoding="utf-8"))
 
 _spec = importlib.util.spec_from_file_location("proto_images", HERE / "proto_images.py")
 proto_images = importlib.util.module_from_spec(_spec)

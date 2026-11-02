@@ -19,7 +19,7 @@ def write(where):
             {"EXPTIME": exptime, "OBJECT": "stack"})).writeto(where / f"f{k}.fits",
                                                               overwrite=True)
         names.append(f"f{k}.fits")
-    (where / "all.lis").write_text("\n".join(names) + "\n")
+    (where / "all.lis").write_text("\n".join(names) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

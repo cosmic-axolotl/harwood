@@ -115,7 +115,8 @@ CASES = {
 for name, (cursor, answers, _) in CASES.items():
     Path(HERE / f"{name}.cur").write_text(
         "".join(f"{x:.7g} {y:.7g} 1 {k}\n" for x, y, k in cursor) + "0 0 1 q\n"
-        if cursor or name != "nocursor" else "")
-    Path(HERE / f"{name}.ans").write_text("".join(a + "\n" for a in answers))
-(HERE / "CASES.yaml").write_text(yaml.safe_dump({k: v[2] for k, v in CASES.items()}))
+        if cursor or name != "nocursor" else "", encoding="utf-8")
+    Path(HERE / f"{name}.ans").write_text("".join(a + "\n" for a in answers), encoding="utf-8")
+(HERE / "CASES.yaml").write_text(yaml.safe_dump({k: v[2] for k, v in CASES.items()}),
+                                 encoding="utf-8")
 print(len(CASES), file=sys.stderr)

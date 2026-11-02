@@ -302,7 +302,7 @@ def test_wspectext_writes_every_column_with_what_it_means(frame):
                           readnoise="5.")
     get_task("wspectext").run(input="obj.ms.fits", output="obj.csv")
 
-    text = (frame / "obj.csv").read_text()
+    text = (frame / "obj.csv").read_text(encoding="utf-8")
     assert "# aperture 1 at" in text
     assert "flux: extracted flux, background subtracted" in text
 
@@ -316,7 +316,7 @@ def test_wspectext_can_be_asked_for_some_columns(frame):
                           nsum=10)
     get_task("wspectext").run(input="obj.ms.fits", output="two.csv",
                               columns="pixel,flux", header=False)
-    rows = (frame / "two.csv").read_text().splitlines()
+    rows = (frame / "two.csv").read_text(encoding="utf-8").splitlines()
     assert rows[0] == "pixel,flux"
 
     with pytest.raises(ValueError, match="no column called sparkle"):
@@ -331,7 +331,7 @@ def test_wspectext_can_be_asked_for_some_columns(frame):
 def test_apall_uses_what_the_keys_left(frame):
     """The edited apertures are the ones extracted, not the found ones."""
     (frame / "cur").write_text(f"{CENTRE} 0 1 .\n{CENTRE - 9} 0 1 l\n{CENTRE + 9} 0 1 u\n"
-                               "0 0 1 q\n")
+                               "0 0 1 q\n", encoding="utf-8")
     result = get_task("apall").run(input="obj.fits", output="obj.ms.fits", edit=True,
                                    t_step=10, nsum=10, gcommands="cur")
     back = spectrum.read(frame / "obj.ms.fits")[0]
@@ -341,7 +341,7 @@ def test_apall_uses_what_the_keys_left(frame):
 
 
 def test_deleting_every_aperture_stops_rather_than_extracting_nothing(frame):
-    (frame / "cur").write_text(f"{CENTRE} 0 1 d\n0 0 1 q\n")
+    (frame / "cur").write_text(f"{CENTRE} 0 1 d\n0 0 1 q\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="nothing to extract"):
         get_task("apall").run(input="obj.fits", output="x.ms.fits", edit=True, gcommands="cur")
 
@@ -366,7 +366,7 @@ def test_the_trace_and_a_dispersion_solution_do_not_collide(frame):
         "id is the dispersion solution's prefix and must stay free"
 
     # And the file says what it is, rather than claiming to be something else.
-    text = (frame / "database" / "apobj").read_text()
+    text = (frame / "database" / "apobj").read_text(encoding="utf-8")
     assert text.startswith("# harwood trace")
     assert "One line per aperture" in text
 

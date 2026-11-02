@@ -10,8 +10,9 @@ iraf.noao(_doprint=0)
 iraf.digiphot(_doprint=0)
 iraf.photcal(_doprint=0)
 
-Path("shifts.txt").write_text("stan0051cr.fits 1.5 -2.0\nstan0052cr.fits 0.5 0.5\n")
-Path("obspars.txt").write_text("data0097cr.fits B 30.0 1.2 21:30:00.0\n")
+Path("shifts.txt").write_text("stan0051cr.fits 1.5 -2.0\nstan0052cr.fits 0.5 0.5\n",
+                              encoding="utf-8")
+Path("obspars.txt").write_text("data0097cr.fits B 30.0 1.2 21:30:00.0\n", encoding="utf-8")
 SETS = "imsets.mkimsets"
 COMMON = dict(imsets=SETS, shifts="", apercors="", obsparams="", tolerance=8.0)
 CASES = {

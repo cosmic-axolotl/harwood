@@ -24,7 +24,7 @@ from iraf_field import CURSOR, dirty_field, field
 from harwood.core import apphot
 
 REFERENCE = json.loads((Path(__file__).parent / "data"
-                        / "iraf_apphot_algorithms.json").read_text())["cases"]
+                        / "iraf_apphot_algorithms.json").read_text(encoding="utf-8"))["cases"]
 IMAGES = {"field": field, "dirty": dirty_field}
 
 

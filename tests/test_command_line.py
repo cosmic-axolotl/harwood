@@ -127,7 +127,7 @@ def test_tab_completes_the_names_help_and_lpar_take():
 def test_tab_completes_files_lists_and_directories(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     for name in ("obj001.fits", "obj002.fits", "bias.lis", ".hidden"):
-        (tmp_path / name).write_text("")
+        (tmp_path / name).write_text("", encoding="utf-8")
     (tmp_path / "raw night").mkdir()
     assert _values("imstatistics obj") == ["obj001.fits", "obj002.fits"]
     assert command_line.complete("imstatistics obj").common() == "obj00"
@@ -177,7 +177,7 @@ def test_history_is_trimmed_to_its_limit(monkeypatch):
 
 def test_a_history_that_cannot_be_written_does_not_stop_a_command(tmp_path, monkeypatch):
     blocker = tmp_path / "file"
-    blocker.write_text("")
+    blocker.write_text("", encoding="utf-8")
     monkeypatch.setenv("XDG_STATE_HOME", str(blocker))     # harwood/ cannot go in a file
     history.add("list")
     assert history.load() == []
@@ -367,7 +367,7 @@ def test_the_command_line_is_a_panel_that_comes_back(window):
 
 def test_tab_after_cd_offers_directories_and_cd_itself(tmp_path, monkeypatch):
     (tmp_path / "night1").mkdir()
-    (tmp_path / "night.fits").write_text("")
+    (tmp_path / "night.fits").write_text("", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     assert _values("cd ni") == ["night1/"]
     assert "cd" in _values("c") and "pwd" in _values("pw")
@@ -407,7 +407,7 @@ def test_the_window_knows_its_image_after_a_cd(window, tmp_path, monkeypatch):
 
 def test_a_file_tab_saves_where_it_was_opened_after_a_cd(window, tmp_path, monkeypatch):
     (tmp_path / "night").mkdir()
-    (tmp_path / "list.txt").write_text("one\n")
+    (tmp_path / "list.txt").write_text("one\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     window.run_line("edit list.txt")
     tab = window.files.tabs.currentWidget()
@@ -415,5 +415,5 @@ def test_a_file_tab_saves_where_it_was_opened_after_a_cd(window, tmp_path, monke
     window.run_line("cd night")
     tab.setPlainText("two\n")
     tab.save()
-    assert (tmp_path / "list.txt").read_text() == "two\n"
+    assert (tmp_path / "list.txt").read_text(encoding="utf-8") == "two\n"
     assert not (tmp_path / "night" / "list.txt").exists()

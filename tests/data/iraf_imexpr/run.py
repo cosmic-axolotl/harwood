@@ -76,5 +76,5 @@ for name, params in CASES.items():
     if file.exists() and not error:
         done.update(fits_read(file))
     out[name] = done
-    (here / "imexpr.json").write_text(json.dumps(out))
+    (here / "imexpr.json").write_text(json.dumps(out), encoding="utf-8")
 print(len(out), sum(1 for v in out.values() if v["error"]))

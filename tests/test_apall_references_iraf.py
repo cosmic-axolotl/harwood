@@ -22,7 +22,7 @@ from harwood.core import spectrum
 from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data"
-REFERENCE = json.loads((DATA / "iraf_apall_references.json").read_text())
+REFERENCE = json.loads((DATA / "iraf_apall_references.json").read_text(encoding="utf-8"))
 SPECTRA = np.load(DATA / "iraf_apall_references.npz")
 BANDS = {"spectrum": "flux", "raw": "raw", "background": "sky", "sigma": "error"}
 

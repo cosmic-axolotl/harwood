@@ -25,4 +25,5 @@ if __name__ == "__main__":
         out[tag] = {"image": hashlib.sha256(image.tobytes()).hexdigest(),
                     "mask": hashlib.sha256(mask.tobytes()).hexdigest(),
                     "crcor": fits.getheader(folder / f"o{tag}.fits")["CRCOR"]}
-    Path(__file__).with_name("crf_m92.json").write_text(json.dumps(out, indent=0))
+    Path(__file__).with_name("crf_m92.json").write_text(json.dumps(out, indent=0),
+                                                        encoding="utf-8")

@@ -78,5 +78,5 @@ for name, params in MIMSTAT.items():
     if params.get("omasks") and pl.exists():
         done["omask"] = read_mask(pl.name)
     out["mimstat"][name] = done
-(here / "proto.json").write_text(json.dumps(out))
+(here / "proto.json").write_text(json.dumps(out), encoding="utf-8")
 print(len(out["imext"]), len(out["mimstat"]))

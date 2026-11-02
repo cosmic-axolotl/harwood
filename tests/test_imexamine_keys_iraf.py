@@ -18,7 +18,7 @@ from harwood.core import examine, images
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_imexam_keys"
-GOLD = json.loads((HERE / "iek.json").read_text())
+GOLD = json.loads((HERE / "iek.json").read_text(encoding="utf-8"))
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(Path(__file__).parent))
 from iek_cases import CASES  # noqa: E402
@@ -27,7 +27,7 @@ from iraf_field import field  # noqa: E402
 
 def session(case):
     """The keys of a case, the way IRAF goes through them, with its autoredraw."""
-    Path("keys.cur").write_text(CASES[case])
+    Path("keys.cur").write_text(CASES[case], encoding="utf-8")
     settings = examine.Settings(logname="out.log", ncoutput=21, nloutput=21, image="f.fits")
     fits.writeto("f.fits", np.asarray(field(), "f4"), overwrite=True)
     data, settings.header = images.read("f.fits")
@@ -127,12 +127,12 @@ def test_the_sections_are_what_iraf_writes(work):
 
 
 def test_the_log_stops_and_starts_with_w(work):
-    Path("keys.cur").write_text(CASES["log"])
+    Path("keys.cur").write_text(CASES["log"], encoding="utf-8")
     fits.writeto("f.fits", np.asarray(field(), "f4"), overwrite=True)
     result = get_task("imexamine").run(input=["f.fits"], imagecur="keys.cur",
                                        logfile="out.log")
     assert len(result.data["rows"]) == 5
-    log = Path("out.log").read_text()
+    log = Path("out.log").read_text(encoding="utf-8")
     assert "110.00" not in log, "written while the log was closed"
     assert "20.00" in log and "41.00" in log
 

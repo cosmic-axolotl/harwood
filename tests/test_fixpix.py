@@ -71,7 +71,7 @@ def test_the_task_takes_a_text_mask_or_the_bpm_keyword(tmp_path):
     fits.writeto(tmp_path / "bpm.fits", region)
     header = fits.Header({"BPM": "bpm.fits"})
     fits.writeto(tmp_path / "frame.fits", image, header)
-    (tmp_path / "bad.txt").write_text("11 11 6 35   # the bad column\n")
+    (tmp_path / "bad.txt").write_text("11 11 6 35   # the bad column\n", encoding="utf-8")
 
     by_keyword = get_task("fixpix").run(images=[str(tmp_path / "frame.fits")],
                                         masks=["BPM"], output=str(tmp_path / "k_"))
@@ -90,7 +90,8 @@ def test_the_task_takes_a_text_mask_or_the_bpm_keyword(tmp_path):
 # ------------------------------------------- verbose, pixels and every mask
 
 
-LISTING = json.loads((Path(__file__).parent / "data" / "iraf_fixpix_listing.json").read_text())
+LISTING = json.loads((Path(__file__).parent / "data" / "iraf_fixpix_listing.json").read_text(
+        encoding="utf-8"))
 
 
 @pytest.mark.parametrize("tag", list(LISTING["cases"]))
@@ -107,7 +108,7 @@ def test_fixpix_lists_and_fixes_as_iraf(tag, tmp_path, monkeypatch):
     fits.PrimaryHDU(np.array(LISTING[case["image"]], dtype)).writeto(f"{tag}.fits")
     fits.PrimaryHDU(np.array(LISTING["mask"], np.int16)).writeto("mask.fits")
     shutil.copy(Path(__file__).parent / "data" / "fixpix_mask.pl", "mask.pl")
-    Path("regions.txt").write_text(LISTING["regions"])
+    Path("regions.txt").write_text(LISTING["regions"], encoding="utf-8")
     given = {key: value == "yes" if value in ("yes", "no") else value
              for key, value in case["params"].items()}
     params = {"verbose": True, "pixels": True, **given}

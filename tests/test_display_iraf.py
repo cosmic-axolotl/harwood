@@ -24,7 +24,7 @@ import pytest
 from harwood.core import pixmask, plio, render
 
 HERE = Path(__file__).parent / "data"
-REF = json.loads((HERE / "iraf_display.json").read_text())
+REF = json.loads((HERE / "iraf_display.json").read_text(encoding="utf-8"))
 PHOT = Path(os.environ.get("HARWOOD_TEST_DATA", "~/iraf/exercises")).expanduser() / "phot"
 
 
@@ -103,7 +103,7 @@ def test_grey_levels_match_iraf(case, tmp_path):
 
     data = synthetic(case["image"])
     lut = tmp_path / "lut2.txt"
-    lut.write_text(REF["lut2.txt"])
+    lut.write_text(REF["lut2.txt"], encoding="utf-8")
     params = dict(case["params"])
     for flag in ("zscale", "zrange"):
         if flag in params:
@@ -230,7 +230,7 @@ def test_mask_names(tmp_path):
     assert pixmask.read("!MYMASK", {"MYMASK": "bad.fits"}, shape, tmp_path).sum() == 4
     inverted = pixmask.read("^bad.fits", None, shape, tmp_path)
     assert inverted[2, 3] == 0 and inverted[0, 0] == 1
-    (tmp_path / "regions").write_text("2 2 1 5\n3 6 4 4\n7 1\n")
+    (tmp_path / "regions").write_text("2 2 1 5\n3 6 4 4\n7 1\n", encoding="utf-8")
     regions = pixmask.read("regions", None, shape, tmp_path)
     assert regions[0, 1] == 2 and regions[4, 1] == 2       # a column: 2
     assert regions[3, 2] == 3 and regions[3, 5] == 3       # a line: 3
@@ -239,7 +239,7 @@ def test_mask_names(tmp_path):
 
 def test_user_lut_as_iraf_builds_it(tmp_path):
     lut = tmp_path / "lut.txt"
-    lut.write_text("0 0\n500 100\n1500 200\n")
+    lut.write_text("0 0\n500 100\n1500 200\n", encoding="utf-8")
     table = render.UserLut(lut)
     assert (table.z1, table.z2) == (0.0, 1500.0)
     # dsulut.x: the last entry is the last segment's start plus its slope

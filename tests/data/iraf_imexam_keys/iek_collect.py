@@ -40,10 +40,12 @@ if __name__ == "__main__":
             data = np.asarray(fits.getdata(path)).astype(">f4")
             sha = hashlib.sha256(data.tobytes()).hexdigest()
             sections[path.name] = [list(data.shape), sha]
-        gold[name] = {"text": (folder / "stdout.txt").read_text(), "sections": sections,
-                      "log": (folder / "out.log").read_text()
+        gold[name] = {"text": (folder / "stdout.txt").read_text(
+                encoding="utf-8"), "sections": sections,
+                      "log": (folder / "out.log").read_text(encoding="utf-8")
                       if (folder / "out.log").exists() else "",
                       "frames": frames(folder / "metacode") if (folder / "metacode").exists()
                       and (folder / "metacode").stat().st_size else []}
-    (Path(__file__).parent / "iek.json").write_text(json.dumps(gold, indent=0))
+    (Path(__file__).parent / "iek.json").write_text(json.dumps(gold, indent=0),
+                                                    encoding="utf-8")
     print(len(gold))

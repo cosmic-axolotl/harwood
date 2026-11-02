@@ -128,4 +128,4 @@ if __name__ == "__main__":
     read = everything(path) if "--everything" in sys.argv else frames(
         path, "--over-lines" in sys.argv)
     text = json.dumps(read, separators=(",", ":"))
-    path.with_suffix(".json").write_text(text + "\n")
+    path.with_suffix(".json").write_text(text + "\n", encoding="utf-8")

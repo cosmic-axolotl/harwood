@@ -24,8 +24,9 @@ def night(tmp_path, monkeypatch):
     (tmp_path / "mine.dat").write_text("subset        FILTERS\n"
                                        "'DOME FLAT'   flat\n"
                                        "BIAS          zero\n"
-                                       "OBJECT        object\n")
-    (tmp_path / "harwood.yaml").write_text("instrument: mine.dat\nparams: {}\n")
+                                       "OBJECT        object\n", encoding="utf-8")
+    (tmp_path / "harwood.yaml").write_text("instrument: mine.dat\nparams: {}\n",
+                                           encoding="utf-8")
 
     rng = np.random.default_rng(8)
     ny, nx, useful = 30, 40, 30
@@ -71,7 +72,7 @@ def test_a_name_goes_into_file_names_with_only_safe_characters(night):
 
 def test_the_file_is_written_the_first_time_a_subset_is_seen(night):
     subsets.record(["5 0", "6 0"])
-    text = (night / "subsets").read_text()
+    text = (night / "subsets").read_text(encoding="utf-8")
     assert text.startswith("#"), "it explains what it is for"
     assert "'5 0'" in text and "'6 0'" in text
     assert subsets.read() == {"5 0": "5", "6 0": "6"}
@@ -79,12 +80,12 @@ def test_the_file_is_written_the_first_time_a_subset_is_seen(night):
 
 def test_editing_the_name_is_the_whole_point(night):
     subsets.record(["6 0"])
-    (night / "subsets").write_text("'6 0'   V\n")
+    (night / "subsets").write_text("'6 0'   V\n", encoding="utf-8")
     assert subsets.name_for("6 0") == "V"
 
 
 def test_a_malformed_line_says_what_the_columns_are(night):
-    (night / "subsets").write_text("just-one-column\n")
+    (night / "subsets").write_text("just-one-column\n", encoding="utf-8")
     with pytest.raises(ValueError, match="left column"):
         subsets.read()
 
@@ -92,7 +93,7 @@ def test_a_malformed_line_says_what_the_columns_are(night):
 def test_flatcombine_splits_by_filter_and_names_the_outputs(night):
     """`flatcombine *.fits Flat` over a night gives FlatB and FlatV: combining
     two filters together produces a flat for neither."""
-    (night / "subsets").write_text("'5 0'  B\n'6 0'  V\n")
+    (night / "subsets").write_text("'5 0'  B\n'6 0'  V\n", encoding="utf-8")
 
     result = get_task("flatcombine").run(input=["*.fits"], output="Flat.fits",
                                          gain=2.0, rdnoise=6.0)
@@ -131,7 +132,7 @@ def test_minmax_that_would_undercut_nkeep_is_refused(night):
 def test_the_log_grows_a_line_at_a_time(night):
     get_task("ccdproc").run(input=["o1.fits"], output="out", overscan=True,
                             trim=True, logfile="run.log")
-    text = (night / "run.log").read_text()
+    text = (night / "run.log").read_text(encoding="utf-8")
     assert "ccdproc  o1.fits" in text
     assert "overscan" in text and "trim" in text
     assert "finished" in text
@@ -142,7 +143,7 @@ def test_a_second_run_appends_rather_than_replaces(night):
                             logfile="run.log")
     get_task("ccdproc").run(input=["z2.fits"], output="out", overscan=True,
                             logfile="run.log")
-    text = (night / "run.log").read_text()
+    text = (night / "run.log").read_text(encoding="utf-8")
     assert "z1.fits" in text and "z2.fits" in text
 
 
@@ -169,7 +170,7 @@ def test_the_log_records_which_flat_each_frame_got(night):
     the calibrations it found itself -- so combining untrimmed flats and then
     naming one is caught, as it should be.
     """
-    (night / "subsets").write_text("'5 0'  B\n'6 0'  V\n")
+    (night / "subsets").write_text("'5 0'  B\n'6 0'  V\n", encoding="utf-8")
 
     get_task("ccdproc").run(input=["f5*.fits", "f6*.fits"], output="%f%tf%",
                             overscan=True, trim=True, logfile="run.log")
@@ -179,7 +180,7 @@ def test_the_log_records_which_flat_each_frame_got(night):
                             trim=True, flatcor=True, flat="FlatV.fits",
                             logfile="run.log")
 
-    text = (night / "run.log").read_text()
+    text = (night / "run.log").read_text(encoding="utf-8")
     assert "FlatV.fits" in text
     assert "ccdproc  o1.fits" in text
 

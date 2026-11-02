@@ -17,7 +17,7 @@ from astropy.io import fits
 from harwood.core.registry import get_task
 
 REFERENCE = json.loads((Path(__file__).parent / "data" / "iraf_ccdgroups.json")
-                       .read_text())["files"]
+                       .read_text(encoding="utf-8"))["files"]
 HEADERS = [
     ("a1", "object", "V", "M92", "1992-03-05T03:10:00", "17:17:07.0", "+43:08:11"),
     ("a2", "object", "B", "M92", "1992-03-05T03:20:00", "17:17:07.5", "+43:08:20"),
@@ -36,7 +36,7 @@ def night(tmp_path, monkeypatch):
         header = fits.Header({"IMAGETYP": kind, "FILTERS": subset, "OBJECT": title,
                               "DATE-OBS": date, "RA": ra, "DEC": dec, "EXPTIME": 1.0})
         fits.writeto(f"{name}.fits", np.zeros((4, 4), np.float32), header)
-    Path("inst.dat").write_text("subset\tFILTERS\n")
+    Path("inst.dat").write_text("subset\tFILTERS\n", encoding="utf-8")
     return tmp_path
 
 
@@ -46,7 +46,7 @@ def test_ccdgroups_writes_iraf_s_files(night, group):
                               instrument="inst.dat")
     expected = {name: names for name, names in REFERENCE.items()
                 if name.startswith(f"{group}_")}
-    written = {path.name: path.read_text().split()
+    written = {path.name: path.read_text(encoding="utf-8").split()
                for path in sorted(night.glob(f"{group}_*"))}
     assert written == expected
 
@@ -54,7 +54,7 @@ def test_ccdgroups_writes_iraf_s_files(night, group):
 def test_ccdtype_selects_before_grouping(night):
     get_task("ccdgroups").run(images=["a*.fits"], output="sel_", group="date",
                               ccdtype="object", instrument="inst.dat")
-    assert {p.name: p.read_text().split() for p in night.glob("sel_*")} == {
+    assert {p.name: p.read_text(encoding="utf-8").split() for p in night.glob("sel_*")} == {
         name: names for name, names in REFERENCE.items() if name.startswith("sel_")}
 
 
@@ -62,6 +62,7 @@ def test_a_second_run_appends_and_says_so(night):
     run = dict(images=["a*.fits"], output="t_", group="ccdtype", instrument="inst.dat")
     get_task("ccdgroups").run(**run)
     result = get_task("ccdgroups").run(**run)
-    assert Path("t_object").read_text().split() == ["a1.fits", "a2.fits", "a3.fits",
+    assert Path("t_object").read_text(
+            encoding="utf-8").split() == ["a1.fits", "a2.fits", "a3.fits",
                                                     "a6.fits"] * 2
     assert any("already exists" in w.message for w in result.warnings)

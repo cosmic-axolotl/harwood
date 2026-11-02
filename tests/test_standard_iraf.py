@@ -115,9 +115,9 @@ def test_standard_writes_what_iraf_writes(case, spectra, tmp_path, monkeypatch):
               "extinction": str(DATA / "kpnoextinct.dat"), "observatory": "kpno",
               "format": "iraf", **extra}
     result = get_task("standard").run(input=images, output=tmp_path / "std", **values)
-    ours = (tmp_path / "std").read_text().splitlines()
+    ours = (tmp_path / "std").read_text(encoding="utf-8").splitlines()
     theirs = [line.replace("  -20.000", "   20.000")
-              for line in (REF / f"{case}.std").read_text().splitlines()]
+              for line in (REF / f"{case}.std").read_text(encoding="utf-8").splitlines()]
     assert ours == theirs
     said = result.data.get("text", [])
     for line in SAID.get(case, []):
@@ -160,7 +160,7 @@ def test_the_graph_is_iraf_s(case, spectra, tmp_path, monkeypatch):
                              caldir=str(REF / "mycal"), star_name="fakestar",
                              extinction=str(DATA / "kpnoextinct.dat"), observatory="kpno",
                              interact=True, answer="YES", cursor=cursor)
-    frames = json.loads((REF / "graphs" / f"{case}.json").read_text())
+    frames = json.loads((REF / "graphs" / f"{case}.json").read_text(encoding="utf-8"))
     assert len(frames) == len(drawn) == count
     for number, (graph, frame) in enumerate(zip(drawn, frames, strict=True)):
         where = f"frame {number}"
@@ -220,8 +220,8 @@ def test_an_existing_file_keeps_its_format(spectra, tmp_path, monkeypatch):
     get_task("standard").run(input="std1.fits", output=tmp_path / "std", format="iraf",
                              **common)
     result = get_task("standard").run(input="std2.fits", output=tmp_path / "std", **common)
-    assert (tmp_path / "std").read_text().splitlines() == \
-        (REF / "basic.std").read_text().splitlines()
+    assert (tmp_path / "std").read_text(encoding="utf-8").splitlines() == \
+        (REF / "basic.std").read_text(encoding="utf-8").splitlines()
     assert any("already in iraf" in w.message for w in result.warnings)
 
 

@@ -19,7 +19,7 @@ from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data" / "iraf_radprof"
 KEYS = json.loads((Path(__file__).parent / "data" / "iraf_radprof_keys" / "radprof_keys.json")
-                  .read_text())
+                  .read_text(encoding="utf-8"))
 PARAMS = dict(epadu=2.0, apertures=[3.0, 5.0], cbox=5.0, annulus=10.0, dannulus=10.0,
               calgorithm="centroid", salgorithm="centroid")
 EDGE = [*CURSOR[:2], (4.0, 100.0), (196.5, 3.0), (-50.0, 10.0), (100.0, 100.0)]
@@ -37,7 +37,8 @@ def _number(text):
 def _iraf(path, napertures=2):
     """The stars of a .prf: its apertures, its FWHM line and its profile."""
     lines = [line.rstrip().rstrip("\\").rstrip("*").rstrip()
-             for line in path.read_text().splitlines() if not line.startswith("#")]
+             for line in path.read_text(
+                     encoding="utf-8").splitlines() if not line.startswith("#")]
     stars, i = [], 0
     while i < len(lines):
         i += 4
@@ -66,7 +67,7 @@ def test_radprof_writes_what_iraf_writes(tmp_path, monkeypatch, case):
     get_task("radprof").run(image="field.fits", radius=radius, step=step, coords=Path("c.coo"),
                             output=Path("out.prf"), **PARAMS, **settings)
     ours = catalog.read("out.prf")
-    assert (DATA / f"{case}.err").read_text() == ""
+    assert (DATA / f"{case}.err").read_text(encoding="utf-8") == ""
     theirs = _iraf(DATA / f"{case}.prf")
     assert len(ours) == len(theirs)
     for row, star in zip(ours, theirs, strict=True):
@@ -94,8 +95,8 @@ def test_format_iraf_is_iraf_s_file(tmp_path, monkeypatch, case):
     catalog.write(Table({"x": [s[0] for s in stars], "y": [s[1] for s in stars]}), coords)
     get_task("radprof").run(image="field.fits", radius=radius, step=step, coords=Path(coords),
                             output=Path("out.prf"), format="iraf", **PARAMS, **settings)
-    ours = Path("out.prf").read_text().splitlines()
-    theirs = (DATA / f"{case}.prf").read_text().splitlines()
+    ours = Path("out.prf").read_text(encoding="utf-8").splitlines()
+    theirs = (DATA / f"{case}.prf").read_text(encoding="utf-8").splitlines()
     assert ours[5:] == theirs[5:]
 
 
@@ -107,11 +108,11 @@ def test_by_the_cursor_it_writes_iraf_s_file(tmp_path, monkeypatch, case):
     fits.writeto("field.fits", np.asarray(field(), "f4"))
     catalog.write(Table({"x": [s[0] for s in CURSOR], "y": [s[1] for s in CURSOR]}),
                   "field.coo")
-    Path("keys.cur").write_text(KEYS[case]["keys"])
+    Path("keys.cur").write_text(KEYS[case]["keys"], encoding="utf-8")
     get_task("radprof").run(image="field.fits", radius=12.0, step=0.5,
                             coords=Path("field.coo"), output=Path("out.prf"), format="iraf",
                             icommands="keys.cur", order=5, kreject=3.0, nreject=1, **PARAMS)
-    ours = Path("out.prf").read_text().splitlines()
+    ours = Path("out.prf").read_text(encoding="utf-8").splitlines()
     theirs = KEYS[case]["prf"].splitlines()
     assert ours[5:] == theirs[5:]
 

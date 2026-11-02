@@ -17,7 +17,7 @@ from astropy.io import fits
 from harwood.core import crfind
 
 HERE = Path(__file__).parent / "data" / "iraf_cosmicrays"
-GOLD = json.loads((HERE / "crf.json").read_text())
+GOLD = json.loads((HERE / "crf.json").read_text(encoding="utf-8"))
 sys.path.insert(0, str(HERE))
 from crf_cases import CASES, SESSIONS  # noqa: E402
 from crf_inputs import write  # noqa: E402
@@ -44,7 +44,7 @@ def _run(frames, name):
     data = fits.getdata(source)
     objects = None
     if case.get("objects"):
-        objects = list(crfind.reads((frames / case["objects"]).read_text()))
+        objects = list(crfind.reads((frames / case["objects"]).read_text(encoding="utf-8")))
     examine = None
     if "keys" in case:
         cursor = crfind.reads(case["keys"].replace("\\\\", "\\"))
@@ -96,10 +96,11 @@ def test_the_task_writes_what_iraf_writes(frames, tmp_path, monkeypatch, name):
                    threshold=case.get("threshold", 25.0), fluxratio=case.get("fluxratio", 2.0),
                    npasses=case.get("npasses", 5), window=int(case.get("window", "5")))
     if "keys" in case:
-        Path("keys.cur").write_text(case["keys"].replace("\\\\", "\\"))
+        Path("keys.cur").write_text(case["keys"].replace("\\\\", "\\"), encoding="utf-8")
         options["cursor"] = "keys.cur"
     if case.get("objects"):
-        Path("objects.cur").write_text((frames / case["objects"]).read_text())
+        Path("objects.cur").write_text((frames / case["objects"]).read_text(encoding="utf-8"),
+                                       encoding="utf-8")
         options.update(train=True, objects="objects.cur", savefile="saved.txt")
     result = get_task("cosmicrays").run(input=[source], **options)
     expected = GOLD[name]
@@ -116,7 +117,7 @@ def test_the_task_writes_what_iraf_writes(frames, tmp_path, monkeypatch, name):
     assert card == expected["crcor"]
     assert (result.stdout or []) == expected["printed"]
     if expected["saved"]:
-        assert Path("saved.txt").read_text() == expected["saved"]
+        assert Path("saved.txt").read_text(encoding="utf-8") == expected["saved"]
 
 
 def test_two_frames_share_the_reads_and_the_threshold(frames, tmp_path, monkeypatch):
@@ -125,7 +126,8 @@ def test_two_frames_share_the_reads_and_the_threshold(frames, tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     for name in ("a.fits", "b.fits"):
         fits.writeto(name, fits.getdata(frames / "f.fits"))
-    Path("keys.cur").write_text("1000 50 1 t\n1 1 1 q\n1000 1500 1 \\040\n1 1 1 q\n")
+    Path("keys.cur").write_text("1000 50 1 t\n1 1 1 q\n1000 1500 1 \\040\n1 1 1 q\n",
+                                encoding="utf-8")
     result = get_task("cosmicrays").run(input=["a.fits", "b.fits"], algorithm="iraf",
                                         output="cr_", gain=1.0, rdnoise=0.0, cursor="keys.cur")
     assert len(result.stdout) == 1
@@ -212,7 +214,7 @@ def test_the_training_reads_the_window_s_keys(frames, tmp_path, monkeypatch):
                                    rdnoise=0.0, train=True, savefile="saved.txt")
     finally:
         display.reset()
-    assert Path("saved.txt").read_text() == ("12. 15. 1 c\n50. 20. 1 c\n"
+    assert Path("saved.txt").read_text(encoding="utf-8") == ("12. 15. 1 c\n50. 20. 1 c\n"
                                              "61. 38. 1 s\n43. 49. 1 s\n")
     assert window.key_hook is None
 
@@ -228,7 +230,7 @@ def test_real_frames_of_m92_come_out_the_same(tag):
     source, threshold, fluxratio, window = M92[tag]
     data = fits.getdata(M92_FOLDER / source)
     result = crfind.run(data, threshold, fluxratio, 5, window)
-    expected = json.loads((HERE / "crf_m92.json").read_text())[tag]
+    expected = json.loads((HERE / "crf_m92.json").read_text(encoding="utf-8"))[tag]
     image = result.image.astype(">f4")
     assert hashlib.sha256(image.tobytes()).hexdigest() == expected["image"]
     assert hashlib.sha256(result.mask.tobytes()).hexdigest() == expected["mask"]

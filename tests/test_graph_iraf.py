@@ -75,7 +75,7 @@ def test_imhistogram_draws_what_iraf_draws(case, tmp_path, monkeypatch):
     drawn = []
     monkeypatch.setattr(imutil, "_plot", lambda plot, *args: drawn.append(plot))
     get_task("imhistogram").run(image="field.fits", device="stdgraph", **HISTOGRAMS[case])
-    frame = json.loads((DATA / f"imh_{case}.json").read_text())[0]
+    frame = json.loads((DATA / f"imh_{case}.json").read_text(encoding="utf-8"))[0]
     plot = drawn[0]
     window = _window(frame, plot.window)
     assert plot.title[0].removeprefix("harwood -- ") in frame["text"]
@@ -100,7 +100,7 @@ def test_fitsky_draws_what_iraf_draws(case, algorithm, smooth, cursor):
     pars = apphot.SkyPars(algorithm, 10.0, 10.0, khist=3.0, binsize=0.1, smooth=smooth)
     for x, y in ((40.0, 46.0), (111.0, 52.0)):
         fitsky.fitsky(field(), x, y, pars, apphot.DataPars(), marks, None)
-    frames = json.loads((DATA / f"{case}.json").read_text())[:2]
+    frames = json.loads((DATA / f"{case}.json").read_text(encoding="utf-8"))[:2]
     assert len(drawn) == len(frames)
     for graph, frame in zip(drawn, frames, strict=True):
         window = _window(frame, graph.window)

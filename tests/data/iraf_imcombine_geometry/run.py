@@ -42,5 +42,5 @@ for name, params in CASES.items():
                        **{**BASE, **params})
     except Exception as e:  # noqa: BLE001
         error = str(e)[-200:]
-    (work / "error.txt").write_text(error)
+    (work / "error.txt").write_text(error, encoding="utf-8")
     print(name, error[-90:], flush=True)

@@ -18,7 +18,7 @@ from harwood.core import artdata, iraffmt
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_artdata"
-GOLD = json.loads((HERE / "artdata.json").read_text())
+GOLD = json.loads((HERE / "artdata.json").read_text(encoding="utf-8"))
 
 _load = importlib.util.spec_from_file_location("art_images", HERE / "art_images.py")
 art_images = importlib.util.module_from_spec(_load)
@@ -94,7 +94,7 @@ def test_mknoise_writes_the_numbers_iraf_writes(work, case):
     _same(name, GOLD["mknoise"][case])
     written = GOLD["mknoise"][case].get("written")
     if written is not None:
-        assert Path("new.txt").read_text() == written
+        assert Path("new.txt").read_text(encoding="utf-8") == written
 
 
 @pytest.mark.parametrize("case", list(GOLD["mkobjects"]))
@@ -117,7 +117,7 @@ def test_the_comments_are_iraf_s(work, task, case):
 def test_starlist_writes_the_lines_iraf_writes(work, case):
     expected = GOLD["starlist"][case]
     get_task("starlist").run(starlist="list.txt", **expected["params"])
-    mine = Path("list.txt").read_text().splitlines()
+    mine = Path("list.txt").read_text(encoding="utf-8").splitlines()
     theirs = expected["text"].splitlines()
     assert mine[1:] == theirs[1:]  # the first has the time
 
@@ -137,7 +137,7 @@ def test_the_generator_is_iraf_s():
 
 
 def test_an_object_of_an_unknown_kind_is_said_and_passed_over(work):
-    Path("o.txt").write_text("10 10 7 nosuch 2 0.5 0\n")
+    Path("o.txt").write_text("10 10 7 nosuch 2 0.5 0\n", encoding="utf-8")
     result = get_task("mkobjects").run(
         input=["n.fits"], objects=["o.txt"], ncols=20, nlines=20, background=0.0, header=""
     )

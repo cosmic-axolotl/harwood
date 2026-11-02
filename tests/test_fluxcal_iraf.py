@@ -26,7 +26,7 @@ from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data"
 REF = DATA / "iraf_fluxcal"
-CASES = json.loads((REF / "cases.json").read_text())
+CASES = json.loads((REF / "cases.json").read_text(encoding="utf-8"))
 OUT = np.load(REF / "outputs.npz")
 W1, DW, N = 4014.29852458081, 0.28769335609626, 1024
 

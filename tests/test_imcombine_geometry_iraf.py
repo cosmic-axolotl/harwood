@@ -17,7 +17,7 @@ from harwood.core import images
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data" / "iraf_imcombine_geometry"
-GOLD = json.loads((HERE / "imcgeo.json").read_text())
+GOLD = json.loads((HERE / "imcgeo.json").read_text(encoding="utf-8"))
 sys.path.insert(0, str(HERE))
 from imcgeo_cases import ALL, CASES, OUTPUTS  # noqa: E402
 from imcgeo_collect import values  # noqa: E402

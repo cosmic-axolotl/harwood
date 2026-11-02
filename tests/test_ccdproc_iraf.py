@@ -24,7 +24,8 @@ from astropy.io import fits
 from harwood.core.registry import get_task
 
 DATA = Path(os.environ.get("HARWOOD_TEST_DATA", "~/iraf/exercises")).expanduser() / "phot"
-REFERENCE = json.loads((Path(__file__).parent / "data" / "iraf_ccdproc_m92.json").read_text())
+REFERENCE = json.loads((Path(__file__).parent / "data" / "iraf_ccdproc_m92.json").read_text(
+        encoding="utf-8"))
 
 pytestmark = pytest.mark.skipif(not (DATA / "fm920001").exists(),
                                 reason=f"IRAF tutorial data not found under {DATA}")

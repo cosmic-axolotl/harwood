@@ -28,7 +28,7 @@ from harwood.core import database, spectrum
 from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data"
-REFERENCE = json.loads((DATA / "iraf_reidentify" / "cases.json").read_text())
+REFERENCE = json.loads((DATA / "iraf_reidentify" / "cases.json").read_text(encoding="utf-8"))
 
 
 def write_night(directory: Path) -> None:
@@ -55,8 +55,8 @@ def test_reidentify_reidentifies_what_iraf_reidentifies(tmp_path, monkeypatch, c
     write_night(tmp_path)
     (tmp_path / "database").mkdir()
     name = f"id{entry['reference']}"
-    autoidentified = re.split(r"(?m)^(?=# )", (iraf / name).read_text())[1]
-    (tmp_path / "database" / name).write_text(autoidentified)
+    autoidentified = re.split(r"(?m)^(?=# )", (iraf / name).read_text(encoding="utf-8"))[1]
+    (tmp_path / "database" / name).write_text(autoidentified, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
     result = get_task("reidentify").run(reference=entry["reference"], images=entry["images"],

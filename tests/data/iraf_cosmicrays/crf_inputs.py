@@ -26,12 +26,12 @@ def write(folder):
         data[line - 1, column - 1] += value
     fits.writeto(folder / "f.fits", np.round(data, 2).astype("f4"), overwrite=True)
     fits.writeto(folder / "s.fits", np.round(data).astype("i2"), overwrite=True)
-    (folder / "train.cur").write_text(_cosmics(5) + _stars(4) + "1 1 1 q\n")
+    (folder / "train.cur").write_text(_cosmics(5) + _stars(4) + "1 1 1 q\n", encoding="utf-8")
     (folder / "traing.cur").write_text(_cosmics(3) + "1 1 1 g\n" + _stars(3) + "1 1 1 g\n"
-                                       + _cosmics(5) + "1 1 1 q\n")
+                                       + _cosmics(5) + "1 1 1 q\n", encoding="utf-8")
     (folder / "trainm.cur").write_text(
         "30.5 3.25 1 s\n" + _cosmics(2) + "44 3 1 c\n1 1 1 x\n"
-        "70 58 1 s\n1 1 1 g\n60.8 38.2 1 s\n43 49 1 s\n1 1 1 q\n")
+        "70 58 1 s\n1 1 1 g\n60.8 38.2 1 s\n43 49 1 s\n1 1 1 q\n", encoding="utf-8")
 
 
 def _cosmics(count):

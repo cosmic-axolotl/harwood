@@ -153,7 +153,7 @@ def test_grow_is_exercised_by_the_grow_cases(frames):
 
 
 COMBINE = json.loads((Path(__file__).parent / "data" / "iraf_ccdcombine"
-                      / "combine.json").read_text())
+                      / "combine.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("case", list(COMBINE))

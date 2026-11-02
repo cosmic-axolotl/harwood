@@ -66,5 +66,5 @@ for name, params in CASES.items():
             "cards": {k: cards[k].strip("' ") for k in ("NCOMBINE", "EXPTIME", "SUBSET")
                       if k in cards}}
     out[name] = done
-(here / "combine.json").write_text(json.dumps(out))
+(here / "combine.json").write_text(json.dumps(out), encoding="utf-8")
 print(len(out), sum(1 for v in out.values() if v["error"]))

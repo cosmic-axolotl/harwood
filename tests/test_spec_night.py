@@ -197,7 +197,7 @@ def test_wspectext_turns_it_into_something_anyone_can_read(night):
     get_task("wspectext").run(input=str(night / "sp0019.ms.fits"),
                               output=night / "sp0019.csv")
 
-    lines = (night / "sp0019.csv").read_text().splitlines()
+    lines = (night / "sp0019.csv").read_text(encoding="utf-8").splitlines()
     comments = [line for line in lines if line.startswith("#")]
     rows = [line for line in lines if not line.startswith("#")]
 

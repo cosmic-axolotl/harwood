@@ -18,10 +18,10 @@ iraf.utilities(_doprint=0)
 folder = Path(sys.argv[1]).resolve()
 iraf.chdir(str(folder))
 for name, text in LISTS.items():
-    (folder / name).write_text(text)
+    (folder / name).write_text(text, encoding="utf-8")
 gold = {}
 for name, (cursor, kw) in KEYS.items():
-    (folder / "cursor").write_text(cursor)
+    (folder / "cursor").write_text(cursor, encoding="utf-8")
     out, err = io.StringIO(), io.StringIO()
     args = {k: ("yes" if v is True else "no" if v is False else v) for k, v in kw.items()}
     iraf.flprcache()
@@ -29,5 +29,6 @@ for name, (cursor, kw) in KEYS.items():
                 device="stdvdm", cursor="cursor", **args)
     gold[name] = {"stdout": out.getvalue().split("\n")[:-1],
                   "stderr": err.getvalue().split("\n")[:-1]}
-(Path(__file__).parent / "curfit_keys.json").write_text(json.dumps(gold, indent=0))
+(Path(__file__).parent / "curfit_keys.json").write_text(json.dumps(gold, indent=0),
+                                                        encoding="utf-8")
 print(len(gold))

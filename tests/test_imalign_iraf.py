@@ -24,7 +24,7 @@ from harwood.core.imshift import shift
 from harwood.core.registry import get_task
 
 DATA = Path(__file__).parent / "data"
-REFERENCE = json.loads((DATA / "iraf_imalign.json").read_text())
+REFERENCE = json.loads((DATA / "iraf_imalign.json").read_text(encoding="utf-8"))
 SPLINE3 = np.load(DATA / "iraf_imshift_spline3.npz")
 PHOT = Path(os.environ.get("HARWOOD_TEST_DATA", "~/iraf/exercises")).expanduser() / "phot"
 M92 = {"m92010": "fm920004", "m92011": "fm920005", "m92014": "fm920006",
@@ -146,7 +146,8 @@ def test_imcentroid_task_prints_iraf_s_table(tmp_path):
     for k, image in enumerate(images):
         paths.append(str(tmp_path / f"a{k}.fits"))
         fits.writeto(paths[-1], image)
-    (tmp_path / "a.coo").write_text("x y\n" + "".join(f"{x} {y}\n" for x, y in coords))
+    (tmp_path / "a.coo").write_text("x y\n" + "".join(f"{x} {y}\n" for x, y in coords),
+                                    encoding="utf-8")
     result = get_task("imcentroid").run(input=paths, reference=paths[0],
                                         coords=tmp_path / "a.coo")
     _, _, theirs, trim = printed(REFERENCE["imcentroid"]["default"]["printed"])
@@ -168,7 +169,8 @@ def test_imalign_writes_what_iraf_writes(tmp_path, interp):
     for k, image in enumerate(images):
         paths.append(str(tmp_path / f"a{k}.fits"))
         fits.writeto(paths[-1], image)
-    (tmp_path / "a.coo").write_text("x y\n" + "".join(f"{x} {y}\n" for x, y in coords))
+    (tmp_path / "a.coo").write_text("x y\n" + "".join(f"{x} {y}\n" for x, y in coords),
+                                    encoding="utf-8")
     expected = REFERENCE["imalign"][interp]
     result = get_task("imalign").run(input=paths, reference=paths[0],
                                      coords=tmp_path / "a.coo",
@@ -187,7 +189,8 @@ def test_imalign_stops_when_an_image_has_no_shift(tmp_path):
     for k, image in enumerate([images[0], np.full_like(images[0], 100.0)]):
         paths.append(str(tmp_path / f"a{k}.fits"))
         fits.writeto(paths[-1], image)
-    (tmp_path / "a.coo").write_text("x y\n" + "".join(f"{x} {y}\n" for x, y in coords))
+    (tmp_path / "a.coo").write_text("x y\n" + "".join(f"{x} {y}\n" for x, y in coords),
+                                    encoding="utf-8")
     with pytest.raises(RuntimeError, match="a1.fits"):
         get_task("imalign").run(input=paths, reference=paths[0], coords=tmp_path / "a.coo",
                                 output=str(tmp_path / "out"), shifts=None,

@@ -54,7 +54,7 @@ def test_only_recent_runs_count(monkeypatch):
 
 def test_a_record_that_cannot_be_written_is_not_an_error(tmp_path, monkeypatch):
     blocker = tmp_path / "file"
-    blocker.write_text("")
+    blocker.write_text("", encoding="utf-8")
     monkeypatch.setenv("XDG_STATE_HOME", str(blocker))
     timing.record("ccdproc", timing.Size(1, 10), 1.0)
     assert timing.estimate("ccdproc", timing.Size(1, 10)) is None
@@ -71,7 +71,7 @@ def test_the_size_of_a_run_is_read_from_the_headers(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     for name in ("a.fits", "b.fits"):
         fits.writeto(name, np.zeros((20, 30), np.float32))
-    (tmp_path / "all.lis").write_text("a.fits\nb.fits\n")
+    (tmp_path / "all.lis").write_text("a.fits\nb.fits\n", encoding="utf-8")
     assert timing.size_of({"input": ["@all.lis"]}) == timing.Size(2, 1200)
     assert timing.size_of({"image": "a.fits[1:10,*]", "output": "c.fits"}).images == 1
     assert timing.size_of({"input": ["missing*.fits"]}) == timing.Size()
