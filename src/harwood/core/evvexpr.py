@@ -436,7 +436,7 @@ def _truncate(x, y, dtype: str):
 
 def _power(x, y, dtype: str):
     if dtype in (REAL, DOUBLE):
-        out = np.power(np.asarray(x, np.float64), np.asarray(y, np.float64))
+        out = _libm2(math.pow, np.power, x, y)
         return _keep(out[()] if out.ndim == 0 else out, dtype)
     bits = {SHORT: np.int16, INT: np.int32, LONG: np.int64}[dtype]
     shape = np.broadcast(x, y).shape
@@ -547,6 +547,22 @@ def call(name: str, args: list[Op], check: bool = True) -> Op:
     return _RESTS[name](args)
 
 
+def _libm2(f, fallback, x, y) -> np.ndarray:
+    """libm's function of two doubles, a pair at a time: numpy's own pow and atan2 take the
+    processor's vector instructions where there are any, and are a bit away from libm there,
+    as on the machines CI runs on. Where libm raises, numpy's NaN or infinity, as C gives."""
+    x, y = np.broadcast_arrays(np.asarray(x, np.float64), np.asarray(y, np.float64))
+
+    def call_it(a: float, b: float) -> float:
+        try:
+            return f(a, b)
+        except (ValueError, OverflowError, ZeroDivisionError):
+            with np.errstate(all="ignore"):
+                return float(fallback(np.float64(a), np.float64(b)))
+
+    return np.asarray(np.frompyfunc(call_it, 2, 1)(x, y), np.float64)
+
+
 def _double_of(value, kind: str, f):
     """A function of a real is the double function of it, rounded to a real."""
     out = f(np.asarray(value, np.float64))
@@ -579,8 +595,7 @@ def _floating(name: str, args: list[Op], check: bool) -> Op:
         if len(args) == 1:
             return Op(kind, _double_of(v, kind, np.arctan))
         nelem = _length(args[0], args[1])
-        out = np.arctan2(np.asarray(_cut(args[0], nelem), np.float64),
-                         np.asarray(_cut(args[1], nelem), np.float64))
+        out = _libm2(math.atan2, np.arctan2, _cut(args[0], nelem), _cut(args[1], nelem))
         return Op(kind, _keep(out[()] if out.ndim == 0 else out, kind))
     if name == "deg":
         return Op(kind, _keep(np.multiply(v, RADIAN), kind))

@@ -77,10 +77,41 @@ def test_quick_phot_agrees_with_the_profile(star_field):
 
 
 def test_headless_is_chosen_when_there_is_no_screen(monkeypatch):
+    from harwood.viewer import _qt
+
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
     monkeypatch.delenv("HARWOOD_DISPLAY", raising=False)
+    monkeypatch.setattr(_qt, "_window", None)
+    monkeypatch.setattr("sys.platform", "linux")
     assert display._autodetect() == "headless"
+
+
+@pytest.mark.parametrize("platform", ["win32", "darwin"])
+def test_windows_and_macos_have_a_screen_with_no_display_variable(monkeypatch, platform):
+    """Neither sets DISPLAY nor WAYLAND_DISPLAY, and taking that for no screen sent every
+    image there to a PNG."""
+    pytest.importorskip("PySide6")
+    from harwood.viewer import _qt
+
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.delenv("HARWOOD_DISPLAY", raising=False)
+    monkeypatch.setattr(_qt, "_window", None)
+    monkeypatch.setattr("sys.platform", platform)
+    assert display._autodetect() == "native"
+
+
+def test_inside_harwood_s_window_the_display_is_that_window(monkeypatch):
+    pytest.importorskip("PySide6")
+    from harwood.viewer import _qt
+
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.delenv("HARWOOD_DISPLAY", raising=False)
+    monkeypatch.setattr(_qt, "_window", object())
+    monkeypatch.setattr("sys.platform", "linux")
+    assert display._autodetect() == "native"
 
 
 def test_an_unknown_display_backend_is_refused():

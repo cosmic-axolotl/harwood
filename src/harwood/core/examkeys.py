@@ -500,8 +500,10 @@ def quick(data, x: float, y: float, s) -> dict:
             peak = float(p[0])
             moffat_beta = float(-p[2])
             fwhm = float(REAL(abs(float(p[1])) * 2.0
-                              * math.sqrt(float(starfocus._pow(2.0, REAL(REAL(-1) / p[2])))
-                                          - 1.0)))
+                              * starfocus._sqrt(float(starfocus._pow(2.0, REAL(REAL(-1)
+                                                                          / p[2]))) - 1.0)))
+            # A power that rises: IRAF's sqrt of a negative, which it prints as INDEF
+            fwhm = None if math.isnan(fwhm) else fwhm
     mag = rmom = ellip = pa = None
     if sumo > 0:
         mag = float(REAL(float(REAL(s.magzero)) - 2.5 * math.log10(sumo)))

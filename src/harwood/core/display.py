@@ -112,13 +112,23 @@ def _autodetect() -> str:
     different program's window appearing, which is not an answer.
     """
     import os
+    import sys
 
     if os.environ.get("HARWOOD_DISPLAY"):
         return os.environ["HARWOOD_DISPLAY"]
-    if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
-        return "headless"
     try:
         import PySide6  # noqa: F401
     except ImportError:
+        return "headless"
+    # Asked from inside harwood's own window, it is that window, screen or no screen
+    from ..viewer import _qt
+
+    if _qt.window() is not None:
+        return "native"
+    # DISPLAY and WAYLAND_DISPLAY are how X and Wayland say there is a screen. Windows and
+    # macOS always have one, and set neither.
+    if sys.platform.startswith(("win", "darwin")):
+        return "native"
+    if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
         return "headless"
     return "native"
