@@ -52,7 +52,7 @@ def _offset_file(path: Path, count: int, outdim: int) -> tuple[list[list[int]], 
                     "for each image")
     reloff = True
     found: list[list[int]] = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         words = line.split()
         if not words:
             continue
@@ -309,7 +309,7 @@ def _raw_values(path: Path) -> np.ndarray:
         return plio.read(path)[0].astype(np.int64)
     from astropy.io import fits
 
-    return np.asarray(fits.getdata(path)).astype(np.int64)
+    return np.asarray(fits.getdata(path, memmap=False)).astype(np.int64)
 
 
 def _sized(mask: np.ndarray, shape) -> np.ndarray:

@@ -221,8 +221,8 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
                 advice.fail(f"graphics cursor file '{gcommands}' does not exist",
                             "write 'x y 1 key' lines, q ending them", FileNotFoundError)
             answers = getattr(params, "answers", "")
-            session.run_commands(Path(gcommands).read_text(),
-                                 Path(answers).read_text() if answers else "")
+            session.run_commands(Path(gcommands).read_text(encoding="utf-8"),
+                                 Path(answers).read_text(encoding="utf-8") if answers else "")
         else:
             from ..viewer.identify_panel import run as run_identify
 
@@ -1274,7 +1274,7 @@ def _table_groups(params, targets, names, warnings):
         return [(targets, names)]
     lists: dict[str, str] = {}
     previous = ""
-    for line in table.read_text().splitlines():
+    for line in table.read_text(encoding="utf-8").splitlines():
         words = line.split()
         if not words or words[0].startswith("#"):
             continue

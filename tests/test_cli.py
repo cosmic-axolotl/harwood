@@ -1,6 +1,7 @@
 """The command line: the four commands, and the shape section 3.1 fixes."""
 
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -186,16 +187,28 @@ def test_doctor_reports_the_kernels(run):
 # --------------------------------------------------- parameters and replay
 
 
+def fake_editor(folder, name: str, old: str = "", new: str = "", add: str = "") -> str:
+    """An EDITOR that changes a line of the file it is given, or adds one: a Python script,
+    so that it runs on Windows as on Linux, quoted as a user would set it."""
+    script = folder / f"{name}.py"
+    script.write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "path = Path(sys.argv[1])\n"
+        "lines = path.read_text(encoding='utf-8').splitlines()\n"
+        f"lines = [{new!r} if line == {old!r} else line for line in lines]\n"
+        + (f"lines.append({add!r})\n" if add else "")
+        + "path.write_text('\\n'.join(lines) + '\\n', encoding='utf-8')\n", encoding="utf-8")
+    return f'"{sys.executable}" "{script}"'
+
+
 def test_editpar_writes_only_what_changed(run, tmp_path, monkeypatch):
     """The editor is a view of the project file, never a second copy of it."""
     monkeypatch.chdir(tmp_path)
     run("init", str(tmp_path))
 
-    editor = tmp_path / "fake-editor.sh"
-    editor.write_text("#!/bin/sh\n"
-                      "sed -i 's/^order = 1$/order = 4/' \"$1\"\n")
-    editor.chmod(0o755)
-    monkeypatch.setenv("EDITOR", str(editor))
+    editor = fake_editor(tmp_path, "fake-editor", "order = 1", "order = 4")
+    monkeypatch.setenv("EDITOR", editor)
 
     result = run("ccdproc", "--editpar")
     assert result.exit_code == 0
@@ -210,16 +223,10 @@ def test_editpar_writes_only_what_changed(run, tmp_path, monkeypatch):
 def test_editpar_clearing_a_value_restores_the_default(run, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     run("init", str(tmp_path))
-    editor = tmp_path / "set.sh"
-    editor.write_text("#!/bin/sh\nsed -i 's/^order = 1$/order = 4/' \"$1\"\n")
-    editor.chmod(0o755)
-    monkeypatch.setenv("EDITOR", str(editor))
+    monkeypatch.setenv("EDITOR", fake_editor(tmp_path, "set", "order = 1", "order = 4"))
     run("ccdproc", "--editpar")
 
-    clear = tmp_path / "clear.sh"
-    clear.write_text("#!/bin/sh\nsed -i 's/^order = 4$/order =/' \"$1\"\n")
-    clear.chmod(0o755)
-    monkeypatch.setenv("EDITOR", str(clear))
+    monkeypatch.setenv("EDITOR", fake_editor(tmp_path, "clear", "order = 4", "order ="))
     run("ccdproc", "--editpar")
 
     assert "order" not in (tmp_path / "harwood.yaml").read_text()
@@ -228,10 +235,7 @@ def test_editpar_clearing_a_value_restores_the_default(run, tmp_path, monkeypatc
 def test_editpar_rejects_an_unknown_parameter_without_saving(run, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     run("init", str(tmp_path))
-    editor = tmp_path / "bad.sh"
-    editor.write_text("#!/bin/sh\necho 'sparkle = 3' >> \"$1\"\n")
-    editor.chmod(0o755)
-    monkeypatch.setenv("EDITOR", str(editor))
+    monkeypatch.setenv("EDITOR", fake_editor(tmp_path, "bad", add="sparkle = 3"))
 
     result = run("ccdproc", "--editpar")
     assert result.exit_code == 2
@@ -423,17 +427,11 @@ def test_editpar_leaves_no_scratch_copy_behind_unless_it_says_so(run, tmp_path,
     monkeypatch.chdir(tmp_path)
     run("init", str(tmp_path))
 
-    good = tmp_path / "good.sh"
-    good.write_text("#!/bin/sh\nsed -i 's/^order = 1$/order = 4/' \"$1\"\n")
-    good.chmod(0o755)
-    monkeypatch.setenv("EDITOR", str(good))
+    monkeypatch.setenv("EDITOR", fake_editor(tmp_path, "good", "order = 1", "order = 4"))
     run("ccdproc", "--editpar")
     assert list(scratch.iterdir()) == []
 
-    bad = tmp_path / "bad.sh"
-    bad.write_text("#!/bin/sh\necho 'sparkle = 3' >> \"$1\"\n")
-    bad.chmod(0o755)
-    monkeypatch.setenv("EDITOR", str(bad))
+    monkeypatch.setenv("EDITOR", fake_editor(tmp_path, "bad", add="sparkle = 3"))
     result = run("ccdproc", "--editpar")
     kept = list(scratch.iterdir())
     assert len(kept) == 1 and str(kept[0]) in result.output.replace("\n", "")

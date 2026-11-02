@@ -132,7 +132,7 @@ def format_file(names: list[str], widths: list[int]) -> str:
 def read_header(path: str | Path) -> tuple[str, list[str], list[int]] | None:
     """ph_open and ph_rhdr: the title, names and widths of a catalog made
     by mkcatalog, or None when it was not."""
-    lines = Path(path).read_text(errors="replace").split("\n")
+    lines = Path(path).read_text(errors="replace", encoding="utf-8").split("\n")
     title, ncols, size = "", 0, 0
     k = 0
     while k < len(lines):
@@ -222,9 +222,10 @@ def mkcatalog(path: str | Path, names: list[str] | None = None,
         text += data_record(values, catalog.widths)
         catalog.nrecords += bool(values)
     if catalog.created:
-        path.write_text(text)
-        Path(catalog.format_file).write_text(format_file(catalog.names, catalog.widths))
+        path.write_text(text, encoding="utf-8")
+        Path(catalog.format_file).write_text(format_file(catalog.names, catalog.widths),
+                                             encoding="utf-8")
     else:
-        with path.open("a") as out:
+        with path.open("a", encoding="utf-8") as out:
             out.write(text)
     return catalog

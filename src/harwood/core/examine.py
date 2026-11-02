@@ -540,7 +540,7 @@ def read_cursor(path, defkey: str = "a") -> list[tuple[float, float, int, str]]:
     from . import advice
 
     entries = []
-    for number, text in enumerate(Path(path).read_text().splitlines(), 1):
+    for number, text in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
         text = text.split("#", 1)[0].strip()
         if not text:
             continue

@@ -210,7 +210,7 @@ def read_psf(path):
 
     if not Path(path).exists():
         advice.fail(f"no PSF '{path}'", "psfphot --psfout writes one", FileNotFoundError)
-    data, header = fits.getdata(path, header=True)
+    data, header = fits.getdata(path, header=True, memmap=False)
     if "OVERSAMP" not in header:
         advice.fail(f"{path} is not an effective PSF", "psfphot --psfout writes one")
     return epsf.EPSF(np.asarray(data, np.float64), int(header["OVERSAMP"]),
@@ -1098,7 +1098,7 @@ def _written_with_wcs(params, solved, fits) -> Path:
            "BP_ORDER", "WCSSOL")
     path = Path(params.image.split("[")[0])
     Path(params.output).parent.mkdir(parents=True, exist_ok=True)
-    with fits.open(path) as hdus:
+    with fits.open(path, memmap=False) as hdus:
         at = next(number for number, hdu in enumerate(hdus)
                   if hdu.data is not None and hdu.data.ndim == 2)
         header = hdus[at].header
@@ -1343,7 +1343,7 @@ class Flexure(Task[FlexureParams]):
         outputs = []
         if params.output:
             axis_number = axis if axis in (1, 2) else 1
-            with fits.open(params.image.split("[")[0]) as hdus:
+            with fits.open(params.image.split("[")[0], memmap=False) as hdus:
                 at = next(number for number, hdu in enumerate(hdus) if hdu.data is not None)
                 card = f"CRPIX{axis_number}"
                 hdus[at].header[card] = hdus[at].header.get(card, 1.0) + found.shift

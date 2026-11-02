@@ -487,6 +487,6 @@ def fitparams(cfg: Config, observations: list[str], catalogs: list[str], output:
             logs.append(equation_log(result, obs.names, log_fit, log_results))
         results.append(result)
     if logfile:
-        with open(logfile, "a") as out:
+        with open(logfile, "a", encoding="utf-8") as out:
             out.write("".join(logs))
     return results

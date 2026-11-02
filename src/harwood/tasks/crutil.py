@@ -475,7 +475,7 @@ class _Asking:
 
     def save(self) -> None:
         if self.params.savefile and self.saved:
-            with open(self.params.savefile, "a") as file:
+            with open(self.params.savefile, "a", encoding="utf-8") as file:
                 file.write("".join(self.saved))
 
 
@@ -488,7 +488,7 @@ def _reads(name: str, option: str):
         advice.fail(f"cursor file '{name}' does not exist",
                     f"{option} takes lines of x y wcs key; leave it out for the window.",
                     FileNotFoundError)
-    return crfind.reads(file.read_text())
+    return crfind.reads(file.read_text(encoding="utf-8"))
 
 
 def _window_reads(data, header, spec):

@@ -843,7 +843,7 @@ class _Parser:
 def parse(path: str | Path) -> Config:
     """pr_parse: the configuration file, or ConfigError with IRAF's
     messages. Warnings are in Config.warnings."""
-    text = Path(path).read_text(errors="replace")
+    text = Path(path).read_text(errors="replace", encoding="utf-8")
     return _Parser(text, str(path)).parse()
 
 

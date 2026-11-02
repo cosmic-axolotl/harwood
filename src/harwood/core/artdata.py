@@ -936,7 +936,7 @@ def _profile_values(name) -> np.ndarray:
         advice.fail(f"PSF template not found ({name})",
                     "gaussian, moffat, or a text file with the profile, a value a line")
     found = []
-    for line in path.read_text(errors="replace").splitlines():
+    for line in path.read_text(errors="replace", encoding="utf-8").splitlines():
         words = line.split()
         value = iraffmt.ctod(words[0]) if words else None
         if value is not None:

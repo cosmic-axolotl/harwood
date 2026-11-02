@@ -290,7 +290,8 @@ class Session:
             file = Path(self.ssfile)
             records = []
             if file.is_file():
-                records = [words(line) for line in file.read_text().splitlines()]
+                saved = file.read_text(encoding="utf-8")
+                records = [words(line) for line in saved.splitlines()]
             i = 0
             while i < len(records):
                 row = (records[i] + ["", ""])[:2]
@@ -303,7 +304,7 @@ class Session:
                     count += 1
                     i = 0
             if count > 0:
-                with open(file, "a") as out:
+                with open(file, "a", encoding="utf-8") as out:
                     out.write(f"'{text}'\t{subset1}\n")
         return "".join(c if c.isalnum() or c == "." else "_" for c in subset1)
 
@@ -469,7 +470,7 @@ class Session:
                     self.ewrite("Unrecognized or ambiguous command\x07\n")
             elif whole in ("?", "help"):
                 key = HELP / f"ccdinst{self.level}.key"
-                self.write(key.read_text())
+                self.write(key.read_text(encoding="utf-8"))
             elif whole == "show":
                 self.show()
             elif whole == "instrument":

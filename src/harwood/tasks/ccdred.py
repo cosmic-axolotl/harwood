@@ -1736,7 +1736,7 @@ class BadPixImage(Task[BadPixImageParams]):
         nc, nl = int(header["NAXIS1"]), int(header["NAXIS2"])
         pixels = np.full((nl, nc), params.goodvalue, dtype=np.int16)
         x1, xstep, y1, ystep = 1, 1, 1, 1
-        for line in file.read_text(errors="replace").splitlines():
+        for line in file.read_text(errors="replace", encoding="utf-8").splitlines():
             words = line.split()
             if words and words[0].startswith("#"):
                 if "untrimmed" in line.lower() and "TRIM" in header:

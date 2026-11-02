@@ -32,7 +32,7 @@ class ContinuationError(ValueError):
 def records(path: str | Path):
     """io_getline: the logical lines of a file."""
     current = None
-    for raw in Path(path).read_text(errors="replace").split("\n"):
+    for raw in Path(path).read_text(errors="replace", encoding="utf-8").split("\n"):
         line = raw.rstrip("\r")
         if not line or line.startswith("#"):
             continue
@@ -238,7 +238,7 @@ def write_coeffs(path: str | Path, eq: Equation, result, weighting: str) -> None
     lines += [f"\t\t{g(v)}" for v in result.params]
     lines.append(f"\terrors\t{len(eq.params)}")
     lines += [f"\t\t{g(v)}" for v in result.errors]
-    with open(path, "a") as out:
+    with open(path, "a", encoding="utf-8") as out:
         out.write("\n".join(lines) + "\n\n")
 
 
@@ -254,7 +254,7 @@ class Coeffs:
 def read_coeffs(path: str | Path, name: str, nparams: int) -> Coeffs | None:
     """io_gcoeffs: the last record for the equation (dtlocate finds the
     last one written), or None."""
-    text = Path(path).read_text(errors="replace").split("\n")
+    text = Path(path).read_text(errors="replace", encoding="utf-8").split("\n")
     start = None
     for k, line in enumerate(text):
         fields = line.split()

@@ -172,6 +172,6 @@ def evalfit(cfg: Config, observations: list[str], parameters: str, calib: str,
             lines.append(_format(format, out))
             done.stars += 1
             done.undefined += undefined
-    with open(calib, "a" if append else "w") as handle:
+    with open(calib, "a" if append else "w", encoding="utf-8") as handle:
         handle.write("\n".join(head) + "\n\n\n" + "".join(lines))
     return done

@@ -48,7 +48,7 @@ def text_records(path: str | Path) -> list[dict[str, str]]:
     field is kept as the text it is written as."""
     names: list[str] = []
     records, current = [], []
-    for line in Path(path).read_text(errors="replace").split("\n"):
+    for line in Path(path).read_text(errors="replace", encoding="utf-8").split("\n"):
         if line.startswith("#N"):
             names += line[2:].rstrip().rstrip("\\").split()
             continue
@@ -186,7 +186,8 @@ def imgroup(lines: list[str], filters: list[str],
 
 def write_sets(path: str | Path, sets: list[ImageSet]) -> None:
     Path(path).write_text("".join(
-        f"{s.name} :" + "".join(f"  {imroot(i)}" for i in s.images) + "\n" for s in sets))
+        f"{s.name} :" + "".join(f"  {imroot(i)}" for i in s.images) + "\n" for s in sets),
+        encoding="utf-8")
 
 
 def mkimsets(imlist: list[str], idfilters: str, imsets: str, imobsparams: str = "",
@@ -210,5 +211,5 @@ def mkimsets(imlist: list[str], idfilters: str, imsets: str, imobsparams: str = 
     write_sets(imsets, sets)
     if imobsparams:
         kept = [line for line in lines if not line.startswith(" #")]
-        Path(imobsparams).write_text("\n".join(kept) + "\n")
+        Path(imobsparams).write_text("\n".join(kept) + "\n", encoding="utf-8")
     return sets, messages

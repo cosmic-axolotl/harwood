@@ -201,7 +201,7 @@ class Curfit(Task[CurfitParams]):
                 spec = images.parse(name)
                 if _is_list(name, spec.path):
                     x, y, w = _read_list(
-                        spec.path.read_text(errors="replace"),
+                        spec.path.read_text(errors="replace", encoding="utf-8"),
                         name,
                         params.weighting,
                         real,
@@ -284,7 +284,7 @@ def _session(ic, x, y, w, params, name: str, real):
         session = icfitsession.IcfitSession(x.astype(float), y.astype(float), spec,
                                             w.astype(float), name)
         lines = []
-        for line in Path(params.cursor).read_text().splitlines():
+        for line in Path(params.cursor).read_text(encoding="utf-8").splitlines():
             words = line.split()
             if words:
                 lines.append(line if len(words) >= 4 and words[0][0] not in ":" else
@@ -421,7 +421,7 @@ class Rimcursor(Task[RimcursorParams]):
                 file = Path(params.cursor)
                 if not file.is_file():
                     advice.fail(f"Cannot open file ({params.cursor})", "check its name.")
-                reads = file.read_text().splitlines()
+                reads = file.read_text(encoding="utf-8").splitlines()
             lines = [cursor_line(line, header, formats, params.wcs) for line in reads]
         return TaskResult(data={"reads": len(lines)}, stdout=lines, steps=self.plan(params))
 

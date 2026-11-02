@@ -204,7 +204,7 @@ def _blackbody(cal: Calibration, band: str, weff, caldir: Path, mag, magband, te
         advice.fail("Blackbody calibration file has no band or effective wavelength",
                     "the file needs '# band V' and '# weff 0.55' lines.")
     params = caldir / "params.dat"
-    lines = params.read_text().splitlines() if params.is_file() else []
+    lines = params.read_text(encoding="utf-8").splitlines() if params.is_file() else []
     bands: list[str] = []
     for line in lines:
         words = line.split()
@@ -678,7 +678,7 @@ class CursorFile:
 
     def __init__(self, path) -> None:
         self.events = []
-        for line in Path(path).read_text().splitlines():
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
             words = line.split(None, 3)
             if len(words) < 4 or line.lstrip().startswith("#"):
                 continue

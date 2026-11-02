@@ -65,7 +65,7 @@ def read_list(path, xcolumn: int = 1, ycolumn: int = 2):
     from pathlib import Path
 
     xs, ys, lines = [f32(0)], [f32(0)], [0]
-    for number, text in enumerate(Path(path).read_text().splitlines(), 1):
+    for number, text in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
         words = text.split()
         if len(words) < max(xcolumn, ycolumn):
             continue

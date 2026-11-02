@@ -850,7 +850,7 @@ class Cursor:
         if path:
             from pathlib import Path
 
-            for line in Path(path).read_text().splitlines():
+            for line in Path(path).read_text(encoding="utf-8").splitlines():
                 words = line.split()
                 if not words or words[0].startswith("#"):
                     continue
@@ -880,7 +880,7 @@ class SkyFile:
     def __init__(self, path) -> None:
         from pathlib import Path
 
-        self.lines = [line for line in Path(path).read_text().splitlines()
+        self.lines = [line for line in Path(path).read_text(encoding="utf-8").splitlines()
                       if line.strip() and not line.lstrip().startswith("#")]
         self.at = 0
 

@@ -147,7 +147,7 @@ class _Reader:
     """A text file read line by line, as ph_nxtimage and ph_getimage do."""
 
     def __init__(self, path: str):
-        self.lines = Path(path).read_text(errors="replace").split("\n")
+        self.lines = Path(path).read_text(errors="replace", encoding="utf-8").split("\n")
         if self.lines and self.lines[-1] == "":
             self.lines.pop()
         self.i = 0
@@ -188,7 +188,7 @@ def read_sets(path: str, nfilters: int, notes: list[str], verbose: bool = True) 
     """ph_setimtable: `name : image image ...` per line."""
     table = ImTable()
     setno = nsymbols = 0
-    for line in Path(path).read_text(errors="replace").split("\n"):
+    for line in Path(path).read_text(errors="replace", encoding="utf-8").split("\n"):
         tokens = words(line)
         if not tokens or tokens[0].startswith("#"):
             continue
@@ -229,7 +229,7 @@ def read_sets(path: str, nfilters: int, notes: list[str], verbose: bool = True) 
 
 def read_shifts(table: ImTable, path: str, notes: list[str], verbose: bool = True) -> None:
     """ph_shimtable: `image xshift yshift` per line."""
-    for line in Path(path).read_text(errors="replace").split("\n"):
+    for line in Path(path).read_text(errors="replace", encoding="utf-8").split("\n"):
         values, ok = _fields(line, {1: "w", 2: "r", 3: "r"})
         if not ok:
             continue
@@ -244,7 +244,7 @@ def read_shifts(table: ImTable, path: str, notes: list[str], verbose: bool = Tru
 
 def read_apercors(table: ImTable, path: str, notes: list[str], verbose: bool = True) -> None:
     """ph_apimtable: `image apercor` per line, as mkapfile writes them."""
-    for line in Path(path).read_text(errors="replace").split("\n"):
+    for line in Path(path).read_text(errors="replace", encoding="utf-8").split("\n"):
         values, ok = _fields(line, {1: "w", 2: "r"})
         if not ok:
             continue
@@ -820,8 +820,8 @@ def obsfile(photfiles: list[str], incolumns: str, idfilters: str, imsets: str,
             n = merge(out, label, syms, filters, stars, ysort, matched, ndata, tolerance,
                       allfilters, wrap, useid)
         written.append((label, n))
-    Path(observations).write_text("".join(out))
-    format_path(observations).write_text(format_file(filters))
+    Path(observations).write_text("".join(out), encoding="utf-8")
+    format_path(observations).write_text(format_file(filters), encoding="utf-8")
     return Result(written, notes)
 
 

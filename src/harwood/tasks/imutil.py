@@ -866,7 +866,7 @@ class Implot(Task[ImplotParams]):
                 advice.fail(f"cursor file '{params.coords}' does not exist",
                             "write 'x y 1 key' lines, or leave --coords empty for the "
                             "window", FileNotFoundError)
-            for line in Path(params.coords).read_text().splitlines():
+            for line in Path(params.coords).read_text(encoding="utf-8").splitlines():
                 words = line.split(None, 3)
                 if len(words) < 4 or line.lstrip().startswith("#"):
                     continue
@@ -1001,7 +1001,7 @@ class HEdit(Task[HEditParams]):
         missing = 0
         for spec in specs:
             path, label = spec.path, str(spec)
-            with fits.open(path) as hdus:
+            with fits.open(path, memmap=False) as hdus:
                 header = hdus[params.extension].header.copy()
             edit = _Edit(header, label, params.comment, show, verify, lines, rows)
             if params.add or params.addonly:

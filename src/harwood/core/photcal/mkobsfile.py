@@ -63,7 +63,7 @@ def mkobsfile(photfiles: list[str], idfilters: str, imsets: str, observations: s
             raise ValueError(f"The {what} file {path} does not exist")
     with tempfile.TemporaryDirectory() as folder:
         data = Path(folder) / "photometry"
-        data.write_text(dump(photfiles, aperture))
+        data.write_text(dump(photfiles, aperture), encoding="utf-8")
         result = obs.obsfile([str(data)], INCOLUMNS, idfilters, imsets, observations,
                              wrap=wrap, obsparams=obsparams,
                              obscolumns="1," + obscolumns if obsparams else "2 3 4 5",

@@ -645,7 +645,7 @@ class ApeditSession:
         if file is None:
             self._print(text)
         else:
-            with open(file, "a") as out:
+            with open(file, "a", encoding="utf-8") as out:
                 out.write(text)
 
     # -------------------------------------------------------------- the graph

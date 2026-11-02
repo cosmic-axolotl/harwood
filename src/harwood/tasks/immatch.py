@@ -163,7 +163,7 @@ class XyxyMatch(Task[XyxyMatchParams]):
         params.output.parent.mkdir(parents=True, exist_ok=True)
         params.output.write_text(X.format_output(
             result, xr, yr, rl, xi, yi, il, str(params.input), str(params.reference),
-            params.xformat, params.yformat))
+            params.xformat, params.yformat), encoding="utf-8")
 
         final = result.matched if result.matched is not None else result.initial
         if result.matched is None and len(result.pairs) >= 3:
@@ -198,7 +198,8 @@ class XyxyMatch(Task[XyxyMatchParams]):
 
 def _ties(path: Path):
     """rg_getreftie: the first line's reference points, the second's input."""
-    lines = [line.split() for line in path.read_text().splitlines() if line.split()]
+    text = path.read_text(encoding="utf-8")
+    lines = [line.split() for line in text.splitlines() if line.split()]
     if len(lines) < 2:
         advice.fail(f"{path} needs two lines: the reference points, then the input ones",
                     "write 'x1 y1 [x2 y2 [x3 y3]]' for the reference stars on the first "

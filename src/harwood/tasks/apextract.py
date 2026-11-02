@@ -439,8 +439,9 @@ class ApAll(Task[ApAllParams]):
             if not Path(params.gcommands).exists():
                 advice.fail(f"graphics cursor file '{params.gcommands}' does not exist",
                             "write 'x y 1 key' lines, q ending them", FileNotFoundError)
-            answers = Path(params.answers).read_text() if params.answers else ""
-            session.run_commands(Path(params.gcommands).read_text(), answers)
+            answers = (Path(params.answers).read_text(encoding="utf-8") if params.answers
+                       else "")
+            session.run_commands(Path(params.gcommands).read_text(encoding="utf-8"), answers)
         else:
             from ..viewer.aperture_panel import run as run_apedit
 

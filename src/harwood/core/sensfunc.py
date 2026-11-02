@@ -1312,7 +1312,7 @@ class CursorFile:
         from pathlib import Path
 
         self.events = []
-        for line in Path(path).read_text().splitlines():
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
             words = line.split(None, 3)
             if len(words) < 4 or line.lstrip().startswith("#"):
                 continue

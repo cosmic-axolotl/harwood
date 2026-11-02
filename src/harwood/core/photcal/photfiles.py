@@ -18,7 +18,7 @@ import numpy as np
 
 
 def is_ecsv(path: str | Path) -> bool:
-    with open(path, errors="replace") as handle:
+    with open(path, errors="replace", encoding="utf-8") as handle:
         return handle.readline().startswith("# %ECSV")
 
 

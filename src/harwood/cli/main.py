@@ -343,7 +343,7 @@ def phelp_cmd(ctx: click.Context, task: str) -> None:
     global console
 
     held = console
-    with open(os.devnull, "w") as sink:
+    with open(os.devnull, "w", encoding="utf-8") as sink:
         console = Console(record=True, file=sink, width=held.width)
         try:
             ctx.invoke(help_cmd, task=task)
@@ -1383,9 +1383,7 @@ def _edit_parameters(name: str, cls: Any) -> None:
     everything exactly as it was.
     """
     import os
-    import shlex
     import shutil
-    import subprocess
     import tempfile
 
     from ..core import params as store
@@ -1409,7 +1407,7 @@ def _edit_parameters(name: str, cls: Any) -> None:
     keep = False
     try:
         if editor:
-            subprocess.run([*shlex.split(editor), str(scratch)], check=False)
+            run_editor(editor, scratch)
             saved = scratch.read_text(encoding="utf-8") != text
         else:
             saved = _native_editor(scratch, name)
@@ -1445,6 +1443,18 @@ def _edit_parameters(name: str, cls: Any) -> None:
     console.print(f"[dim]harwood lpar {name} shows the effective values.[/dim]")
 
 
+def run_editor(editor: str, path: Path, windows: bool | None = None) -> None:
+    """EDITOR on a file. Windows has its own rules for a command line, quotes and the
+    backslashes of its paths included, which a POSIX split would take for escapes."""
+    import shlex
+    import subprocess
+
+    if os.name == "nt" if windows is None else windows:
+        subprocess.run(f'{editor} "{path}"', check=False)
+    else:
+        subprocess.run([*shlex.split(editor), str(path)], check=False)
+
+
 def _native_editor(path: Path, task: str) -> bool:
     """harwood's own editor, when no EDITOR is set. A terminal fallback after that."""
     try:
@@ -1455,7 +1465,7 @@ def _native_editor(path: Path, task: str) -> bool:
         import shutil
         import subprocess
 
-        for candidate in ("nano", "vim", "vi"):
+        for candidate in ("nano", "vim", "vi", "notepad"):
             if shutil.which(candidate):
                 before = path.read_text(encoding="utf-8")
                 subprocess.run([candidate, str(path)], check=False)
@@ -1559,7 +1569,18 @@ def _dedent(text: str) -> str:
     return (first + "\n" + textwrap.dedent(rest)).strip()
 
 
+def utf8_streams() -> None:
+    """The terminal's text in UTF-8, whatever the system's code page. On Windows a redirected
+    output is cp1252, which has none of the symbols a table or a warning draws, and the task
+    stopped half way through its answer."""
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", "") or "").replace("-", "").lower()
+        if encoding != "utf8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main() -> None:
+    utf8_streams()
     app()
 
 

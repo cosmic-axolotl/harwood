@@ -626,7 +626,7 @@ class Text2Mask(Task[Text2MaskParams]):
         pixels = np.zeros((nl, nc), dtype=np.int64)
         mask = plio.Mask([nc, nl])
         regions = 0
-        for line in file.read_text(errors="replace").splitlines():
+        for line in file.read_text(errors="replace", encoding="utf-8").splitlines():
             region = _region(scan_ints(line))
             if region is None:
                 continue
@@ -759,7 +759,7 @@ class MskExpr(Task[MskExprParams]):
             file = Path(text[1:])
             if not file.is_file():
                 advice.fail(f"no expression file '{file}'", "check the name after the @")
-            text = file.read_text().replace("\n", " ")
+            text = file.read_text(encoding="utf-8").replace("\n", " ")
         if params.exprdb not in ("none", ""):
             text = imexpr.spaced(imexpr.expand(text, imexpr.read_macros(params.exprdb)))
         masks = images.split_list(params.masks)

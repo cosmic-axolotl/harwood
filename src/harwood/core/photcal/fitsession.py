@@ -183,14 +183,14 @@ class FitSession:
             self._print(text)
             return
         try:
-            with open(file, "a") as out:
+            with open(file, "a", encoding="utf-8") as out:
                 out.write(text)
         except OSError as error:
             self._eprint(f"Warning: {error}\n")
 
     def _log(self, text: str) -> None:
         if self.logfile and text:
-            with open(self.logfile, "a") as out:
+            with open(self.logfile, "a", encoding="utf-8") as out:
                 out.write(text)
 
     def _ask(self, state: str, prompt: str) -> None:
@@ -597,7 +597,7 @@ class FitSession:
             self._print("File to be paged is undefined\n")
             return
         try:
-            self._print(Path(name).read_text())
+            self._print(Path(name).read_text(encoding="utf-8"))
         except OSError as error:
             self._eprint(f"Warning: {error}\n")
 

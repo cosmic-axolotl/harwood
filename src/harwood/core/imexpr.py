@@ -150,7 +150,7 @@ def read_macros(path: str | Path) -> dict[str, tuple[int, str]]:
     file = Path(path)
     if not file.is_file():
         advice.fail(f"no expression database '{path}'", "check the name given to --exprdb")
-    lines = file.read_text().replace("'", '"').splitlines()
+    lines = file.read_text(encoding="utf-8").replace("'", '"').splitlines()
     macros: dict[str, tuple[int, str]] = {}
     k = 0
     while k < len(lines):
@@ -263,7 +263,7 @@ def run(text: str, values: dict[str, str | None], output: str, dims: str = "auto
         file = Path(text[1:])
         if not file.is_file():
             advice.fail(f"no expression file '{file}'", "check the name after the @")
-        text = file.read_text().replace("\n", " ")
+        text = file.read_text(encoding="utf-8").replace("\n", " ")
     if exprdb != "none" and exprdb:
         text = expand(text, read_macros(exprdb))
     expression = evvexpr.Expression(text)

@@ -47,7 +47,7 @@ def _columns(cfg: Config, kind: str) -> tuple[int | None, int | None]:
 
 def check(path: str | Path, verbose: bool = False, text: str | None = None) -> Report:
     if text is None:
-        text = Path(path).read_text(errors="replace")
+        text = Path(path).read_text(errors="replace", encoding="utf-8")
     parser = _Parser(text, str(path))
     try:
         cfg = parser.parse()

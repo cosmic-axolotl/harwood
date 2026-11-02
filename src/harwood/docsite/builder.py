@@ -88,7 +88,7 @@ def ensure(out: Path | None = None) -> Path:
     directory."""
     out = Path(out or location())
     stamp = out / ".source"
-    if not stamp.exists() or stamp.read_text() != _fingerprint():
+    if not stamp.exists() or stamp.read_text(encoding="utf-8") != _fingerprint():
         build(out)
     return out
 
@@ -217,7 +217,7 @@ def build(out: Path | str | None = None) -> Path:
         target = out / page.url
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(_layout(page, site, order), encoding="utf-8")
-    (out / ".source").write_text(_fingerprint())
+    (out / ".source").write_text(_fingerprint(), encoding="utf-8")
     return out
 
 

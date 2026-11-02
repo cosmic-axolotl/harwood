@@ -816,11 +816,11 @@ def write_results(images: list[Image], fit: Fit, naperts: int, apercors: str, sm
                     s = f32(0.0) if rtmp <= 0 else np.sqrt(rtmp)
                 log.append(f"\t{j + 1:3d}  {_f(a, 9, 5)}  {_f(r, 9, 5)}  {_f(s, 9, 5)}")
             log.append("")
-    Path(apercors).write_text("\n".join(apcat) + "\n")
+    Path(apercors).write_text("\n".join(apcat) + "\n", encoding="utf-8")
     if magfile:
-        Path(magfile).write_text("".join(mags))
+        Path(magfile).write_text("".join(mags), encoding="utf-8")
     if logfile:
-        with open(logfile, "a" if append else "w") as handle:
+        with open(logfile, "a" if append else "w", encoding="utf-8") as handle:
             handle.write("\n".join(log) + "\n")
     return Result(images, fit, corrections, best)
 

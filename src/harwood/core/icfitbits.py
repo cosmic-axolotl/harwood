@@ -71,7 +71,7 @@ def _xranges(sample: str, x, warnings: list[str]) -> list[list[int]]:
     for word in words:
         if word.startswith("@"):
             try:
-                with open(word[1:]) as file:
+                with open(word[1:], encoding="utf-8") as file:
                     for line in file:
                         expanded.extend(line.replace(",", " ").split())
             except OSError:

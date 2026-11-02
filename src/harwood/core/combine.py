@@ -208,7 +208,7 @@ def _given(name: str, kind: str, headers, nimages: int) -> np.ndarray:
     if not path.exists():
         advice.fail(f"{kind} {name}: no such file", "a file with one number on each line")
     found = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         words = line.split()
         if len(words) != 1:
             continue

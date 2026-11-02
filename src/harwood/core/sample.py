@@ -96,17 +96,18 @@ def write(directory: Path | str) -> list[Path]:
 
     for name, members in lists.items():
         path = where / f"{name}.lis"
-        path.write_text("\n".join(members) + "\n")
+        path.write_text("\n".join(members) + "\n", encoding="utf-8")
         written.append(path)
     bright = sorted(stars, key=lambda s: -s[2])[:3]
     path = where / "bright.coo"
     path.write_text("# three bright stars on obj001, 1-based as IRAF and DS9 count\n"
-                    "x y\n" + "".join(f"{sx:.2f} {sy:.2f}\n" for sx, sy, _ in bright))
+                    "x y\n" + "".join(f"{sx:.2f} {sy:.2f}\n" for sx, sy, _ in bright),
+                    encoding="utf-8")
     written.append(path)
     path = where / "stars.cur"
     path.write_text("# imexamine's cursor: x y frame key, one key press a line\n"
                     + "".join(f"{sx:.1f} {sy:.1f} 1 {key}\n"
-                              for sx, sy, _ in bright[:2] for key in "ra"))
+                              for sx, sy, _ in bright[:2] for key in "ra"), encoding="utf-8")
     written.append(path)
     return written
 

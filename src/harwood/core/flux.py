@@ -517,7 +517,7 @@ class SensSpectrum:
         """A sensitivity spectrum harwood or IRAF wrote."""
         from astropy.io import fits
 
-        data = np.asarray(fits.getdata(path), dtype=f32).ravel()
+        data = np.asarray(fits.getdata(path, memmap=False), dtype=f32).ravel()
         header = fits.getheader(path)
         dw = float(header.get("CDELT1", header.get("CD1_1", 1.0)))
         w1 = float(header["CRVAL1"]) + (1 - float(header.get("CRPIX1", 1.0))) * dw

@@ -749,7 +749,7 @@ class AstTimes(Task[AstTimesParams]):
         moments: list[tuple[int, int, int, float]] = []   # as zone times
         if params.files:
             for name in params.files:
-                for line in Path(name).read_text().splitlines():
+                for line in Path(name).read_text(encoding="utf-8").splitlines():
                     words = line.split()
                     if len(words) >= 4 and not line.lstrip().startswith("#"):
                         try:
@@ -1142,7 +1142,7 @@ class Precess(Task[PrecessParams]):
                 file = Path(name)
                 if not file.is_file():
                     advice.fail(f"Cannot open file ({name})", "check the name of the list")
-                text = file.read_text(errors="replace")
+                text = file.read_text(errors="replace", encoding="utf-8")
             for line in text.splitlines():
                 values = scan_doubles(line)
                 if len(values) < 2:

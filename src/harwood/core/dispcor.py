@@ -350,7 +350,7 @@ class Table:
                 grid = self.entry(number)
                 grid.w1, grid.w2, grid.dw, grid.nw = w1, w2, dw, nw
             return
-        for line in Path(path).read_text().splitlines():
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
             words = line.split()
             if len(words) < 5:
                 continue

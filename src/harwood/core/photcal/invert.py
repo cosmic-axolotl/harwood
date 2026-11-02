@@ -705,6 +705,6 @@ def invertfit(cfg: Config, observations: list[str], parameters: str, calib: str,
                                else f32(value - svars[k]))
             lines.append(_format(format, out))
     mode = "a" if append else "w"
-    with open(calib, mode) as handle:
+    with open(calib, mode, encoding="utf-8") as handle:
         handle.write("\n".join(head) + "\n\n\n" + "".join(lines))
     return warnings

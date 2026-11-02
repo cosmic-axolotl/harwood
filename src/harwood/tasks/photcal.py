@@ -303,7 +303,7 @@ class Invertfit(Task[InvertfitParams]):
                                     "reference side must hold observed variables "
                                     "only, and there must be as many equations "
                                     "as catalog variables to solve for.")
-        rows = [line for line in params.calib.read_text().splitlines()
+        rows = [line for line in params.calib.read_text(encoding="utf-8").splitlines()
                 if line.strip() and not line.startswith("#")]
         undefined = sum("INDEF" in line.split()[1:2] for line in rows)
         steps = self.plan(params)
@@ -1129,7 +1129,7 @@ class Mkcatalog(Task[MkcatalogParams]):
         records = []
         if params.records:
             try:
-                text = Path(params.records).read_text(errors="replace")
+                text = Path(params.records).read_text(errors="replace", encoding="utf-8")
             except OSError as error:
                 advice.fail(f"cannot read the records: {error}", "check the path.")
             records = [line.split() for line in text.split("\n")
@@ -1177,8 +1177,8 @@ def _check_keys(params, task: str = "mkapfile") -> None:
 def _fit_by_the_keys(session, params: FitparamsParams) -> str:
     """Fitparams' keys, from --gcommands or the window: what they printed."""
     if params.gcommands:
-        answers = Path(params.answers).read_text() if params.answers else ""
-        session.run_commands(Path(params.gcommands).read_text(), answers)
+        answers = Path(params.answers).read_text(encoding="utf-8") if params.answers else ""
+        session.run_commands(Path(params.gcommands).read_text(encoding="utf-8"), answers)
         return session.stdout + session.stderr
     from ..viewer.fit_panel import run
 
@@ -1188,7 +1188,7 @@ def _fit_by_the_keys(session, params: FitparamsParams) -> str:
 def _by_the_keys(session, params: MkapfileParams) -> list[str]:
     """Mkapfile's keys, from --gcommands or the window: what they printed."""
     if params.gcommands:
-        return session.run_commands(Path(params.gcommands).read_text())
+        return session.run_commands(Path(params.gcommands).read_text(encoding="utf-8"))
     from ..viewer.cog_panel import run
 
     return run(session)

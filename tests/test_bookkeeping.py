@@ -157,7 +157,8 @@ def test_a_bare_name_goes_to_the_reduction_not_the_subdirectory(night):
     deep = night / "raw"
     deep.mkdir()
     assert logfile.resolve("night.log", night) == night / "night.log"
-    assert logfile.resolve("/tmp/absolute.log", night).is_absolute()
+    elsewhere = str((night.parent / "absolute.log").resolve())
+    assert logfile.resolve(elsewhere, night) == Path(elsewhere)
 
 
 def test_the_log_records_which_flat_each_frame_got(night):

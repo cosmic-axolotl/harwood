@@ -651,7 +651,7 @@ class SensFunc(Task[SensFuncParams]):
         revised = sf.revised_extinction(curve, ecvs)
         if revised is not None and params.newextinction.strip():
             table = Path(params.database) / params.newextinction.strip()
-            table.write_text("\n".join(revised) + "\n")
+            table.write_text("\n".join(revised) + "\n", encoding="utf-8")
             outputs.append(table)
 
         steps = self.plan(params)

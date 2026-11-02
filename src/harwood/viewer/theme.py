@@ -132,7 +132,7 @@ class Preferences:
     @classmethod
     def load(cls) -> Preferences:
         try:
-            stored = json.loads(cls.path().read_text())
+            stored = json.loads(cls.path().read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return cls()
         known = {f.name for f in fields(cls)}
@@ -156,7 +156,7 @@ class Preferences:
     def save(self) -> Path:
         path = self.path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(asdict(self), indent=2) + "\n")
+        path.write_text(json.dumps(asdict(self), indent=2) + "\n", encoding="utf-8")
         return path
 
 

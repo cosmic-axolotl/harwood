@@ -80,7 +80,7 @@ def read(name: str, header: Any, shape: tuple[int, ...], workdir: Path | str = "
     else:
         from astropy.io import fits
 
-        with fits.open(path) as hdul:
+        with fits.open(path, memmap=False) as hdul:
             hdu = next((h for h in hdul if h.data is not None), None)
             if hdu is None:
                 advice.fail(f"pixel mask '{path}' holds no image",

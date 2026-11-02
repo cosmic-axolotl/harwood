@@ -540,7 +540,7 @@ class IcfitSession:
             self._print(text)
             return
         try:
-            with open(file, "a") as out:
+            with open(file, "a", encoding="utf-8") as out:
                 out.write(text)
         except OSError as error:
             self._print(f"Warning: {error}\n")

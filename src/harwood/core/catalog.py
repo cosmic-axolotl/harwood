@@ -94,7 +94,7 @@ def _iraf_database(path: Path, signed: bool = False) -> bool:
     the #K IRAF line IRAF's tasks put at the top."""
     names = iraf = False
     try:
-        with open(path, errors="replace") as handle:
+        with open(path, errors="replace", encoding="utf-8") as handle:
             for _, line in zip(range(400), handle, strict=False):
                 names = names or line.startswith("#N ")
                 iraf = iraf or line.startswith("#K IRAF ")
@@ -108,7 +108,7 @@ def _iraf_database(path: Path, signed: bool = False) -> bool:
 def _iraf_names(path: Path) -> list[str]:
     """The column names of a single-line-record IRAF text database."""
     names = []
-    for line in Path(path).read_text(errors="replace").splitlines():
+    for line in Path(path).read_text(errors="replace", encoding="utf-8").splitlines():
         if line.startswith("#N "):
             names += line[3:].replace("\\", " ").split()
     return names

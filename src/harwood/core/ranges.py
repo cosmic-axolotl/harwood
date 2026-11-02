@@ -65,7 +65,7 @@ def parse(text: str, r1: float = 0.0, r2: float = float(RNG_MAXINT),
             if not path.exists():
                 advice.fail(f"range file '{path}' does not exist",
                             "write the ranges in it, or give them directly: 1-5,8")
-            for line in path.read_text().splitlines():
+            for line in path.read_text(encoding="utf-8").splitlines():
                 for inner in re.split(r"[\s,]+", line.strip()):
                     if inner:
                         if inner.startswith("@"):

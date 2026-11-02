@@ -310,7 +310,7 @@ def write_rprof(path: str | Path, params: dict, image: str, coords: str, stars: 
         text += "".join(_rprof_card(name, value) for name, value in cards)
         text += record(image, coords, star, more=True)
         text += rprof_record(star, profile, settings["radius"], settings["step"])
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return path
 
 
@@ -320,5 +320,5 @@ def write(path: str | Path, task: str, params: dict, image: str, coords: str,
     path.parent.mkdir(parents=True, exist_ok=True)
     text = parameters(task, params) + headers()
     text += "".join(record(image, coords, star) for star in stars)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return path

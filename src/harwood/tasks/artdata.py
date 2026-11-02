@@ -121,7 +121,7 @@ def read_cards(name: str):
         advice.fail(f"Cannot open file ({name})", "give an image, or a file of FITS cards")
     if spec.path.suffix in (".fits", ".fit", ".pl"):
         return images.read_header(spec)
-    for line in spec.path.read_text(errors="replace").splitlines():
+    for line in spec.path.read_text(encoding="utf-8", errors="replace").splitlines():
         text = line.lstrip()
         found = re.match(r"[A-Z0-9_-]{1,8} *", text)
         if found is None or found.end() < 8:
@@ -293,7 +293,7 @@ def _file_comments(header, file: Path) -> None:
     """The lines of a list that are not objects go in as they are."""
     from ..core import iraffmt
 
-    for line in file.read_text(errors="replace").splitlines():
+    for line in file.read_text(encoding="utf-8", errors="replace").splitlines():
         words = line.split()
         if len(words) < 3 or None in [iraffmt.ctod(word) for word in words[:3]]:
             _comment(header, line[:70])
@@ -471,7 +471,8 @@ class MkNoise(Task[MkNoiseParams]):
         real = np.float32
         xs, ys, zs = [], [], []
         if cosrays and Path(cosrays).exists():
-            for line in Path(cosrays).read_text(errors="replace").splitlines():
+            listed = Path(cosrays).read_text(encoding="utf-8", errors="replace")
+            for line in listed.splitlines():
                 words = line.split()
                 numbers = [iraffmt.ctod(word) for word in words[:3]]
                 if len(words) < 3 or None in numbers:
@@ -497,7 +498,7 @@ class MkNoise(Task[MkNoiseParams]):
                     f"{iraffmt.g(float(real(noise.gain * z)))}\n"
                     for x, y, z in zip(xs, ys, zs, strict=True)
                 )
-            )
+            , encoding="utf-8")
         return xs, ys, zs
 
 
@@ -718,7 +719,7 @@ class MkObjects(Task[MkObjectsParams]):
         real = np.float32
         distance = real(params.distance)
         objects, ys = [], []
-        for line in file.read_text(errors="replace").splitlines():
+        for line in file.read_text(encoding="utf-8", errors="replace").splitlines():
             words = line.split()
             first = [iraffmt.ctod(word) for word in words[:3]]
             if len(words) < 3 or None in first:
@@ -905,7 +906,7 @@ def _xy_file(name: str, what: str):
         advice.fail(f"Cannot open file ({name})", f"give the {what} with its option",
                     FileNotFoundError)
     xs, ys = [], []
-    for line in path.read_text(errors="replace").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         words = line.split()
         if len(words) < 2:
             continue
@@ -1197,7 +1198,7 @@ class StarList(Task[StarListParams]):
         ]
         lines += _star_lines(x, y, mag)
         target = Path(params.starlist)
-        with target.open("a") as out:
+        with target.open("a", encoding="utf-8") as out:
             out.write("\n".join(lines) + "\n")
         return TaskResult(
             outputs=[target], steps=self.plan(params), data={"stars": params.nstars}

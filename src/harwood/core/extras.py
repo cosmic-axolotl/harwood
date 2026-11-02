@@ -23,7 +23,7 @@ PROVIDED_BY = {
 
 #: What each extra is for, in a few words.
 PURPOSE = {
-    "phot": "profile fitting and the cosmic-ray filters",
+    "phot": "profile fitting, the cosmic-ray filters and the methods IRAF has no task for",
     "ccd": "CCD reduction and cosmic ray removal",
     "gui": "the viewer and the interactive panels",
     "fast": "the compiled numeric kernels",
