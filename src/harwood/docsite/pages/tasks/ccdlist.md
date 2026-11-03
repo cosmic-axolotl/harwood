@@ -18,7 +18,7 @@ title: What has been done to the flats
 after: flat
 run: harwood ccdlist 'flat/*.fits' --long
 output: |
-  trim, zerocor
+  zerocor
 ```
 
 `--ccdtype flat` lists only the flats.

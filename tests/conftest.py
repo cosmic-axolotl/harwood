@@ -16,6 +16,7 @@ by what somebody had last reduced. Every test runs in a directory of its
 own, away from all of that, and what it writes stays out of the repository.
 """
 
+import contextlib
 import os
 
 import pytest
@@ -53,3 +54,34 @@ def _own_interface_preferences(tmp_path_factory, monkeypatch):
     theme._theme = theme.Theme(theme.Preferences())
     yield
     theme._theme = saved
+
+
+#: Every window and panel the tests opened, for as long as the session lasts
+_KEPT: list = []
+
+
+@pytest.fixture(autouse=True)
+def _no_window_is_destroyed_by_chance():
+    """What a test opened is hidden after it, and kept. Let go, a window is destroyed whenever
+    the garbage collector reaches it, and a pyqtgraph scene taken down by Qt deletes items
+    Python also holds: under Python 3.11 the process died there, in a test that had nothing to
+    do with it, on Linux in one place and on Windows in another."""
+    yield
+    import sys
+
+    if "PySide6" not in sys.modules:
+        return
+    from PySide6 import QtWidgets
+
+    if QtWidgets.QApplication.instance() is None:
+        return
+    from harwood.core import display
+    from harwood.viewer import _qt
+
+    display.reset()
+    _qt.set_window(None)
+    for widget in QtWidgets.QApplication.topLevelWidgets():
+        if widget not in _KEPT:
+            _KEPT.append(widget)
+        with contextlib.suppress(RuntimeError):    # Qt has already destroyed it
+            widget.hide()
