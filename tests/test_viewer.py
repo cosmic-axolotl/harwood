@@ -473,7 +473,8 @@ def test_a_whole_task_through_the_tab(tabs):
     from harwood.viewer.dock import show
 
     panel = _panel()
-    QtCore.QTimer.singleShot(0, panel.finished.emit)
+    # A lambda, not the bound emit: PySide on Windows 3.14 crashed calling that
+    QtCore.QTimer.singleShot(0, lambda: panel.finished.emit())
     assert show(panel, "curve") is panel
     assert tabs.views.indexOf(panel) == 1 and not tabs._waiting
 

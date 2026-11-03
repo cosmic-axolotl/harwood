@@ -63,9 +63,8 @@ _KEPT: list = []
 @pytest.fixture(autouse=True)
 def _no_window_is_destroyed_by_chance():
     """What a test opened is hidden after it, and kept. Let go, a window is destroyed whenever
-    the garbage collector reaches it, and a pyqtgraph scene taken down by Qt deletes items
-    Python also holds: under Python 3.11 the process died there, in a test that had nothing to
-    do with it, on Linux in one place and on Windows in another."""
+    the garbage collector reaches it, from whichever thread it runs on, and Qt crashes taking a
+    pyqtgraph scene down off the window's thread: in a test that had nothing to do with it."""
     yield
     import sys
 

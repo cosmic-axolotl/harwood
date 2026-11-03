@@ -1,6 +1,6 @@
 # Install
 
-harwood needs Python 3.11 or later. Everything it needs installs with pip;
+harwood needs Python 3.12 or later. Everything it needs installs with pip;
 nothing has to be configured afterwards.
 
 ```console
