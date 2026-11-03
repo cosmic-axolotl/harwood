@@ -269,9 +269,13 @@ def run(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit",
 
 @on_main
 def make(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit", weights=None):
-    """The same, for a task that wants the session after it: the points and the weights."""
+    """The same, for a task that wants the session after it: the points and the weights.
+
+    The session, not the panel: a task running beside the window would hold the
+    widget on its own thread, and a widget let go there is taken down off the
+    window's thread, which crashes Qt."""
     from .dock import show
 
     panel = IcfitPanel(x, y, spec, title=title, weights=weights)
     show(panel, title, size=(980, 620))
-    return panel
+    return panel.session

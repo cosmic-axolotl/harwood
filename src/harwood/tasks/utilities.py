@@ -291,9 +291,8 @@ def _session(ic, x, y, w, params, name: str, real):
                              f"0 0 1 {line.strip()}")
         session.run_commands("\n".join(lines))
     else:
-        panel = icfit_panel.make(x.astype(float), y.astype(float), spec,
-                                 title=f"curfit · {name}", weights=w.astype(float))
-        session = panel.session
+        session = icfit_panel.make(x.astype(float), y.astype(float), spec,
+                                   title=f"curfit · {name}", weights=w.astype(float))
     done = session.spec
     ic.function, ic.order, ic.sample = done.function, done.order, done.sample
     ic.naverage, ic.niterate = done.naverage, done.niterate

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import threading
+import traceback
 from typing import Any
 
 _application: Any = None
@@ -76,6 +77,9 @@ def on_main(function):
             try:
                 outcome["value"] = function(*args, **kwargs)
             except BaseException as error:      # handed back to the task's thread
+                # Without the locals of its frames: a panel among them would be let
+                # go on the task's thread, and Qt crashes taking a widget down there
+                traceback.clear_frames(error.__traceback__)
                 outcome["error"] = error
             finally:
                 done.set()

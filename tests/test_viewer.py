@@ -388,6 +388,25 @@ def test_a_graph_stays_after_q_and_its_x_closes_it(tabs):
     assert tabs.views.count() == 1
 
 
+def test_a_closed_panel_is_taken_down_on_the_windows_thread(tabs):
+    """Not left to the garbage collector, which may run on a task's thread: an
+    icfit panel holds itself in a cycle, and Qt crashes taking a graph down off
+    the window's thread."""
+    import numpy as np
+    import shiboken6
+    from PySide6 import QtCore, QtWidgets
+
+    from harwood.viewer.icfit_panel import IcfitPanel
+
+    x = np.arange(20.0)
+    panel = IcfitPanel(x, 2 * x + 1)
+    tabs.open_panel(panel, "a fit")
+    tabs.finish_panel(panel)
+    QtWidgets.QApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
+    assert not shiboken6.isValid(panel)
+    assert panel.result() is not None, "what it answered is still there"
+
+
 def test_a_step_in_a_task_goes_at_q_and_the_view_returns(tabs):
     graph = _panel()
     tabs.open_panel(graph, "curve")

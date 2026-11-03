@@ -967,11 +967,17 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.files.choose()
 
     def close_panel(self, panel) -> None:
+        """The tab goes, and the widget with it, here on the window's thread.
+        Let go to Python, a panel caught in a cycle of its own references would
+        be taken down whenever the garbage collector came round, from whichever
+        thread it ran on, and Qt crashes taking a graph down off its thread.
+        What the panel answered stays readable: that is Python's, not Qt's."""
         self._waiting.pop(panel, None)
         index = self.views.indexOf(panel)
         if index >= 0:
             self.views.removeTab(index)
         panel.setParent(None)
+        panel.deleteLater()
 
     def _build_session(self) -> None:
         dock = QtWidgets.QDockWidget("Command line")

@@ -139,7 +139,9 @@ def slow(monkeypatch):
     def execute(self, params):
         threads.append(threading.current_thread())
         print("measuring", flush=True)
-        time.sleep(1.2)
+        # The clock shows from 0.6 s; at 1.2 s a busy Windows runner sometimes
+        # looked at the window only before it came and after it went
+        time.sleep(2.0)
         return original(self, params)
 
     monkeypatch.setattr(cls, "execute", execute)

@@ -51,6 +51,9 @@ def show(panel: Any, title: str, size: tuple[int, int] = (1000, 640)) -> Any:
     layout.addWidget(panel)
     _text_shortcuts(dialog)
     dialog.exec()
+    # Taken down here, on the window's thread, at the next turn of the loop, not by
+    # the garbage collector from wherever it runs; the panel's answers are Python's
+    dialog.deleteLater()
     return panel
 
 
