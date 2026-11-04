@@ -30,7 +30,18 @@ names match the standards catalog without editing the file by hand.
 and time, a file obsfile's `--obsparams` reads -- the place to correct a
 wrong airmass for the whole calibration.
 
+**The editor and the names, as IRAF asks.** `--edit` opens the image list in the
+editor first, below IRAF's explanation of what to do with it: put the images of a
+set together, correct a filter, drop an image, write INDEF for a missing one.
+`--rename` shows each set and asks for its name (`--answers` reads them from a
+file). `--review` opens the sets in the editor at the end, below the warnings
+grouping gave, to be corrected; the warnings and the explanation are taken out
+afterwards, as IRAF takes them out -- leaving the two blank lines at the top of the
+file that IRAF leaves. In the window the editor is a dialog of its own; at the
+terminal it is `$EDITOR`, as IRAF's edit uses its editor. IRAF has all three on;
+harwood has them off, so that a run can be repeated.
+
 **Identical to IRAF.** The sets file, the image list and every message are
-IRAF's, byte for byte, with the editor sessions (edit, rename, review) off.
-Editing the list in an editor is not ported: sort, rename or correct with
-the options above, or edit the sets file afterwards -- it is plain text.
+IRAF's, byte for byte, with the editor sessions off and with each of them on --
+the same edits made by IRAF's editor and harwood's, what each was shown is the
+same, and so are the names asked for and the files left.

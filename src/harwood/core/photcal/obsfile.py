@@ -553,6 +553,7 @@ def header(nfilters: int, wrap: bool) -> str:
 class Result:
     written: list[tuple[str, int]]       # each set's label and its stars
     notes: list[str]
+    typed: str = ""                      # what the terminal was asked, as IRAF says it
 
 
 def _entry_line(entry: ImEntry, label: str, k: int, stars: Stars) -> str:
@@ -749,19 +750,37 @@ def obsfile(photfiles: list[str], incolumns: str, idfilters: str, imsets: str,
             observations: str, wrap: bool = True, obsparams: str = "",
             obscolumns: str = "2 3 4 5", minmagerr: float = 0.001, shifts: str = "",
             apercors: str = "", normtime: bool = False, tolerance: float = 5.0,
-            allfilters: bool = True, verbose: bool = True) -> Result:
-    """t_obsfile, without its interactive entry of the sets."""
+            allfilters: bool = True, verbose: bool = True, verify: bool = False,
+            terminal=None) -> Result:
+    """t_obsfile. imsets, obsparams, shifts or apercors given as STDIN are typed at
+    `terminal` (entry.Terminal), as IRAF asks for them; what it was asked is the
+    Result's `typed`."""
+    from . import entry
+
     cols = columns(incolumns)
     if len(cols) < CAT_NFIELDS:
         raise ValueError("There are too few columns defined in the incolumns string")
     filters = getlabels(idfilters)
     notes: list[str] = []
-    table = read_sets(imsets, len(filters), notes, verbose)
-    if obsparams:
+    term = terminal if terminal is not None else entry.Terminal()
+    if imsets == "STDIN":
+        table = entry.enter_sets(term, len(filters), verify)
+    else:
+        table = read_sets(imsets, len(filters), notes, verbose)
+    if obsparams == "STDIN":
+        entry.enter_obsparams(term, table, verify)
+    elif obsparams:
+        if imsets == "STDIN" and verbose:
+            notes.append(f"Warning: Filter ids in {obsparams} will replace those listed "
+                         "in idfilters")
         read_obsparams(table, obsparams, obs_columns(obscolumns), notes, verbose)
-    if shifts:
+    if shifts == "STDIN":
+        entry.enter_shifts(term, table, verify)
+    elif shifts:
         read_shifts(table, shifts, notes, verbose)
-    if apercors:
+    if apercors == "STDIN":
+        entry.enter_apercors(term, table, verify)
+    elif apercors:
         read_apercors(table, apercors, notes, verbose)
     stars = Stars()
     sortimid = False
@@ -822,7 +841,7 @@ def obsfile(photfiles: list[str], incolumns: str, idfilters: str, imsets: str,
         written.append((label, n))
     Path(observations).write_text("".join(out), encoding="utf-8")
     format_path(observations).write_text(format_file(filters), encoding="utf-8")
-    return Result(written, notes)
+    return Result(written, notes, term.text)
 
 
 def summary(observations: str, written: list[tuple[str, int]]) -> str:

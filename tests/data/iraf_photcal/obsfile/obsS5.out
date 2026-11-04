@@ -1,0 +1,16 @@
+
+Image set 1 (LSI61235): Enter filter id, exposure time, airmass, observation time
+    Image data0097cr.fits (f t X T, <CR>=4 X (INDEF), <EOF>=quit entry):         Verify (f t X T, <CR>=V 300. 1.2 21:30:00.0):     Image data0098cr.fits (f t X T, <CR>=4 X (INDEF), <EOF>=quit entry):         Verify (f t X T, <CR>=B INDEF INDEF INDEF): Image set 2 (PG2331+055): Enter filter id, exposure time, airmass, observation time
+    Image stan0051cr.fits (f t X T, <CR>=4 X (INDEF), <EOF>=quit entry):         Verify (f t X T, <CR>=B 100. 1.3 INDEF):     Image stan0052cr.fits (f t X T, <CR>=4 X (INDEF), <EOF>=quit entry):         Verify (f t X T, <CR>=INDEF INDEF INDEF INDEF): 
+Image set 3 (PG2331+055): Enter filter id, exposure time, airmass, observation time
+    Image stan0057cr.fits (f t X T, <CR>=4 X (INDEF), <EOF>=quit entry): 
+
+
+Observations file: obsS5
+	Image set: LSI61235  9 stars written to the observations file
+	Image set: PG2331+055  0 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+

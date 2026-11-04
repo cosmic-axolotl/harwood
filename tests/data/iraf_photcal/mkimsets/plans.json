@@ -1,0 +1,4 @@
+{"R1": [],
+ "E1": [[["drop", "stan0134cr.fits"], ["drop", "stan0135cr.fits"], ["replace", "data0098cr.fits  V", "data0098cr.fits  B"]]],
+ "V1": [[["replace", "OBS2 :", "PG2331 :"], ["drop", "OBS6 :"]]],
+ "EV": [[["drop", "stan0091cr.fits"]], [["replace", "PGA :", "PG2331+055 :"]]]}

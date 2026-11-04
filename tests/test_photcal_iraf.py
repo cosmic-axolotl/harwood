@@ -27,7 +27,8 @@ import numpy as np
 import pytest
 import yaml
 
-from harwood.core.photcal import apfile, config, evalfit, fit, fitsession, invert
+from harwood.core.photcal import apfile, config, entry, evalfit, fit, fitsession, invert
+from harwood.core.photcal import mkobsfile as mkobs
 from harwood.core.photcal import obsfile as obs
 
 DATA = Path(__file__).parent / "data" / "iraf_photcal"
@@ -437,7 +438,8 @@ OBSKEYCASES = {
 @pytest.mark.parametrize("case", OBSKEYCASES)
 def test_mkobsfile_writes_and_says_what_iraf_does(tmp_path, monkeypatch, case):
     """mA to mJ ran mkobsfile, nA to nI mknobsfile (obskeys/run_iraf.py): the same
-    script but for mkphotcors, whose warning on mI's obsparams is not ported."""
+    script but for mkphotcors, whose warning on mI's obsparams -- it reads column 2
+    as the image -- is said too."""
     from harwood.tasks.photcal import Mknobsfile, Mkobsfile
 
     monkeypatch.chdir(APFILE)
@@ -455,9 +457,58 @@ def test_mkobsfile_writes_and_says_what_iraf_does(tmp_path, monkeypatch, case):
         written = [(set_["name"], set_["stars"]) for set_ in result.data["sets"]]
         assert obs.summary(case, written) == (OBSKEYS / f"{case}.out").read_text(
                 encoding="utf-8")
-    if case != "mI":
-        assert (OBSKEYS / f"{case}.err").read_text(encoding="utf-8") == ""
-    assert not result.warnings
+    said = (OBSKEYS / f"{case}.err").read_text(encoding="utf-8").splitlines()
+    assert [w.message.replace(f"{OBSKEYS}{os.sep}", "") for w in result.warnings] == said
+
+
+@pytest.mark.parametrize("case, settings", [
+    ("mS1", dict(imsets="STDIN")),
+    ("mS2", dict(apercors="STDIN", verify=True)),
+    ("mS3", dict(imsets="STDIN", shifts="STDIN"))])
+def test_mkobsfile_asks_what_iraf_asks(tmp_path, monkeypatch, case, settings):
+    """The image sets and the corrections typed at the terminal (NAME.ans), through
+    mkphotcors into temporary files, as mkobsfile.cl does; after the sets the input
+    has ended, so mS3's shifts get nothing. IRAF names its pdump file, tmp$..., in
+    the warnings; harwood its own."""
+    monkeypatch.chdir(APFILE)
+    out = tmp_path / case
+    settings = dict(imsets=SKINAKAS_SETS) | settings
+    typed = iter((OBSKEYS / f"{case}.ans").read_text(encoding="utf-8").splitlines())
+    result = mkobs.mkobsfile(PHOTFILES, "B,V", observations=str(out), tolerance=8.0,
+                             terminal=entry.Terminal(typed), **settings)
+    assert out.read_text(encoding="utf-8") == (OBSKEYS / case).read_text(encoding="utf-8")
+    assert obs.format_path(out).read_text(encoding="utf-8") == (
+        OBSKEYS / f"f{case}.dat").read_text(encoding="utf-8")
+    assert result.typed + obs.summary(case, result.written) == (
+        OBSKEYS / f"{case}.out").read_text(encoding="utf-8")
+
+    def tmp(text):
+        return re.sub(r"File: \S+ Image", "File: (pdump) Image", text)
+
+    assert tmp("".join(n + "\n" for n in result.notes)) == tmp(
+        (OBSKEYS / f"{case}.err").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("case, files", [
+    ("mP1", dict(imsets="sets", obsparams="obs", shifts="sh", apercors="ap")),
+    ("mP2", dict(imsets=SKINAKAS_SETS, obsparams="obs", verify=True))])
+def test_mkphotcors_asks_and_writes_what_iraf_does(tmp_path, monkeypatch, case, files):
+    """mkphotcors alone: the files that are not there asked for and written."""
+    from harwood.tasks.photcal import Mkphotcors
+
+    monkeypatch.chdir(tmp_path)
+    names = {key: value if value == SKINAKAS_SETS else f"{case}.{value}"
+             for key, value in files.items() if key != "verify"}
+    result = Mkphotcors().execute(Mkphotcors.Params(
+        idfilters="B,V", answers=str(OBSKEYS / f"{case}.ans"),
+        verify=files.get("verify", False), **names))
+    assert result.data["typed"] == (OBSKEYS / f"{case}.out").read_text(encoding="utf-8")
+    assert [w.message for w in result.warnings] == (OBSKEYS / f"{case}.err").read_text(
+        encoding="utf-8").splitlines()
+    for path in names.values():
+        if path != SKINAKAS_SETS:
+            assert (tmp_path / path).read_text(encoding="utf-8") == (
+                OBSKEYS / path).read_text(encoding="utf-8"), path
 
 
 def test_mkobsfile_refuses_what_iraf_refuses(tmp_path, monkeypatch):
@@ -471,9 +522,6 @@ def test_mkobsfile_refuses_what_iraf_refuses(tmp_path, monkeypatch):
                         observations=tmp_path / "out") | settings
         return task.execute(task.Params(**settings))
 
-    with pytest.raises(ValueError, match="image sets are needed") as caught:
-        run(imsets="")
-    assert "mkimsets" in caught.value.fix
     with pytest.raises(ValueError, match="does not exist"):
         run(imsets="nosuch")
     with pytest.raises(ValueError, match="does not exist"):
@@ -710,6 +758,66 @@ def test_mkapfile_writes_what_iraf_writes(tmp_path, monkeypatch, case):
         assert ours[0] == iraf[0] or ours[0].startswith("NEW LOGFILE ENTRY AT")
 
 
+@pytest.mark.parametrize("case, obsparams, obscolumns", [
+    ("O", "obs1.dat", "2 3 4 5"), ("O2", "obs2.dat", "0 0 2 0")])
+def test_mkapfile_takes_the_observing_parameters_iraf_takes(tmp_path, monkeypatch, case,
+                                                           obsparams, obscolumns):
+    """obsparams in place of the photometry's filter, exposure, airmass and time: a
+    file of all four, with an image that is not there and an airmass left INDEF, and
+    one of the airmass alone. What is said and every file written must be IRAF's --
+    but for one thing. With no column for the time, IRAF's ph_aobsdata leaves the
+    time it reads into uninitialised, and writes what was there (0:00:00.0 here) as
+    the image's time; its help says a 0 column is a place holder, "to correct only
+    the airmass", and harwood keeps the photometry's time."""
+    from harwood.tasks.photcal import Mkapfile, MkapfileParams
+
+    monkeypatch.chdir(APFILE)
+    out = {name: tmp_path / name for name in (f"{case}.apercors", f"{case}.mkapfile",
+                                              f"{case}.log")}
+    result = Mkapfile().execute(MkapfileParams(
+        photfiles=PHOTFILES, naperts=20, apercors=out[f"{case}.apercors"],
+        magfile=str(out[f"{case}.mkapfile"]), logfile=str(out[f"{case}.log"]),
+        obsparams=obsparams, obscolumns=obscolumns))
+    assert result.data.get("text", []) == (APFILE / f"{case}.out").read_text(
+        encoding="utf-8").splitlines()
+    given = {line.split()[0] for line in (APFILE / obsparams).read_text(
+        encoding="utf-8").splitlines()}
+    for name, path in out.items():
+        ours = [line.replace(f"{tmp_path}{os.sep}", "") for line in path.read_text(
+                encoding="utf-8").splitlines()]
+        iraf = (APFILE / name).read_text(encoding="utf-8").splitlines()
+        if "4" not in obscolumns.split() and name.endswith(".mkapfile"):
+            # The time, column 5 of the magnitudes: IRAF's uninitialised zero
+            # against the photometry's time.
+            for k, line in enumerate(iraf):
+                words = line.split()
+                if words and words[0] in given:
+                    assert words[4] == "0:00:00.0" and ours[k].split()[4] != "0:00:00.0"
+                    iraf[k] = line.replace(" 0:00:00.0", ours[k].split()[4].rjust(10))
+        assert ours[1:] == iraf[1:], name
+        assert ours[0] == iraf[0] or ours[0].startswith("NEW LOGFILE ENTRY AT")
+
+
+def test_mkapfile_asks_for_the_observing_parameters_as_iraf_does(tmp_path, monkeypatch):
+    """obsparams STDIN: typed at the terminal (OS.ans), with verify. IRAF's verify
+    reads three fields -- the time is pargr'd, not gargr'd -- so a time typed there
+    is not taken, here as there."""
+    from harwood.tasks.photcal import Mkapfile, MkapfileParams
+
+    monkeypatch.chdir(APFILE)
+    out = {name: tmp_path / name for name in ("OS.apercors", "OS.mkapfile", "OS.log")}
+    result = Mkapfile().execute(MkapfileParams(
+        photfiles=PHOTFILES, naperts=20, apercors=out["OS.apercors"],
+        magfile=str(out["OS.mkapfile"]), logfile=str(out["OS.log"]), obsparams="STDIN",
+        verify=True, answers="OS.ans"))
+    assert result.data["text"] == (APFILE / "OS.out").read_text(encoding="utf-8").splitlines()
+    for name, path in out.items():
+        ours = [line.replace(f"{tmp_path}{os.sep}", "") for line in path.read_text(
+                encoding="utf-8").splitlines()]
+        iraf = (APFILE / name).read_text(encoding="utf-8").splitlines()
+        assert ours[1:] == iraf[1:], name
+
+
 def test_mkapfile_as_a_task(tmp_path, monkeypatch):
     from harwood import run
 
@@ -743,18 +851,26 @@ OBSCASES = _obs_cases()
 def test_obsfile_writes_and_says_what_iraf_does(tmp_path, monkeypatch, case):
     """A is the automatico's own run; the others take the other paths --
     no ids, matching by order, any filter, the corrections, the shifts,
-    obsparams, and every kind of bad line in a sets file."""
+    obsparams, and every kind of bad line in a sets file; S1 to S5 type the
+    sets, the shifts, the corrections and the observing parameters at the
+    terminal, with and without their verify prompts, as IRAF asks for them."""
     sets, cols, kw = OBSCASES[case]
+    kw = dict(kw)
     monkeypatch.chdir(OBSFILE)
     files = (OBSFILE / "mkapfile.lista").read_text(encoding="utf-8").split()
     out = tmp_path / f"obs{case}"
+    if "answers" in kw:
+        from harwood.core.photcal import entry
+
+        typed = (OBSFILE / kw.pop("answers")).read_text(encoding="utf-8").splitlines()
+        kw["terminal"] = entry.Terminal(iter(typed))
     result = obs.obsfile(files, cols, "B,V", sets, str(out), **kw)
     assert out.read_text(encoding="utf-8") == (OBSFILE / f"obs{case}").read_text(
             encoding="utf-8")
     assert obs.format_path(out).read_text(
             encoding="utf-8") == (OBSFILE / f"fobs{case}.dat").read_text(
             encoding="utf-8")
-    assert obs.summary(f"obs{case}", result.written) == (
+    assert result.typed + obs.summary(f"obs{case}", result.written) == (
         OBSFILE / f"obs{case}.out").read_text(encoding="utf-8")
     assert "".join(n + "\n" for n in result.notes) == (OBSFILE / f"obs{case}.err").read_text(
             encoding="utf-8")
@@ -984,6 +1100,68 @@ def test_mkimsets_groups_as_iraf_does(tmp_path, monkeypatch, case):
         assert (tmp_path / "obsparA").read_text(
                 encoding="utf-8") == (MKIMSETS / "obsparA").read_text(
                 encoding="utf-8")
+
+
+EDITCASES = {"R1": dict(rename=True), "E1": dict(edit=True, imobsparams="obsE1"),
+             "V1": dict(review=True),
+             "EV": dict(edit=True, rename=True, review=True, imobsparams="obsEV")}
+
+
+@pytest.mark.parametrize("case", EDITCASES)
+def test_mkimsets_edits_and_asks_as_iraf_does(tmp_path, monkeypatch, case):
+    """mkimsets with its editor sessions and its questions (run_iraf_edit.py): the
+    same edits made to the image list and to the sets as IRAF's editor made them --
+    bin/vi, a stand-in, made both -- and the names typed. What the editor is shown,
+    what is asked, and every file written must be IRAF's."""
+    import json
+    import subprocess
+    import sys
+
+    from harwood.core.photcal import entry, imsets
+
+    settings = dict(EDITCASES[case])
+    if "imobsparams" in settings:
+        settings["imobsparams"] = str(tmp_path / settings["imobsparams"])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(json.loads((MKIMSETS / "plans.json").read_text(
+        encoding="utf-8"))[case]), encoding="utf-8")
+    env = dict(os.environ, FAKE_EDIT_PLAN=str(plan))
+
+    def editor(path):
+        subprocess.run([sys.executable, str(MKIMSETS / "bin" / "vi"), str(path)], env=env,
+                       check=True)
+
+    answers = MKIMSETS / f"{case}.ans"
+    term = entry.Terminal(iter(answers.read_text(encoding="utf-8").splitlines()
+                               if answers.exists() else []))
+    monkeypatch.chdir(APFILE)
+    files = (APFILE / "all.lis").read_text(encoding="utf-8").split()
+    _, messages = imsets.mkimsets(files, "B,V", str(tmp_path / "sets"), editor=editor,
+                                  terminal=term, **settings)
+    assert (tmp_path / "sets").read_text(encoding="utf-8") == (
+        MKIMSETS / f"sets{case}").read_text(encoding="utf-8")
+    for n in range(2):
+        if (MKIMSETS / f"{case}.seen{n}").exists():
+            assert (tmp_path / f"plan.json.seen{n}").read_text(encoding="utf-8") == (
+                MKIMSETS / f"{case}.seen{n}").read_text(encoding="utf-8"), f"editor {n}"
+    if settings.get("rename"):
+        assert term.text == (MKIMSETS / f"{case}.term").read_text(encoding="utf-8")
+    if case == "E1":
+        assert "\n".join(messages) + "\n" == (MKIMSETS / "setsE1.out").read_text(
+            encoding="utf-8")
+    if "imobsparams" in settings:
+        assert Path(settings["imobsparams"]).read_text(encoding="utf-8") == (
+            MKIMSETS / Path(settings["imobsparams"]).name).read_text(encoding="utf-8")
+
+
+def test_mkimsets_as_a_task_asks_for_the_names(tmp_path, monkeypatch):
+    from harwood import run
+
+    monkeypatch.chdir(APFILE)
+    result = run("mkimsets", workdir=tmp_path, imlist=["@all.lis"], idfilters="B,V",
+                 imsets=tmp_path / "sets", rename=True, answers=str(MKIMSETS / "R1.ans"))
+    assert [s["name"] for s in result.data["sets"]] == ["LSI", "OBS2", "PG2", "PG3",
+                                                        "OBS5", "OBS6"]
 
 
 def test_mkimsets_names_the_sets_from_the_headers(tmp_path, monkeypatch):

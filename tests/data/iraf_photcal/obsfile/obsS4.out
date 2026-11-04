@@ -1,0 +1,14 @@
+
+Image set 1 (LSI61235):  Enter the aperture correction
+    Image data0097cr.fits (magnitude, <CR>=0.0, <EOF>=quit entry):         Verify (magnitude, <CR>=0.1):     Image data0098cr.fits (magnitude, <CR>=0.0, <EOF>=quit entry):         Verify (magnitude, <CR>=0.2): Image set 2 (PG2331+055):  Enter the aperture correction
+    Image stan0051cr.fits (magnitude, <CR>=0.0, <EOF>=quit entry):         Verify (magnitude, <CR>=-0.05):     Image stan0052cr.fits (magnitude, <CR>=0.0, <EOF>=quit entry): 
+
+
+Observations file: obsS4
+	Image set: LSI61235  9 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+

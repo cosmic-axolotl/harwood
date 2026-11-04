@@ -1,0 +1,13 @@
+
+Enter name of image set 1 (name, <EOF>=quit entry):     Enter image name 1 (name, <CR>=INDEF):     Enter image name 2 (name, <CR>=INDEF): Enter name of image set 2 (name, <EOF>=quit entry):     Enter image name 1 (name, <CR>=INDEF):     Enter image name 2 (name, <CR>=INDEF): Enter name of image set 3 (name, <EOF>=quit entry):     Enter image name 1 (name, <CR>=INDEF):     Enter image name 2 (name, <CR>=INDEF): Enter name of image set 4 (name, <EOF>=quit entry): 
+
+
+Image set 1 (PG1):  Enter the shift in x and y
+    Image stan0051cr.fits (xshift  yshift, <CR>=0.0 0.0, <EOF>=quit entry): 
+
+
+Observations file: mS3
+	Image set: PG1  3 stars written to the observations file
+	Image set: M2  3 stars written to the observations file
+	Image set: L  9 stars written to the observations file
+

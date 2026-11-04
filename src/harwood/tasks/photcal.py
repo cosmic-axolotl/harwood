@@ -433,6 +433,16 @@ class MkapfileParams(TaskParams):
     rgescale: float = Field(0.9, ge=0.0, description="Initial ratio of the exponential "
                                                      "to the Gaussian radial scale.")
     xwings: float = Field(0.0, description="Initial change of the wings with airmass.")
+    obsparams: str = Field("", description="A file of image, filter, exposure time, "
+                                           "airmass and time, a line each, to use in "
+                                           "place of what the photometry says.")
+    obscolumns: str = Field("2 3 4 5", description="obsparams' columns of filter, "
+                                                   "exposure time, airmass and time; 0 "
+                                                   "for one it does not give.")
+    verify: bool = Field(False, description="With a table typed at the terminal (STDIN): "
+                                            "ask again for each answer, to change it.")
+    answers: str = Field("", description="With STDIN: the lines typed, in a file, instead "
+                                         "of the keyboard or the window.")
     names: bool = Field(False, description="Add each star's name from the photometry "
                                            "to magfile as an eleventh column, Obj, for "
                                            "obsfile (incolumns ...,11). IRAF's file has "
@@ -524,14 +534,26 @@ class Mkapfile(Task[MkapfileParams]):
         except (OSError, ValueError) as error:
             advice.fail(f"cannot read the photometry: {error}",
                         "the inputs must be phot's text output (.mag files).")
-        start = (params.swings, params.pwings, params.pgauss, params.rgescale, params.xwings)
         said: list[str] = []
+        if params.obsparams == "STDIN":
+            from ..core.photcal import entry
+
+            term = _terminal(params)
+            entry.enter_apfile_obsparams(term, images, params.verify)
+            said += term.text.splitlines()
+        elif params.obsparams:
+            if not Path(params.obsparams).exists():
+                advice.fail(f"The obsparmas file {params.obsparams} does not exist",
+                            "give the file of image, filter, exposure, airmass and time, "
+                            "or leave obsparams out.", FileNotFoundError)
+            apfile.read_obsparams(images, params.obsparams, params.obscolumns, said)
+        start = (params.swings, params.pwings, params.pgauss, params.rgescale, params.xwings)
         stale = False
         try:
             if params.interactive or params.gcommands:
                 session = apsession.ApSession(images, params.naperts, start, params.nparams,
                                               params.smallap, params.largeap)
-                said = _by_the_keys(session, params)
+                said += _by_the_keys(session, params)
                 stale = session.newfit
                 result, more = session.finish(str(params.apercors), params.magfile,
                                               params.logfile, params.append, params.names)
@@ -619,6 +641,17 @@ class MkimsetsParams(TaskParams):
     name_keyword: str = Field(
         "", description="Name each set after this header keyword of its first "
                         "image -- OBJECT names it after the field.")
+    edit: bool = Field(False, description="Open the image list in the editor first, to "
+                                          "put the images of a set together, correct a "
+                                          "filter or drop an image (IRAF's default).")
+    rename: bool = Field(False, description="Show each set and ask for its name at the "
+                                            "terminal (IRAF's default); --names answer "
+                                            "the first ones without asking.")
+    review: bool = Field(False, description="Open the sets in the editor at the end, "
+                                            "below the warnings, to correct them (IRAF's "
+                                            "default).")
+    answers: str = Field("", description="With rename: the names typed, in a file, "
+                                         "instead of the keyboard or the window.")
 
 
 WHY.update({
@@ -634,7 +667,7 @@ WHY.update({
 @register
 class Mkimsets(Task[MkimsetsParams]):
     """The image sets -- a field seen once in each filter -- as IRAF's
-    mkimsets makes them without the editor."""
+    mkimsets makes them, its editor sessions and questions when asked for."""
 
     name = "mkimsets"
     package = "photcal"
@@ -652,12 +685,22 @@ class Mkimsets(Task[MkimsetsParams]):
     def execute(self, params: MkimsetsParams) -> TaskResult:
         from ..core.photcal import imsets
 
+        if params.review and params.name_keyword:
+            advice.fail("--name-keyword names the sets after the review would have, and "
+                        "would write over what was edited there.",
+                        "name them with --name-keyword alone, or by hand with --review.")
         files = _files(params.imlist)
         try:
+            from ..core import editor
+
+            edited: list[bool] = []
             sets, messages = imsets.mkimsets(
                 files, params.idfilters, str(params.imsets), params.imobsparams,
                 input=params.input, filter=params.filter, fields=params.fields,
-                sort=params.sort, names=params.names)
+                sort=params.sort, names=params.names, edit=params.edit,
+                rename=params.rename, review=params.review,
+                editor=lambda path: edited.append(editor.edit(path)),
+                terminal=_terminal(params) if params.rename else None)
         except (OSError, ValueError, KeyError) as error:
             advice.fail(f"cannot read the images' filters: {error}",
                         "--input photfiles reads phot's IRAF-format .mag files; "
@@ -684,6 +727,11 @@ class Mkimsets(Task[MkimsetsParams]):
                     continue
                 s.name = "".join(str(value).split())
             imsets.write_sets(params.imsets, sets)
+        if not all(edited):
+            warnings.append(advice.warn(
+                "there was no editor to open: no window, no terminal and no $EDITOR, so "
+                "the image list and the sets are as harwood made them.",
+                "run it in the window or at a terminal, or set EDITOR."))
         for m in messages:
             text = m.strip().removeprefix("<Warning>:").removeprefix("<Warning>").strip()
             if text:
@@ -714,7 +762,8 @@ class ObsfileParams(TaskParams):
                                             "columns to write: B,V.",
                            json_schema_extra={"positional": True})
     imsets: str = Field(..., description="The image sets file: NAME : image image "
-                                         "..., one image per filter (mkimsets).",
+                                         "..., one image per filter (mkimsets); STDIN "
+                                         "asks for them at the terminal.",
                         json_schema_extra={"positional": True})
     observations: Path = Field(..., description="The observations file to write; "
                                                 "its format goes to f<name>.dat.",
@@ -738,6 +787,10 @@ class ObsfileParams(TaskParams):
                                                     "pixels; 0 matches by order.")
     allfilters: bool = Field(True, description="Write only the stars measured in "
                                                "every filter.")
+    verify: bool = Field(False, description="With a table typed at the terminal (STDIN): "
+                                            "ask again for each answer, to change it.")
+    answers: str = Field("", description="With STDIN: the lines typed, in a file, instead "
+                                         "of the keyboard or the window.")
 
 
 WHY.update({
@@ -793,7 +846,8 @@ class Obsfile(Task[ObsfileParams]):
                 obscolumns=params.obscolumns, minmagerr=params.minmagerr,
                 shifts=params.shifts, apercors=params.apercors,
                 normtime=params.normtime, tolerance=params.tolerance,
-                allfilters=params.allfilters)
+                allfilters=params.allfilters, verify=params.verify,
+                terminal=_terminal(params))
         except (OSError, ValueError) as error:
             advice.fail(str(error), "check the file names, and that incolumns "
                                     "has ten columns.")
@@ -817,7 +871,7 @@ class Obsfile(Task[ObsfileParams]):
                           steps=steps, warnings=warnings,
                           data={"sets": [{"label": label, "stars": n}
                                          for label, n in result.written],
-                                "notes": notes})
+                                "notes": notes, "typed": result.typed})
 
 
 class MknobsfileParams(TaskParams):
@@ -853,13 +907,16 @@ class MknobsfileParams(TaskParams):
                                                     "pixels; 0 matches by order.")
     allfilters: bool = Field(False, description="Write only the stars measured in "
                                                 "every filter.")
+    verify: bool = Field(False, description="With a table typed at the terminal (STDIN): "
+                                            "ask again for each answer, to change it.")
+    answers: str = Field("", description="With STDIN: the lines typed, in a file, instead "
+                                         "of the keyboard or the window.")
 
 
 class MkobsfileParams(MknobsfileParams):
-    imsets: str = Field("", description="The image sets file: NAME : image image ..., "
-                                        "one image per filter (mkimsets). IRAF asks "
-                                        "for them at the terminal when left out; here "
-                                        "they have to be written first.")
+    imsets: str = Field("STDIN", description="The image sets file: NAME : image image ..., "
+                                             "one image per filter (mkimsets); STDIN, as "
+                                             "in IRAF, asks for them at the terminal.")
     observations: Path = Field(..., description="The observations file to write; it "
                                                 "must not exist. Its format goes to "
                                                 "f<name>.dat.",
@@ -892,17 +949,15 @@ class _ObservationsFromPhotometry(Task):
     def execute(self, params) -> TaskResult:
         from ..core.photcal import mkobsfile, obsfile
 
-        if not params.imsets:
-            advice.fail("the image sets are needed, and IRAF's questions at the terminal "
-                        "are not ported.",
-                        "write them first with mkimsets, and give the file with --imsets.")
         try:
             result = mkobsfile.mkobsfile(
                 _files(params.photfiles), params.idfilters, params.imsets,
                 str(params.observations), wrap=params.wrap, obsparams=params.obsparams,
                 obscolumns=params.obscolumns, minmagerr=params.minmagerr,
                 shifts=params.shifts, apercors=params.apercors, aperture=params.aperture,
-                tolerance=params.tolerance, allfilters=params.allfilters)
+                tolerance=params.tolerance, allfilters=params.allfilters,
+                verify=params.verify, terminal=_terminal(params),
+                photcors=self.name == "mkobsfile")
         except KeyError as error:
             advice.fail(f"a photometry file has no column {error}.",
                         "the inputs must be phot's output, or use --aperture to name one "
@@ -919,7 +974,8 @@ class _ObservationsFromPhotometry(Task):
         outputs = [params.observations, obsfile.format_path(params.observations)]
         return TaskResult(outputs=outputs, steps=steps, warnings=warnings,
                           data={"sets": [{"name": label, "stars": n}
-                                         for label, n in result.written]})
+                                         for label, n in result.written],
+                                "typed": result.typed})
 
 
 @register
@@ -936,6 +992,77 @@ class Mknobsfile(_ObservationsFromPhotometry):
 
     name = "mknobsfile"
     Params = MknobsfileParams
+
+
+class MkphotcorsParams(TaskParams):
+    imsets: str = Field(..., description="The image sets file: read if it is there, asked "
+                                         "for and written if not; empty, asked for and "
+                                         "not written.",
+                        json_schema_extra={"positional": True})
+    idfilters: str = Field(..., description="The filters of a set, in order: B,V.",
+                           json_schema_extra={"positional": True})
+    obsparams: str = Field("", description="The observing parameters file: read if it is "
+                                           "there, asked for and written if not.",
+                           json_schema_extra={"positional": True})
+    shifts: str = Field("", description="The x and y shifts file, the same way.",
+                        json_schema_extra={"positional": True})
+    apercors: str = Field("", description="The aperture corrections file, the same way.",
+                          json_schema_extra={"positional": True})
+    obscolumns: str = Field("2 3 4 5", description="An obsparams file's columns, as IRAF "
+                                                   "reads them here: the first is the "
+                                                   "image's.")
+    verify: bool = Field(False, description="Ask again for each answer, to change it.")
+    answers: str = Field("", description="The lines typed, in a file, instead of the "
+                                         "keyboard or the window.")
+
+
+WHY.update({
+    "ask": "mkobsfile needs to know which images make a set, and of each image its "
+           "filter, exposure, airmass and time when the photometry has them wrong, the "
+           "shift that lines its stars up with the set's first, and its aperture "
+           "correction. What is not in a file yet is asked for, image by image, and "
+           "written, so the next run reads it.",
+})
+
+
+@register
+class Mkphotcors(Task[MkphotcorsParams]):
+    """IRAF's mkphotcors: the image sets, observing parameters, shifts and aperture
+    corrections, each read from its file or asked for at the terminal and written."""
+
+    name = "mkphotcors"
+    package = "photcal"
+    description = "Ask for the image sets, shifts and corrections mkobsfile needs."
+    Params = MkphotcorsParams
+
+    def plan(self, params: MkphotcorsParams) -> list[Step]:
+        def what(path: str) -> str:
+            if not path:
+                return "none"
+            return f"read {path}" if Path(path).exists() else f"ask, write {path}"
+
+        return [Step("ask", f"sets: {what(params.imsets) if params.imsets else 'ask'}; "
+                            f"obsparams: {what(params.obsparams)}; shifts: "
+                            f"{what(params.shifts)}; apercors: {what(params.apercors)}",
+                     why=WHY["ask"])]
+
+    def execute(self, params: MkphotcorsParams) -> TaskResult:
+        from ..core.photcal import mkphotcors
+
+        asked = [p for p in (params.imsets, params.obsparams, params.shifts,
+                             params.apercors) if p and not Path(p).exists()]
+        table, notes, term = mkphotcors.mkphotcors(
+            params.imsets, params.idfilters, params.obsparams, params.shifts,
+            params.apercors, obscolumns=params.obscolumns, verify=params.verify,
+            terminal=_terminal(params))
+        steps = self.plan(params)
+        steps[0].measured = {"images": len(table.entries),
+                             "sets": len({e.setno for e in table.entries})}
+        warnings = [advice.warn(n.strip(), "check the file against the image sets.")
+                    for n in notes]
+        outputs = [Path(p) for p in asked if Path(p).exists()]
+        return TaskResult(outputs=outputs, steps=steps, warnings=warnings,
+                          data={"typed": term.text, "images": len(table.entries)})
 
 
 class ChkconfigParams(TaskParams):
@@ -1192,6 +1319,38 @@ def _by_the_keys(session, params: MkapfileParams) -> list[str]:
     from ..viewer.cog_panel import run
 
     return run(session)
+
+
+def _terminal(params):
+    """Where a table typed at the terminal (STDIN) comes from: --answers; in the window,
+    a question there; else the keyboard, or what is piped to the standard input."""
+    import sys
+
+    from ..core.photcal import entry
+
+    if getattr(params, "answers", ""):
+        return entry.Terminal(iter(Path(params.answers).read_text(
+            encoding="utf-8").splitlines()))
+    if "harwood.viewer._qt" in sys.modules and sys.modules["harwood.viewer._qt"].window():
+        from ..viewer import ask
+
+        return entry.Terminal(read=ask.line)
+    if sys.stdin is None:
+        return entry.Terminal()
+    if not sys.stdin.isatty():
+        return entry.Terminal(line.rstrip("\n") for line in sys.stdin)
+
+    def keyboard(_: str) -> str | None:
+        try:
+            return input()
+        except EOFError:
+            return None
+
+    def echo(text: str) -> None:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+
+    return entry.Terminal(read=keyboard, echo=echo)
 
 
 def _files(items: list[str]) -> list[str]:

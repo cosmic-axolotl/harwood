@@ -48,5 +48,8 @@ all, corrections, shifts, obsparams, and every kind of bad line in a sets
 file. IRAF's quirks are kept where they decide the result -- the matching
 walks the stars in y order by IRAF's own quicksort, and a set written as
 ` : image image`, without a name, is dropped without a word, as IRAF drops
-it. Typing the sets, shifts or corrections in at the terminal is not
-ported: give them as files.
+it. Any of the sets, the observing parameters, the shifts and the corrections
+can be given as `STDIN` and typed at the terminal instead, image by image, with
+IRAF's prompts -- in the window, each is a question -- and `--verify` asks again
+for each answer; `--answers` reads what would be typed from a file. Those
+sessions, too, say and write what IRAF's do.

@@ -13,4 +13,13 @@ CASES = {
     "F": ("sets2", NOID, dict(tolerance=0.0, allfilters=False)),
     "G": ("sets2", NOID, dict(tolerance=8.0, allfilters=False, wrap=False,
                               apercors="apercors.all")),
+    # Typed at the terminal: S<n>.ans is what was typed, one table each, since
+    # IRAF's standard input ends for good at the end of a file.
+    "S1": ("STDIN", ID, dict(tolerance=8.0, answers="S1.ans")),
+    "S2": ("STDIN", ID, dict(tolerance=8.0, answers="S2.ans", verify=True)),
+    "S3": ("imsets.mkimsets", ID, dict(tolerance=8.0, shifts="STDIN", answers="S3.ans")),
+    "S4": ("imsets.mkimsets", ID, dict(tolerance=8.0, apercors="STDIN", answers="S4.ans",
+                                       verify=True)),
+    "S5": ("imsets.mkimsets", ID, dict(tolerance=8.0, obsparams="STDIN",
+                                       answers="S5.ans", verify=True)),
 }

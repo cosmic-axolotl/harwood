@@ -1,0 +1,3 @@
+Warning: File: obs1.dat image: # is not in the input image list
+Warning: File: obs1.dat image: nosuch.fits is not in the input image list
+    Warning: Setting airmass for image data0097cr.fits to 1.25

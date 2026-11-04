@@ -1,0 +1,5 @@
+# image filter exposure airmass time
+stan0051cr.fits V 2.0 1.05 21.5
+stan0052cr.fits B 3.0 1.10 21.6
+nosuch.fits V 1.0 1.2 22.0
+data0097cr.fits V 1.0 INDEF 22.1

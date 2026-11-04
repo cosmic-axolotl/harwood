@@ -1,0 +1,7 @@
+
+Enter filterid, exposure time and airmass
+    Image data0097cr.fits (f t X T, <CR>=4 X INDEF, <EOF>=quit entry):         Verify (f t X T, <CR>=V 2. 1.05 21:30:00.0):     Image data0098cr.fits (f t X T, <CR>=4 X INDEF, <EOF>=quit entry):     Warning: Setting airmass for image data0098cr.fits to 1.25
+        Verify (f t X T, <CR>=B 3. 1.25 3:29:30.0):     Image stan0051cr.fits (f t X T, <CR>=4 X INDEF, <EOF>=quit entry):     Warning: Setting airmass for image stan0051cr.fits to 1.25
+        Verify (f t X T, <CR>=B 300. 1.25 23:13:04.0): 
+    Image stan0052cr.fits (f t X T, <CR>=4 X INDEF, <EOF>=quit entry): 
+

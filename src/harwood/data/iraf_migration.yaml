@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 81, partial: 7, planned: 267, replaced: 94, wontport: 161
+#   available: 86, partial: 3, planned: 266, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -686,22 +686,23 @@ tasks:
   invertfit: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: invertfit,
     note: "IRAF's inversion and both error methods, ported and checked against IRAF's output to the seventh decimal"}
   istable: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
-  mkapfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkapfile,
-    note: "DAOGROW: the curve-of-growth model, the adopted curves, the corrections, the best magnitudes and the log, byte for byte IRAF's on twelve images alone and together; the interactive graphs and keys in a tab, held to IRAF on 21 cursor files; the obsparams airmass file is not ported"}
+  mkapfile: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mkapfile,
+    note: "DAOGROW: the curve-of-growth model, the adopted curves, the corrections, the best magnitudes and the log, byte for byte IRAF's on twelve images alone and together; the interactive graphs and keys in a tab, held to IRAF on 21 cursor files; obsparams from a file or typed (STDIN), IRAF's but for the time IRAF writes uninitialised where no column gives it"}
   mkcatalog: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkcatalog,
     note: "header, records and format file byte for byte, the columns and records given at once instead of at prompts; the review of old records and the editor are not ported"}
   mkconfig: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkconfig,
     note: "the sections from format files and templates, IRAF's standards directory shipped as photcal$catalogs/, byte for byte, then chkconfig; the prompting for a section with no file and the editor are not ported"}
-  mkimsets: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkimsets,
-    note: "the image list from the photometry or the headers, sorted, grouped (imgroup) and written byte for byte as IRAF does, names from a list or a header keyword; the editor sessions are not ported"}
+  mkimsets: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mkimsets,
+    note: "the image list from the photometry or the headers, sorted, grouped (imgroup) and written byte for byte as IRAF does, names from a list or a header keyword; the editor sessions (edit, review) and the names asked for (rename) as IRAF's, the editor shown the same and the files left the same on 4 sessions"}
   mknobsfile: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mknobsfile,
     note: "one aperture of the photometry through obsfile, byte for byte IRAF's on the twelve Skinakas images"}
-  mkobsfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkobsfile,
-    note: "as mknobsfile, byte for byte IRAF's; the questions at the terminal are not ported, the sets come from a file of mkimsets'"}
-  mkphotcors: {pkg: digiphot.photcal, domain: photometry, status: planned, milestone: later}
+  mkobsfile: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mkobsfile,
+    note: "as mknobsfile, byte for byte IRAF's, after mkphotcors: the sets, obsparams, shifts and corrections from files or asked for (STDIN), IRAF's on 3 sessions, its warning on an obsparams file included"}
+  mkphotcors: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mkphotcors,
+    note: "each of the sets, obsparams, shifts and corrections read from its file or asked for at the terminal and written, IRAF's prompts and files on 2 sessions; its reading of obscolumns without the image's column kept"}
   nstar: {pkg: digiphot.daophot, domain: photometry, status: planned, milestone: later}
-  obsfile: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: obsfile,
-    note: "matching by position or by order, the corrections, shifts and obsparams, byte for byte IRAF's output, format file, messages and warnings; typing the sets, shifts or corrections at the terminal is not ported"}
+  obsfile: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: obsfile,
+    note: "matching by position or by order, the corrections, shifts and obsparams, byte for byte IRAF's output, format file, messages and warnings; the sets, obsparams, shifts or corrections typed at the terminal (STDIN), with verify, IRAF's prompts and results on 5 sessions"}
   pcalc: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   pconcat: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}
   pconvert: {pkg: digiphot.ptools, domain: photometry, status: replaced, note: astropy.table over the ECSV catalogue}

@@ -1,0 +1,15 @@
+
+Image set 1 (LSI61235):  Enter the shift in x and y
+    Image data0097cr.fits (xshift  yshift, <CR>=0.0 0.0, <EOF>=quit entry):     Image data0098cr.fits (xshift  yshift, <CR>=0.0 0.0, <EOF>=quit entry): Image set 2 (PG2331+055):  Enter the shift in x and y
+    Image stan0051cr.fits (xshift  yshift, <CR>=0.0 0.0, <EOF>=quit entry):     Image stan0052cr.fits (xshift  yshift, <CR>=0.0 0.0, <EOF>=quit entry): Image set 3 (PG2331+055):  Enter the shift in x and y
+    Image stan0057cr.fits (xshift  yshift, <CR>=0.0 0.0, <EOF>=quit entry): 
+
+
+Observations file: obsS3
+	Image set: LSI61235  9 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+	Image set: PG2331+055  3 stars written to the observations file
+

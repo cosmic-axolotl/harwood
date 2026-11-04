@@ -1,0 +1,47 @@
+
+ ##############################################################################
+ #                                                                            #
+ #  This file is a temporary file containing the entire list of images from   #
+ #  which  the final  list of image sets wil be  formed.  The image  name     #
+ #  appears in column 1. The image filter id appears in column 2. Additional  #
+ #  fields, if defined, appear in succeeding columns.                         #
+ #                                                                            #
+ #  At the this point the user must edit the temporary image list to 1)       #
+ #  remove unwanted images from the list 2) correct bad filter id values      #
+ #  3) correct other bad field values, for example incorrect airmass or       #
+ #  exposure time values if defined  4) reorder the image names so that the   #
+ #  images in an observation set are adjacent to each other in the temporary  #
+ #  image list 4) enter an image name of "INDEF" and the correct  filter id   #
+ #  for any missing images.                                                   #
+ #                                                                            #
+ #  It is not necessary to remove images which have filter ids which are      #
+ #  not in the filter id set as these will be removed by the grouping         #
+ #  process.                                                                  #
+ #                                                                            #
+ #  Example:                                                                  #
+ #                                                                            #
+ #  Before editing                    After editing                           #
+ #                                                                            #
+ #  image2    B    STD1               image1    U    STD1                     #
+ #  image3    V    STD1               image2    B    STD1                     #
+ #  image5    B    STD2               image3    V    STD1                     #
+ #  image6    V    STD2               INDEF     U    STD2                     #
+ #  image7    V    STD3               image5    B    STD2                     #
+ #  image8    B    STD3               image6    V    STD2                     #
+ #  image9    U    STD3               image7    U    STD3                     #
+ #  image1    U    STD1               image8    B    STD3                     #
+ #                                    image9    V    STD3                     #
+ #                                                                            #
+ ##############################################################################
+data0097cr.fits  B  45.  1.164  03:27:43
+data0098cr.fits  V  20.  1.162  03:29:30
+stan0051cr.fits  B  300.  1.976  23:13:04
+stan0052cr.fits  V  120.  1.904  23:18:06
+stan0057cr.fits  B  300.  1.696  23:42:34
+stan0058cr.fits  V  120.  1.651  23:47:12
+stan0074cr.fits  B  300.  1.228  01:33:00
+stan0075cr.fits  V  120.  1.216  01:37:36
+stan0091cr.fits  B  300.  1.148  03:04:50
+stan0092cr.fits  V  120.  1.149  03:09:24
+stan0134cr.fits  B  300.  1.354  05:12:02
+stan0135cr.fits  V  120.  1.376  05:16:36

@@ -1,0 +1,15 @@
+
+Enter name of image set 1 (name, <EOF>=quit entry):     Enter image name 1 (name, <CR>=INDEF):     Enter image name 2 (name, <CR>=INDEF): Enter name of image set 2 (name, <EOF>=quit entry):     Enter image name 1 (name, <CR>=INDEF):     Enter image name 2 (name, <CR>=INDEF): Enter name of image set 3 (name, <EOF>=quit entry): 
+
+
+Image set 1 (PG1): Enter filter id, exposure time, airmass, observation time
+    Image stan0051cr.fits (f t X T, <CR>=4 X (INDEF), <EOF>=quit entry): 
+
+
+Image set 1 (PG1):  Enter the shift in x and y
+    Image stan0051cr.fits (xshift  yshift, <CR>=0.0 0.0, <EOF>=quit entry): 
+
+
+Image set 1 (PG1):  Enter the aperture correction
+    Image stan0051cr.fits (magnitude, <CR>=0.0, <EOF>=quit entry): 
+

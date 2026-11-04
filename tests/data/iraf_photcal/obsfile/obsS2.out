@@ -1,0 +1,8 @@
+
+Enter name of image set 1 (name, <EOF>=quit entry):     Verify name (name, <CR>=PG1):     Enter image name 1 (name, <CR>=INDEF):         Verify name (name,  <CR>=stan0051cr.fits):     Enter image name 2 (name, <CR>=INDEF):         Verify name (name,  <CR>=stan0052cr.fits): Enter name of image set 2 (name, <EOF>=quit entry):     Verify name (name, <CR>=M2):     Enter image name 1 (name, <CR>=INDEF):         Verify name (name,  <CR>=stan0057cr.fits):     Enter image name 2 (name, <CR>=INDEF):         Verify name (name,  <CR>=INDEF): Enter name of image set 3 (name, <EOF>=quit entry): 
+
+
+Observations file: obsS2
+	Image set: PGX  3 stars written to the observations file
+	Image set: M2  0 stars written to the observations file
+

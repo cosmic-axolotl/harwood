@@ -107,6 +107,15 @@ no star at all has its empty graph's x axis from memory in IRAF; here it is
 just around zero. With
 numba installed (`harwood[fast]`) the fit is compiled: twelve images
 together take a twentieth of a second instead of one to three, to the
-same digits. The
-`obsparams` file (airmasses from a separate table) is not ported; set the
-airmass in the headers with [setairmass](task:setairmass) before phot.
+same digits.
+
+**The observing parameters.** `--obsparams` names a file of image, filter,
+exposure time, airmass and time, a line each, that replaces what the
+photometry says -- `--obscolumns "0 0 2 0"` takes only the airmass, from column
+2 -- and `--obsparams STDIN` asks for them at the terminal, image by image, as
+IRAF does (`--verify` asks again for each, `--answers` reads them from a file).
+Both are IRAF's, what they say included, with one difference: with no column
+for the time, IRAF writes the time it never read -- 0:00:00.0 -- for each image
+in the file, and harwood keeps the photometry's, as IRAF's help says a 0 column
+should. Setting the airmass in the headers with
+[setairmass](task:setairmass) before phot is still the better place.

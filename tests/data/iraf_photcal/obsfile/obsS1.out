@@ -1,0 +1,9 @@
+
+Enter name of image set 1 (name, <EOF>=quit entry):     Enter image name 1 (name, <CR>=INDEF):     Enter image name 2 (name, <CR>=INDEF): Enter name of image set 2 (name, <EOF>=quit entry):     Enter image name 1 (name, <CR>=INDEF):     Enter image name 2 (name, <CR>=INDEF): Enter name of image set 3 (name, <EOF>=quit entry):     Enter image name 1 (name, <CR>=INDEF):     Enter image name 2 (name, <CR>=INDEF): Enter name of image set 4 (name, <EOF>=quit entry): 
+
+
+Observations file: obsS1
+	Image set: PG1  3 stars written to the observations file
+	Image set: M2  0 stars written to the observations file
+	Image set: L  9 stars written to the observations file
+

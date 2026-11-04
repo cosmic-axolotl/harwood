@@ -153,6 +153,44 @@ def read_photfiles(paths: list[str], naperts: int, maglim: float = 0.10,
     return list(images.values())
 
 
+def read_obsparams(images: list[Image], path: str, obscolumns: str = "2 3 4 5",
+                   notes: list[str] | None = None) -> None:
+    """ph_aobsimtable: each image's filter, exposure time, airmass and time from a
+    file of their own, in place of what the photometry says -- a line per image,
+    its name in column 1 and the rest in `obscolumns` (0 for one not given). An
+    airmass it does not give is set to 1.25, as IRAF sets it, and said; so is a
+    name that is not among the images (a comment line's # too, as IRAF reads it)."""
+    from .obsfile import _imdata, _Reader, obs_columns
+
+    notes = notes if notes is not None else []
+    cols = obs_columns(obscolumns)
+    by_name = {image.name: image for image in images}
+    reader = _Reader(path)
+    name = ""
+    while (found := reader.next_image(name, cols[0])) is not None:
+        line, name = found
+        image = by_name.get(name)
+        if image is None:
+            notes.append(f"Warning: File: {path} image: {name} is not in the input "
+                         "image list")
+            continue
+        ifilter, itime, airmass, otime = _imdata(line, cols[1], cols[2], cols[3], cols[4])
+        if ifilter != "INDEF":
+            image.ifilter = ifilter
+        if not np.isnan(itime):
+            image.itime = float(itime)
+        if not np.isnan(airmass):
+            image.xairmass = f32(airmass)
+            image.nxairmass = f32(f32(airmass) - DEF_AIROFFSET)
+        else:
+            image.xairmass = DEF_AIROFFSET
+            image.nxairmass = f32(0.0)
+            notes.append(f"    Warning: Setting airmass for image {name} to "
+                         f"{iraffmt.g(float(DEF_AIROFFSET))}")
+        if not np.isnan(otime):
+            image.otime = f32(otime)
+
+
 # ------------------------------------------------------------------ model
 #
 # The fit is the slow part -- the model is evaluated some thirty thousand
