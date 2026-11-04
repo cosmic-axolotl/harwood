@@ -56,21 +56,20 @@ def _own_interface_preferences(tmp_path_factory, monkeypatch):
     theme._theme = saved
 
 
-#: Every window and panel the tests opened, for as long as the session lasts
-_KEPT: list = []
-
-
 @pytest.fixture(autouse=True)
 def _no_window_is_destroyed_by_chance():
-    """What a test opened is hidden after it, and kept. Let go, a window is destroyed whenever
-    the garbage collector reaches it, from whichever thread it runs on, and Qt crashes taking a
-    pyqtgraph scene down off the window's thread: in a test that had nothing to do with it."""
+    """What a test opened is taken down after it, here, on the window's thread. Let go, a
+    window is destroyed whenever the garbage collector reaches it, from whichever thread it
+    runs on, and Qt crashes taking a pyqtgraph scene down off the window's thread: in a test
+    that had nothing to do with it. Kept instead, every window still alive is restyled each
+    time the text grows or a new window opens, and on Windows the last tests took half an
+    hour each."""
     yield
     import sys
 
     if "PySide6" not in sys.modules:
         return
-    from PySide6 import QtWidgets
+    from PySide6 import QtCore, QtWidgets
 
     if QtWidgets.QApplication.instance() is None:
         return
@@ -80,7 +79,13 @@ def _no_window_is_destroyed_by_chance():
     display.reset()
     _qt.set_window(None)
     for widget in QtWidgets.QApplication.topLevelWidgets():
-        if widget not in _KEPT:
-            _KEPT.append(widget)
         with contextlib.suppress(RuntimeError):    # Qt has already destroyed it
-            widget.hide()
+            # Only windows: a menu or a completer's list is a top-level widget too, but it
+            # belongs to something else -- pyqtgraph's ViewBox keeps its menu -- and taken
+            # down behind its owner's back it brings Qt down when the owner goes
+            if widget.parent() is None and (
+                    isinstance(widget, (QtWidgets.QMainWindow, QtWidgets.QDialog))
+                    or type(widget).__module__.startswith("harwood.")):
+                widget.hide()
+                widget.deleteLater()
+    QtWidgets.QApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
