@@ -1,0 +1,54 @@
+
+ENTER THE STANDARD STAR CATALOG FORMAT DESCRIPTION
+
+Enter column definition (name number, ?=help, <EOF>=quit entry): Enter column definition (name number, ?=help, <EOF>=quit entry): 
+
+ENTER THE OBSERVATIONS FILE FORMAT DESCRIPTION
+
+Enter column definition (name number, ?=help, <EOF>=quit entry): Enter column definition (name number, ?=help, <EOF>=quit entry): 
+
+ENTER THE TRANSFORMATION EQUATIONS
+
+Enter the label and functional form for EQUATION 1
+
+Enter label (e.g. VFIT) (label, ?=help, <EOF>=quit entry): Enter equation (equation, equation\=continue, ?=help, <EOF>=quit entry):
+
+Enter initial values for the parameters to be fit in EQUATION 1
+
+Enter parameter 1 (name value, ?=help, <EOF>=quit entry):Enter parameter 2 (name value, ?=help, <EOF>=quit entry):Enter parameter 3 (name value, ?=help, <EOF>=quit entry):Enter parameter 4 (name value, ?=help, <EOF>=quit entry):Enter parameter 5 (name value, ?=help, <EOF>=quit entry):
+
+Enter initial values for the parameters to be held constant in EQUATION 1
+
+Enter parameter1 and value (name value, ?=help, <EOF>=quit entry):
+
+Enter the label and functional form for EQUATION 2
+
+Enter label (e.g. VFIT) (label, ?=help, <EOF>=quit entry): 
+
+
+
+** Beginning of compilation **
+
+
+
+** Error near line 13: bcdefghij4 = 0.123456
+Cannot continue parsing at 'bcdefghij4'
+
+** End of compilation **
+
+Catalog input variables         = 1
+First catalog column            = INDEF
+Last catalog column             = INDEF
+
+Observational input variables   = 1
+First observational column      = INDEF
+Last observational column       = INDEF
+
+Fitting parameters              = 3
+Constant parameters             = 0
+
+Auxiliary (set) equations       = 0
+Transformation equations        = 0
+
+Warnings                        = 0
+Errors                          = 1

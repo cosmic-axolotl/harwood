@@ -1,0 +1,30 @@
+
+ENTER THE STANDARD STAR CATALOG FORMAT DESCRIPTION
+
+Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (V  2) (name number, <CR>=ok): Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (BV  3) (name number, <CR>=ok): Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (error(V)  4) (name number, <CR>=ok): Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (UB  6) (name number, <CR>=ok): Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (U  7) (name number, <CR>=ok): Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (R  9) (name number, <CR>=ok): 
+Enter column definition (name number, ?=help, <EOF>=quit entry): 
+
+
+** Beginning of compilation **
+
+
+** End of compilation **
+
+Catalog input variables         = 6
+First catalog column            = 2
+Last catalog column             = 9
+
+Observational input variables   = 12
+First observational column      = 3
+Last observational column       = 15
+
+Fitting parameters              = 2
+Constant parameters             = 0
+
+Auxiliary (set) equations       = 0
+Transformation equations        = 1
+
+Warnings                        = 0
+Errors                          = 0
+
+

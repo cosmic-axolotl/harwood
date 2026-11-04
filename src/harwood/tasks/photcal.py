@@ -1121,22 +1121,32 @@ class MkconfigParams(TaskParams):
     catalog: str = Field("", description="The catalog section: a format file "
                                          "f<catalog>.dat here or in catdir -- "
                                          "landolt, nlandolt, elias, ukirt ... -- "
-                                         "or the file itself. Empty for none.",
+                                         "or the file itself; STDIN to type it. "
+                                         "Empty for none.",
                          json_schema_extra={"positional": True})
     observations: str = Field("", description="The observation section: "
                                               "f<observations>.dat as obsfile "
-                                              "writes it, or the file itself.",
+                                              "writes it, or the file itself; "
+                                              "STDIN to type it.",
                               json_schema_extra={"positional": True})
     transform: str = Field("", description="The transformation section: a "
                                            "template t<transform>.dat here or "
-                                           "in catdir, or the file itself.",
+                                           "in catdir, or the file itself; STDIN "
+                                           "to type the equations.",
                            json_schema_extra={"positional": True})
     template: str = Field("", description="Copy this configuration instead.")
     catdir: str = Field("photcal$catalogs/",
                         description="The standards directory; photcal$catalogs/ "
                                     "is the copy of IRAF's that comes with harwood.")
+    verify: bool = Field(False, description="Typed (STDIN): ask again for each entry, "
+                                            "to change it.")
+    edit: bool = Field(False, description="Open the new file in the editor before it "
+                                          "is checked (IRAF's default).")
     check: bool = Field(True, description="Check the new file as chkconfig does.")
     verbose: bool = Field(False, description="With --check, list what it declares.")
+    answers: str = Field("", description="Typed (STDIN): the lines, in a file, instead "
+                                         "of the keyboard or the window; a line <EOF> "
+                                         "is Ctrl-D, which ends a list.")
 
 
 WHY.update({
@@ -1146,14 +1156,16 @@ WHY.update({
                 "observations' format file obsfile wrote, and a template of the "
                 "equations. Edit the result: the template's equations are a "
                 "starting point -- the initial values, which terms to fit -- "
-                "not a calibration.",
+                "not a calibration. A section given as STDIN is typed instead, at "
+                "IRAF's prompts: the columns one by one, or each equation with its "
+                "parameters to fit and those held constant, Ctrl-D ending each list.",
 })
 
 
 @register
 class Mkconfig(Task[MkconfigParams]):
-    """A configuration file from its sections' files, as IRAF's mkconfig
-    makes it without the prompting and the editor."""
+    """A configuration file from its sections' files, or typed at IRAF's prompts
+    (STDIN), as IRAF's mkconfig makes it."""
 
     name = "mkconfig"
     package = "photcal"
@@ -1176,12 +1188,21 @@ class Mkconfig(Task[MkconfigParams]):
         if not params.template and not (params.observations and params.transform):
             advice.fail("no observations or transform given.",
                         "name the observations' format file and a transformation "
-                        "template (landolt, or your own t<name>.dat), or a "
-                        "--template configuration to copy.")
+                        "template (landolt, or your own t<name>.dat), STDIN to "
+                        "type either, or a --template configuration to copy.")
+        typed = not (params.template and Path(params.template).is_file()) and "STDIN" in (
+            params.catalog, params.observations, params.transform)
+        term = None
         try:
-            found = mkconfig.mkconfig(params.config, params.catalog or None,
-                                      params.observations, params.transform,
-                                      params.template, params.catdir)
+            if typed:
+                term = _terminal(params, ends=True)
+                found = mkconfig.typed(params.config, params.catalog or None,
+                                       params.observations, params.transform, term,
+                                       params.verify, params.catdir)
+            else:
+                found = mkconfig.mkconfig(params.config, params.catalog or None,
+                                          params.observations, params.transform,
+                                          params.template, params.catdir)
         except FileExistsError as error:
             advice.fail(str(error), "choose another name, or remove it first.",
                         kind=FileExistsError)
@@ -1196,10 +1217,14 @@ class Mkconfig(Task[MkconfigParams]):
                                                    ("observations", found.observations),
                                                    ("transform", found.transform)) if v}
         warnings, data = [], {}
+        if term is not None:
+            data["typed"] = term.text
+        if params.edit:
+            warnings += _edited(params.config)
         if params.check:
             report = check.check(params.config, params.verbose)
             steps[1].measured = {"errors": report.nerrors, "warnings": report.nwarnings}
-            data = {"errors": report.nerrors, "warnings": report.nwarnings}
+            data.update(errors=report.nerrors, warnings=report.nwarnings)
             if report.nerrors or report.nwarnings:
                 warnings.append(advice.warn(
                     f"{params.config}: {report.nerrors} errors, {report.nwarnings} "
@@ -1367,24 +1392,29 @@ def _edited(path) -> list:
                         "run it in the window or at a terminal, or set EDITOR.")]
 
 
-def _terminal(params):
+def _terminal(params, ends: bool = False):
     """Where a table typed at the terminal (STDIN) comes from: --answers; in the window,
-    a question there; else the keyboard, or what is piped to the standard input."""
+    a question there; else the keyboard, or what is piped to the standard input.
+
+    `ends`: the task ends several lists with an end of the input (mkconfig), so a
+    Ctrl-D at the keyboard or Cancel in the window ends one and the next can still be
+    typed, and in a file of answers or a pipe a line <EOF> stands for it."""
     import sys
 
     from ..core.photcal import entry
 
+    kw = dict(eof="<EOF>") if ends else {}
     if getattr(params, "answers", ""):
         return entry.Terminal(iter(Path(params.answers).read_text(
-            encoding="utf-8").splitlines()))
+            encoding="utf-8").splitlines()), **kw)
     if "harwood.viewer._qt" in sys.modules and sys.modules["harwood.viewer._qt"].window():
         from ..viewer import ask
 
-        return entry.Terminal(read=ask.line)
+        return entry.Terminal(read=ask.line, sticky=not ends)
     if sys.stdin is None:
         return entry.Terminal()
     if not sys.stdin.isatty():
-        return entry.Terminal(line.rstrip("\n") for line in sys.stdin)
+        return entry.Terminal((line.rstrip("\n") for line in sys.stdin), **kw)
 
     def keyboard(_: str) -> str | None:
         try:
@@ -1396,7 +1426,7 @@ def _terminal(params):
         sys.stdout.write(text)
         sys.stdout.flush()
 
-    return entry.Terminal(read=keyboard, echo=echo)
+    return entry.Terminal(read=keyboard, echo=echo, sticky=not ends)
 
 
 def _files(items: list[str]) -> list[str]:

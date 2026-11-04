@@ -36,8 +36,14 @@ class Terminal:
     which stays the end, as a file's does."""
 
     def __init__(self, lines: Iterator[str] | None = None,
-                 read: Callable[[str], str | None] | None = None, echo=None):
+                 read: Callable[[str], str | None] | None = None, echo=None,
+                 eof: str | None = None, sticky: bool = True):
         self.lines, self.read, self.echo = lines, read, echo
+        # A task that ends several lists with an end of the input (mkconfig) is
+        # typed at a terminal, where Ctrl-D ends one and the next can be typed:
+        # `sticky` False lets the input go on after an end, and `eof` is the line
+        # that stands for Ctrl-D in a file of answers.
+        self.eof, self.sticky = eof, sticky
         self.out: list[str] = []
         self.ended = False
         self._prompt = ""
@@ -52,7 +58,7 @@ class Terminal:
 
     def scan(self) -> Scan | None:
         """scan(): the next line, or None at the end of the input."""
-        if self.ended:
+        if self.ended and self.sticky:
             return None
         if self.lines is not None:
             line = next(self.lines, None)
@@ -63,6 +69,8 @@ class Terminal:
         self._prompt = ""
         if line is None:
             self.ended = True
+            return None
+        if self.eof is not None and line == self.eof:
             return None
         return Scan(line)
 

@@ -1,0 +1,19 @@
+VFIT
+V1
+mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV * BV + v7
+
+v2 * XV
+v1 0
+vv 9
+v4 1
+<EOF>
+v5 2
+5x 3
+v6 7 7
+<EOF>
+c1 3
+c2 4
+
+<EOF>
+<EOF>
+<EOF>

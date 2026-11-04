@@ -1,0 +1,76 @@
+
+ENTER THE OBSERVATIONS FILE FORMAT DESCRIPTION
+
+Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (X  3) (name number, <CR>=ok): Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (mV  5) (name number, <CR>=ok): Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (error(mV)  6) (name number, <CR>=ok): Enter column definition (name number, ?=help, <EOF>=quit entry): THE OBSERVATION SECTION
+    
+    The  observation  section  is used to assign names to columns in the
+    observations files, and to optionally, associate error columns  with
+    the named columns.
+
+    The  observations  section  begins  with  the  keyword  [7mobservation[m, 
+    followed by any number of name and error (name) column associations.
+    
+    Syntax
+        observation
+        
+        name number
+        
+        error(name)  number
+    
+    The first declaration creates a name column number association.   It
+    consists  of  a  name  followed by a column number. The name becomes
+    the variable name for that column.
+    
+    The  second  declaration  creates  an  error  (name)  column  number 
+    association.   It  starts with the keyword [7merror[m, followed by a name
+    in brackets, and a column number.  The name must be the name  of  an
+    input  column  previously  declared in the observation section.  The
+    error declarations are optional.
+    
+    The column number must be a decimal integer greater two,  since  the
+    first  column  of  the  observations file is reserved for a matching
+    name.  This name is used to match objects in the  observations  file
+    with objects in the catalog file.
+    
+    Example
+        # Sample observation section for the UBV system.
+        
+        observation
+        
+        u           2
+        error(u)    3
+        b           4
+        error(b)    5
+        v           6
+        error(v)    7
+        x           8
+Enter column definition (name number, ?=help, <EOF>=quit entry): <Error> Cannot decode the column number
+Enter column definition (name number, ?=help, <EOF>=quit entry): 	Verify (mB  7) (name number, <CR>=ok): 
+Enter column definition (name number, ?=help, <EOF>=quit entry): 
+
+
+** Beginning of compilation **
+
+** Error near line 21: VFIT : mV = V + v1 + v2*XV
+Undefined identifier in expression [XV]
+
+** End of compilation **
+
+Catalog input variables         = 5
+First catalog column            = INDEF
+Last catalog column             = INDEF
+
+Observational input variables   = 4
+First observational column      = INDEF
+Last observational column       = INDEF
+
+Fitting parameters              = 2
+Constant parameters             = 0
+
+Auxiliary (set) equations       = 0
+Transformation equations        = 1
+
+Warnings                        = 0
+Errors                          = 1
+
+

@@ -1,0 +1,10 @@
+V 2
+?
+1V 3
+ID 1
+BV x
+BV
+error(V) 3
+
+BV 4
+<EOF>

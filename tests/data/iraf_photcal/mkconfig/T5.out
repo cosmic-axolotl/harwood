@@ -1,0 +1,66 @@
+
+ENTER THE TRANSFORMATION EQUATIONS
+
+Enter the label and functional form for EQUATION 1
+
+Enter label (e.g. VFIT) (label, ?=help, <EOF>=quit entry): 	Verify (VFIT) (label, <CR>=ok): Enter equation (equation, equation\=continue, ?=help, <EOF>=quit entry):
+Verify (equation, <CR>=ok):
+mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV * BV
+ + v7
+
+Enter initial values for the parameters to be fit in EQUATION 1
+
+Enter parameter 1 (name value, ?=help, <EOF>=quit entry):	Verify (v1 0) (name value, <CR>=ok):Enter parameter 2 (name value, ?=help, <EOF>=quit entry):	Verify (v4 1) (name value, <CR>=ok):Enter parameter 3 (name value, ?=help, <EOF>=quit entry):	Verify (v5 2) (name value, <CR>=ok):Enter parameter 4 (name value, ?=help, <EOF>=quit entry):	Verify (v6 7) (name value, <CR>=ok):Enter parameter 5 (name value, ?=help, <EOF>=quit entry):	Verify (c1 3) (name value, <CR>=ok):Enter parameter 6 (name value, ?=help, <EOF>=quit entry):<Error>  is not a legal parameter name
+
+VF : mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV *
+ BVv2 * XV
+
+Enter parameter 6 (name value, ?=help, <EOF>=quit entry):
+
+Enter initial values for the parameters to be held constant in EQUATION 1
+
+Enter parameter1 and value (name value, ?=help, <EOF>=quit entry):
+
+Enter the label and functional form for EQUATION 2
+
+Enter label (e.g. VFIT) (label, ?=help, <EOF>=quit entry): 
+
+
+
+** Beginning of compilation **
+
+** Error near line 35: VF : mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV *
+Undefined identifier in expression [v1]
+** Error near line 35: VF : mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV *
+Undefined identifier in expression [v2]
+** Error near line 35: VF : mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV *
+Undefined identifier in expression [v3]
+** Error near line 35: VF : mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV *
+Undefined identifier in expression [BV]
+** Error near line 35: VF : mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV *
+Undefined identifier in expression [BV]
+** Error near line 35: VF : mV = V + v1 + v2 * XV + v3 * BV + v4 * XV * BV + v5 * XV * XV + v6 * BV *
+Undefined identifier in expression [BV]
+** Error near line 36:  BVv2 * XV
+Undefined identifier in expression [BVv2]
+
+** End of compilation **
+
+Catalog input variables         = 5
+First catalog column            = INDEF
+Last catalog column             = INDEF
+
+Observational input variables   = 12
+First observational column      = INDEF
+Last observational column       = INDEF
+
+Fitting parameters              = 5
+Constant parameters             = 0
+
+Auxiliary (set) equations       = 0
+Transformation equations        = 1
+
+Warnings                        = 0
+Errors                          = 7
+
+

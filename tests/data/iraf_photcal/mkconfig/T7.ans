@@ -1,0 +1,18 @@
+VFIT
+mV = V + abcdefghij1 + abcdefghij2 * XV + abcdefghij3 * BV + abcdefghij4 * XV * BV + abcdefghij5 * XV
+abcdefghij1 0.123456
+abcdefghij2 0.123456
+abcdefghij3 0.123456
+abcdefghij4 0.123456
+abcdefghij5 0.123456
+abcdefghij6 0.123456
+abcdefghij7 0.123456
+abcdefghij8 0.123456
+<EOF>
+<EOF>
+BFIT
+mB = B + b1
+b1 0
+<EOF>
+<EOF>
+<EOF>

@@ -1,0 +1,25 @@
+?
+1bad
+VFIT
+mV = V + v1 + v2 * XV + \
+v3 * BV
+v1 0
+v2 abc
+
+v2 0.1
+?
+x
+<EOF>
+v3 0.15
+<EOF>
+BVFIT
+
+BVFIT
+?
+mB - mV = BV + b1
+b1 0
+<EOF>
+<EOF>
+UB
+<EOF>
+<EOF>

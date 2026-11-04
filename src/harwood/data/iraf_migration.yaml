@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 87, partial: 2, planned: 266, replaced: 94, wontport: 161
+#   available: 88, partial: 1, planned: 266, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -690,8 +690,8 @@ tasks:
     note: "DAOGROW: the curve-of-growth model, the adopted curves, the corrections, the best magnitudes and the log, byte for byte IRAF's on twelve images alone and together; the interactive graphs and keys in a tab, held to IRAF on 21 cursor files; obsparams from a file or typed (STDIN), IRAF's but for the time IRAF writes uninitialised where no column gives it"}
   mkcatalog: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mkcatalog,
     note: "header, records and format file byte for byte, the columns and records given at once or typed at IRAF's prompts, with verify, the review of old records and the editor at the end; IRAF's prompts, messages and files on 8 sessions"}
-  mkconfig: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: mkconfig,
-    note: "the sections from format files and templates, IRAF's standards directory shipped as photcal$catalogs/, byte for byte, then chkconfig; the prompting for a section with no file and the editor are not ported"}
+  mkconfig: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mkconfig,
+    note: "the sections from format files and templates, IRAF's standards directory shipped as photcal$catalogs/, byte for byte, then chkconfig; a section typed at IRAF's prompts (STDIN), with verify and the help, IRAF's prompts and files on 8 sessions; the editor before the check"}
   mkimsets: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mkimsets,
     note: "the image list from the photometry or the headers, sorted, grouped (imgroup) and written byte for byte as IRAF does, names from a list or a header keyword; the editor sessions (edit, review) and the names asked for (rename) as IRAF's, the editor shown the same and the files left the same on 4 sessions"}
   mknobsfile: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: mknobsfile,

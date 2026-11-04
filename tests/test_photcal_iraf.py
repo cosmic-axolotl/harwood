@@ -1414,6 +1414,61 @@ def test_mkconfig_puts_the_sections_together_as_iraf_does(tmp_path, monkeypatch)
         mkconfig.mkconfig("m5", "landolt", "nosuch", "landolt")
 
 
+TYPEDCFG = {"T1": ("STDIN", "obsA", "mine", False), "T2": ("STDIN", "obsA", "mine", True),
+            "T3": ("c1", "STDIN", "mine", True), "T4": ("c1", "obsA", "STDIN", False),
+            "T5": ("c1", "obsA", "STDIN", True), "T6": ("STDIN", "STDIN", "STDIN", False),
+            "T7": ("c1", "obsA", "STDIN", False), "T8": ("c1", "obsA", "STDIN", False)}
+
+
+@pytest.mark.parametrize("case", TYPEDCFG)
+def test_mkconfig_asks_and_writes_what_iraf_does(tmp_path, monkeypatch, case):
+    """mkconfig with sections typed (mkconfig/run_iraf_typed.py, IRAF at a terminal,
+    <EOF> a Ctrl-D): the catalog's columns with and without verify (T1, T2), the
+    observations' with verify (T3), the equations with the help, every error, a
+    continued line and a blank one (T4), with verify -- the label cut, the value
+    kept (T5) --, all three typed with lines broken at 78 (T6), the 160 characters
+    of parameters overflowed (T7), and what is a number (T8). What is asked and said,
+    the help without its standout marks, and the file, are IRAF's; then the check."""
+    from harwood import run
+
+    monkeypatch.chdir(tmp_path)
+    for name in ("fc1.dat", "tmine.dat"):
+        Path(name).write_bytes((MKCONFIG / name).read_bytes())
+    Path("fobsA.dat").write_bytes((OBSFILE / "fobsA.dat").read_bytes())
+    catalog, observations, transform, verify = TYPEDCFG[case]
+    result = run("mkconfig", config=f"{case}.cfg", catalog=catalog,
+                 observations=observations, transform=transform, verify=verify,
+                 answers=str(MKCONFIG / f"{case}.ans"))
+    out = (MKCONFIG / f"{case}.out").read_text(encoding="utf-8")
+    out = out.replace("\x1b[7m", "").replace("\x1b[m", "")
+    cut = out.index("\n\n** Beginning")
+    assert result.data["typed"] == out[:cut]
+    assert Path(f"{case}.cfg").read_text(encoding="utf-8") == (
+        MKCONFIG / f"{case}.cfg").read_text(encoding="utf-8")
+    from harwood.core.photcal import check
+
+    # mkconfig.cl's two print ("") reach PyRAF's Stdout wherever its buffer was
+    # flushed in chkconfig's output: two blank lines more, somewhere in it
+    report = check.check(f"{case}.cfg").text
+    assert [line for line in out[cut:].split("\n") if line] == [
+        line for line in report.split("\n") if line]
+    assert out[cut:].count("\n") == report.count("\n") + 2
+
+
+def test_mkconfig_typed_goes_on_after_an_end_at_the_keyboard():
+    """At a terminal Ctrl-D ends one list and the next is still asked for; from a file
+    the end of the input ends them all, as in IRAF, and <EOF> stands for Ctrl-D."""
+    from harwood.core.photcal import entry, mkconfig
+
+    typed = iter(["V 2", None, "mV 3", None, None])
+    term = entry.Terminal(read=lambda _: next(typed), sticky=False)
+    assert mkconfig.ask_columns(term, "catalog") == "\ncatalog\n\nV  2\n"
+    assert mkconfig.ask_columns(term, "observation") == "\nobservation\n\nmV  3\n"
+    term = entry.Terminal(iter(["V 2"]))
+    mkconfig.ask_columns(term, "catalog")
+    assert mkconfig.ask_columns(term, "observation") == "\nobservation\n\n"
+
+
 def test_mkconfig_as_a_task_checks_what_it_wrote(tmp_path, monkeypatch):
     from harwood import run
 
