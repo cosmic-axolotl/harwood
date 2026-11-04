@@ -60,6 +60,9 @@ No compiler, no system configuration. Extras: `harwood[ccd]`, `harwood[phot]`,
 `harwood[gui]`, `harwood[docs]` (the documentation inside the window),
 `harwood[fast]`.
 
+To work on harwood itself -- on Linux, or on Windows through WSL -- see
+[docs/development.md](docs/development.md).
+
 ## License
 
 BSD 3-Clause, like the rest of the Astropy ecosystem.
