@@ -1621,7 +1621,13 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         meanwhile: drawing, showing what the task prints as it prints it, and
         a clock. The caller still gets the answer only when it is done -- the
         form and a chain of commands wait, exactly as before; the window does
-        not."""
+        not.
+
+        The garbage collector runs on whichever thread happens to allocate when
+        it is due, and what it finds can be a widget that died in a cycle: taken
+        down on the task's thread, Qt crashes. So while the task runs it does not
+        start by itself, and the window's clock runs it here instead."""
+        import gc
         import threading
         import time
 
@@ -1637,11 +1643,14 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         def check() -> None:
             self._flush(stream)
             self._show_clock(arguments, started)
+            _collect_when_due()
             if not thread.is_alive():
                 loop.quit()
 
         tick.timeout.connect(check)
         self._beside_running = True
+        collecting = gc.isenabled()
+        gc.disable()
         thread.start()
         tick.start()
         try:
@@ -1649,6 +1658,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         finally:
             tick.stop()
             thread.join()
+            if collecting:
+                gc.enable()
             self._beside_running = False
             self.clock.hide()
         return outcome.get("ok", False)
@@ -1762,6 +1773,20 @@ class _Stream:
     def everything(self) -> str:
         with self._lock:
             return "".join(self._all)
+
+
+def _collect_when_due() -> None:
+    """What the garbage collector would have done by itself by now, done on this
+    thread: the older young generation whose count is past its threshold. The
+    oldest waits for the task to end, as it mostly would anyway: a full
+    collection on a clock tick would be a pause in the window for nothing."""
+    import gc
+
+    counts, limits = gc.get_count(), gc.get_threshold()
+    for generation in (1, 0):
+        if limits[generation] and counts[generation] > limits[generation]:
+            gc.collect(generation)
+            return
 
 
 def _on_window_thread(arguments: list[str]) -> bool:

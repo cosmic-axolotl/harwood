@@ -175,6 +175,42 @@ def test_a_task_runs_beside_the_window_with_a_clock(window, slow):
     assert not window.clock.isVisible(), "and the clock goes when it is done"
 
 
+def test_the_garbage_is_collected_on_the_windows_thread_while_a_task_runs(
+        window, monkeypatch):
+    """Collected on the task's thread, a widget that died in a cycle is taken
+    down there, and Qt crashes."""
+    import gc
+
+    from harwood.core.registry import get_task
+
+    cls = type(get_task("imstatistics"))
+    original = cls.execute
+
+    def execute(self, params):
+        for _ in range(50_000):       # garbage enough for several collections
+            cycle = []
+            cycle.append(cycle)
+        time.sleep(0.5)               # and the window's clock comes round
+        return original(self, params)
+
+    monkeypatch.setattr(cls, "execute", execute)
+    threads = []
+
+    def where(phase, info):
+        if phase == "start":
+            threads.append(threading.current_thread())
+
+    gc.callbacks.append(where)
+    try:
+        ok, _ = window.run_line("imstatistics a.fits --fields mean")
+    finally:
+        gc.callbacks.remove(where)
+    assert ok
+    assert threads, "it was collected"
+    assert set(threads) == {threading.main_thread()}
+    assert gc.isenabled(), "and it starts by itself again afterwards"
+
+
 def test_the_second_run_has_an_estimate(window, slow):
     window.show()
     window.run_line("imstatistics a.fits --fields mean")
