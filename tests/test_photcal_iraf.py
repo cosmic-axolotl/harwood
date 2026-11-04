@@ -830,6 +830,69 @@ def test_mkapfile_as_a_task(tmp_path, monkeypatch):
         "# The aperture correction from apertures 1 to 11 in magnitudes")
 
 
+# ------------------------------------------------ mkcatalog at the terminal
+
+TYPEDCAT = DATA / "mkcatalog"
+TYPEDCASES = {"C1": {}, "C2": dict(verify=True), "C3": {}, "C4": dict(review=True),
+            "C5": dict(verify=True), "C6": dict(edit=True), "NT": {}, "NM": {}}
+TYPEDBASE = {"C3": "catC1", "C4": "catC3", "C5": "catC1", "C6": "catC1"}
+
+
+@pytest.mark.parametrize("case", TYPEDCASES)
+def test_mkcatalog_asks_and_writes_what_iraf_does(tmp_path, monkeypatch, case):
+    """mkcatalog typed at the terminal (mkcatalog/run_iraf_typed.py): a new catalog's
+    columns, with verify; records added to an old one, with verify, a record cut short
+    by the end of the input not written; the old records reviewed; the catalog edited
+    at the end (the stand-in vi); a title that is not the name, and a file mkcatalog did
+    not make. What is asked and said, and the catalog and its format file, are IRAF's."""
+    import json
+    import subprocess
+    import sys
+
+    from harwood.core import editor
+    from harwood.tasks.photcal import Mkcatalog
+
+    monkeypatch.chdir(tmp_path)
+    name = f"cat{case}"
+    if case in TYPEDBASE:
+        base = TYPEDBASE[case]
+        Path(name).write_text((TYPEDCAT / base).read_text(encoding="utf-8").replace(
+            f"CATALOG: {base}", f"CATALOG: {name}"), encoding="utf-8")
+    if case == "NT":
+        Path(name).write_text((TYPEDCAT / "catC1").read_text(encoding="utf-8").replace(
+            "CATALOG: catC1", "CATALOG: other"), encoding="utf-8")
+    if case == "NM":
+        Path(name).write_text("PG2331 12.5 0.02\n", encoding="utf-8")
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps([[["replace", "S2  ", "S2x "]]]), encoding="utf-8")
+
+    def stand_in(path):
+        subprocess.run([sys.executable, str(MKIMSETS / "bin" / "vi"), str(path)],
+                       env=dict(os.environ, FAKE_EDIT_PLAN=str(plan)), check=True)
+        return True
+
+    monkeypatch.setattr(editor, "edit", stand_in)
+    answers = TYPEDCAT / f"{case}.ans"
+    empty = tmp_path / "empty"
+    empty.write_text("", encoding="utf-8")
+    params = Mkcatalog.Params(catalog=name, answers=str(answers if answers.exists()
+                                                         else empty), **TYPEDCASES[case])
+    if case in ("NT", "NM"):
+        with pytest.raises(ValueError) as caught:
+            Mkcatalog().execute(params)
+        said = " ".join((TYPEDCAT / f"{case}.err").read_text(encoding="utf-8").split())
+        assert str(caught.value).split(" -- ")[0] in said
+        return
+    result = Mkcatalog().execute(params)
+    assert result.data["typed"] == (TYPEDCAT / f"{case}.out").read_text(encoding="utf-8")
+    assert (TYPEDCAT / f"{case}.err").read_text(encoding="utf-8") == ""
+    assert Path(name).read_text(encoding="utf-8") == (TYPEDCAT / name).read_text(
+        encoding="utf-8")
+    if (TYPEDCAT / f"f{name}.dat").exists():
+        assert Path(f"f{name}.dat").read_text(encoding="utf-8") == (
+            TYPEDCAT / f"f{name}.dat").read_text(encoding="utf-8")
+
+
 # ----------------------------------------------------------------- obsfile
 
 OBSFILE = DATA / "obsfile"

@@ -19,6 +19,19 @@ with `#` are skipped and a blank line stays a blank line. The catalog's
 header says what its columns are, so the same command without `--columns`
 adds more stars to it later.
 
+**Typed, as IRAF asks.** With neither `--columns` nor `--records`, mkcatalog
+asks as IRAF's does: for a new catalog the name and width of each column, a
+blank name ending them, then the stars one value at a time, a blank id ending
+them; for an old one only the stars, its columns read from its header.
+`--verify` asks again for each column and value, to change it; `--review`
+shows the old records value by value first, to keep or change; `--edit` opens
+the catalog in the editor at the end -- a dialog in the window, `$EDITOR` at a
+terminal. `--answers` reads the lines from a file instead of the keyboard. A
+record cut short by the end of the input is not written, as in IRAF; a
+catalog whose title is not its name, or a file mkcatalog did not make, is
+refused with IRAF's message. IRAF has the editor on; harwood has it off, so
+that a run can be repeated.
+
 **Files.** `standards` holds the header (title, number of columns, the
 record length, the names and widths) and the records; `fstandards.dat` is
 its catalog section, for `harwood mkconfig cfg standards ...`. A catalog
@@ -26,7 +39,8 @@ does not have to be made this way: [fitparams](task:fitparams) reads any
 text file with the id first and the columns the configuration names.
 
 **Identical to IRAF.** Header, records and format file are IRAF's, byte for
-byte. IRAF types the columns and records at prompts; here they are given
-at once, and the review of old records is not ported -- edit the file. A
-catalog of more than ten columns is where IRAF loses the eleventh column's
-name, through a pointer kept across a reallocation; harwood writes it.
+byte, given at once or typed; typed, what is asked and said is IRAF's too, on
+six sessions (new catalog, verify, records added, review, the editor) and the
+two refusals. A catalog of more than ten columns is where IRAF loses the
+eleventh column's name, through a pointer kept across a reallocation;
+harwood writes it.

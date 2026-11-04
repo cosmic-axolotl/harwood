@@ -1,0 +1,10 @@
+# CATALOG: catC3
+# NCOLS: 6
+# HDRLENGTH: 69
+# 
+# ID               V         error(V)    BV          error(  UB        
+# 15               8         10          10          6       10        
+
+  PG2331           12.5      0.02        0.3         INDEF   -0.1      
+
+  SA98 670         13.1      0.01        INDEF       INDEF   INDEF     

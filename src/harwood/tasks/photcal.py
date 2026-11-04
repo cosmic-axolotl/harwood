@@ -1223,6 +1223,14 @@ class MkcatalogParams(TaskParams):
     records: str = Field("", description="A file of records to add, one star per "
                                          "line, its values separated by blanks; "
                                          "values missing at the end are INDEF.")
+    review: bool = Field(False, description="Typed: show the old records value by value "
+                                            "first, to keep or change.")
+    verify: bool = Field(False, description="Typed: ask again for each column and value, "
+                                            "to change it.")
+    edit: bool = Field(False, description="Open the catalog in the editor at the end "
+                                          "(IRAF's default).")
+    answers: str = Field("", description="Typed: the lines, in a file, instead of the "
+                                         "keyboard or the window.")
 
 
 WHY.update({
@@ -1235,8 +1243,8 @@ WHY.update({
 
 @register
 class Mkcatalog(Task[MkcatalogParams]):
-    """A standard star catalog in IRAF's mkcatalog format, from the columns
-    and records given at once instead of typed at prompts."""
+    """A standard star catalog in IRAF's mkcatalog format: the columns and records
+    typed at IRAF's prompts, or given at once."""
 
     name = "mkcatalog"
     package = "photcal"
@@ -1253,6 +1261,8 @@ class Mkcatalog(Task[MkcatalogParams]):
     def execute(self, params: MkcatalogParams) -> TaskResult:
         from ..core.photcal import catalog as mkcat
 
+        if not params.columns and not params.records:
+            return self._typed(params)
         records = []
         if params.records:
             try:
@@ -1281,10 +1291,34 @@ class Mkcatalog(Task[MkcatalogParams]):
                 f"IRAF cuts them: {', '.join(cat.truncated[:6])}"
                 + (" ..." if len(cat.truncated) > 6 else ""),
                 "make the catalog again with wider --widths."))
+        if params.edit:
+            warnings += _edited(params.catalog)
         outputs = [params.catalog] + ([Path(cat.format_file)] if cat.created else [])
         return TaskResult(outputs=outputs, steps=steps, warnings=warnings,
                           data={"columns": cat.names, "widths": cat.widths,
                                 "created": cat.created, "records": cat.nrecords})
+
+    def _typed(self, params: MkcatalogParams) -> TaskResult:
+        """t_catalog at the terminal, then mkcatalog.cl's editor."""
+        from ..core.photcal import catalog as mkcat
+
+        term = _terminal(params)
+        cat, notes = mkcat.session(str(params.catalog), term, params.review,
+                                   params.verify)
+        term.printf("\n")                       # mkcatalog.cl's print ("")
+        if cat is None:
+            advice.fail(" ".join("".join(notes).split()).removeprefix("<Error> ")
+                        .removeprefix("<Warning> "),
+                        "name the catalog as it was made -- its title is its name -- or "
+                        "give a new name to make one.")
+        warnings = _edited(params.catalog) if params.edit else []
+        steps = self.plan(params)
+        steps[0].measured = {"columns": ", ".join(f"{n} ({w})" for n, w in
+                                                  zip(cat.names, cat.widths, strict=True))}
+        outputs = [params.catalog] + ([Path(cat.format_file)] if cat.created else [])
+        return TaskResult(outputs=outputs, steps=steps, warnings=warnings,
+                          data={"columns": cat.names, "widths": cat.widths,
+                                "created": cat.created, "typed": term.text})
 
 
 def _check_keys(params, task: str = "mkapfile") -> None:
@@ -1319,6 +1353,18 @@ def _by_the_keys(session, params: MkapfileParams) -> list[str]:
     from ..viewer.cog_panel import run
 
     return run(session)
+
+
+def _edited(path) -> list:
+    """IRAF's edit at the end of a photcal script: the file in the editor, or a warning
+    when there is none to open."""
+    from ..core import editor
+
+    if editor.edit(path):
+        return []
+    return [advice.warn("there was no editor to open: no window, no terminal and no "
+                        "$EDITOR, so the file is as harwood wrote it.",
+                        "run it in the window or at a terminal, or set EDITOR.")]
 
 
 def _terminal(params):

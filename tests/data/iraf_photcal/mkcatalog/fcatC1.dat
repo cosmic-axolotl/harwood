@@ -1,0 +1,10 @@
+# Declare the catalog variables
+
+catalog
+
+V                2
+error(V)         3
+BV               4
+error(BV)        5
+UB               6
+

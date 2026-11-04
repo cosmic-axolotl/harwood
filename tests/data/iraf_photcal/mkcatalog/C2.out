@@ -1,0 +1,35 @@
+
+Enter the id column name (name, <CR>=ID, <EOF>=quit entry): 	Enter width of id column (width, <CR>=15): Enter a name for column 2 (name, <CR>=COL2, <EOF>=quit entry): 	Enter width of column 2 (width, <CR>=10): Enter a name for error column 3 (name, <CR>=error(V), <->=skip): 	Enter width of column 3 (width, <CR>=10): Enter a name for column 4 (name, <CR>=COL4, <EOF>=quit entry): Enter a name for column 4 (name, <CR>=COL4, <EOF>=quit entry): 	Enter width of column 4 (width, <CR>=10): Enter a name for error column 5 (name, <CR>=error(BV), <->=skip): 	Enter width of column 5 (width, <CR>=10): Enter a name for column 6 (name, <CR>=COL6, <EOF>=quit entry): bad! is not a legal column name - skipping
+Enter a name for column 6 (name, <CR>=COL6, <EOF>=quit entry): 	Enter width of column 6 (width, <CR>=10): Enter a name for error column 7 (name, <CR>=error(UB), <->=skip): 
+
+Verify name of column 1 (ID) (name, <CR>=ok): 
+	Old name: ID  New name: ID
+Verify the width of column 1 (15) (width, <CR>=ok): 	Old width: 15  New width: 15
+Verify name of column 2 (V) (name, <CR>=ok): 
+	Old name: V  New name: V
+Verify the width of column 2 (8) (width, <CR>=ok): 	Old width: 8  New width: 8
+Verify name of column 3 (error(V)) (name, <CR>=ok): 
+	Old name: error(V)  New name: error(V)
+Verify the width of column 3 (10) (width, <CR>=ok): 	Old width: 10  New width: 10
+Verify name of column 4 (BV) (name, <CR>=ok): 
+	Old name: BV  New name: BV
+Verify the width of column 4 (10) (width, <CR>=ok): 	Old width: 10  New width: 10
+Verify name of column 5 (error(BV)) (name, <CR>=ok): 
+	Old name: error(BV)  New name: error(BV)
+Verify the width of column 5 (6) (width, <CR>=ok): 	Old width: 6  New width: 6
+Verify name of column 6 (UB) (name, <CR>=ok): 
+	Old name: UB  New name: UB
+Verify the width of column 6 (10) (width, <CR>=ok): 	Old width: 10  New width: 10
+
+
+Catalog catC2 in file catC2 has 6 columns
+	Column 1:  ID             
+	Column 2:  V       
+	Column 3:  error(V)  
+	Column 4:  BV        
+	Column 5:  error(
+	Column 6:  UB        
+
+
+Enter ID (value, <CR>=blank line, <EOF>=quit entry): 
+

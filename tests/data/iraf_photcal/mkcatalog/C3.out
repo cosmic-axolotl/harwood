@@ -1,0 +1,15 @@
+
+Catalog catC3 in file catC3 has 6 columns
+	Column 1:  ID
+	Column 2:  V
+	Column 3:  error(V)
+	Column 4:  BV
+	Column 5:  error(
+	Column 6:  UB
+
+
+Enter ID (value, <CR>=blank line, <EOF>=quit entry): 	Enter V (value, <CR>=INDEF): 	Enter error(V) (value, <CR>=INDEF): 	Enter BV (value, <CR>=INDEF): 	Enter error( (value, <CR>=INDEF): 	Enter UB (value, <CR>=INDEF): 
+Enter ID (value, <CR>=blank line, <EOF>=quit entry): 
+Enter ID (value, <CR>=blank line, <EOF>=quit entry): 	Enter V (value, <CR>=INDEF): 	Enter error(V) (value, <CR>=INDEF): 	Enter BV (value, <CR>=INDEF): 	Enter error( (value, <CR>=INDEF): 	Enter UB (value, <CR>=INDEF): 
+Enter ID (value, <CR>=blank line, <EOF>=quit entry): 	Enter V (value, <CR>=INDEF): 	Enter error(V) (value, <CR>=INDEF): 	Enter BV (value, <CR>=INDEF): 	Enter error( (value, <CR>=INDEF): 	Enter UB (value, <CR>=INDEF): 
+

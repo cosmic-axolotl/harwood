@@ -229,3 +229,278 @@ def mkcatalog(path: str | Path, names: list[str] | None = None,
         with path.open("a", encoding="utf-8") as out:
             out.write(text)
     return catalog
+
+
+# ------------------------------------------------- typed at the terminal
+#
+# t_catalog.x as IRAF runs it at the terminal: a new catalog's columns asked for
+# one by one (ph_setcols), the records value by value (ph_rdata), and an old
+# catalog's records reviewed one by one before more are added (ph_review). A
+# Terminal (entry.py) is where the prompts go and the lines come from; gargstr
+# takes a line as it is typed, its leading blanks included.
+
+
+def ask_columns(term, verify: bool = False) -> tuple[list[str], list[int]]:
+    """ph_setcols: the id column, then each data column and its error column, a
+    name and a width each, until the end of the input."""
+    names: list[str] = []
+    widths: list[int] = []
+    errcol = False
+    term.printf("\n")
+    while True:
+        n = len(names)
+        if n == 0:
+            term.printf("Enter the id column name (name, <CR>=ID, <EOF>=quit entry): ")
+        elif not errcol:
+            term.printf(f"Enter a name for column {n + 1} (name, <CR>=COL{n + 1}, "
+                        "<EOF>=quit entry): ")
+        else:
+            term.printf(f"Enter a name for error column {n + 1} (name, "
+                        f"<CR>=error({names[-1]}), <->=skip): ")
+        got = term.scan()
+        if got is None:
+            term.printf("\n")
+            break
+        name = (got.wrd() or "")[:MAXCOLWIDTH + 2]
+        if not name:
+            name = "ID" if n == 0 else (f"COL{n + 1}" if not errcol
+                                        else f"error({names[-1]})")
+        elif not is_ident(name) and "error(" not in name:
+            if name.startswith("-"):
+                errcol = False
+            else:
+                term.printf(f"{name} is not a legal column name - skipping\n")
+            continue
+        if n == 0:
+            term.printf(f"\tEnter width of id column (width, <CR>={IDCOLWIDTH}): ")
+        else:
+            term.printf(f"\tEnter width of column {n + 1} (width, <CR>={COLWIDTH}): ")
+        width = IDCOLWIDTH if n == 0 else COLWIDTH
+        got = term.scan()
+        if got is not None:
+            value = _int(got)
+            if value is not None:
+                width = value
+        names.append(name)
+        widths.append(width)
+        errcol = len(names) > 1 and not errcol
+    term.printf("\n")
+    if not verify or len(names) < 2:
+        return names, widths
+    for i in range(len(names)):
+        term.printf(f"Verify name of column {i + 1} ({names[i]}) (name, <CR>=ok): ")
+        old = names[i]
+        got = term.scan()
+        if got is None:
+            term.printf("\n")
+        else:
+            new = got.wrd()
+            if new and (is_ident(new) or "error(" in new):
+                names[i] = new
+        term.printf(f"\tOld name: {old}  New name: {names[i]}\n")
+        term.printf(f"Verify the width of column {i + 1} ({widths[i]}) (width, <CR>=ok): ")
+        old_width = widths[i]
+        got = term.scan()
+        if got is not None:
+            value = _int(got)
+            if value is not None:
+                widths[i] = value
+        term.printf(f"\tOld width: {old_width}  New width: {widths[i]}\n")
+    term.printf("\n")
+    return names, widths
+
+
+def _int(got) -> int | None:
+    """gargi: an integer, the word it starts."""
+    import re
+
+    word = got.wrd()
+    found = re.match(r"[-+]?\d+", word or "")
+    return int(found.group()) if found else None
+
+
+def _line(got) -> str:
+    """gargstr: the rest of the line, as typed."""
+    return got.line if got is not None else ""
+
+
+def ask_records(term, names: list[str], widths: list[int], verify: bool = False) -> str:
+    """ph_rdata: records typed value by value, a blank id a blank line, the end of the
+    input the end -- a record it cuts short is not written."""
+    tw = _twidths(widths)
+    out: list[str] = []
+    while True:
+        values: list[str] = []
+        ended = False
+        for i, name in enumerate(names):
+            if i == 0:
+                term.printf(f"\nEnter {name} (value, <CR>=blank line, <EOF>=quit entry): ")
+            else:
+                term.printf(f"\tEnter {name} (value, <CR>=INDEF): ")
+            got = term.scan()
+            if got is None:
+                ended = True
+                if i == 0:
+                    break
+                value = ""
+            else:
+                value = _line(got)
+            if not value:
+                if i == 0:
+                    break
+                value = "INDEF"
+            values.append(value)
+        if ended:
+            break
+        if not values:
+            out.append("\n")
+            continue
+        record = "".join(_field(v, w, t) for v, w, t in zip(values, widths, tw, strict=True))
+        if verify:
+            fields = record.split()
+            kept = []
+            for i, name in enumerate(names):
+                if i >= len(fields):
+                    break
+                old = fields[i]
+                lead = "\n" if i == 0 else "\t"
+                term.printf(f"{lead}Verify {name} ({old}) (value, <CR>=ok): ")
+                got = term.scan()
+                if got is None:
+                    term.printf("\n")
+                    new = ""
+                else:
+                    new = _line(got)
+                if not new:
+                    new = old
+                else:
+                    term.printf(f"\t{name} old: {old} new: {new}\n")
+                kept.append(new)
+            record = "".join(_field(v, w, t) for v, w, t in
+                             zip(kept, widths, tw, strict=False))
+        out.append(pdrecord(record, tw, BLANKSTR))
+    term.printf("\n")
+    return "".join(out)
+
+
+def data_lines(path: str | Path) -> list[str]:
+    """The lines after the header: what ph_rhdr leaves for ph_gdrecord."""
+    lines = Path(path).read_text(errors="replace", encoding="utf-8").split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    k = 0
+    while k < len(lines) and lines[k].split()[:1] == ["#"]:
+        k += 1
+    return lines[k + 1:]
+
+
+def records(lines: list[str]) -> list[str]:
+    """ph_gdrecord: the records, a line and the continuation lines (* ) after it."""
+    out: list[str] = []
+    for line in lines:
+        if line.startswith(CONTSTR) and out:
+            out[-1] += line[2:]
+        else:
+            out.append(line)
+    return out
+
+
+def review(term, lines: list[str], names: list[str], widths: list[int]) -> str:
+    """ph_review: each record shown value by value, to be kept or changed; the end of
+    the input keeps the rest as they were."""
+    tw = _twidths(widths)
+    out: list[str] = []
+    pending = records(lines)
+    while pending:
+        record = pending.pop(0)
+        if not record:
+            out.append("\n")
+            continue
+        if record.startswith(COMMENTSTR):
+            out.append(record + "\n")
+            continue
+        fields = record.split()
+        kept: list[str] = []
+        ended = False
+        for i, name in enumerate(names):
+            if i >= len(fields):
+                break
+            old = fields[i]
+            if i == 0:
+                term.printf(f"\nReview OBJECT {name} ({old}) (value, <CR>=ok, "
+                            "<EOF>=quit review): ")
+            else:
+                term.printf(f"\tReview {name} ({old}) (value, <CR>=ok): ")
+            got = term.scan()
+            if got is None:
+                ended = True
+                if i == 0:
+                    break
+                new = ""
+            else:
+                new = _line(got)
+            if not new:
+                new = old
+            else:
+                term.printf(f"\t{name} old: {old} new: {new}\n")
+            kept.append(new)
+        if ended:
+            out.append(pdrecord(record[len(COMMENTSTR):], tw, BLANKSTR))
+            break
+        if not kept:
+            out.append("\n")
+        else:
+            out.append(pdrecord("".join(_field(v, w, t) for v, w, t in
+                                        zip(kept, widths, tw, strict=False)), tw, BLANKSTR))
+    for record in pending:
+        out.append("\n" if not record else pdrecord(record[len(COMMENTSTR):], tw, BLANKSTR))
+    term.printf("\n")
+    return "".join(out)
+
+
+def session(path: str | Path, term, review_records: bool = False,
+            verify: bool = False) -> tuple[Catalog | None, list[str]]:
+    """t_catalog at the terminal: what it says on the standard error comes back, as
+    written there; the catalog is None when there is none to add to."""
+    notes: list[str] = []
+    title = str(path)
+    path = Path(path)
+    if not path.exists():
+        fmt = path.with_name(f"f{path.name}.dat")
+        names, widths = ask_columns(term, verify)
+        if len(names) <= 1:
+            missing = "no id column" if not names else "no data columns"
+            notes.append(f"\n<Error> Catalog {title} in file {path} has {missing}\n\n")
+            path.write_text("", encoding="utf-8")
+            fmt.write_text("", encoding="utf-8")
+            return None, notes
+        term.printf(f"\nCatalog {title} in file {path} has {len(names)} columns\n")
+        for i, (name, width) in enumerate(zip(names, widths, strict=True), start=1):
+            term.printf(f"\tColumn {i}:  {_field(name, width, width)}\n")
+        term.printf("\n")
+        text = header(title, names, widths) + ask_records(term, names, widths, verify)
+        path.write_text(text, encoding="utf-8")
+        fmt.write_text(format_file(names, widths), encoding="utf-8")
+        return Catalog(str(path), title, names, widths, created=True,
+                       format_file=str(fmt)), notes
+    found = read_header(path)
+    if found is None:
+        notes.append(f"\n<Warning> File {path} was not created with MKCATALOG\n")
+        return None, notes
+    otitle, names, widths = found
+    if title not in otitle:
+        notes.append(f"\n<Error> The input title {title} does not match the catalog "
+                     f"title  {otitle}.\n")
+        return None, notes
+    term.printf(f"\nCatalog {title} in file {path} has {len(names)} columns\n")
+    for i, name in enumerate(names, start=1):
+        term.printf(f"\tColumn {i}:  {name}\n")
+    term.printf("\n")
+    if review_records:
+        text = (header(title, names, widths) + review(term, data_lines(path), names, widths)
+                + ask_records(term, names, widths, verify))
+        path.write_text(text, encoding="utf-8")
+    else:
+        with path.open("a", encoding="utf-8") as out:
+            out.write(ask_records(term, names, widths, verify))
+    return Catalog(str(path), otitle, names, widths), notes
