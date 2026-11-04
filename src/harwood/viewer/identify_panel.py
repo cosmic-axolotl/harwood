@@ -192,3 +192,26 @@ def run(session: identifysession.IdentifySession, title: str = "identify") -> st
 
     panel = show(IdentifyPanel(session), title, size=(1150, 780))
     return panel.said
+
+
+@on_main
+def ask_answer(current: str) -> str:
+    """reidentify's 'Fit dispersion function interactively?', with IRAF's four answers
+    as buttons: no, yes, NO (and stop asking), YES (and stop asking)."""
+    box = QtWidgets.QMessageBox()
+    box.setWindowTitle("reidentify")
+    box.setText("Fit dispersion function interactively?")
+    box.setInformativeText("No to all and Yes to all stop asking, as IRAF's NO and YES do.")
+    buttons = {}
+    for word, label, role in (("yes", "Yes", QtWidgets.QMessageBox.ButtonRole.YesRole),
+                              ("no", "No", QtWidgets.QMessageBox.ButtonRole.NoRole),
+                              ("YES", "Yes to all", QtWidgets.QMessageBox.ButtonRole.YesRole),
+                              ("NO", "No to all", QtWidgets.QMessageBox.ButtonRole.NoRole)):
+        buttons[box.addButton(label, role)] = word
+    default = next(b for b, w in buttons.items() if w == current) if current in \
+        buttons.values() else next(iter(buttons))
+    box.setDefaultButton(default)
+    box.exec()
+    answer = buttons.get(box.clickedButton(), current)
+    box.deleteLater()
+    return answer

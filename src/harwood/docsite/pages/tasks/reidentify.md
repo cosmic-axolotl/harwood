@@ -53,11 +53,27 @@ same dispersion -- for an arc that has moved by more than its peaks can say.
 `--addfeatures` adds the lines of `--coordlist` the solution finds on each
 spectrum, and refits.
 
-## Not yet
+## Looking at each fit
 
-IRAF's interactive mode, which stops at each fit, is not ported: only
-`--interactive no` runs. Everything else is IRAF's t_reidentify.x, and checked
-against IRAF's own output on nine sets of parameters, where the log comes out
-the same character for character, and three with a search radius, where the
-same lines are found and rejected and the log agrees to within one in its
-last figure.
+`--interactive yes` stops at every spectrum before its line goes to the log:
+the line is said, and the window asks *Fit dispersion function
+interactively?* -- Yes opens the spectrum in the identify panel with the
+solution reidentify found, to delete a line that went to the wrong peak or
+refit (`d`, `f`, and the rest of identify's keys, but not `j`, `k`, `o` or
+`:image`, which reidentify refuses as IRAF's does), and its `q` goes on; No goes
+on without looking; *Yes to all* and *No to all* stop asking, as IRAF's YES and
+NO do. `--interactive YES` looks at every one without asking. What the look
+leaves is what is logged and written.
+
+```console
+$ harwood reidentify arc3 arc3,arc3b --interactive yes
+```
+
+`--gcommands` and `--answers` give the keys and the answers from files instead,
+as for identify.
+
+Everything is IRAF's t_reidentify.x, and checked against IRAF's own output on
+nine sets of parameters, where the log comes out the same character for
+character; three with a search radius, where the same lines are found and
+rejected and the log agrees to within one in its last figure; and two looked
+at interactively, where what is printed, the log and every record are IRAF's.

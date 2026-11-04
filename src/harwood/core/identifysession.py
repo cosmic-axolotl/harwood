@@ -167,7 +167,7 @@ class IdentifySession:
     def __init__(self, ident: Identify, image: str, title: str = "", coordlist: str = "",
                  database: str = "", units: str = "angstroms", zwidth: float = 100.0,
                  autowrite: bool = False, crval=None, cdelt=None, section: str = "",
-                 lines: Lines | None = None) -> None:
+                 lines: Lines | None = None, reidentify: bool = False) -> None:
         self.ident = ident
         self.image, self.coordlist, self.database = image, coordlist, database
         self.section = section
@@ -179,6 +179,8 @@ class IdentifySession:
         self.labels = "none"
         self.gtype = PAN
         self.current = 1 if ident.features else 0
+        if reidentify and 1 <= ident.current <= len(ident.features):
+            self.current = ident.current      # ID_CURRENT, as the last spectrum left it
         self.last = self.current
         self.all = 0
         self.newgraph = True
@@ -200,7 +202,11 @@ class IdentifySession:
         self._newline = self.line
         self.saved: dict[tuple[int, int], Saved] = {}
         self.written: list[Saved] = []          # what :write wrote, in order
-        ident.newfeatures = False
+        #: reidentify.x's loop: the spectrum reidentify has in hand, which it writes
+        #: itself; no other line, no other image, and q asks nothing.
+        self.reidentify = reidentify
+        if not reidentify:
+            ident.newfeatures = False
         if lines is not None:
             self._read_record(verbose=True)
 
@@ -311,6 +317,9 @@ class IdentifySession:
         elif key == "m":
             self._mark(x)
             return
+        elif key in "jko" and self.reidentify:
+            self._print("Command not available in REIDENTIFY")
+            print_it = False
         elif key == "j":
             self._newline = self._stepped(-1)
         elif key == "k":
@@ -869,6 +878,9 @@ class IdentifySession:
     _error = ""
 
     def _finish(self) -> None:
+        if self.reidentify:
+            self.done = True
+            return
         if not self.newdb and not any(kept.newdb for kept in self.saved.values()):
             self.done = True
             return
@@ -897,6 +909,9 @@ class IdentifySession:
         elif command == "image":
             if value is None:
                 self._print(f"image {self.image}\n")
+                return False
+            if self.reidentify:
+                self._print("Can't change image in REIDENTIFY")
                 return False
             self._print(":image is not ported: run identify on the other image\n")
             return False
@@ -1084,9 +1099,11 @@ class IdentifySession:
 
     def run_commands(self, cursor: str, answers: str = "") -> None:
         """A cursor file, `x y wcs key [command]` a line, and the lines the prompts
-        read, as IRAF takes them from the terminal. Both go to icfit while it is on."""
-        lines = iter(cursor.splitlines())
-        replies = iter(answers.splitlines())
+        read, as IRAF takes them from the terminal. Both go to icfit while it is on. Either
+        may be an iterator of lines that sessions one after another share, as reidentify's
+        do the cursor file."""
+        lines = iter(cursor.splitlines()) if isinstance(cursor, str) else cursor
+        replies = iter(answers.splitlines()) if isinstance(answers, str) else answers
 
         def next_cursor():
             for line in lines:

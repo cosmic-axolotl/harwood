@@ -61,6 +61,7 @@ class Reference:
     fwidth: float = 4.0
     source: object = None                   # the database record
     newfeatures: bool = True                # ID_NEWFEATURES: read, not yet written
+    current: int = 1                        # ID_CURRENT, kept with the rest by id_sid
 
 
 def reference_from(record, key, fwidth: float = 4.0) -> Reference:
@@ -296,6 +297,7 @@ def start(ref: Reference, data, linelist, params, restored: bool = False) -> Ide
     ident.fit = ref.fit
     ident.shift = ref.shift
     ident.newfeatures = ref.newfeatures
+    ident.current = ref.current
     if restored and ident.fit is not None:
         ident.fit_features()
     with contextlib.suppress(ValueError):

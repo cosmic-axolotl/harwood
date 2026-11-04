@@ -1577,8 +1577,15 @@ class ReidentifyParams(TaskParams):
                                          "for its other apertures or lines, and the "
                                          "night's other arcs. Commas, globs, @lists.")
     interactive: Literal["no", "yes", "NO", "YES"] = Field(
-        "no", description="IRAF's stop at each fit; not ported yet, so only no "
-                          "runs.")
+        "no", description="Stop at each fit to look at it with identify's keys: yes asks "
+                          "each time (no, yes, NO to stop asking, YES to stop asking and "
+                          "look at every one); YES looks at every one; no and NO never.")
+    gcommands: str = Field("", description="With interactive: identify's keys for every "
+                                           "spectrum looked at, 'x y wcs key' per line, "
+                                           "each run up to q, instead of the window.")
+    answers: str = Field("", description="With gcommands: the answers to 'Fit dispersion "
+                                         "function interactively?' and to identify's "
+                                         "prompts, a line each, in a file.")
     section: str = Field("middle line", description="The reference's line, column or "
                                                     "aperture to start from.")
     newaps: bool = Field(True, description="Reidentify an aperture the reference has "
@@ -1651,21 +1658,13 @@ class Reidentify(Task[ReidentifyParams]):
         from ..core import identify as idn
         from ..core.iraffmt import INDEF, ctod
 
-        if params.interactive.lower() == "yes":
-            advice.fail("reidentify cannot stop at each fit yet: the identify panel "
-                        "is not wired to it.",
-                        "run it with --interactive no and read its log: a spectrum "
-                        "whose RMS stands out or that lost features can be "
-                        "identified again by hand with 'harwood identify "
-                        "--interactive' (which starts from the lines, not from "
-                        "reidentify's solution).",
-                        NotImplementedError)
         value = ctod(params.shift)
         shift = None if value is None or abs(value) >= INDEF else float(value)
         value = ctod(params.search)
         search = None if value is None or abs(value) >= INDEF else float(value)
         linelist = None
-        if params.addfeatures or (search is not None and search != 0):
+        if params.addfeatures or (search is not None and search != 0) or \
+                params.interactive.lower() == "yes":
             linelist = idn.read_linelist(arc.resolve_linelist(params.coordlist))
         log: list[str] = []
         said: list[str] = []
@@ -1690,7 +1689,8 @@ class Reidentify(Task[ReidentifyParams]):
                 "raise --nlost, or check the shift: features that cannot be "
                 "centred are usually ones the shift put more than cradius away."))
         return TaskResult(outputs=state.written, steps=steps, warnings=warnings,
-                          data={"text": said + log, "spectra": state.done},
+                          data={"text": said + log, "spectra": state.done,
+                                "stdout": "".join(state.stdout)},
                           history=[f"reidentify: {state.done} spectra from "
                                    f"{params.reference}"])
 
@@ -1712,6 +1712,54 @@ class _ReidState:
         self.restored = False
         self.written: list[Path] = []
         self.done = self.lost = 0
+        # ri_reidentify's ans: NO never asks, YES never asks and looks at every one.
+        self.ans = "NO" if params.interactive in ("no", "NO") else params.interactive
+        self.stdout: list[str] = []
+        self.cursor = self.replies = None
+        if params.gcommands:
+            self.cursor = iter(Path(params.gcommands).read_text(encoding="utf-8").splitlines())
+            self.replies = iter(Path(params.answers).read_text(encoding="utf-8").splitlines()
+                                if params.answers else [])
+
+    def interact(self, name: str, ident, result) -> None:
+        """ri_reidentify's interactive part: the spectrum shown with identify's keys
+        before its line goes to the log, and the line said again after."""
+        from ..core import identifysession
+        from ..core import reidentify as ri
+
+        if self.ans[0] == "N" or len(ident.features) < 2 or ident.fit is None:
+            return
+        if self.ans[0] != "Y":
+            self.stdout.append(ri.log_line(name, result) + "\n")
+            self.ans = self._answer()
+        if self.ans[0] not in "yY":
+            return
+        session = identifysession.IdentifySession(
+            ident, name.split(" ")[0].split("[")[0], f"identify {name}", self.p.coordlist,
+            str(self.p.database), reidentify=True)
+        if self.cursor is not None:
+            session.run_commands(self.cursor, self.replies)
+        else:
+            from ..viewer.identify_panel import run as run_identify
+
+            run_identify(session, title=f"reidentify · {name}")
+        self.stdout.append(session.stdout)
+        ident.current = session.current
+        with contextlib.suppress(ValueError):
+            ident.update_fitdata()
+        result.features, result.rms, result.monotonic = ident.features, ident.rms(), True
+        self.stdout.append(ri.log_line(name, result) + "\n")
+
+    def _answer(self) -> str:
+        """'Fit dispersion function interactively?': no, yes, NO or YES; the last
+        answer again when nothing is said."""
+        if self.replies is not None:
+            word = next(self.replies, "").strip()
+        else:
+            from ..viewer.identify_panel import ask_answer
+
+            word = ask_answer(self.ans)
+        return word if word in ("no", "yes", "NO", "YES") else self.ans
 
     # -- the spectra of a file, IRAF's lines
     def lines(self, name: str):
@@ -1762,7 +1810,8 @@ class _ReidState:
         from ..core import reidentify as ri
 
         return ri.Reference(key, copy.deepcopy(ident.features), ident.fit, ident.shift,
-                            ident.spec, ident.fwidth, record, ident.newfeatures)
+                            ident.spec, ident.fwidth, record, ident.newfeatures,
+                            ident.current if ident.current > 0 else 1)
 
     def reference(self, given: str, bare: str, shift) -> None:
         """ri_reference."""
@@ -1828,6 +1877,7 @@ class _ReidState:
                 result = ri.reidentify(ident, fit_shift, self.search, self.p.refit,
                                        self.p.addfeatures, self.p.maxfeatures)
                 fit_shift = result.fit_shift
+                self.interact(bare + section, ident, result)
                 self.log.append(ri.log_line(bare + section, result))
                 if not result.monotonic:
                     self.log.append("Non-monotonic dispersion function")
@@ -1890,6 +1940,7 @@ class _ReidState:
                     loghdr = False
                 result = ri.reidentify(ident, shift, self.search, self.p.refit,
                                        self.p.addfeatures, self.p.maxfeatures)
+                self.interact(bare + section, ident, result)
                 self.log.append(ri.log_line(bare + section, result))
                 if not result.monotonic:
                     self.log.append("Non-monotonic dispersion function")
@@ -1916,6 +1967,7 @@ class _ReidState:
                 loghdr = False
             result = ri.reidentify(ident, shift, self.search, self.p.refit,
                                    self.p.addfeatures, self.p.maxfeatures)
+            self.interact(bare + section, ident, result)
             self.log.append(ri.log_line(bare + section, result))
             if result.features:
                 self._write(bare, section, aperture, ident, len(vector))

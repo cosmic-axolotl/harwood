@@ -1,0 +1,9 @@
+  Reference image = arc3, New image = arc3, Refit = yes
+          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS
+arc3 - Ap 1           103/109  61/102      1.55       0.446  1.07E-4    0.036
+arc3 - Ap 3            85/109  39/85        1.5       0.426  1.04E-4   0.0285
+  Reference image = arc3, New image = arc3b, Refit = yes
+          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS
+arc3b - Ap 1          102/102  64/101      0.62       0.178  4.28E-5   0.0416
+arc3b - Ap 2          107/109  65/107     0.615       0.177  4.25E-5   0.0373
+arc3b - Ap 3           85/85   40/85      0.622       0.179  4.33E-5   0.0294
