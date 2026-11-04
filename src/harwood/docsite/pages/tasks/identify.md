@@ -27,10 +27,20 @@ automatically, `i` starts again, `z` and `p` zoom and pan. So are the colon comm
 for `match`, `minsep`, `fwidth` and the like, and `:features` and `:show`. Marking a line
 within `minsep` of a feature takes its coordinate from it: type it again. Thirteen
 sessions IRAF ran say and write the same and draw the same, from its graphics metacode.
-Not ported: `w` and the `/` commands (the mouse zooms); `:image`, `:nsum`, `:database`,
-`:read`, `:write` and `:add`, and moving to another line with `j`, `k` and `o`, there
-being one spectrum to a run; `x` with over ten features starts from the list, where
-IRAF tries the features first.
+
+On a two-dimensional arc or an extracted spectrum of several apertures, `j` and `k`
+go to the previous and next line -- `nsum` lines on, round the end of the frame --
+or aperture, and `o` to the one you type. Each line left is kept and comes back as
+it was; a line with a record in the database starts from it, one without from the
+features in hand, which the solution of a neighbour usually needs only `a c` and
+`f` to fit; `q` writes every line changed. `:read` and `:add` take the features of
+another line's record (`:read arc 3`) or another image's, in place of these or among
+them, `:write` writes this one at once, and `:nsum` sets how many lines are summed.
+A session starts from the record the line already has, as IRAF's does. Five more
+sessions IRAF ran say and write the same. Not ported: `w` and the `/` commands (the
+mouse zooms), and `:image`, which goes on to another image: run identify on it.
+harwood does not write `REFSPEC1` into the arc's header, as IRAF does with every
+record: [refspectra](task:refspectra) says which arc a spectrum takes.
 
 ```console
 $ harwood identify p/sp0018.fits --coordlist 'linelists$thar.dat' --section 'middle column' --interactive

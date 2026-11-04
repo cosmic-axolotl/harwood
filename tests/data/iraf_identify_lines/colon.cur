@@ -1,0 +1,10 @@
+0 0 1 :nsum
+0 0 1 :read arc3 1
+0 0 1 :read arc3 7
+0 0 1 :add arc3 3
+0 0 1 :write
+0 0 1 k
+0 0 1 :nsum 2
+0 0 1 k
+0 0 1 :nsum
+0 0 1 q

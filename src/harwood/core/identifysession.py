@@ -22,8 +22,11 @@ Astronomy Inc.; the notice it is distributed under is in LICENSES/IRAF-COPYRIGHT
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -61,9 +64,13 @@ HELP = [
     ("i", "start again: no features, no fit"),
     ("z", "zoom on this feature"),
     ("p", "pan: the whole spectrum"),
+    ("j", "the previous line or aperture of the image"),
+    ("k", "the next line or aperture of the image"),
+    ("o", "the line or aperture typed"),
     ("r", "redraw"),
     ("?", "these keys"),
-    (":", "show, features, match, minsep, zwidth, labels, fwidth, ftype, threshold"),
+    (":", "show, features, read, add, write, nsum, match, minsep, zwidth, labels, fwidth, "
+          "ftype, threshold"),
     ("q", "finish"),
 ]
 
@@ -119,12 +126,48 @@ class Graph:
     ticks: list[Tick] = field(default_factory=list)
 
 
+@dataclass
+class Lines:
+    """The lines of the image a session moves among with j, k and o: an image's
+    lines or columns (`kind` "line" or "column"), nsum at a time, or a multispec
+    image's apertures ("ms", their numbers in `numbers`), one at a time.
+    `load(line, nsum)` gives a line's spectrum and section (" - Ap 2", "[*,61]");
+    `read(image, section, database)` a database record, a Reference, or None;
+    `write(image, section, saved, database)` writes one."""
+
+    maxline: tuple[int, int]
+    nsum: tuple[int, int]
+    line: tuple[int, int]
+    load: Callable
+    read: Callable
+    kind: str = "line"
+    numbers: list[int] | None = None
+    write: Callable | None = None
+
+
+@dataclass
+class Saved:
+    """id_sid: what identify keeps of a line it has left."""
+
+    line: tuple[int, int]
+    section: str
+    data: np.ndarray
+    features: list
+    fit: object
+    shift: float
+    spec: object
+    current: int
+    newfeatures: bool
+    newdb: bool
+
+
 class IdentifySession:
-    """id_identify on one spectrum."""
+    """id_identify on a spectrum, and on the other lines of its image."""
 
     def __init__(self, ident: Identify, image: str, title: str = "", coordlist: str = "",
                  database: str = "", units: str = "angstroms", zwidth: float = 100.0,
-                 autowrite: bool = False, crval=None, cdelt=None, section: str = "") -> None:
+                 autowrite: bool = False, crval=None, cdelt=None, section: str = "",
+                 lines: Lines | None = None) -> None:
         self.ident = ident
         self.image, self.coordlist, self.database = image, coordlist, database
         self.section = section
@@ -151,7 +194,15 @@ class IdentifySession:
         self.write = False
         self.sub: icfitsession.IcfitSession | None = None
         self._cursor = (0.0, 0.0)
+        self.lines = lines
+        self.line = lines.line if lines is not None else (1, 1)
+        self.nsum = lines.nsum if lines is not None else (1, 1)
+        self._newline = self.line
+        self.saved: dict[tuple[int, int], Saved] = {}
+        self.written: list[Saved] = []          # what :write wrote, in order
         ident.newfeatures = False
+        if lines is not None:
+            self._read_record(verbose=True)
 
     @property
     def features(self) -> list[Feature]:
@@ -260,8 +311,12 @@ class IdentifySession:
         elif key == "m":
             self._mark(x)
             return
+        elif key == "j":
+            self._newline = self._stepped(-1)
+        elif key == "k":
+            self._newline = self._stepped(1)
         elif key == "o":
-            self._ask("line", "Line/Column/Band (1 1): ")
+            self._ask("line", f"Line/Column/Band ({self.line[0]} {self.line[1]}): ")
             return
         elif key == "p":
             if self.gtype != PAN:
@@ -342,9 +397,26 @@ class IdentifySession:
                     self.features[self.current - 1].wts = float(int(_number(words[0])))
                 self.ident.newfeatures = True
         elif state == "line":
-            value = _number(words[0]) if words else None
-            if value is not None and not 1 <= value <= 1:
-                self._beep()
+            # gargi: a word that is not a number ends the scan there
+            maxline = self.lines.maxline if self.lines is not None else (1, 1)
+            values = []
+            for word in words[:2]:
+                value = _number(word)
+                if value is None:
+                    break
+                values.append(int(value))
+            first = list(self._newline)
+            if values:
+                if not 1 <= values[0] <= maxline[0]:
+                    self._beep()
+                else:
+                    first[0] = values[0]
+                    if len(values) == 2:
+                        if not 1 <= values[1] <= maxline[1]:
+                            self._beep()
+                        else:
+                            first[1] = values[1]
+            self._newline = (first[0], first[1])
         elif state == "shift":
             if text is None:
                 self.shift = 0.0
@@ -604,6 +676,146 @@ class IdentifySession:
                     f"user shift={_five(held - ident.shift)}, "
                     f"z={_seven3(z_shift / n)}, rms={_five(ident.rms())}\n")
 
+    # ------------------------------------------------------------ other lines
+
+    def _stepped(self, sign: int) -> tuple[int, int]:
+        """j and k: nsum lines back or on, round to the other end and to the next
+        band, as ididentify.x wraps them."""
+        maxline = self.lines.maxline if self.lines is not None else (1, 1)
+        nsum = self.nsum
+        first, second = self.line[0] + sign * nsum[0], self.line[1]
+        if not 1 <= first <= maxline[0]:
+            first -= sign * maxline[0]
+            second = self.line[1] + sign * nsum[1]
+            if not 1 <= second <= maxline[1]:
+                second -= sign * maxline[1]
+        return first, second
+
+    def _save(self) -> None:
+        """id_saveap: this line kept, in its place if it was kept before."""
+        ident = self.ident
+        self.saved[self.line] = Saved(
+            self.line, self.section, ident.data.copy(), copy.deepcopy(ident.features),
+            ident.fit, ident.shift, copy.deepcopy(ident.spec), self.current,
+            ident.newfeatures, self.newdb)
+
+    def _move(self, line: tuple[int, int]) -> None:
+        """A new line: this one kept, that one's spectrum read; what identify kept of
+        it back, else the database's record, else the features carried over."""
+        ident = self.ident
+        self._save()
+        self.line = self._newline = line
+        data, self.section = self.lines.load(line, self.nsum)
+        ident.set_data(data)
+        self.title = f"identify {self.image}{self.section}"
+        kept = self.saved.get(line)
+        if kept is not None:
+            # id_gid keeps the features in hand when it kept none
+            if kept.features:
+                ident.features = copy.deepcopy(kept.features)
+                ident.newfeatures = kept.newfeatures
+                self.current = kept.current
+                self.newdb = kept.newdb
+            ident.shift = kept.shift
+            if kept.fit is not None:
+                ident.fit = kept.fit
+                ident.spec = copy.deepcopy(kept.spec)
+                self.newdb = kept.newdb
+        else:
+            self._read_record(verbose=False)
+        self.newcv = self.newgraph = True
+
+    def _ap(self) -> tuple[int, int]:
+        """ID_AP: a multispec line's aperture number, else the line itself."""
+        if self.lines is not None and self.lines.kind == "ms" and self.lines.numbers:
+            return self.lines.numbers[self.line[0] - 1], self.line[1]
+        return self.line
+
+    def _section_for(self, name: str, ap: tuple[int, int]) -> str:
+        """id_dbsection."""
+        kind = self.lines.kind if self.lines is not None else ""
+        if kind == "ms":
+            return f" - Ap {ap[0]}"
+        if name != self.image or not kind:
+            return ""
+        return f"[*,{ap[0]}]" if kind == "line" else f"[{ap[0]},*]"
+
+    def _dbread(self, name: str, ap: tuple[int, int], add: bool) -> None:
+        """:read and :add -- id_dbread, verbose: the record's features in place of
+        these, or among them in order of pixel; its solution with them unless added."""
+        ident = self.ident
+        section = self._section_for(name, ap)
+        stored = None if self.lines is None else self.lines.read(name, section, self.database)
+        if stored is None:
+            # Said by the colon command and again by the loop, whose delayed error
+            # message is the same one, as IRAF says it.
+            self._eprint(f"Warning: Entry not found: identify {name}{section}\n" * 2)
+            return
+        if add:
+            for feature in copy.deepcopy(stored.features):
+                k = len(ident.features)
+                while k > 0 and feature.pix < ident.features[k - 1].pix:
+                    k -= 1
+                ident.features.insert(k, feature)
+        else:
+            ident.features = copy.deepcopy(stored.features)
+            ident.shift = stored.shift
+            if stored.fit is not None:
+                ident.fit = stored.fit
+                ident.spec = copy.deepcopy(stored.spec)
+                self.newcv = True
+        ident.newfeatures = True
+        self.current = 1 if ident.features else 0
+        self.newgraph = True
+        self._print(f"identify {name}{section}\n")
+
+    def _dbwrite(self, name: str, ap: tuple[int, int]) -> None:
+        """:write -- id_dbwrite, verbose, now."""
+        section = self._section_for(name, ap)
+        ident = self.ident
+        kept = Saved(self.line, section, ident.data.copy(), copy.deepcopy(ident.features),
+                     ident.fit, ident.shift, copy.deepcopy(ident.spec), self.current,
+                     ident.newfeatures, True)
+        if self.lines is not None and self.lines.write is not None:
+            self.lines.write(name, section, kept, self.database)
+        self.written.append(kept)
+        self.ident.newfeatures = self.newcv = self.newdb = False
+        self._print(f"identify {name}{section}\n")
+
+    def _read_record(self, verbose: bool) -> None:
+        """id_dbread of this line, as identify starts and moves: its record found,
+        nothing is new; not found, what is in hand is."""
+        ident = self.ident
+        stored = self.lines.read(self.image, self.section, self.database)
+        if stored is None:
+            if ident.features or ident.fit is not None:
+                self.newdb = True
+            return
+        ident.features = copy.deepcopy(stored.features)
+        ident.fit, ident.shift = stored.fit, stored.shift
+        ident.spec = copy.deepcopy(stored.spec)
+        # Read, not changed: identify clears ID_NEWFEATURES after id_dbread, as it
+        # starts and when it moves, so the record is not written back unless a key
+        # changes it.
+        ident.newfeatures = False
+        self.current = 1 if ident.features else 0
+        self.newdb = False
+        self.newgraph = True
+        if verbose:
+            self._print(f"identify {self.image}{self.section}\n")
+        with contextlib.suppress(ValueError):
+            ident.update_fitdata()
+
+    def records(self) -> list[Saved]:
+        """What q writes, in its order: this line, then each line kept since and
+        changed, the last kept first."""
+        self._save()
+        here = self.saved[self.line]
+        out = [here] if here.newdb else []
+        out += [kept for kept in reversed(list(self.saved.values()))
+                if kept.newdb and kept.line != self.line]
+        return out
+
     def _fitdata(self) -> None:
         try:
             self.ident.update_fitdata()
@@ -619,6 +831,8 @@ class IdentifySession:
         if ident.newfeatures or self.newcv:
             self.newdb = True
         self._error = ""
+        if self._newline != self.line:
+            self._move(self._newline)
         if self.refit:
             self._dofit(False)
             self.refit = False
@@ -655,7 +869,7 @@ class IdentifySession:
     _error = ""
 
     def _finish(self) -> None:
-        if not self.newdb:
+        if not self.newdb and not any(kept.newdb for kept in self.saved.values()):
             self.done = True
             return
         if self.autowrite:
@@ -680,14 +894,38 @@ class IdentifySession:
             self._output(self._show_text(), value)
         elif command == "features":
             self._output(self._features_text(), value)
-        elif command in ("image", "nsum", "database", "read", "write", "add"):
-            if value is None and command in ("image", "database", "nsum"):
-                self._print({"image": f"image {self.image}\n",
-                             "database": f"database {self.database}\n",
-                             "nsum": "nsum 1 1\n"}[command])
+        elif command == "image":
+            if value is None:
+                self._print(f"image {self.image}\n")
                 return False
-            self._print(f":{command} is not ported: the task reads and writes the database, "
-                        "one spectrum at a time\n")
+            self._print(":image is not ported: run identify on the other image\n")
+            return False
+        elif command == "nsum":
+            number = _number(value) if value is not None else None
+            if number is None:
+                self._print(f"nsum {self.nsum[0]} {self.nsum[1]}\n")
+                return False
+            second = _number(words[2]) if len(words) > 2 else None
+            self.nsum = (int(number), int(second) if second is not None else self.nsum[1])
+        elif command == "database":
+            if value is None:
+                self._print(f"database {self.database}\n")
+                return False
+            self.database = value
+            self.newdb = True
+        elif command in ("read", "write", "add"):
+            name, ap = self.image, list(self._ap())
+            if value is not None:
+                name = value
+                for i, word in enumerate(words[2:4]):
+                    number = _number(word)
+                    if number is None:
+                        break
+                    ap[i] = int(number)
+            if command == "write":
+                self._dbwrite(name, (ap[0], ap[1]))
+            else:
+                self._dbread(name, (ap[0], ap[1]), command == "add")
             return False
         elif command == "coordlist":
             if value is None:
@@ -839,6 +1077,11 @@ class IdentifySession:
 
     # ------------------------------------------------------------- a whole run
 
+    def start(self) -> None:
+        """The pass id_identify makes before the first key, as if r were pressed: the
+        graph, and the feature in hand when a record was read."""
+        self.key("r")
+
     def run_commands(self, cursor: str, answers: str = "") -> None:
         """A cursor file, `x y wcs key [command]` a line, and the lines the prompts
         read, as IRAF takes them from the terminal. Both go to icfit while it is on."""
@@ -853,9 +1096,7 @@ class IdentifySession:
             return None
 
         self._batch_graph = True
-        if self.newgraph:
-            self.graph()
-            self._print("")
+        self.start()
         while not self.done:
             if self.sub is not None:
                 if self.sub.newgraph:

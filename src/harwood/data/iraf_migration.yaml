@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 79, partial: 9, planned: 267, replaced: 94, wontport: 161
+#   available: 80, partial: 8, planned: 267, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -809,8 +809,8 @@ tasks:
   ecidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
   ecreidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
   fitprofs: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  identify: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: identify,
-    note: "IRAF's identify arithmetic ported (center1d, the 'l' line list matching, the fit) with its automatic path being autoidentify's, checked against IRAF; the keys, colon commands and graphs are IRAF's too, from cursor files it ran. One aperture at a time (reidentify carries it to the others), and no 2-D solution"}
+  identify: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: identify,
+    note: "IRAF's identify arithmetic ported (center1d, the 'l' line list matching, the fit) with its automatic path being autoidentify's, checked against IRAF; the keys, colon commands and graphs are IRAF's too, from cursor files it ran, among them j, k and o through the lines of a 2-D or multispec image, each kept and written as IRAF keeps and writes it, and :read, :add, :write and :nsum. Not ported: w and the / commands (the mouse zooms), :image, and REFSPEC1 written into the arc's header"}
   interp: {pkg: proto, domain: spec-1d, status: planned, milestone: later}
   lcalib: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   match: {pkg: system, domain: spec-1d, status: wontport, note: the shell does this; harwood tasks run from bash (S4)}

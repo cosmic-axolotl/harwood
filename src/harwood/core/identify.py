@@ -135,6 +135,13 @@ class Identify:
         if self.fitdata is None:
             self.fitdata = self.pixdata.copy()
 
+    def set_data(self, data) -> None:
+        """id_gdata: another line's spectrum, same length, in place of this one."""
+        self.data = np.asarray(data, dtype=f32)
+        self.npts = self.data.size
+        self.pixdata = np.arange(1.0, self.npts + 1.0)
+        self.fitdata = self.pixdata.copy()
+
     # -- the coordinate function
     def fitpt(self, pix: float) -> float:
         """id_fitpt."""

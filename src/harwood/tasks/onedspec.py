@@ -175,8 +175,6 @@ class AutoIdentifyParams(_ArcParams):
 def _solve(task, params, maxfeatures: int, automatic: bool):
     """Read the arc, identify its lines (automatically or by hand), fit, and
     write database/id<image>. Shared by identify and autoidentify."""
-    import numpy as np
-
     from ..core import arc, database, icfit, images
     from ..core import identify as idn
 
@@ -209,13 +207,16 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
     warnings: list = []
 
     gcommands = getattr(params, "gcommands", "")
+    session = None
     if getattr(params, "interactive", False) or gcommands:
         from ..core import identifysession
 
         name = Path(str(params.image)).stem
+        lines = _identify_lines(params, extracted, aperture, data, where, ident)
         session = identifysession.IdentifySession(
             ident, name, f"identify {name}{where and ' - ' + where}", params.coordlist,
-            str(params.database), units.lower(), crval=params.crval, cdelt=params.cdelt)
+            str(params.database), units.lower(), crval=params.crval, cdelt=params.cdelt,
+            section=where, lines=lines)
         if gcommands:
             if not Path(gcommands).exists():
                 advice.fail(f"graphics cursor file '{gcommands}' does not exist",
@@ -227,7 +228,7 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
             from ..viewer.identify_panel import run as run_identify
 
             run_identify(session, title=f"identify · {params.image}")
-        if not session.write:
+        if not session.write and not session.written:
             advice.fail("the features were not written to the database.",
                         "answer yes at the end to keep them.", RuntimeError)
         spec = ident.spec
@@ -281,25 +282,23 @@ def _solve(task, params, maxfeatures: int, automatic: bool):
             "look at the identifications with --interactive and delete the ones "
             "far off the curve"))
 
-    pixel = np.array([f.pix for f in ident.features])
-    extra_ap = {}
-    if aperture is not None:
-        extra_ap = {"aplow": round(float(aperture.centre + aperture.low), 4),
-                    "aphigh": round(float(aperture.centre + aperture.high), 4)}
-    solution = database.Solution(
-        image=str(params.image), pixel=pixel, section=where,
-        aperture=aperture.number if aperture is not None else None,
-        wavelength=np.array([np.nan if f.user is None else f.user for f in ident.features]),
-        function=spec.function, order=spec.order, rms=float(rms), units=units,
-        coordlist=params.coordlist,
-        used=np.array([f.user is not None and f.wts != 0 for f in ident.features]),
-        fitted=np.array([f.fit for f in ident.features]),
-        extra={**extra_ap, "npts": int(vector.size),
-               "xrange": [1.0, float(vector.size)], "niterate": spec.niterate,
-               "low_reject": spec.low_reject, "high_reject": spec.high_reject,
-               "sample": spec.sample, "grow": spec.grow})
-    destination = database.write(solution, params.database)
     first, last = float(ident.fitdata[0]), float(ident.fitdata[-1])
+    if session is None:
+        destination = _write_solution(params, ident, spec, where, aperture, units, rms)
+    else:
+        # q writes this line and each other one changed, as IRAF writes them:
+        # each put back in hand (id_gid) and written in turn.
+        by_section = {f" - Ap {a.number}": a for a in extracted}
+        destination = database.path_for(params.image, Path(session.database))
+        for kept in session.records() if session.write else []:
+            ident.set_data(kept.data)
+            ident.features, ident.fit, ident.shift = kept.features, kept.fit, kept.shift
+            with contextlib.suppress(ValueError):
+                ident.update_fitdata()
+            destination = _write_solution(
+                params.model_copy(update={"database": Path(session.database)}), ident,
+                kept.spec, kept.section, by_section.get(kept.section, aperture), units,
+                ident.rms())
     return TaskResult(
         outputs=[destination], steps=steps, warnings=warnings,
         data={"features": len(ident.features), "used": len(used), "rms": round(rms, 5),
@@ -379,6 +378,84 @@ def _enough_lines(arc, vector, where: str, data, params) -> None:
         f"{'s' if len(peaks) != 1 else ''} in it, fewer than the {params.nfound} "
         "a solution needs",
         "check that the section runs along the dispersion" + other, RuntimeError)
+
+
+def _write_solution(params, ident, spec, where, aperture, units, rms) -> Path:
+    """database/id<image>'s record for one line or aperture."""
+    import numpy as np
+
+    from ..core import database
+
+    extra_ap = {}
+    if aperture is not None:
+        extra_ap = {"aplow": round(float(aperture.centre + aperture.low), 4),
+                    "aphigh": round(float(aperture.centre + aperture.high), 4)}
+    solution = database.Solution(
+        image=str(params.image), pixel=np.array([f.pix for f in ident.features]),
+        section=where, aperture=aperture.number if aperture is not None else None,
+        wavelength=np.array([np.nan if f.user is None else f.user for f in ident.features]),
+        function=spec.function, order=spec.order, rms=float(rms), units=units,
+        coordlist=params.coordlist,
+        used=np.array([f.user is not None and f.wts != 0 for f in ident.features]),
+        fitted=np.array([f.fit for f in ident.features]),
+        extra={**extra_ap, "npts": int(ident.npts),
+               "xrange": [1.0, float(ident.npts)], "niterate": spec.niterate,
+               "low_reject": spec.low_reject, "high_reject": spec.high_reject,
+               "sample": spec.sample, "grow": spec.grow, "shift": float(ident.shift)})
+    return database.write(solution, params.database)
+
+
+def _identify_lines(params, extracted, aperture, data, where, ident):
+    """The lines identify's j, k and o move among: a 2-D frame's lines or columns,
+    nsum at a time, or an extracted spectrum's apertures, one at a time; and the
+    database's records, read as id_dbread reads them and written as id_dbwrite."""
+    import numpy as np
+
+    from ..core import database, identifysession
+    from ..core import identify as idn
+    from ..core import reidentify as ri
+
+    def read(name, section, directory):
+        try:
+            records = database.read_all(name, directory)
+        except (OSError, ValueError):
+            return None
+        found = [r for r in records if (r.section or "") == section]
+        if not found:
+            return None
+        return ri.reference_from(found[-1], (section,), ident.fwidth)
+
+    def write(name, section, kept, directory):
+        copy = idn.Identify(kept.data, ident.linelist, kept.spec, fwidth=ident.fwidth)
+        copy.features, copy.fit, copy.shift = kept.features, kept.fit, kept.shift
+        with contextlib.suppress(ValueError):
+            copy.update_fitdata()
+        number = int(section.split()[-1]) if section.startswith(" - Ap") else None
+        chosen = next((a for a in extracted if a.number == number), None)
+        _write_solution(params.model_copy(update={"image": name, "database": Path(directory)}),
+                        copy, kept.spec, section, chosen, params.units or "Angstroms",
+                        copy.rms())
+
+    if extracted:
+        index = next(i for i, a in enumerate(extracted, 1) if a.number == aperture.number)
+
+        def load(line, nsum):
+            chosen = extracted[line[0] - 1]
+            return np.asarray(chosen.flux, dtype=np.float32), f" - Ap {chosen.number}"
+
+        return identifysession.Lines((len(extracted), 1), (1, 1), (index, 1), load, read,
+                                     kind="ms", numbers=[a.number for a in extracted],
+                                     write=write)
+    if np.ndim(data) != 2:
+        return None
+    kind, index = idn.parse_section(params.section, data.shape)
+    count = data.shape[0] if kind == "line" else data.shape[1]
+
+    def load(line, nsum):
+        return idn.arc_vector(data, f"{kind} {line[0]}", nsum[0])
+
+    return identifysession.Lines((count, 1), (min(count, params.nsum), 1), (index, 1), load,
+                                 read, kind=kind, write=write)
 
 
 def _extracted(path) -> list:

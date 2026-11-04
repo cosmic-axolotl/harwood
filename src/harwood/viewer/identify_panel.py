@@ -78,6 +78,7 @@ class IdentifyPanel(QtWidgets.QWidget):
 
         self.setFocusProxy(self.plot)
         self.fit_panel: IcfitPanel | None = None
+        self.session.start()
         self.redraw(rescale=True)
         self._after()
 
