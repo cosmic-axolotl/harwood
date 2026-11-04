@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 75, partial: 12, planned: 268, replaced: 94, wontport: 161
+#   available: 79, partial: 9, planned: 267, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -746,25 +746,26 @@ tasks:
   wphot: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
 
   # --- spec-2d (later, 30 tasks) --------------------------------
-  apall: {pkg: twodspec.apextract, domain: spec-2d, status: partial, milestone: later, harwood: apall,
-    note: "IRAF's find, resize, trace, background (none, average, median, minimum, fit, skybox) and extraction (fractional edge pixels; variance weights with fit1d profiles and cleaning), apertures from another frame (references, OLD, NEW) or from the frame's own database, and recentering (shift, npeaks, aprecenter), ported and checked against IRAF's output; not ported: fit2d profiles, subapertures, output formats other than harwood's"}
+  apall: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apall,
+    note: "IRAF's find, resize, trace, background (none, average, median, minimum, fit, skybox) and extraction (fractional edge pixels; variance weights with fit1d profiles and cleaning), apertures from another frame (references, OLD, NEW) or from the frame's own database, and recentering (shift, npeaks, aprecenter), ported and checked against IRAF's output; subapertures (nsubaps) as IRAF's, except that every part comes out in counts where IRAF leaves all but the first in photons; the output formats multispec, echelle, onedspec and strip, file for file and card for card IRAF's; Marsh's fit2d profile, IRAF's spectrum to 1e-4 where its normal equations are well conditioned and to a fifth of the uncertainty where IRAF's own single precision decides"}
   apdefault: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
-  apedit: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apall,
-    note: "part of apall: --edit opens it, and the finding and sizing happen there"}
-  apfind: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apall,
-    note: "part of apall (--find): IRAF's find_peaks and center1d, ported"}
+  apedit: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apedit,
+    note: "preset of apall with only --edit on and nothing found, as apedit.par has it; the keys are apall's"}
+  apfind: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apfind,
+    note: "preset of apall with only the finding on and apfind's nsum=1; identical to IRAF's apfind"}
   apfit: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apflatten: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apnoise: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
   apnormalize: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
-  aprecenter: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
-  apresize: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apall,
-    note: "part of apall (--resize): IRAF's ap_ylevel, ported"}
+  aprecenter: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: aprecenter,
+    note: "preset of apall with only the recentering on and aprecenter's nsum=1; the apertures and the RECENTER line identical to IRAF's"}
+  apresize: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apresize,
+    note: "preset of apall with only the resizing on and apresize's nsum=1; identical to IRAF's apresize"}
   apscatter: {pkg: twodspec.apextract, domain: spec-2d, status: planned, milestone: later}
-  apsum: {pkg: twodspec.apextract, domain: spec-2d, status: partial, milestone: later, harwood: apall,
-    note: "extraction is done by apall; apsum as a separate task reusing a stored aperture is not built"}
-  aptrace: {pkg: twodspec.apextract, domain: spec-2d, status: partial, milestone: later, harwood: apall,
-    note: "part of apall (--trace): IRAF's tracing in both dispersion directions, ported; not a task of its own"}
+  apsum: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: apsum,
+    note: "preset of apall without recentering or resizing, tracing again unless --no-trace, as apsum.par has it; identical to IRAF's apsum on stored, re-traced and referenced apertures"}
+  aptrace: {pkg: twodspec.apextract, domain: spec-2d, status: available, milestone: later, harwood: aptrace,
+    note: "preset of apall with only tracing on, as aptrace.par has it; the traced apertures identical to IRAF's"}
   extinction: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
   fceval: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
   findpeaks: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
@@ -823,7 +824,7 @@ tasks:
   refspectra: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: refspectra,
     note: "ref*.x ported: every selection, sort/group (JD/LJD, worked out as setjd when absent), apertures/refaps/ignoreaps, override, confirm, logfiles, verbose; identical to IRAF 2.18 on 15 runs, including its preceding that never falls back. Reads header numbers with IRAF's ctod, and reference tables (reftable)"}
   reidentify: {pkg: onedspec, domain: spec-1d, status: partial, milestone: later, harwood: reidentify,
-    note: "t_reidentify.x ported: multispec apertures, long-slit lines traced or not, other arcs, shift carried from line to line, shift found from the spectrum (search INDEF), refit or shift only, addfeatures, newaps, override, nlost, logfiles; identical to IRAF 2.18 on 9 runs, log line for line. Not ported: interactive, a nonzero search radius"}
+    note: "t_reidentify.x ported: multispec apertures, long-slit lines traced or not, other arcs, shift carried from line to line, shift found from the spectrum (search INDEF) or by autoidentify's search within a radius (id_shift), refit or shift only, addfeatures, newaps, override, nlost, logfiles; identical to IRAF 2.18 on 9 runs, log line for line, and on 3 with a radius the same lines and the log to its last figure. Not ported: interactive"}
   sarith: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sbands: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   scoords: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}

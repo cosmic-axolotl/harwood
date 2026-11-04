@@ -1520,9 +1520,11 @@ class ReidentifyParams(TaskParams):
                                          "wavelength; INDEF to find it from the "
                                          "spectrum.")
     search: str = Field("0.", description="With shift INDEF: INDEF finds the shift "
-                                          "from the spectrum's peaks, 0 uses none. "
-                                          "(A radius, IRAF's pattern search, is not "
-                                          "ported.)")
+                                          "from the spectrum's peaks, 0 uses none, a "
+                                          "radius searches the line list for the "
+                                          "pattern of lines within it (negative: that "
+                                          "fraction of the spectrum's range), as "
+                                          "autoidentify does.")
     nlost: int = Field(0, ge=0, description="Features that may be lost before a "
                                             "solution along the reference is refused.")
     ftype: Literal["emission", "absorption"] = Field("emission", description="Feature "
@@ -1535,7 +1537,8 @@ class ReidentifyParams(TaskParams):
     addfeatures: bool = Field(False, description="Add lines of the list the solution "
                                                  "finds on each spectrum.")
     coordlist: str = Field("linelists$idhenear.dat", description="Line list, for "
-                                                                 "addfeatures.")
+                                                                 "addfeatures and a "
+                                                                 "search radius.")
     match: float = Field(-3.0, description="Matching limit for added lines.")
     maxfeatures: int = Field(50, ge=1, description="Most features to add.")
     minsep: float = Field(2.0, ge=0, description="Least separation between features, "
@@ -1585,7 +1588,7 @@ class Reidentify(Task[ReidentifyParams]):
         value = ctod(params.search)
         search = None if value is None or abs(value) >= INDEF else float(value)
         linelist = None
-        if params.addfeatures:
+        if params.addfeatures or (search is not None and search != 0):
             linelist = idn.read_linelist(arc.resolve_linelist(params.coordlist))
         log: list[str] = []
         said: list[str] = []

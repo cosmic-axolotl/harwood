@@ -547,27 +547,16 @@ class IdentifySession:
         self.newcv = self.newgraph = True
 
     def _correlate(self) -> None:
-        """id_shift and aid_shift: identify automatically near the solution there is,
-        and the shift is how far the new one lies from it. With more than ten features
-        IRAF tries them first as the reference; here it is the list, as with few."""
-        from .identify import AidPars, autoidentify
+        """x: id_shift(id, -1, -0.05) -- identify automatically near the solution
+        there is, and the shift is how far the new one lies from it."""
+        from .identify import shift_search
 
-        ident = self.ident
-        centre = ident.npts // 2 + 1
-        crval = ident.fitpt(float(centre))
-        cdelt = (ident.fitdata[-1] - ident.fitdata[0]) / (ident.npts - 1)
-        held = ident.features, ident.fit, ident.shift, ident.fitdata.copy()
-        count = len(self.features)
-        pars = AidPars(crpix=float(centre), cddir="sign", crsearch=-1.0, cdsearch=-0.05,
-                       ntarget=max(count, 20), nbest=5, wrms=0.5, wfmatch=0.25, wftmatch=0.25)
-        found = autoidentify(ident, crval, cdelt, pars)
-        moved = ident.fitdata.copy()
-        ident.features, ident.fit, ident.shift, ident.fitdata = held
-        if not found.found:
+        shift = shift_search(self.ident, -1.0, -0.05)
+        if shift is None:
             self._print("No solution found\n")
             self._beep()
             return
-        self.shift = float(np.sum(ident.fitdata - moved) / ident.npts)
+        self.shift = shift
         self._recentre()
 
     def _recentre(self) -> None:

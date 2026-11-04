@@ -1273,6 +1273,43 @@ def autoidentify(ident: Identify, crval: float | None, cdelt: float | None,
                      crval, cdelt)
 
 
+def shift_search(ident: Identify, crsearch: float, cdsearch: float) -> float | None:
+    """id_shift with aid_shift: identify automatically near the solution `ident`
+    has -- the same dispersion, its centre within `crsearch` (negative: that
+    fraction of the range) -- and return how far the new solution lies from it,
+    the mean over the pixels; `ident` is left as it was. None when nothing is
+    found. With more than ten features IRAF first tries with as many targets as
+    features and weights 0.5, 0.5, 0 -- its "FEATURES" reference spectrum, which no
+    image is named, so the line list serves -- then with at least twenty and
+    0.5, 0.25, 0.25."""
+    npts = ident.npts
+    crpix = float(npts // 2 + 1)
+    crval = ident.fitpt(crpix)
+    cdelt = float((ident.fitdata[-1] - ident.fitdata[0]) / (npts - 1))
+    held = (ident.features, ident.fit, ident.shift, ident.fitdata.copy())
+    count = len(ident.features)
+    tries = [(max(count, 20), 0.25, 0.25)]
+    if count > 10:
+        tries.insert(0, (count, 0.5, 0.0))
+    try:
+        for ntarget, wfmatch, wftmatch in tries:
+            pars = AidPars(crpix=crpix, cddir="sign", crsearch=crsearch, cdsearch=cdsearch,
+                           ntarget=ntarget, nbest=5, wrms=0.5, wfmatch=wfmatch,
+                           wftmatch=wftmatch)
+            try:
+                found = autoidentify(ident, crval, cdelt, pars)
+            except RuntimeError:
+                found = None
+            if found is not None and found.found:
+                return float(np.sum(held[3] - ident.fitdata) / npts)
+            ident.features, ident.fit, ident.shift = held[0], held[1], held[2]
+            ident.fitdata = held[3].copy()
+        return None
+    finally:
+        ident.features, ident.fit, ident.shift = held[0], held[1], held[2]
+        ident.fitdata = held[3].copy()
+
+
 # ------------------------------------------------------------------- the data
 
 def parse_section(section: str, shape: tuple[int, int]) -> tuple[str, int]:

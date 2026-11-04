@@ -2,8 +2,9 @@
 
 `apall` is the task people actually run, and it is four things in a trench
 coat: find the spectra across the slit, size the apertures, follow each one
-along the dispersion, and add it up. IRAF splits them into `apfind`,
-`apresize`, `aptrace` and `apsum` as well, and keeps the result in
+along the dispersion, and add it up. IRAF offers them apart as well, as
+`apfind`, `apresize`, `aprecenter`, `apedit`, `aptrace` and `apsum` -- which
+are apall with only their step on, here as there -- and keeps the result in
 `database/ap<image>` so the next frame can reuse it.
 
 harwood writes the extracted spectra as one FITS file with a table per
@@ -190,8 +191,14 @@ class ApAllParams(TaskParams):
     weights: Literal["none", "variance"] = Field(
         "none", description="Extraction weights. 'variance' is optimal extraction, and "
                             "the only one that gives a sigma.")
-    pfit: Literal["fit1d"] = Field(
-        "fit1d", description="Profile fitting for variance weights (fit2d is not ported).")
+    pfit: Literal["fit1d", "fit2d"] = Field(
+        "fit1d", description="Profile fitting for variance weights: fit1d smooths each "
+                             "column along the dispersion (Horne); fit2d, for a spectrum "
+                             "tilted across the pixels, fits overlapping polynomials that "
+                             "follow the trace (Marsh).")
+    polysep: float = Field(0.9, ge=0.1, le=0.95,
+                           description="fit2d: separation of Marsh's polynomials, pixels.")
+    polyorder: int = Field(10, ge=1, description="fit2d: order of Marsh's polynomials.")
     clean: bool = Field(False, description="Detect and replace bad pixels? Implies "
                                            "variance weights.")
     saturation: float | None = Field(None, description="Saturation level.")
@@ -204,6 +211,18 @@ class ApAllParams(TaskParams):
     nclean: float = Field(0.5, description="Most pixels cleaned per line; below 1, a "
                                            "fraction of the aperture.")
     niterate: int = Field(5, ge=0, description="Profile fitting iterations when cleaning.")
+    format: Literal["harwood", "multispec", "echelle", "onedspec", "strip"] = Field(
+        "harwood", description="harwood's table per aperture, or one of IRAF's, for taking "
+                               "the spectra to IRAF: multispec (name.ms.fits), echelle "
+                               "(name.ec.fits), onedspec (name.0001.fits per aperture) or "
+                               "strip (the aperture's pixels, straightened).")
+    extras: bool = Field(
+        True, description="With an IRAF format: the raw, background and sigma bands "
+                          "behind the spectrum. harwood's own format always has them.")
+    nsubaps: int = Field(
+        1, ge=1, description="Cut each aperture across the slit into this many equal parts, "
+                             "each extracted as a spectrum of its own: aperture n's part p "
+                             "is numbered n + 1000 (p - 1), as in IRAF.")
 
     database: Path = Field(Path("."), description="Reduction directory holding database/.")
 
@@ -250,7 +269,9 @@ class ApAll(Task[ApAllParams]):
             steps.append(Step("background", f"{params.background}, sample "
                                             f"{params.b_sample}", why=WHY["background"]))
         if params.extract:
-            steps.append(Step("extract", "variance" if params.clean else params.weights,
+            steps.append(Step("extract", ("variance" if params.clean else params.weights)
+                              + (f", {params.nsubaps} subapertures each"
+                                 if params.nsubaps > 1 else ""),
                               why=WHY["extract:variance" if params.clean
                                       else f"extract:{params.weights}"]))
             steps.append(Step("write", str(params.output or "this run's directory"),
@@ -362,6 +383,11 @@ class ApAll(Task[ApAllParams]):
                 "drift": f"{ends[1] - ends[0]:+.2f} px end to end"}
 
         outputs = []
+        if params.extract and params.format == "strip" and params.nsubaps > 1 and (
+                params.clean or params.weights == "variance"):
+            advice.fail("strips of subapertures with variance weights are not written: IRAF "
+                        "builds every part's strip from the first part's spectrum.",
+                        "write the strips with --nsubaps 1, or with --weights none")
         if params.extract:
             gain = _header_value(params.gain, header, "gain")
             readnoise = _header_value(params.readnoise, header, "readnoise")
@@ -370,13 +396,19 @@ class ApAll(Task[ApAllParams]):
                 weights=params.weights, pfit=params.pfit, clean=params.clean,
                 saturation=params.saturation, readnoise=readnoise, gain=gain,
                 lsigma=params.lsigma, usigma=params.usigma, nclean=params.nclean,
-                niterate=params.niterate, variance=variance, quality=quality)
+                niterate=params.niterate, variance=variance, quality=quality,
+                nsubaps=params.nsubaps, strips=params.format == "strip",
+                polysep=params.polysep, polyorder=params.polyorder)
             pixel = np.arange(1.0, frame.shape[0] + 1.0)
             written = []
-            for aperture, result in zip(apertures, extracted, strict=True):
+            parts = [(aperture, part) for aperture in apertures
+                     for part in range(params.nsubaps)]
+            for (aperture, part), result in zip(parts, extracted, strict=True):
+                step = (aperture.high - aperture.low) / params.nsubaps
                 written.append(spectrum.Aperture(
-                    number=aperture.number, centre=aperture.centre, low=aperture.low,
-                    high=aperture.high, pixel=pixel,
+                    number=aperture.number + 1000 * part, centre=aperture.centre,
+                    low=aperture.low + part * step, high=aperture.low + (part + 1) * step,
+                    pixel=pixel,
                     flux=np.asarray(result.spec, dtype=float),
                     error=(None if result.sigma is None
                            else np.asarray(result.sigma, dtype=float)),
@@ -390,10 +422,15 @@ class ApAll(Task[ApAllParams]):
                           "WEIGHTS": "variance" if params.clean else params.weights,
                           "BACKGRND": params.background, "CLEAN": params.clean,
                           "ERRSRC": "VAR" if variance is not None
-                          else ("model" if first_sigma(params) else "none")}))
-            destination = params.output or output.named_for(params.input, ".ms.fits")
-            spectrum.write(destination, written, header=header, source=str(params.input))
-            outputs.append(destination)
+                          else ("model" if first_sigma(params) else "none"),
+                          **({"SUBAP": part + 1} if params.nsubaps > 1 else {})}))
+            if params.format == "harwood":
+                destination = params.output or output.named_for(params.input, ".ms.fits")
+                spectrum.write(destination, written, header=header,
+                               source=str(params.input))
+                outputs.append(destination)
+            else:
+                outputs.extend(_write_iraf(params, parts, written, extracted, header))
             first = extracted[0]
             measured = {"median flux": f"{float(np.median(first.spec)):.1f}"}
             if first.sigma is not None:
@@ -418,7 +455,7 @@ class ApAll(Task[ApAllParams]):
             data["recenter"] = recentred
         return TaskResult(
             outputs=outputs, steps=steps, data=data,
-            history=[f"apall: {len(apertures)} aperture(s), background="
+            history=[f"{self.name}: {len(apertures)} aperture(s), background="
                      f"{params.background}, weights="
                      f"{'variance' if params.clean else params.weights}, trace "
                      f"{params.t_function} order {params.t_order}"],
@@ -466,6 +503,67 @@ class ApAll(Task[ApAllParams]):
                             xrange=(1.0, float(length)))
             aperture.trace = apextract.Trace(
                 fit, *icfit.cv_range(points.positions, fit.spec, (1.0, float(length))))
+
+
+class ApStepParams(ApAllParams):
+    """A step that only writes apertures: no output to name on the command line."""
+
+    output: Path | None = Field(
+        None, description="Where to write the spectra, should --extract be turned on.")
+
+
+def _make_step(name: str, doc: str, defaults: dict) -> type[ApAll]:
+    """One of apextract's single steps, as the preset of apall it is in IRAF:
+    t_apall.x runs them all, each with the switches its own parameter file sets
+    (apfind.par, aptrace.par...), and a step that is off is not taken. The
+    apertures go to and come from database/ap<frame> between them."""
+    return register(type(
+        name.title(), (ApAll,),
+        {"name": name, "package": "apextract", "description": doc, "iraf": name,
+         "Params": ApAllParams if defaults.get("extract") else ApStepParams,
+         "presets": {}, "defaults": defaults}))
+
+
+_ONLY = {"recenter": False, "resize": False, "trace": False, "extract": False}
+
+ApFind = _make_step(
+    "apfind", "Find the spectra across the slit and write their apertures. Preset of apall.",
+    {**_ONLY, "nsum": 1})
+ApRecenter = _make_step(
+    "aprecenter", "Recenter stored apertures on this frame's profile. Preset of apall.",
+    {**_ONLY, "recenter": True, "nsum": 1})
+ApResize = _make_step(
+    "apresize", "Resize apertures to the profile. Preset of apall.",
+    {**_ONLY, "resize": True, "nsum": 1})
+ApEdit = _make_step(
+    "apedit", "Edit apertures by hand on the spatial profile. Preset of apall.",
+    {**_ONLY, "find": False, "edit": True})
+ApTrace = _make_step(
+    "aptrace", "Trace apertures along the dispersion and store the fit. Preset of apall.",
+    {**_ONLY, "trace": True})
+ApSum = _make_step(
+    "apsum", "Extract spectra through the stored apertures. Preset of apall.",
+    {**_ONLY, "trace": True, "extract": True, "extras": False})
+
+
+def _write_iraf(params, pairs, written, extracted, header) -> list[Path]:
+    """The spectra in one of IRAF's formats, named as IRAF names them. `pairs`
+    is (aperture, part) for each of `written`."""
+    from ..core import multispec, output
+
+    root = (Path(str(params.output).removesuffix(".fits")) if params.output
+            else output.named_for(params.input, ""))
+    parts = [multispec.Part(
+        number=w.number, beam=aperture.number, low=w.centre + w.low, high=w.centre + w.high,
+        spectrum=r.spec, raw=r.raw, sky=r.sky, sigma=r.sigma, strip=r.strip,
+        aperture=aperture.number)
+        for (aperture, _), w, r in zip(pairs, written, extracted, strict=True)]
+    return multispec.write(
+        params.format, root, parts, header, nsubaps=params.nsubaps, extras=params.extras,
+        background=params.background,
+        weights="variance" if params.clean else params.weights, clean=params.clean,
+        default=params.output is None,
+        dispaxis=params.dispaxis or int(header.get("DISPAXIS", 2)))
 
 
 def first_sigma(params) -> bool:

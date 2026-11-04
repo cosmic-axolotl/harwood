@@ -1,0 +1,65 @@
+{
+ "_comment": "IRAF 2.18.1 noao.onedspec.reidentify with shift INDEF and a nonzero search on tests/iraf_field.multispec_night() (arc3 and arc3b written as multispec images by harwood's --format multispec, arc2d the long slit), interactive=no, verbose=yes, every other parameter its default unless in 'params'. Each case first ran autoidentify (arc3: 4160., 0.29; arc2d: the same with nsum=10) and reidentified from the record it wrote, the first in database/id<reference> here. 'log' is reidentify's log file without its two-line banner; database/ holds every record IRAF wrote. Made by tests/data/iraf_reidentify_search.py.",
+ "cases": {
+  "search_ms": {
+   "reference": "arc3",
+   "images": "arc3,arc3b",
+   "params": {
+    "shift": "INDEF",
+    "search": "5.",
+    "nlost": 40
+   },
+   "log": [
+    "  Reference image = arc3, New image = arc3, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc3 - Ap 1           106/109  66/106       1.7       0.492  1.18E-4   0.0387",
+    "arc3 - Ap 3           105/109  65/105      3.15       0.909  2.18E-4   0.0396",
+    "  Reference image = arc3, New image = arc3b, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc3b - Ap 1          106/106  68/106      0.62       0.178  4.28E-5   0.0412",
+    "arc3b - Ap 2          107/109  65/107     0.615       0.177  4.25E-5   0.0373",
+    "arc3b - Ap 3          104/105  63/104     0.623       0.178  4.30E-5   0.0378"
+   ]
+  },
+  "search_2d": {
+   "reference": "arc2d",
+   "images": "arc2d",
+   "params": {
+    "trace": false,
+    "step": "25",
+    "nsum": "5",
+    "nlost": 30,
+    "shift": "INDEF",
+    "search": "3."
+   },
+   "log": [
+    "  Reference image = arc2d, New image = arc2d, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc2d[*,26]           108/108  66/108    -0.277     -0.0795  -1.9E-5   0.0383",
+    "arc2d[*,1]            108/108  68/108    -0.478      -0.137  -3.3E-5   0.0409",
+    "arc2d[*,76]           108/108  63/108     0.321      0.0921  2.22E-5   0.0342",
+    "arc2d[*,101]          108/108  66/108     0.699       0.201  4.83E-5   0.0384"
+   ]
+  },
+  "search_trace": {
+   "reference": "arc2d",
+   "images": "arc2d",
+   "params": {
+    "trace": true,
+    "step": "20",
+    "nsum": "10",
+    "nlost": 30,
+    "shift": "INDEF",
+    "search": "2."
+   },
+   "log": [
+    "  Reference image = arc2d, New image = arc2d, Refit = yes",
+    "          Image Data    Found     Fit Pix Shift  User Shift  Z Shift      RMS",
+    "arc2d[*,31]           108/108  66/108    -0.224     -0.0643  -1.5E-5   0.0385",
+    "arc2d[*,11]           108/108  66/108    -0.181     -0.0518  -1.2E-5   0.0382",
+    "arc2d[*,71]           108/108  64/108     0.257      0.0738  1.77E-5   0.0354",
+    "arc2d[*,91]           108/108  66/108     0.302      0.0867  2.08E-5   0.0384"
+   ]
+  }
+ }
+}

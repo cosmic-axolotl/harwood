@@ -26,7 +26,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 
-from . import advice, icfit
+from . import icfit
 from .identify import Feature, Identify
 
 NBIN = 10
@@ -150,6 +150,14 @@ def doshift(ident: Identify) -> None:
         ident.shift += total / count
 
 
+def _searched(shift: float | None) -> float:
+    """id_shift's answer: IRAF carries on with an INDEF shift, which loses every
+    feature; here that is said."""
+    if shift is None:
+        raise RuntimeError("the shift search found no solution")
+    return shift
+
+
 def reidentify(ident: Identify, fit_shift: float | None, search: float | None = 0.0,
                refit: bool = True, addfeatures: bool = False,
                maxfeatures: int = 50) -> Result:
@@ -157,19 +165,20 @@ def reidentify(ident: Identify, fit_shift: float | None, search: float | None = 
     on the new spectrum (its fitdata already computed). `fit_shift` None
     is IRAF's INDEF: the shift is then found from the spectrum (search
     INDEF) or taken as zero (search 0)."""
+    from .identify import shift_search
+
     nfeatures1 = len(ident.features)
     if nfeatures1 == 0:
-        if addfeatures:
-            ident.locate()
         shift = 0.0
+        if search is not None and search != 0:
+            shift = _searched(shift_search(ident, search, -0.05))
+        elif addfeatures:
+            ident.locate()
     elif fit_shift is None:
         if search is None:
             shift = shift1(ident, maxfeatures)
         elif search != 0:
-            advice.fail("the shift search of autoidentify (a nonzero --search) is "
-                        "not ported to reidentify",
-                        "give --search INDEF to find the shift from the spectrum's "
-                        "peaks (id_shift1), or a --shift you know.", NotImplementedError)
+            shift = _searched(shift_search(ident, search, -0.02))
         else:
             shift = 0.0
     else:

@@ -560,6 +560,7 @@ class Extracted:
     sigma: np.ndarray | None    # IRAF's sigma, or the frame's variance's (section 12)
     log: list[str] = field(default_factory=list)
     dq: np.ndarray | None = None  # each line's DQ bits, with the frame's DQ
+    strip: np.ndarray | None = None  # [across, dispersion], the lower edge first (strip)
 
 
 def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none",
@@ -568,15 +569,24 @@ def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none
             readnoise: float = 0.0, gain: float = 1.0, lsigma: float = 4.0,
             usigma: float = 4.0, nclean: float = 0.5,
             niterate: int = 5, variance: np.ndarray | None = None,
-            quality: np.ndarray | None = None) -> list[Extracted]:
+            quality: np.ndarray | None = None, nsubaps: int = 1,
+            strips: bool = False, polysep: float = 0.9,
+            polyorder: int = 10) -> list[Extracted]:
     """ap_extract on a [dispersion, aperture] frame. With the frame's
     `variance` (same orientation), sigma is what it gives through the same
     weights -- for a plain sum too, where IRAF has none; with its `quality`,
-    each line's DQ is the bits of the pixels the aperture took."""
+    each line's DQ is the bits of the pixels the aperture took. With
+    `nsubaps`, each aperture is cut across into that many equal parts, each
+    extracted on its own: the results come aperture by aperture, its parts
+    in order. With `strips`, each also carries IRAF's strip: the aperture's
+    pixels shifted along the trace so that its lower edge is the first row."""
+    if strips and nsubaps > 1 and (clean or weights == "variance"):
+        raise ValueError("strips of subapertures with variance weights: IRAF builds every "
+                         "part's strip from the first part's spectrum")
     if clean:
         weights = "variance"
-    if weights == "variance" and pfit != "fit1d":
-        raise ValueError("pfit=fit2d (Marsh) is not ported; use fit1d")
+    if pfit not in ("fit1d", "fit2d"):
+        raise ValueError(f"pfit '{pfit}' is not one of fit1d, fit2d")
     nb, namax = data.shape
     interpbuf = 2                                   # II_LINEAR edges
     if weights == "none":
@@ -614,6 +624,13 @@ def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none
             xmax = float(f32(f32(ap.centre + ap.high) + f32(interpbuf)))
             na1 = nint(xmax) - nint(xmin) + 1
             xs = np.array([nint(f32(xmin + f32(ap.trace(j)))) for j in range(1, nb + 1)])
+        elif pfit == "fit2d":
+            # Marsh's profile follows the trace line by line, with two pixels
+            # either side for its overlapping polynomials.
+            xmin = float(f32(f32(f32(ap.centre + ap.low) - f32(2)) - f32(interpbuf)))
+            xmax = float(f32(f32(f32(ap.centre + ap.high) + f32(2)) + f32(interpbuf)))
+            na1 = nint(xmax) - nint(xmin) + 1
+            xs = np.array([nint(f32(xmin + f32(ap.trace(j)))) for j in range(1, nb + 1)])
         else:
             xmin = float(f32(ap.centre + ap.low + cmins[k])) - interpbuf
             xmax = float(f32(ap.centre + ap.high + cmaxs[k])) + interpbuf
@@ -622,39 +639,110 @@ def extract(data: np.ndarray, apertures: list[Aperture], background: str = "none
         sbuf = svar = specsky = None
         if background != "none":
             sbuf, svar, specsky = skyeval(ap, dbuf, c1, xs, na1, background, skybox,
-                                          rdnoise)
+                                          rdnoise, nsubaps)
         log: list[str] = []
-        record: list | None = [] if vbuf is not None else None
+        records: list | None = [[] for _ in range(nsubaps)] if vbuf is not None else None
         if weights == "none":
-            spec = _sum(ap, dbuf, c1, xs, sbuf, na1)
+            spec = _sum(ap, dbuf, c1, xs, sbuf, na1, nsubaps)
             raw = sigma = None
         else:
             profile = _profile(ap, dbuf, c1, xs, sbuf, svar, na1, rdnoise, saturation,
-                               clean, lsigma, usigma, niterate, log)
+                               clean, lsigma, usigma, niterate, log, polysep, polyorder)
             spec, raw, sigma = _variance(ap, dbuf, c1, xs, sbuf, svar, profile, na1,
                                          rdnoise, saturation, clean, lsigma, usigma,
-                                         nclean, log, record)
+                                         nclean, log, records, nsubaps)
             if gain_used != 1.0:
                 g = f32(gain_used)
                 spec, raw, sigma = (spec / g).astype(f32), (raw / g).astype(f32), \
                     (sigma / g).astype(f32)
                 if specsky is not None:
                     specsky = (specsky / g).astype(f32)
-        if vbuf is not None:
-            level = (None if background == "none" else
-                     _sky_level_variance(ap, vbuf, c1, xs, background, skybox))
-            from_var = _error_from_variance(ap, dbuf, vbuf, c1, xs, level, record)
-            # IRAF's -1 (no extraction on that line) stays; its sign for a
-            # saturated line too.
-            sigma = (from_var if sigma is None
-                     else np.where(sigma == -1, -1.0,
-                                   np.where(sigma < 0, -from_var, from_var))).astype(f32)
-        lines_dq = None if qbuf is None else _line_quality(ap, qbuf, c1, xs, nb)
-        results.append(Extracted(spec, raw, specsky, sigma, log, lines_dq))
+        level = (None if vbuf is None or background == "none" else
+                 _sky_level_variance(ap, vbuf, c1, xs, background, skybox))
+        for i in range(nsubaps):
+            part = (i + 1, nsubaps)
+            sigma_i = None if sigma is None else sigma[i]
+            if vbuf is not None:
+                from_var = _error_from_variance(ap, dbuf, vbuf, c1, xs, level,
+                                                records[i], part)
+                # IRAF's -1 (no extraction on that line) stays; its sign for a
+                # saturated line too.
+                sigma_i = (from_var if sigma_i is None
+                           else np.where(sigma_i == -1, -1.0,
+                                         np.where(sigma_i < 0, -from_var, from_var))
+                           ).astype(f32)
+            lines_dq = None if qbuf is None else _line_quality(ap, qbuf, c1, xs, nb, part)
+            strip = None
+            if strips:
+                low, high = _part_limits(ap, part)
+                if weights == "none":
+                    strip = _strip(ap, low, high, dbuf, c1, xs, sbuf, na1)
+                else:
+                    strip = _pstrip(ap, low, high, spec[0], profile, xs)
+            results.append(Extracted(spec[i], None if raw is None else raw[i],
+                                     None if specsky is None else specsky[i], sigma_i,
+                                     log if i == 0 else [], lines_dq, strip))
     return results
 
 
-def _error_from_variance(ap, dbuf, vbuf, c1, xs, level, record):
+def _part_limits(ap, part):
+    """ap_output's limits of part (i, n) across the slit, in image pixels."""
+    i, n = part
+    low = f32(f32(ap.centre) + f32(ap.low))
+    high = f32(f32(ap.centre) + f32(ap.high))
+    step = f32(f32(high - low) / f32(n))
+    low = f32(low + f32(f32(i - 1) * step))
+    return low, f32(low + step)
+
+
+def _strip(ap, aplow, aphigh, dbuf, c1, xs, sbuf, nx):
+    """ap_strip: each line interpolated (linearly) so that the aperture's lower
+    edge falls on the first row, the background taken off when there is one."""
+    nb, nc = dbuf.shape
+    na = int(f32(aphigh - aplow + f32(1)))
+    low = f32(aplow - f32(c1) + f32(1))
+    high = f32(aphigh - f32(c1) + f32(1))
+    out = np.zeros((na, nb), dtype=f32)
+    for iy in range(1, nb + 1):
+        s = f32(ap.trace(iy))
+        ix1 = max(1, nint(f32(low + s)) - 1)
+        ix2 = min(nc, nint(f32(high + s)) + 1)
+        nasi = ix2 - ix1 + 1
+        if nasi < 3:
+            continue
+        asi = Interpolant("linear", dbuf[iy - 1, ix1 - 1:ix2])
+        x = f32(f32(low + s) - f32(ix1) + f32(1))
+        first = nint(f32(low + s)) - xs[iy - 1] + c1 - 2   # sbuf index of row 0, less 1
+        for i in range(1, na + 1):
+            if 1 <= x <= nasi:
+                value = f32(asi(float(x)))
+                if sbuf is not None:
+                    k = first + i
+                    value = f32(value - (sbuf[iy - 1, k] if 0 <= k < nx else f32(0)))
+                out[i - 1, iy - 1] = value
+            x = f32(x + f32(1))
+    return out
+
+
+def _pstrip(ap, aplow, aphigh, spec, profile, xs):
+    """ap_pstrip: the fitted profile times the spectrum, interpolated so that
+    the aperture's lower edge falls on the first row -- what variance weighting
+    took the light to be, without the noise or the cosmic rays."""
+    nb, nx = profile.shape
+    na = int(f32(aphigh - aplow + f32(1)))
+    out = np.zeros((na, nb), dtype=f32)
+    for iy in range(1, nb + 1):
+        asi = Interpolant("linear", (spec[iy - 1] * profile[iy - 1]).astype(f32))
+        x = f32(aplow + f32(f32(ap.trace(iy)) - f32(xs[iy - 1]) + f32(1)))
+        for ix in range(1, na + 1):
+            # Beyond the profile IRAF reads past its fit; nothing is there.
+            if 0 <= int(x) < asi.n + 1:
+                out[ix - 1, iy - 1] = f32(asi(float(x)))
+            x = f32(x + f32(1))
+    return out
+
+
+def _error_from_variance(ap, dbuf, vbuf, c1, xs, level, record, part=None):
     """sigma from the frame's variance, through the weights the spectrum was
     made with: the edge fractions of a plain sum, or variance weighting's
     final weights (`record`); plus the subtracted sky level's own
@@ -672,12 +760,14 @@ def _error_from_variance(ap, dbuf, vbuf, c1, xs, level, record):
             out[iy - 1] = np.sqrt(max(v, 0.0))
         return out
     for iy in range(1, nb + 1):
-        x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
+        x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy, part)
         if x2 <= x1:
             continue
-        pix, asi = _line_interp(dbuf[iy - 1], nc, c1, xs[iy - 1], x2 + f32(xs[iy - 1] - c1))
+        _, whole, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
+        pix, asi = _line_interp(dbuf[iy - 1], nc, c1, xs[iy - 1],
+                                whole + f32(xs[iy - 1] - c1))
         vpix, _ = _line_interp(vbuf[iy - 1].astype(f32), nc, c1, xs[iy - 1],
-                               x2 + f32(xs[iy - 1] - c1))
+                               whole + f32(xs[iy - 1] - c1))
         ix1, ix2 = nint(x1), nint(x2)
         wt1, wt2 = edge_weights(asi, x1 + 1, x2 + 1)
         weights = {ix1: float(wt1)}
@@ -819,12 +909,12 @@ def _fit_weights(ap, ix1, nfit, s) -> np.ndarray:
     return coefficients @ gb
 
 
-def _line_quality(ap, qbuf, c1, xs, nb):
-    """Each line's DQ: the bits of every pixel the aperture touched."""
+def _line_quality(ap, qbuf, c1, xs, nb, part=None):
+    """Each line's DQ: the bits of every pixel the aperture (or subaperture) touched."""
     nc = qbuf.shape[1]
     out = np.zeros(nb, dtype=np.int64)
     for iy in range(1, nb + 1):
-        x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
+        x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy, part)
         if x2 <= x1:
             continue
         first = max(0, nint(x1) + xs[iy - 1] - c1 - 1)
@@ -835,13 +925,21 @@ def _line_quality(ap, qbuf, c1, xs, nb):
     return out
 
 
-def _edges(ap, nc, c1, xs_line, line):
-    """The aperture's edges on one line, relative to the line's start xs."""
+def _edges(ap, nc, c1, xs_line, line, part=None):
+    """The aperture's edges on one line, relative to the line's start xs; with
+    `part` (i, n), those of its i-th of n subapertures, as ap_sum cuts them:
+    low + (i - 1) * step to low + i * step, step = (high - low) / n."""
     s = f32(f32(ap.trace(line)) - f32(c1) + f32(1))
-    low = f32(ap.centre + ap.low)
-    high = f32(ap.centre + ap.high)
-    x1 = f32(max(f32(0.5), f32(low + s)) + f32(c1) - f32(xs_line))
-    x2 = f32(min(f32(nc + 0.49), f32(high + s)) + f32(c1) - f32(xs_line))
+    low = f32(f32(ap.centre) + f32(ap.low))       # AP_CEN + AP_LOW, both real
+    high = f32(f32(ap.centre) + f32(ap.high))
+    a, b = low, high
+    if part is not None:
+        i, n = part
+        step = f32(f32(high - low) / f32(n))
+        a = f32(low + f32(f32(i - 1) * step))
+        b = f32(low + f32(f32(i) * step))
+    x1 = f32(max(f32(0.5), f32(a + s)) + f32(c1) - f32(xs_line))
+    x2 = f32(min(f32(nc + 0.49), f32(b + s)) + f32(c1) - f32(xs_line))
     return x1, x2, low, high, s
 
 
@@ -881,27 +979,31 @@ def edge_weights(asi: Interpolant, x1, x2):
     return wt1, wt2
 
 
-def _sum(ap, dbuf, c1, xs, sbuf, nx):
-    """ap_sum, one subaperture."""
+def _sum(ap, dbuf, c1, xs, sbuf, nx, nsubaps=1):
+    """ap_sum: [subaperture, line], the interpolant for the edges fitted over
+    the whole aperture."""
     nb, nc = dbuf.shape
-    spec = np.zeros(nb, dtype=f32)
+    spec = np.zeros((nsubaps, nb), dtype=f32)
     for iy in range(1, nb + 1):
-        x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
-        if x2 <= x1:
-            continue
-        pix, asi = _line_interp(dbuf[iy - 1], nc, c1, xs[iy - 1], x2 + f32(xs[iy - 1] - c1))
-        ix1, ix2 = nint(x1), nint(x2)
-        wt1, wt2 = edge_weights(asi, x1 + 1, x2 + 1)
-        sval = f32(wt1 * pix[ix1] + wt2 * pix[ix2])
-        for ix in range(ix1 + 1, ix2):
-            sval = f32(sval + pix[ix])
-        if sbuf is not None:
-            sky = sbuf[iy - 1]
-            skyval = f32(wt1 * sky[ix1 - 1] + wt2 * sky[ix2 - 1])
+        _, whole, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
+        pix, asi = _line_interp(dbuf[iy - 1], nc, c1, xs[iy - 1],
+                                whole + f32(xs[iy - 1] - c1))
+        for i in range(1, nsubaps + 1):
+            x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy, (i, nsubaps))
+            if x2 <= x1:
+                continue
+            ix1, ix2 = nint(x1), nint(x2)
+            wt1, wt2 = edge_weights(asi, x1 + 1, x2 + 1)
+            sval = f32(wt1 * pix[ix1] + wt2 * pix[ix2])
             for ix in range(ix1 + 1, ix2):
-                skyval = f32(skyval + sky[ix - 1])
-            sval = f32(sval - skyval)
-        spec[iy - 1] = sval
+                sval = f32(sval + pix[ix])
+            if sbuf is not None:
+                sky = sbuf[iy - 1]
+                skyval = f32(wt1 * sky[ix1 - 1] + wt2 * sky[ix2 - 1])
+                for ix in range(ix1 + 1, ix2):
+                    skyval = f32(skyval + sky[ix - 1])
+                sval = f32(sval - skyval)
+            spec[i - 1, iy - 1] = sval
     return spec
 
 
@@ -918,10 +1020,10 @@ def _samples(text: str, centre: float):
     return out
 
 
-def skyeval(ap, dbuf, c1, xs, nx, background, skybox, rdnoise):
+def skyeval(ap, dbuf, c1, xs, nx, background, skybox, rdnoise, nsubaps=1):
     """ap_skyeval: the background under every pixel of the aperture
     (sbuf[line, pixel from xs]), its variance per line, and the background
-    summed over the aperture."""
+    summed over each subaperture ([subaperture, line])."""
     nb, nc = dbuf.shape
     centre = f32(ap.centre)
     bx1, bx2 = ap.background_limits(10 ** 9)
@@ -994,21 +1096,22 @@ def skyeval(ap, dbuf, c1, xs, nx, background, skybox, rdnoise):
     if skybox > 1:
         _boxcar(sbuf, svar, skybox, background == "fit")
 
-    specsky = np.zeros(nb, dtype=f32)
+    specsky = np.zeros((nsubaps, nb), dtype=f32)
     for iy in range(1, nb + 1):
-        x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy)
-        if x1 >= x2:
-            continue
-        ix1, ix2 = nint(x1), nint(x2)
         row = sbuf[iy - 1]
-        if ix1 == ix2:
-            value = f32((x2 - x1) * row[ix1 - 1])
-        else:
-            value = f32((f32(ix1) - x1 + f32(0.5)) * row[ix1 - 1])
-            value = f32(value + (x2 - f32(ix2) + f32(0.5)) * row[ix2 - 1])
-        for ix in range(ix1 + 1, ix2):
-            value = f32(value + row[ix - 1])
-        specsky[iy - 1] = value
+        for i in range(1, nsubaps + 1):
+            x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy, (i, nsubaps))
+            if x1 >= x2:
+                continue
+            ix1, ix2 = nint(x1), nint(x2)
+            if ix1 == ix2:
+                value = f32((x2 - x1) * row[ix1 - 1])
+            else:
+                value = f32((f32(ix1) - x1 + f32(0.5)) * row[ix1 - 1])
+                value = f32(value + (x2 - f32(ix2) + f32(0.5)) * row[ix2 - 1])
+            for ix in range(ix1 + 1, ix2):
+                value = f32(value + row[ix - 1])
+            specsky[i - 1, iy - 1] = value
     return sbuf, svar, specsky
 
 
@@ -1059,8 +1162,9 @@ def _boxcar(sbuf, svar, skybox, fit):
 # ------------------------------------------------------- variance weighting
 
 def _profile(ap, dbuf, c1, xs, sbuf, svar, nx, rdnoise, saturation, clean, lsigma,
-             usigma, niterate, log):
-    """ap_profile with ap_horne: the normalised profile, profile[line, ix]."""
+             usigma, niterate, log, polysep=0.9, polyorder=10):
+    """ap_profile: the normalised profile, profile[line, ix] -- by ap_horne when the
+    aperture starts at one pixel on every line, by ap_marsh when it moves (fit2d)."""
     nb, nc = dbuf.shape
     rd2 = square(rdnoise)
     sat = None if saturation is None else f32(saturation)
@@ -1109,7 +1213,11 @@ def _profile(ap, dbuf, c1, xs, sbuf, svar, nx, rdnoise, saturation, clean, lsigm
     tfac = f32(2)
     nreject = 0
     for i in range(iters + 1):
-        _horne(ap, dbuf, c1, xs, spec, sbuf, svar, reject, profile, nx, rd2, vmin, x1s)
+        if int(np.min(xs)) == int(np.max(xs)):
+            _horne(ap, dbuf, c1, xs, spec, sbuf, svar, reject, profile, nx, rd2, vmin, x1s)
+        else:
+            _marsh(dbuf, c1, xs, spec, sbuf, svar, reject, profile, nx, rd2, vmin, x1s, x2s,
+                   polysep, polyorder)
         if i == iters:
             break
         chisq = f32(0)
@@ -1200,6 +1308,167 @@ def _horne(ap, dbuf, c1, xs, spec, sbuf, svar, reject, profile, nx, rd2, vmin, x
         profile[:, ix - 1] = np.maximum(np.asarray(model(lines), dtype=f32), f32(0))
 
 
+def _pow(base, exponent: int) -> float:
+    """f2c's pow_ri: a real to an integer power, by squaring, in double."""
+    result, x, n = 1.0, float(base), exponent
+    while n:
+        if n & 1:
+            result *= x
+        n >>= 1
+        if n:
+            x *= x
+    return result
+
+
+def _marsh(dbuf, c1, xs, spec, sbuf, svar, reject, profile, nx, rd2, vmin, x1s, x2s,
+           polysep=0.9, polyorder=10):
+    """ap_marsh (Marsh 1989): the profile of a tilted spectrum as overlapping
+    triangles `polysep` pixels apart across the aperture, each scaled by a
+    polynomial of `polyorder` terms along the dispersion, fitted by weighted least
+    squares to the data over the spectrum estimate; then made positive."""
+    from .llsq import hfti
+
+    nb = dbuf.shape[0]
+    npols = int(f32(f32(x2s[0] - x1s[0]) + f32(2)) / f32(polysep))
+    spix = f32(f32(f32(x2s[0] - x1s[0]) + f32(2)) / f32(npols))
+    order = int(polyorder)
+    nside = npols * order
+    if spix > 1:
+        raise ValueError("Polynomial separation too large")
+    work = np.zeros(nside * nside + 1, dtype=f32)     # 1-based, as approfile.x's
+    work1 = np.zeros(nside + 1, dtype=f32)
+    ysum = np.zeros(nb + 1, dtype=f32)
+    zeros = np.zeros(nx, dtype=f32)
+    dx0 = f32(f32(0.5) - spix)
+    dx1 = abs(dx0)
+    dx2 = f32(f32(1) - square(f32(dx0 / spix)))
+    dx3 = f32(f32(0.5) + spix)
+    dx4 = f32(f32(np.sqrt(2.0)) * spix)
+
+    def q(xz):
+        xt = abs(xz)
+        if xt >= dx1:
+            if xt >= 0.5:
+                return square(f32((xt - dx3) / dx4))
+            return f32(f32(1) - square(f32((xt - dx0) / dx4)))
+        if xt <= dx0:
+            return f32(1)
+        return f32(dx2 - square(f32(xz / spix)))
+
+    def line(iy):
+        sky = sbuf[iy - 1] if sbuf is not None else zeros
+        var0 = f32(rd2 + svar[iy - 1]) if sbuf is not None else rd2
+        start = xs[iy - 1] - c1 - 1             # data[ix] is dbuf[iy - 1, start + ix]
+        return sky, var0, start
+
+    powers = [[_pow(f32(f32(iy) / f32(nb)), ip) for ip in range(2 * order)]
+              for iy in range(nb + 1)]
+
+    for jl in range(npols):
+        for iy in range(1, nb + 1):
+            s = spec[iy - 1]
+            if s <= 0:
+                continue
+            xj = f32(f32(x1s[iy - 1] - f32(1)) + f32(spix * f32(f32(jl) + f32(0.5))))
+            ix1, ix2 = nint(f32(xj - spix)), nint(f32(xj + spix))
+            if ix1 < 1 or ix2 > nx:
+                ysum[iy] = 0
+                continue
+            sky, var0, start = line(iy)
+            total = 0.0
+            for ix in range(ix1, ix2 + 1):
+                if not reject[iy - 1, ix]:
+                    continue
+                p = profile[iy - 1, ix - 1]
+                sk = sky[ix - 1]
+                dat = f32(dbuf[iy - 1, start + ix] - sk)
+                var = max(vmin, f32(var0 + max(f32(0), f32(s * p + sk))))
+                total += float(f32(f32(f32(q(f32(xj - f32(ix))) * s) * dat) / var))
+            ysum[iy] = total
+        index1 = order * jl
+        for il in range(1, order + 1):
+            total = 0.0
+            for iy in range(1, nb + 1):
+                if spec[iy - 1] > 0:
+                    total += float(ysum[iy]) * powers[iy][il - 1]
+            work1[index1 + il] = total
+
+    ip1 = nside - 1
+    ip2 = order * ip1
+    for jl in range(npols):
+        for kl in range(jl + 1):
+            if spix * f32(jl - kl - 2) > 0:
+                continue
+            for iy in range(1, nb + 1):
+                s = spec[iy - 1]
+                if s <= 0:
+                    continue
+                sky, var0, _ = line(iy)
+                xj = f32(f32(x1s[iy - 1] - f32(1)) + f32(spix * f32(f32(jl) + f32(0.5))))
+                xk = f32(f32(x1s[iy - 1] - f32(1)) + f32(spix * f32(f32(kl) + f32(0.5))))
+                ix1, ix2 = nint(f32(xj - spix)), nint(f32(xk + spix))
+                if ix2 < ix1 or ix1 < 1 or ix2 > nx:
+                    ysum[iy] = 0
+                    continue
+                s2 = f32(s * s)
+                total = 0.0
+                for ix in range(ix1, ix2 + 1):
+                    if not reject[iy - 1, ix]:
+                        continue
+                    p = profile[iy - 1, ix - 1]
+                    sk = sky[ix - 1]
+                    var = max(vmin, f32(var0 + max(f32(0), f32(s * p + sk))))
+                    qj = q(f32(xj - f32(ix)))
+                    qk = q(f32(xk - f32(ix))) if kl != jl else qj
+                    total += float(f32(f32(f32(qj * qk) * s2) / var))
+                ysum[iy] = total
+            for il in range(1, order + 1):
+                for ll in range(1, il + 1):
+                    total = 0.0
+                    ip = il + ll - 2
+                    for iy in range(1, nb + 1):
+                        if spec[iy - 1] > 0:
+                            total += float(ysum[iy]) * powers[iy][ip]
+                    value = f32(total)
+                    index1 = nside * (order * jl + il - 1) + order * kl + ll
+                    work[index1] = value
+                    if ll != il:
+                        ip = ip1 * (ll - il)
+                        index2 = index1 + ip
+                        work[index2] = value
+                    else:
+                        index2 = index1
+                    if kl != jl:
+                        index3 = index2 + ip2 * (kl - jl)
+                        work[index3] = value
+                        if ll != il:
+                            work[index3 - ip] = value
+
+    x = work1[1:].copy()
+    hfti(work[1:].copy(), nside, nside, nside, x, 1, 1, 0.01)
+    coeff = np.zeros(nside + 1, dtype=f32)              # [npols * (jl - 1) + il]
+    for jl in range(1, order + 1):
+        for il in range(1, npols + 1):
+            coeff[npols * (jl - 1) + il] = x[order * (il - 1) + jl - 1]
+
+    for iy in range(1, nb + 1):
+        xadd = f32(x1s[iy - 1] - f32(1))
+        for ix in range(1, nx + 1):
+            xj = f32(f32(f32(ix) - xadd) - f32(0.5))
+            xk = f32(f32(f32(ix) - xadd) + f32(0.5))
+            first = max(1, min(int(f32(f32(xj / spix) + f32(0.5))), npols))
+            last = max(1, min(int(f32(f32(xk / spix) + f32(1.5))), npols))
+            total = 0.0
+            for jl in range(order):
+                index1 = npols * jl
+                part = 0.0
+                for il in range(first, last + 1):
+                    xz = f32(f32(xadd + f32(spix * f32(f32(il - 1) + f32(0.5)))) - f32(ix))
+                    part += float(f32(q(xz) * coeff[index1 + il]))
+                total += part * powers[iy][jl]
+            profile[iy - 1, ix - 1] = f32(max(0.0, total))
+
+
 def _ncoeff(fit) -> int:
     """CVNCOEFF of the trace fit: terms for a polynomial, pieces + 3 for a
     cubic spline, pieces + 1 for a linear one."""
@@ -1212,11 +1481,13 @@ def _ncoeff(fit) -> int:
 
 
 def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, clean,
-              lsigma, usigma, nclean, log, record=None):
-    """ap_variance: the variance-weighted spectrum, the raw one and sigma.
-    `record`, a list, gets each line's final weights -- (line, pixels,
-    weights normalised as the spectrum is) -- for the error the image's own
-    variance gives (section 12)."""
+              lsigma, usigma, nclean, log, record=None, nsubaps=1):
+    """ap_variance: the variance-weighted spectrum, the raw one and sigma, each
+    [subaperture, line]. `record`, a list per subaperture, gets each line's
+    final weights -- (line, pixels, weights normalised as the spectrum is) --
+    for the error the image's own variance gives (section 12). A subaperture
+    takes the weights of the whole aperture's profile over its own pixels,
+    divided by the whole aperture's sum of weights, as IRAF does."""
     nb, nc = dbuf.shape
     rd2 = square(rdnoise)
     sat = None if saturation is None else f32(saturation)
@@ -1225,9 +1496,10 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
         niter = max(1, int(nclean * nx)) if nclean < 1 else max(1, int(min(nx, nclean)))
     else:
         niter = 0
-    spec = np.zeros(nb, dtype=f32)
-    raw = np.zeros(nb, dtype=f32)
-    sigma = np.full(nb, -1, dtype=f32)
+    spec = np.zeros((nsubaps, nb), dtype=f32)
+    raw = np.zeros((nsubaps, nb), dtype=f32)
+    sigma = np.full((nsubaps, nb), -1, dtype=f32)
+    whole_spec, whole_raw, whole_sigma = spec[0], raw[0], sigma[0]
     nreject = 0
     total1 = total2 = f32(0)
     for iy in range(1, nb + 1):
@@ -1243,6 +1515,7 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
         span = range(ix1, ix2 + 1)
         wt = {}
         data1 = {}
+        yplot = {}
         eplot = {}
         fplot = {}
         saturated = False
@@ -1253,8 +1526,9 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
             if sat is not None and dat > sat:
                 saturated = True
             sk = sky[ix - 1]
-            raw[iy - 1] = f32(raw[iy - 1] + w * (dat - sk))
+            whole_raw[iy - 1] = f32(whole_raw[iy - 1] + w * (dat - sk))
             data1[ix] = f32(dat - sk)
+            yplot[ix] = data1[ix]
             wt[ix] = w
             var = max(vmin, f32(var0 + max(f32(0), dat)))
             w = f32(prof[ix - 1] / var)
@@ -1264,10 +1538,10 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
             sw = f32(sw + w * prof[ix - 1])
             swv = f32(swv + square(w * var))
         if sw > 0:
-            spec[iy - 1] = f32(total / sw)
-            sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
+            whole_spec[iy - 1] = f32(total / sw)
+            whole_sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
         else:
-            spec[iy - 1], sigma[iy - 1] = f32(0), f32(-1)
+            whole_spec[iy - 1], whole_sigma[iy - 1] = f32(0), f32(-1)
 
         total = sw = swv = sum1 = sum2 = f32(0)
         for ix in span:
@@ -1275,7 +1549,7 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
             if eplot[ix] <= 0:
                 continue
             sk = sky[ix - 1]
-            s = f32(max(f32(0), spec[iy - 1]) * prof[ix - 1])
+            s = f32(max(f32(0), whole_spec[iy - 1]) * prof[ix - 1])
             var = max(vmin, f32(var0 + f32(s + sk)))
             w = f32(prof[ix - 1] / var)
             var = f32(np.sqrt(var, dtype=f32))
@@ -1285,11 +1559,11 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
             sw = f32(sw + w * prof[ix - 1])
             swv = f32(swv + square(w * var))
         if sw > 0:
-            spec[iy - 1] = f32(total / sw)
-            sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
-            sum2 = f32(sum2 + spec[iy - 1])
+            whole_spec[iy - 1] = f32(total / sw)
+            whole_sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
+            sum2 = f32(sum2 + whole_spec[iy - 1])
         else:
-            spec[iy - 1], sigma[iy - 1] = f32(0), f32(-1)
+            whole_spec[iy - 1], whole_sigma[iy - 1] = f32(0), f32(-1)
             sum1 = sum2 = f32(0)
 
         nrej = 0
@@ -1298,7 +1572,7 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
             for ix in span:
                 if eplot[ix] <= 0:
                     continue
-                s = f32(max(f32(0), spec[iy - 1]) * prof[ix - 1])
+                s = f32(max(f32(0), whole_spec[iy - 1]) * prof[ix - 1])
                 sk = sky[ix - 1]
                 var = f32(np.sqrt(max(vmin, f32(var0 + max(f32(0), f32(s + sk)))), dtype=f32))
                 fplot[ix] = s
@@ -1322,22 +1596,52 @@ def _variance(ap, dbuf, c1, xs, sbuf, svar, profile, nx, rdnoise, saturation, cl
                 sw = f32(sw + w * prof[ix - 1])
                 swv = f32(swv + square(w * eplot[ix]))
             if sw > 0:
-                spec[iy - 1] = f32(total / sw)
-                sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
-                sum2 = f32(sum2 + spec[iy - 1])
+                whole_spec[iy - 1] = f32(total / sw)
+                whole_sigma[iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
+                sum2 = f32(sum2 + whole_spec[iy - 1])
             else:
-                spec[iy - 1], sigma[iy - 1] = f32(0), f32(-1)
+                whole_spec[iy - 1], whole_sigma[iy - 1] = f32(0), f32(-1)
                 sum1 = sum2 = f32(0)
         nreject += nrej
         total1 = f32(total1 + sum1)
         total2 = f32(total2 + sum2)
-        if record is not None:
+        if record is not None and nsubaps == 1:
             kept = [ix for ix in span if eplot[ix] > 0]
             w = np.array([float(prof[ix - 1]) / float(eplot[ix]) ** 2 for ix in kept])
             norm = float(np.sum(w * np.array([float(prof[ix - 1]) for ix in kept])))
-            record.append((iy, kept, w / norm if norm > 0 else np.zeros_like(w)))
+            record[0].append((iy, kept, w / norm if norm > 0 else np.zeros_like(w)))
+        if nsubaps > 1:
+            for i in range(1, nsubaps + 1):
+                x1, x2, _, _, _ = _edges(ap, nc, c1, xs[iy - 1], iy, (i, nsubaps))
+                if x1 >= x2:
+                    spec[i - 1, iy - 1] = raw[i - 1, iy - 1] = f32(0)
+                    sigma[i - 1, iy - 1] = f32(-1)
+                    continue
+                ix1, ix2 = nint(x1), nint(x2)
+                wt1, wt2 = edge_weights(asi, x1 + 1, x2 + 1)
+                total = swv = f32(0)
+                raw[i - 1, iy - 1] = f32(0)
+                kept = []
+                for ix in range(ix1, ix2 + 1):
+                    w = wt1 if (ix1 == ix2 or ix == ix1) else (wt2 if ix == ix2 else f32(1))
+                    raw[i - 1, iy - 1] = f32(raw[i - 1, iy - 1] + w * yplot.get(ix, f32(0)))
+                    if eplot.get(ix, f32(0)) <= 0:
+                        continue
+                    w = f32(prof[ix - 1] / square(eplot[ix]))
+                    total = f32(total + w * data1[ix])
+                    swv = f32(swv + square(w * eplot[ix]))
+                    kept.append(ix)
+                if sw > 0:
+                    spec[i - 1, iy - 1] = f32(total / sw)
+                    sigma[i - 1, iy - 1] = f32(np.sqrt(swv, dtype=f32) / abs(sw))
+                else:
+                    spec[i - 1, iy - 1], sigma[i - 1, iy - 1] = f32(0), f32(-1)
+                if record is not None:
+                    w = np.array([float(prof[ix - 1]) / float(eplot[ix]) ** 2 for ix in kept])
+                    record[i - 1].append((iy, kept, w / float(sw) if sw > 0
+                                          else np.zeros_like(w)))
         if saturated:
-            sigma[iy - 1] = -sigma[iy - 1]
+            sigma[:, iy - 1] = -sigma[:, iy - 1]
 
     if total1 * total2 <= 0:
         log.append(f"EXTRACT: WARNING - Aperture {ap.number}: total variance weighted "

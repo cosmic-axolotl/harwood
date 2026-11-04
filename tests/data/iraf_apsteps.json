@@ -1,0 +1,258 @@
+{
+ "_comment": "IRAF 2.18.1's apextract steps run one after another on tests/iraf_field.spectra_frame() (A), spectra_frame(1.3) (B) and arc_frame() (arc), all DISPAXIS=2, interactive=no and every parameter the default of the step's own parameter file (apfind.par, apresize.par, aprecenter.par, aptrace.par, apsum.par) unless in the step's params, with nfind=2 for apfind; apall as in iraf_apall.json's d2_none; apsum with edit, fittrace and review off, format multispec. 'apertures' is what database/ap<image> held after the last step (center, low, high along the slit); 'log' the RECENTER line apextract.logfile got; the bands of the last step's extraction are in iraf_apsteps.npz as <case>__<band>. Made by iraf_apsteps.py.",
+ "cases": {
+  "find": {
+   "steps": [
+    [
+     "apfind",
+     "A",
+     {}
+    ]
+   ],
+   "apertures": [
+    [
+     34.60318,
+     -5.0,
+     5.0
+    ],
+    [
+     69.79706,
+     -5.0,
+     5.0
+    ]
+   ],
+   "log": null
+  },
+  "resize": {
+   "steps": [
+    [
+     "apfind",
+     "A",
+     {}
+    ],
+    [
+     "apresize",
+     "A",
+     {}
+    ]
+   ],
+   "apertures": [
+    [
+     34.60318,
+     -3.795837,
+     3.790573
+    ],
+    [
+     69.79706,
+     -0.7173538,
+     1.106392
+    ]
+   ],
+   "log": null
+  },
+  "trace": {
+   "steps": [
+    [
+     "apfind",
+     "A",
+     {}
+    ],
+    [
+     "apresize",
+     "A",
+     {}
+    ],
+    [
+     "aptrace",
+     "A",
+     {}
+    ]
+   ],
+   "apertures": [
+    [
+     34.60318,
+     -3.795837,
+     3.790573
+    ],
+    [
+     69.79706,
+     -0.7173538,
+     1.106392
+    ]
+   ],
+   "log": null
+  },
+  "sum": {
+   "steps": [
+    [
+     "apfind",
+     "A",
+     {}
+    ],
+    [
+     "apresize",
+     "A",
+     {}
+    ],
+    [
+     "aptrace",
+     "A",
+     {}
+    ],
+    [
+     "apsum",
+     "A",
+     {}
+    ]
+   ],
+   "apertures": [
+    [
+     34.60318,
+     -3.795837,
+     3.790573
+    ],
+    [
+     69.79706,
+     -0.7173538,
+     1.106392
+    ]
+   ],
+   "log": null
+  },
+  "sum_variance": {
+   "steps": [
+    [
+     "apfind",
+     "A",
+     {}
+    ],
+    [
+     "apresize",
+     "A",
+     {}
+    ],
+    [
+     "aptrace",
+     "A",
+     {}
+    ],
+    [
+     "apsum",
+     "A",
+     {
+      "background": "fit",
+      "weights": "variance",
+      "extras": true,
+      "trace": false
+     }
+    ]
+   ],
+   "apertures": [
+    [
+     34.60318,
+     -3.795837,
+     3.790573
+    ],
+    [
+     69.79706,
+     -0.7173538,
+     1.106392
+    ]
+   ],
+   "log": null
+  },
+  "sum_untraced": {
+   "steps": [
+    [
+     "apfind",
+     "A",
+     {}
+    ],
+    [
+     "apsum",
+     "A",
+     {
+      "trace": false
+     }
+    ]
+   ],
+   "apertures": [
+    [
+     34.60318,
+     -5.0,
+     5.0
+    ],
+    [
+     69.79706,
+     -5.0,
+     5.0
+    ]
+   ],
+   "log": null
+  },
+  "recenter": {
+   "steps": [
+    [
+     "apall",
+     "A",
+     {}
+    ],
+    [
+     "aprecenter",
+     "B",
+     {
+      "references": "A"
+     }
+    ],
+    [
+     "apsum",
+     "B",
+     {}
+    ]
+   ],
+   "apertures": [
+    [
+     35.86549,
+     -3.727915,
+     3.779636
+    ],
+    [
+     70.53441,
+     -5.099289,
+     3.067406
+    ]
+   ],
+   "log": "RECENTER  - 2 apertures shifted by 1.27 for B."
+  },
+  "sum_arc": {
+   "steps": [
+    [
+     "apall",
+     "A",
+     {}
+    ],
+    [
+     "apsum",
+     "arc",
+     {
+      "references": "A",
+      "trace": false
+     }
+    ]
+   ],
+   "apertures": [
+    [
+     34.59373,
+     -3.727915,
+     3.779636
+    ],
+    [
+     69.26266,
+     -5.099289,
+     3.067406
+    ]
+   ],
+   "log": null
+  }
+ }
+}

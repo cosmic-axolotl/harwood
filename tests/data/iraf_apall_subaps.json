@@ -1,0 +1,105 @@
+{
+ "_comment": "IRAF 2.18.1 apall with nsubaps on tests/iraf_field.spectra_frame() (A, DISPAXIS=2) and its transpose (T, DISPAXIS=1): interactive=no, find, recenter, resize, trace, extract, extras, nfind=2, format multispec, every other parameter IRAF's default unless in 'params' (harwood's names). 'apnum' is the APNUM card of each line of the output, in order: aperture number, beam, lower and upper limit across the slit. The bands are in iraf_apall_subaps.npz as <case>__<band>, [line, pixel]. Made by iraf_apall_subaps.py.",
+ "cases": {
+  "s2_none": {
+   "image": "A",
+   "params": {
+    "nsubaps": 2
+   },
+   "apnum": [
+    "1 1 30.87 34.62",
+    "1001 1 34.62 38.37",
+    "2 2 64.16 68.25",
+    "1002 2 68.25 72.33"
+   ]
+  },
+  "s3_none": {
+   "image": "A",
+   "params": {
+    "nsubaps": 3
+   },
+   "apnum": [
+    "1 1 30.87 33.37",
+    "1001 1 33.37 35.87",
+    "2001 1 35.87 38.37",
+    "2 2 64.16 66.89",
+    "1002 2 66.89 69.61",
+    "2002 2 69.61 72.33"
+   ]
+  },
+  "s3_fit": {
+   "image": "A",
+   "params": {
+    "nsubaps": 3,
+    "background": "fit"
+   },
+   "apnum": [
+    "1 1 30.87 33.37",
+    "1001 1 33.37 35.87",
+    "2001 1 35.87 38.37",
+    "2 2 64.16 66.89",
+    "1002 2 66.89 69.61",
+    "2002 2 69.61 72.33"
+   ]
+  },
+  "s2_median": {
+   "image": "A",
+   "params": {
+    "nsubaps": 2,
+    "background": "median"
+   },
+   "apnum": [
+    "1 1 30.87 34.62",
+    "1001 1 34.62 38.37",
+    "2 2 64.16 68.25",
+    "1002 2 68.25 72.33"
+   ]
+  },
+  "s2_variance": {
+   "image": "A",
+   "params": {
+    "nsubaps": 2,
+    "weights": "variance",
+    "readnoise": 5.0,
+    "gain": 2.0
+   },
+   "apnum": [
+    "1 1 30.87 34.62",
+    "1001 1 34.62 38.37",
+    "2 2 64.16 68.25",
+    "1002 2 68.25 72.33"
+   ]
+  },
+  "s3_clean": {
+   "image": "A",
+   "params": {
+    "nsubaps": 3,
+    "clean": true,
+    "readnoise": 5.0,
+    "gain": 2.0,
+    "background": "fit"
+   },
+   "apnum": [
+    "1 1 30.87 33.37",
+    "1001 1 33.37 35.87",
+    "2001 1 35.87 38.37",
+    "2 2 64.16 66.89",
+    "1002 2 66.89 69.61",
+    "2002 2 69.61 72.33"
+   ]
+  },
+  "s2_d1": {
+   "image": "T",
+   "params": {
+    "nsubaps": 2,
+    "background": "average"
+   },
+   "apnum": [
+    "1 1 30.87 34.62",
+    "1001 1 34.62 38.37",
+    "2 2 64.16 68.25",
+    "1002 2 68.25 72.33"
+   ]
+  }
+ }
+}

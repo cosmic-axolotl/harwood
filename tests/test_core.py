@@ -390,10 +390,14 @@ def test_the_unexplained_backlog_is_exactly_what_we_think_it_is():
     )
 
 
-def test_an_iraf_name_that_harwood_runs_under_another_name_says_which():
-    """`apedit` is part of `apall`. "Did you mean apall?" makes that look like a
-    guess; the map knows, so it should say so."""
-    answer = migration.explain("apedit")
+def test_an_iraf_name_that_harwood_runs_under_another_name_says_which(monkeypatch):
+    """A step of a task, run as part of it (as apedit was of apall before it was
+    a task of its own). "Did you mean apall?" makes that look like a guess; the
+    map knows, so it should say so."""
+    monkeypatch.setitem(migration.tasks(), "apstep", {
+        "pkg": "twodspec.apextract", "status": "available", "harwood": "apall",
+        "note": "part of apall"})
+    answer = migration.explain("apstep")
     assert answer is not None
     assert "apall" in answer
     assert migration.explain("daofind") is None, \

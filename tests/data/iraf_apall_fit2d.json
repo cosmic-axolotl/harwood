@@ -1,0 +1,54 @@
+{
+ "_comment": "IRAF 2.18.1 apall with pfit=fit2d (Marsh's profile) on tests/iraf_field.spectra_frame() (A, DISPAXIS=2) and its transpose (T, DISPAXIS=1): interactive=no, find, recenter, resize, trace, extract, extras, nfind=2, format multispec, every other parameter IRAF's default unless in 'params' (harwood's names; polysep and polyorder set in apall1, where apall reads them). The bands are in iraf_apall_fit2d.npz as <case>__<band>. Made by iraf_apall_fit2d.py.",
+ "cases": {
+  "f2_variance": {
+   "image": "A",
+   "params": {
+    "weights": "variance",
+    "pfit": "fit2d",
+    "readnoise": 5.0,
+    "gain": 2.0
+   }
+  },
+  "f2_fit": {
+   "image": "A",
+   "params": {
+    "weights": "variance",
+    "pfit": "fit2d",
+    "background": "fit",
+    "readnoise": 5.0,
+    "gain": 2.0
+   }
+  },
+  "f2_clean": {
+   "image": "A",
+   "params": {
+    "clean": true,
+    "pfit": "fit2d",
+    "background": "fit",
+    "readnoise": 5.0,
+    "gain": 2.0
+   }
+  },
+  "f2_d1": {
+   "image": "T",
+   "params": {
+    "weights": "variance",
+    "pfit": "fit2d",
+    "readnoise": 5.0,
+    "gain": 1.0
+   }
+  },
+  "f2_order": {
+   "image": "A",
+   "params": {
+    "weights": "variance",
+    "pfit": "fit2d",
+    "polysep": 0.7,
+    "polyorder": 4,
+    "readnoise": 5.0,
+    "gain": 2.0
+   }
+  }
+ }
+}

@@ -44,7 +44,11 @@ shift measured on the line before, plus `--shift` per step -- the lines drift
 smoothly across the slit, so that is a good guess. With `--trace` each line
 starts from the previous line's solution instead of the reference's.
 `--shift INDEF --search INDEF` finds the shift from the spectrum's own peaks,
-for an arc that has moved by more than the centring radius.
+for an arc that has moved by more than the centring radius. `--shift INDEF`
+with a radius, `--search 5` (Angstroms; negative, a fraction of the
+spectrum's range), searches for it as autoidentify does: the pattern of the
+line list's lines within that distance of the reference's solution, with the
+same dispersion -- for an arc that has moved by more than its peaks can say.
 
 `--addfeatures` adds the lines of `--coordlist` the solution finds on each
 spectrum, and refits.
@@ -52,7 +56,8 @@ spectrum, and refits.
 ## Not yet
 
 IRAF's interactive mode, which stops at each fit, is not ported: only
-`--interactive no` runs. Neither is the pattern search for the shift (a
-nonzero `--search`). Everything else is IRAF's t_reidentify.x, and checked
-against IRAF's own output on nine sets of parameters: the log comes out the
-same character for character.
+`--interactive no` runs. Everything else is IRAF's t_reidentify.x, and checked
+against IRAF's own output on nine sets of parameters, where the log comes out
+the same character for character, and three with a search radius, where the
+same lines are found and rejected and the log agrees to within one in its
+last figure.
