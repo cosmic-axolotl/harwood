@@ -1,6 +1,7 @@
 """onedspec -- the tools that work on a spectrum once it has wavelengths.
 
-dopcor takes it to the rest frame, specshift moves its zero point. Each is IRAF's
+dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
+round. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -214,3 +215,79 @@ class Specshift(Task[SpecshiftParams]):
         return TaskResult(outputs=written, steps=steps, warnings=warnings,
                           data={"text": said},
                           history=[f"specshift: {params.shift:g}"])
+
+
+#: The bands of a spectrum that are data, and the columns that are its coordinates.
+_DATA = ("flux", "error", "sky", "raw", "dq")
+_COORDINATES = ("pixel", "wavelength")
+
+
+class SflipParams(TaskParams):
+    input: str = Field(..., description="Spectra to flip. Commas, globs and @lists expand.")
+    output: str | None = Field(
+        None, description="One name per input; the input's own name flips it in place. "
+                          "Left out, each goes to this run's own directory.",
+        json_schema_extra={"positional": True})
+    coord_flip: bool = Field(False, description="Flip the coordinates: the first pixel "
+                                                "takes the last one's wavelength and "
+                                                "position.")
+    data_flip: bool = Field(True, description="Flip the data: the first pixel takes the "
+                                              "last one's flux, error, sky and raw.")
+
+
+@register
+class Sflip(Task[SflipParams]):
+    name = "sflip"
+    package = "onedspec"
+    description = "Turn spectra round: their data, their coordinates, or both."
+    Params = SflipParams
+
+    def plan(self, params: SflipParams) -> list[Step]:
+        what = " and ".join(part for part, on in (("the coordinates", params.coord_flip),
+                                                  ("the data", params.data_flip)) if on)
+        return [Step("flip", what or "nothing: a copy",
+                     why="Both, and every value keeps its wavelength while the pixels run "
+                         "the other way -- red to the right, say, for a spectrograph that "
+                         "puts it on the left. The data alone, and they are put against "
+                         "the coordinates the other way round; the coordinates alone, the "
+                         "same from the other side. Those two are for a spectrum whose "
+                         "data or whose solution was read backwards."),
+                Step("write", str(params.output or "this run's directory"),
+                     why="A new spectrum, unless the output is the input's own name.")]
+
+    def execute(self, params: SflipParams) -> TaskResult:
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import images, output, spectrum
+
+        names = [name if Path(name).exists() or not Path(name + ".fits").exists()
+                 else name + ".fits"
+                 for name in (str(spec) for spec in images.expand(params.input))]
+        if not names:
+            advice.fail(f"'{params.input}' matches nothing.",
+                        "check the path; 'harwood sections' shows what a template "
+                        "expands to.", FileNotFoundError)
+        outs = [part if Path(part).suffix else part + ".fits"
+                for part in (p.strip() for p in images.split_list(str(params.output)))] \
+            if params.output else []
+        written: list[Path] = []
+        for index, name in enumerate(names):
+            if outs and index >= len(outs):
+                break               # t_sflip stops when the output list runs out
+            target = Path(outs[index]) if outs else output.named_for(name, ".flip.fits")
+            header = fits.getheader(name)
+            apertures = spectrum.read(name)
+            columns = (_COORDINATES if params.coord_flip else ()) + \
+                (_DATA if params.data_flip else ())
+            for aperture in apertures:
+                for column in columns:
+                    values = getattr(aperture, column, None)
+                    if values is not None:
+                        setattr(aperture, column, np.asarray(values)[::-1].copy())
+            spectrum.write(target, apertures, header=header, source=name)
+            written.append(target)
+        return TaskResult(outputs=written, steps=self.plan(params),
+                          history=["sflip: " + ", ".join(
+                              part for part, on in (("coordinates", params.coord_flip),
+                                                    ("data", params.data_flip)) if on)])
