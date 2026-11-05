@@ -2,7 +2,7 @@
 
 dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
 round, deredden takes the dust out, slist says what each aperture is, rspectext
-reads one from text. Each is IRAF's
+reads one from text, names spells out a record list. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -600,3 +600,42 @@ class Rspectext(Task[RspectextParams]):
                 wavelength=wave, title=title)], header=header, source=name)
             written.append(target)
         return TaskResult(outputs=written, steps=self.plan(params), data={"text": said})
+
+
+class NamesParams(TaskParams):
+    input: str = Field(..., description="Root names, as onedspec's record format has "
+                                        "them: night1/sp, which records make sp.0001...")
+    records: str = Field(..., description="Record numbers: 1-5,7 or 10-20x2; empty, the "
+                                          "roots themselves.")
+    append: str = Field("", description="Text put after each name, a section such as "
+                                        "[1:500].")
+    check: bool = Field(False, description="Only the names of images that exist.")
+
+
+@register
+class Names(Task[NamesParams]):
+    name = "names"
+    package = "onedspec"
+    description = "Spell out the image names of a root and record numbers."
+    Params = NamesParams
+
+    def plan(self, params: NamesParams) -> list[Step]:
+        return [Step("expand", f"{params.input} with records {params.records or '(none)'}",
+                     why="IRAF's old spectra were one to a file, named by a root and a "
+                         "number of four figures. The numbers come out in increasing "
+                         "order, each once, as xtools' decode_ranges has them.")]
+
+    def execute(self, params: NamesParams) -> TaskResult:
+        from ..core import images, odrecords
+
+        roots: list[str] = []
+        for token in images.split_list(params.input):
+            found = [str(spec) for spec in images.expand(token)] \
+                if any(c in token for c in "*?[@") else []
+            roots.extend(found or [token])
+        said = []
+        for name in odrecords.names(roots, params.records):
+            if params.check and not (Path(name).exists() or Path(name + ".fits").exists()):
+                continue
+            said.append(f"{name}{params.append}")
+        return TaskResult(outputs=[], steps=self.plan(params), data={"text": said})

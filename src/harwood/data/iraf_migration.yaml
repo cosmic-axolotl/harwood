@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 95, partial: 0, planned: 260, replaced: 94, wontport: 161
+#   available: 96, partial: 0, planned: 259, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -824,7 +824,8 @@ tasks:
   mkechelle: {pkg: artdata, domain: spec-1d, status: planned, milestone: later}
   mkspec: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   msresp1d: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
-  names: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  names: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: names,
+    note: "t_names.x and odropenp.x, with onedspec's own decode_ranges (from 0, sorted, once each, at most 1000), the extension stripping that leaves .fits, append and check, held to IRAF's print line for line"}
   ndprep: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   refspectra: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: refspectra,
     note: "ref*.x ported: every selection, sort/group (JD/LJD, worked out as setjd when absent), apertures/refaps/ignoreaps, override, confirm, logfiles, verbose; identical to IRAF 2.18 on 15 runs, including its preceding that never falls back. Reads header numbers with IRAF's ctod, and reference tables (reftable)"}

@@ -1,0 +1,65 @@
+{
+ "simple": [
+  "sp.0001",
+  "sp.0002",
+  "sp.0003"
+ ],
+ "list": [
+  "sp.0001",
+  "sp.0002",
+  "sp.0003",
+  "sp.0005"
+ ],
+ "step": [
+  "sp.0010",
+  "sp.0014",
+  "sp.0018",
+  "arc.0010",
+  "arc.0014",
+  "arc.0018"
+ ],
+ "reverse": [
+  "sp.0004",
+  "sp.0005",
+  "sp.0006",
+  "sp.0007"
+ ],
+ "zero": [
+  "sp.0000",
+  "sp.0001",
+  "sp.0002",
+  "sp.0003"
+ ],
+ "afterzero": [
+  "sp.0000",
+  "sp.0002",
+  "sp.0005"
+ ],
+ "open": [
+  "ERROR ERROR (1, \"Too many records\u0007\")"
+ ],
+ "extension": [
+  "sp.0001",
+  "sp.0001",
+  "sp.fits.0001",
+  "sp.0001"
+ ],
+ "append": [
+  "sp.0001[1:500]",
+  "sp.0003[1:500]"
+ ],
+ "none": [
+  "sp",
+  "arc"
+ ],
+ "check": [
+  "sp.0002",
+  "sp.0005"
+ ],
+ "toomany": [
+  "ERROR ERROR (1, \"Too many records\u0007\")"
+ ],
+ "bad": [
+  "ERROR ERROR (1, \"Bad record specification\u0007\")"
+ ]
+}
