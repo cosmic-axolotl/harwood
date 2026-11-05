@@ -211,6 +211,8 @@ def find_star(name: str, caldir: str = "") -> Path | None:
     and so are the usual ways of writing a name: `BD+28 4211`, `bd284211`.
     """
     key = _flatten(name)
+    if caldir.startswith("onedstds$"):          # IRAF's way of naming one of its own
+        caldir = caldir.removeprefix("onedstds$").rstrip("/")
     # A directory of one's own, as IRAF's caldir="mydir/" allows, first.
     roots = ([None] if caldir and Path(caldir).is_dir() else []) + list(_roots())
     for root in roots:

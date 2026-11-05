@@ -2,8 +2,8 @@
 
 dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
 round, deredden takes the dust out, slist says what each aperture is, rspectext
-reads one from text, names spells out a record list, sbands measures bands.
-Each is IRAF's
+reads one from text, names spells out a record list, sbands measures bands, lcalib
+lists the calibration tables. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -738,3 +738,70 @@ class Sbands(Task[SbandsParams]):
             outputs.append(Path(params.output))
         return TaskResult(outputs=outputs, steps=self.plan(params), warnings=warnings,
                           data={"text": said, "lines": written})
+
+
+class LcalibParams(TaskParams):
+    option: Literal["bands", "ext", "mags", "fnu", "flam", "stars"] = Field(
+        ..., description="What to list: a star's bands, magnitudes, F-nu or F-lambda; the "
+                         "extinction table; or the stars of a calibration directory.")
+    star_name: str = Field("", description="The star, as its calibration file is named.")
+    caldir: str = Field("onedstds$redcal/", description="The calibration directory, IRAF's "
+                                                        "onedstds$ ones with harwood.")
+    extinction: str = Field("onedstds$kpnoextinct.dat",
+                            description="The extinction table, for ext.")
+    fnuzero: float = Field(3.68e-20, description="The flux of magnitude zero, erg/cm2/s/Hz.")
+    mag: float | None = Field(None, description="A blackbody's magnitude.")
+    magband: str = Field("", description="Its band: U B V R I J H K L Lprime M.")
+    teff: str = Field("", description="Its temperature, or spectral type.")
+
+
+@register
+class Lcalib(Task[LcalibParams]):
+    name = "lcalib"
+    package = "onedspec"
+    description = "List the calibration tables standard, sensfunc and calibrate read."
+    Params = LcalibParams
+
+    def plan(self, params: LcalibParams) -> list[Step]:
+        return [Step("list", params.option,
+                     why="What standard reads for a star -- its bands' centres and widths "
+                         "and its magnitudes, and so its flux, F-nu = fnuzero 10^(-0.4 m) "
+                         "and F-lambda = F-nu c / lambda^2 -- and what calibrate reads for "
+                         "the site's extinction, in real, as IRAF prints them.")]
+
+    def execute(self, params: LcalibParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import flux, iraffmt, stdstar
+
+        f32 = np.float32
+        said: list[str] = []
+        errors: list[str] = []
+
+        def row(wave, value):
+            return (f"{iraffmt.printf(float(f32(wave)), 'f', width=6).rjust(6)} "
+                    f"{iraffmt.printf(float(f32(value)), 'g', 5, width=12).rjust(12)}")
+
+        if params.option == "ext":
+            waves, extns = flux.read_extinction(params.extinction)
+            said = [row(w, e) for w, e in zip(waves, extns, strict=True)]
+        elif params.option == "stars":
+            path = flux.resolve(params.caldir.rstrip("/") + "/standards.men")
+            errors = path.read_text(encoding="utf-8").splitlines()
+        else:
+            cal = stdstar.read_calibration(params.caldir, params.star_name, params.mag,
+                                           params.magband, params.teff)
+            errors = [note for note in cal.notes]
+            for wave, band, mag in zip(cal.waves, cal.dwaves, cal.mags, strict=True):
+                if params.option == "bands":
+                    value = band
+                elif params.option == "mags":
+                    value = mag
+                else:
+                    fnu = f32(f32(params.fnuzero) * f32(10.0) ** (f32(-0.4) * f32(mag)))
+                    value = fnu if params.option == "fnu" else \
+                        f32(fnu * f32(2.997925e18) / f32(wave) ** 2)
+                said.append(row(wave, value))
+        # What IRAF prints on the error stream (the stars, a blackbody's line) first.
+        return TaskResult(outputs=[], steps=self.plan(params),
+                          data={"text": errors + said, "stdout": said, "errors": errors})
