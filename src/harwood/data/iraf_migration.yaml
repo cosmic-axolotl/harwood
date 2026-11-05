@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 101, partial: 0, planned: 254, replaced: 94, wontport: 161
+#   available: 102, partial: 0, planned: 253, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -319,7 +319,8 @@ tasks:
     note: "astropy.table plus ECSV replace the t* family"}
   partab: {pkg: utilities.nttools, domain: headers, status: replaced,
     note: "astropy.table plus ECSV replace the t* family"}
-  sapertures: {pkg: onedspec, domain: headers, status: planned, milestone: later}
+  sapertures: {pkg: onedspec, domain: headers, status: available, milestone: later, harwood: sapertures,
+    note: "t_sapertures.x: beam, dtype, w1 and dw (in wavelength, a log one's too), z, the limits on the slit and the title, from a table (nine values or three) or defaults, wcsreset, the verbose lines to the last figure of their doubles, held to IRAF's runs. A text table only: IRAF's image of SLFIB keywords is not read"}
   setairmass: {pkg: [astutil, onedspec], domain: headers, status: available, milestone: mvp, harwood: setairmass,
     note: "IRAF's t_setairmass ported and checked against IRAF's output: ST minus precessed RA, airmassx with the scale height, intype/outtype, every keyword renameable, AIRMASS in single precision and UTMIDDLE as IRAF writes it; ST worked out from the UT when the header has none"}
   setinstrument: {pkg: imred.ccdred, domain: headers, status: available, milestone: mvp, harwood: setinstrument,

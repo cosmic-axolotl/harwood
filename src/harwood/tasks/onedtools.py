@@ -4,8 +4,8 @@ dopcor takes it to the rest frame, specshift moves its zero point, sflip turns i
 round, deredden takes the dust out, slist says what each aperture is, rspectext
 reads one from text, names spells out a record list, sbands measures bands, lcalib
 lists the calibration tables, mkspec makes an artificial one, sinterp
-interpolates a table into one, scoords gives one its wavelengths from a list. Each is
-IRAF's
+interpolates a table into one, scoords gives one its wavelengths from a list,
+sapertures changes what its apertures are. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -1038,3 +1038,90 @@ class Scoords(Task[ScoordsParams]):
             written.append(Path(path))
         return TaskResult(outputs=written, steps=self.plan(params), warnings=warnings,
                           data={"text": said})
+
+
+class SaperturesParams(TaskParams):
+    input: str = Field(..., description="Spectra whose apertures to change, in place.")
+    apertures: str = Field("", description="Apertures to change (1,3-5); all when empty.")
+    apidtable: str = Field("", description="A table of aperture, beam, dtype, w1, dw, z, "
+                                           "aplow, aphigh and title, a line each, or of "
+                                           "aperture, beam and title.")
+    wcsreset: bool = Field(False, description="Put every aperture back in pixels, the "
+                                              "table and the defaults ignored.")
+    verbose: bool = Field(False, description="Say each change.")
+    beam: int | None = Field(None, description="Default beam number.")
+    dtype: int | None = Field(None, ge=-1, le=1, description="Default dispersion type: -1 "
+                                                             "pixels, 0 linear, 1 log.")
+    w1: float | None = Field(None, description="Default first wavelength (a wavelength, "
+                                               "for a log dispersion too).")
+    dw: float | None = Field(None, description="Default step, in wavelength.")
+    z: float | None = Field(None, description="Default redshift.")
+    aplow: float | None = Field(None, description="Default lower limit across the slit.")
+    aphigh: float | None = Field(None, description="Default upper limit across the slit.")
+    title: str = Field("INDEF", description="Default title; INDEF keeps the aperture's.")
+
+
+@register
+class Sapertures(Task[SaperturesParams]):
+    name = "sapertures"
+    package = "onedspec"
+    description = "Change the apertures' beams, dispersions, limits and titles."
+    Params = SaperturesParams
+
+    def plan(self, params: SaperturesParams) -> list[Step]:
+        return [Step("change", params.apidtable or "the defaults given",
+                     why="What an aperture is -- its beam, its dispersion, its place on "
+                         "the slit, its title -- set by hand: a fibre's object from the "
+                         "observing table, a dispersion known from elsewhere, a redshift. "
+                         "w1 and dw are wavelengths, a log dispersion's too, as IRAF's.")]
+
+    def execute(self, params: SaperturesParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import images, iraffmt, ranges, sapertures, spectrum
+
+        aps = ranges.parse(params.apertures, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        errors: list[str] = []
+        if params.wcsreset:
+            rows = []
+            default = sapertures.Values(dtype=-1, w1=1.0, dw=1.0, z=0.0, title="")
+        else:
+            rows = []
+            if params.apidtable.strip():
+                rows, errors = sapertures.read_table(
+                    Path(params.apidtable.strip()).read_text(encoding="utf-8"),
+                    params.verbose)
+            beam = params.beam
+            if beam is not None and beam < 0:
+                if params.verbose:
+                    errors.append("Negative default beam number ignored.")
+                beam = None
+            # clgetd reads the parameter's text with IRAF's ctod, 1e-4 a hair above.
+            read = lambda v: None if v is None else iraffmt.ctod(repr(float(v)))  # noqa: E731
+            default = sapertures.Values(None, beam, params.dtype, read(params.w1),
+                                        read(params.dw), read(params.z), params.aplow,
+                                        params.aphigh, params.title)
+        said: list[str] = []
+        written: list[Path] = []
+        for spec in images.expand(params.input):
+            name = str(spec)
+            path = name if Path(name).exists() or not Path(name + ".fits").exists() \
+                else name + ".fits"
+            header = fits.getheader(path)
+            apertures = spectrum.read(path)
+            lines: list[str] = []
+            for aperture in apertures:
+                if aperture.number not in aps:
+                    continue
+                row = next((r for r in rows if r.ap == aperture.number), default)
+                change = sapertures.change(aperture, row,
+                                           aperture.title or str(header.get("OBJECT", "")))
+                if change is not None:
+                    lines.extend(change)
+            if lines and params.verbose:
+                shown = name.removesuffix(".fits") if ".fits" not in params.input else name
+                said.extend([f"{shown}:"] + lines)
+            spectrum.write(path, apertures, header=header)
+            written.append(Path(path))
+        return TaskResult(outputs=written, steps=self.plan(params),
+                          data={"text": errors + said, "stdout": said, "errors": errors})
