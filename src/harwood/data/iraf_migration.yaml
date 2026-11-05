@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 99, partial: 0, planned: 256, replaced: 94, wontport: 161
+#   available: 100, partial: 0, planned: 255, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -268,7 +268,8 @@ tasks:
     note: "rspectext.cl and t_rstext.x: two columns through %g, a header in front read as rt_rheader does (the last OBJECT is the title), dtype none, linear, log, nonlinear (a lookup table) and interp (dispcor on it, IRAF's PIXEL curve now in core/dispcor), held to IRAF's runs; an existing output stops it, as IRAF's"}
   rtextimage: {pkg: dataio, domain: io-formats, status: wontport,
     note: "raster and text-image conversion: any image library does this. For pictures of an image as displayed (PNG, JPEG, TIFF, WebP), harwood has impicture"}
-  sinterp: {pkg: onedspec, domain: io-formats, status: planned, milestone: later}
+  sinterp: {pkg: onedspec, domain: io-formats, status: available, milestone: later, harwood: sinterp,
+    note: "t_sinterp.x: lintrp (now in core/flux), intrp and curfit's four functions in real, at x's, along a range or into a spectrum, held to IRAF's print to the character"}
   suntoiraf: {pkg: proto, domain: io-formats, status: wontport,
     note: "raster and text-image conversion: any image library does this. For pictures of an image as displayed (PNG, JPEG, TIFF, WebP), harwood has impicture"}
   t2d: {pkg: dataio, domain: io-formats, status: wontport,

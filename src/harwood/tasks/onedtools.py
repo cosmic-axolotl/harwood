@@ -3,7 +3,8 @@
 dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
 round, deredden takes the dust out, slist says what each aperture is, rspectext
 reads one from text, names spells out a record list, sbands measures bands, lcalib
-lists the calibration tables, mkspec makes an artificial one. Each is IRAF's
+lists the calibration tables, mkspec makes an artificial one, sinterp
+interpolates a table into one. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -865,3 +866,87 @@ class Mkspec(Task[MkspecParams]):
             target.parent.mkdir(parents=True, exist_ok=True)
             fits.writeto(target, np.tile(line, (params.nlines, 1)), header, overwrite=True)
         return TaskResult(outputs=[target], steps=self.plan(params))
+
+
+class SinterpParams(TaskParams):
+    tbl_file: str = Field(..., description="The table: lines of x and y.")
+    input: str = Field("STDIN", description="A file of x's to interpolate at, one a line, "
+                                            "when neither --curve-gen nor --make-image.")
+    image: str = Field("", description="The spectrum --make-image makes.")
+    order: int = Field(5, ge=1, description="The fit's order, for legendre, chebyshev, "
+                                            "spline3 and spline1.")
+    x1: float = Field(0.0, description="The range's first x.")
+    x2: float = Field(0.0, description="Its last; 0 to work it out from dx and npts.")
+    dx: float = Field(0.0, description="Its step; 0 to work it out from x2 and npts.")
+    npts: int = Field(0, ge=0, description="Its number of points.")
+    curve_gen: bool = Field(False, description="Interpolate along the range, and say it.")
+    make_image: bool = Field(False, description="Interpolate along the range into a "
+                                                "spectrum, its wavelengths the x's.")
+    tbl_size: int = Field(1024, ge=200, description="The most points the table may hold.")
+    interp_mode: str = Field("chebyshev", description="linear, curves, legendre, "
+                                                      "chebyshev, spline3 or spline1.")
+
+
+@register
+class Sinterp(Task[SinterpParams]):
+    name = "sinterp"
+    package = "onedspec"
+    description = "Interpolate a table of x and y: at x's, along a range, into a spectrum."
+    Params = SinterpParams
+
+    def plan(self, params: SinterpParams) -> list[Step]:
+        return [Step("interpolate", f"{params.tbl_file} by {params.interp_mode}",
+                     why="linear is a straight line between the two points around x; "
+                         "curves blends the two parabolas through the points around it "
+                         "by how far apart they are; the others fit a curve of the "
+                         "order through every point and evaluate it. In real, as "
+                         "IRAF's.")]
+
+    def execute(self, params: SinterpParams) -> TaskResult:
+        import sys
+
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import iraffmt, sinterp, spectrum
+
+        f32 = np.float32
+        xtab, ytab = sinterp.read_table(Path(params.tbl_file).read_text(encoding="utf-8"),
+                                        params.tbl_size)
+        mode = sinterp.mode_of(params.interp_mode)
+        at = sinterp.Interpolant(xtab, ytab, mode, params.order)
+        said: list[str] = []
+        outputs: list[Path] = []
+        if params.curve_gen or params.make_image:
+            x2, dx, n = sinterp.grid(params.x1, params.x2, params.dx, params.npts)
+            xs = [f32(f32(params.x1) + f32(i) * f32(dx)) for i in range(n)]
+            ys = [f32(at(x)) for x in xs]
+            if params.make_image:
+                target = Path(params.image if Path(params.image).suffix
+                              else params.image + ".fits")
+                # imaddr writes a real into the header with its seven figures, and the
+                # wavelengths are the WCS's from those, in double; the pixels are the
+                # interpolant at x's in real.
+                start = float(iraffmt.g(float(f32(params.x1))))
+                step = float(iraffmt.g(float(f32(dx))))
+                header = fits.Header()
+                header["CRVAL1"], header["CDELT1"] = start, step
+                header["CD1_1"], header["CRPIX1"], header["DC-FLAG"] = step, 1.0, 0
+                spectrum.write(target, [spectrum.Aperture(
+                    number=1, centre=0.0, low=0.0, high=0.0,
+                    pixel=np.arange(1.0, n + 1.0), flux=np.array(ys, float),
+                    wavelength=start + step * np.arange(n))], header=header)
+                outputs.append(target)
+            else:
+                said = [sinterp.line(x, y) for x, y in zip(xs, ys, strict=True)]
+        else:
+            text = sys.stdin.read() if params.input == "STDIN" else \
+                Path(params.input).read_text(encoding="utf-8")
+            x = f32(0)
+            for row in text.splitlines():
+                words = row.split()
+                value = iraffmt.ctod(words[0]) if words else None
+                if value is not None and value < 1e300:
+                    x = f32(value)          # gargr leaves x as it was on a word it can't read
+                said.append(sinterp.line(x, at(x)))
+        return TaskResult(outputs=outputs, steps=self.plan(params), data={"text": said})

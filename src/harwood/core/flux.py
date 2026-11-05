@@ -608,3 +608,27 @@ def calibrate(aperture, sens: SensSpectrum | None, curve, airmass: float, exptim
         if err is not None and error is not None:
             err[k - 1] = f32(error[k - 1] * ext * fcor)
     return out, err, nout
+
+
+def lintrp(xtab, ytab, x) -> float:
+    """xtools intrp.f's lintrp: a straight line through the two table points around
+    x, found as intrp's srch finds them, in real; past the ends, the end ones'."""
+    ntab = len(xtab)
+    if ntab == 1:
+        return float(ytab[0])
+    xtab, ytab = np.asarray(xtab, dtype=f32), np.asarray(ytab, dtype=f32)
+    x = f32(x)
+    idir = 1.0 if xtab[-1] - xtab[0] >= 0 else -1.0
+    if (x - xtab[0]) * idir < 0:
+        index = 2
+    elif (x - xtab[-1]) * idir > 0:
+        index = ntab
+    else:
+        index = ntab
+        for i in range(2, ntab + 1):
+            if not (x - xtab[i - 1]) * idir > 0:
+                index = i
+                break
+    a, b = index - 2, index - 1
+    return float(f32(ytab[a] + f32(f32(x - xtab[a]) * f32(ytab[b] - ytab[a]))
+                     / f32(xtab[b] - xtab[a])))
