@@ -43,7 +43,11 @@ named and skipped.
 
 **Choosing bands by hand.** `--interact` shows each spectrum with its bands:
 `a` at both ends of a stretch adds a band there, `d` deletes the one nearest
-in wavelength, `:show` lists them, `q` goes on. As in IRAF, a band changed
+in wavelength, `:show` lists them, `q` goes on. `w` and its second key set
+the window as IRAF's gtools does (`w x` zooms about the cursor, `w f` flips the
+axis), and so do the `/` commands, `:/xwindow 4100 4250` or `:/ytransform log`;
+each spectrum starts with a window of its own, as IRAF gives each its own gt.
+Two sessions of those keys IRAF ran draw and write the same. As in IRAF, a band changed
 stays changed for that aperture's next spectrum, so a telluric band deleted
 once is gone from the whole night. `--cursor file` reads the same keys from
 a file (`wavelength y 1 key` per line), and `--answer` is IRAF's answer to

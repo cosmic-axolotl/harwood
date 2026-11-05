@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 
 from . import advice, flux
-from .gio import with_room
+from .gtools import DRAWN, GTools, span
 from .nlfit import square
 
 f32 = np.float32
@@ -527,7 +527,10 @@ def measure(spec: Spectrum, bands: Bands, ext: Extinction, edge: float = 0.0) ->
 @dataclass
 class Graph:
     """What std_graph draws: the spectrum, and a box for each band measured, at its
-    counts per pixel, as wide as the band and 3% of the plot high."""
+    counts per pixel, as wide as the band and 3% of the plot high (of the viewport
+    with a title block of three lines: gmark's size is in NDC). The spectrum is
+    gt_plot's, on the screen (under :/transpose its x is the flux), and the boxes
+    gmark's, which are not swapped."""
 
     image: str
     title: str
@@ -536,12 +539,20 @@ class Graph:
     y: np.ndarray
     boxes: list[tuple[float, float, float]]     #: centre, width, counts per pixel
     box_height: float
+    xlabel: str = ""
+    ylabel: str = ""
+    kind: str = "line"              #: line, mark or histogram, as gtools' type
+    mark: str = "plus"
+    logs: tuple[bool, bool] = (False, False)    #: which of the screen's axes are elog
 
 
 class Editor:
     """std_calib's cursor loop on one spectrum: a marks a band's two ends,
     d deletes the band nearest in wavelength, :show lists the bands, q
-    ends. A window and a cursor file (IRAF's cursor) drive it alike."""
+    ends; w and the /commands set the graph's window, as gtools does, in a gt of
+    the spectrum's own. A window and a cursor file (IRAF's cursor) drive it
+    alike. The keys read the cursor with clgcur: under :/transpose a and d still
+    take its x."""
 
     def __init__(self, spec: Spectrum, bands: Bands, ext: Extinction,
                  sky: Spectrum | None = None, fnuzero: float = flux.FNUZERO,
@@ -551,14 +562,31 @@ class Editor:
         self.pending: float | None = None
         self.done = False
         self.messages: list[str] = []
+        self.gt = GTools()
+        self.gt.title, self.gt.params = spec.title, spec.image
+        self.gt.xlabel, self.gt.xunits = "Wavelength", "angstroms"
+        self.gt.ylabel = "instrumental flux"
+        self.gt.set_type("line")
+        self.window_key = ""            #: "window" after w, "again" after w e
+        self._corner = (0.0, 0.0)
+        self.window = (0.0, 1.0, 0.0, 1.0)
+        self.newgraph = True
 
-    def key(self, x: float, key: str, command: str = "") -> None:
+    def key(self, x: float, key: str, command: str = "", y: float = 0.0) -> None:
+        if self.window_key:
+            self._window_key(key, x, y)
+            return
         if self.pending is not None:          # the second end of an 'a'
             wx1, self.pending = self.pending, None
             self._add(wx1, x)
             return
         if key == ":":
-            if command.strip() == "show":
+            if command.lstrip().startswith("/"):
+                out, err, redraw = self.gt.colon(command.lstrip(), self.window)
+                if out + err:
+                    self.messages.append(out + err)
+                self.newgraph = self.newgraph or redraw
+            elif command.strip() == "show":
                 self.messages.append("\n".join(record_lines(self.spec, self.sky,
                                                             self.bands, self.fnuzero)))
             else:
@@ -574,10 +602,28 @@ class Editor:
             self.done = True
         elif key == "I":
             advice.fail("Interrupt", "standard was interrupted from the cursor.")
-        elif key in ("r", "w"):
-            pass
+        elif key == "r":
+            self.newgraph = True
+        elif key == "w":
+            self.window_key = "window"
+            self.messages.append("window:")
         else:
             self.messages.append("\a")
+
+    def _window_key(self, key: str, x: float, y: float) -> None:
+        """gt_window: the key after w, at the cursor as it is."""
+        if self.window_key == "window" and key == "e":
+            self.window_key, self._corner = "again", (x, y)
+            self.messages.append("again:")
+            return
+        if self.window_key == "again":
+            redraw = self.gt.window2(self._corner, (x, y), self.window)
+        else:
+            said, redraw = self.gt.window1(key, x, y, self.window)
+            if said:
+                self.messages.append(said)
+        self.window_key = ""
+        self.newgraph = self.newgraph or redraw
 
     def graph(self) -> Graph:
         spec, bands = self.spec, self.bands
@@ -588,9 +634,22 @@ class Editor:
             pixels = abs(spec.wl(float(wave - dwave / 2)) - spec.wl(float(wave + dwave / 2)))
             boxes.append((float(wave), float(dwave), float(f32(f32(total) / f32(pixels)))))
         x, y = np.asarray(spec.wave, dtype=float), np.asarray(spec.y, dtype=float)
-        window = (*with_room(x), *with_room(y))
-        return Graph(spec.image, spec.title, window, x, y, boxes,
-                     0.03 * (window[3] - window[2]))
+        gt = self.gt
+        window = self.window = gt.swind(span(x), span(y))
+        self.newgraph = False
+        drawn = gt.title_block()
+        image, title = (gt.params, gt.title) if drawn else ("", "")
+        labels = (gt.label("x"), gt.label("y"))
+        if gt.transpose:
+            labels = labels[::-1]
+        sx, sy = gt.on_screen(x, y)
+        # gmark's box is 3. high in NDC as the graph of three lines of title has it, so
+        # in the graph's units it grows when the title block, and so the viewport, shrinks.
+        ch = 0.0294
+        height = 1.0 - 5 * ch - (int(gt.sysid) + len(drawn) + 1) * ch
+        box = 0.03 * (1.0 - 9 * ch) / height * (window[3] - window[2])
+        return Graph(image, title, window, sx, sy, boxes, box, *labels,
+                     DRAWN.get(gt.type, "mark"), gt.mark, gt.logs())
 
     def _add(self, wx1, wx2) -> None:
         wx1, wx2 = f32(wx1), f32(wx2)
@@ -684,17 +743,18 @@ class CursorFile:
                 continue
             key = words[3].strip()
             key = {"\\040": " ", "\\40": " "}.get(key, key)
+            x, y = float(words[0]), float(words[1])
             if key.startswith(":"):
-                self.events.append((float(words[0]), ":", key[1:]))
+                self.events.append((x, ":", key[1:], y))
             else:
-                self.events.append((float(words[0]), key[:1], ""))
+                self.events.append((x, key[:1], "", y))
         self.position = 0
 
     def edit(self, editor: Editor) -> None:
         while not editor.done and self.position < len(self.events):
-            x, key, command = self.events[self.position]
+            x, key, command, y = self.events[self.position]
             self.position += 1
-            editor.key(x, key, command)
+            editor.key(x, key, command, y)
 
 
 def run(spectra, ext: Extinction, calibration, *, samestar: bool = True,
