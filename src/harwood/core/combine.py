@@ -1051,7 +1051,7 @@ def ic_sigma(d, ids, n, wts, dowts, centre, blank, dall=False):
 def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mclip,
           flow, fhigh, nkeep, lsigma, hsigma, pclip, grow, blank, scales, zeros,
           wts, dowts, doscale1, nm1, nm2, nm3, ccdred, tail, kept, dall, fallback,
-          mod1, mod2, mod3):
+          mod1, mod2, mod3, oldclip):
     """One image line: gather, reject, combine, sigma -- icomb.gx's loop body.
 
     data[nimages, npts] is the line already scaled; valid marks the pixels
@@ -1075,7 +1075,7 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
         _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg,
                         mclip, nkeep, lsigma, hsigma, grow, blank, scales, zeros,
                         wts, dowts, doscale1, ccdred, tail, kept, dall, fallback,
-                        mod1, mod2, mod3)
+                        mod1, mod2, mod3, oldclip)
         return
 
     D = np.empty((npts, nimages))
@@ -1102,7 +1102,7 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
             if mclip:
                 n, med = ic_msigclip(d, ids, n, nkeep, lsigma, hsigma, doscale1,
                                      scales, zeros, is_median, grow, blank, resid, w,
-                                     ccdred)
+                                     oldclip)
                 docombine = not is_median
             else:
                 n, med = ic_asigclip(d, ids, n, nkeep, lsigma, hsigma, doscale1, scales,
@@ -1115,7 +1115,7 @@ def _line(data, valid, out, sigma, used, rejected, combine, medavg, reject, mcli
             if mclip:
                 n, med = ic_mccdclip(d, ids, n, nkeep, low, hsigma, doscale1, scales,
                                      zeros, nm1, nm2, nm3, is_median, grow, blank,
-                                     resid, ccdred)
+                                     resid, oldclip)
                 docombine = not is_median
             else:
                 n, med = ic_accdclip(d, ids, n, nkeep, low, hsigma, doscale1, scales,
@@ -1183,7 +1183,8 @@ def _finish_line(D, IDS, N, NIN, centre, combined, data, valid, out, sigma, used
 @_jit
 def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mclip,
                     nkeep, lsigma, hsigma, grow, blank, scales, zeros, wts, dowts,
-                    doscale1, ccdred, tail, kept, dall, fallback, mod1, mod2, mod3):
+                    doscale1, ccdred, tail, kept, dall, fallback, mod1, mod2, mod3,
+                    oldclip):
     nimages, npts = data.shape
     D = np.empty((npts, nimages))
     IDS = np.empty((npts, nimages), dtype=np.int64)
@@ -1247,7 +1248,7 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
                 while True:
                     n2 = n1
                     if n1 >= max(3, maxkeep + 1) and sig > 0.0:
-                        while nl <= (n2 if ccdred else nh):
+                        while nl <= (n2 if oldclip else nh):
                             if doscale1:
                                 l = ids[nl - 1]
                                 s1 = sig * np.sqrt(max(1.0, (med + zeros[l]) / scales[l]))
@@ -1279,7 +1280,7 @@ def _avsigclip_line(data, valid, out, sigma, used, rejected, combine, medavg, mc
                     before = n1
                     n1, nl, nh, shared = _addback_s(n1, nl, nh, n1 + 1, NIN[i], n2,
                                                     resid, sig)
-                    if ccdred:
+                    if oldclip:
                         sig = shared
                     if n1 < n2:
                         med = _median_of(d, nl, n1) if n1 > 0 else blank
@@ -1484,7 +1485,7 @@ def combine(stack: np.ndarray, valid: np.ndarray, scaling: Scaling, *,
                   scaling.weights.astype(np.float64), dowts, scaling.doscale1,
                   nm1, nm2, nm3, flavor == "ccdred", line_tail, line_kept,
                   bool(filled[y]), np.ascontiguousarray(fallback[:, y, :]),
-                  mod1, mod2, mod3)
+                  mod1, mod2, mod3, flavor in ("ccdred", "odcombine"))
             out[y], sig[y], used[y] = line_out, line_sig, line_used
             rej[:, y, :] = line_rej
             tails[:, y, :], keeps[:, y, :] = line_tail, line_kept
