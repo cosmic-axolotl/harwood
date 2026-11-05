@@ -14,12 +14,14 @@ installed -- or available anywhere -- to run.
                obsection.key, transection.key, from photcal$mkconfig/
   scr/         the help gtools pages (:/help, and ? after w): gtools.key and
                gtwindow.key, from lib$scr/
+  lib/         units.dat, the abbreviations of IRAF's dispersion units (nm,
+               Hz, wn...), from noao$lib/
 
 Copied unchanged from IRAF 2.18.1 (iraf-community; the Ubuntu packages
 iraf 2.18.1-2build1 and iraf-noao 2.18.1-2build1) on 2026-10-20, from
 noao/lib/linelists, noao/lib/onedstds, noao/imred/ccdred/ccddb and
 noao/lib/obsdb.dat; catalogs/ from noao/digiphot/photcal/catalogs on
-2026-10-29, mkconfig/ from noao/digiphot/photcal/mkconfig on 2026-11-04, scr/ from lib/scr on 2026-11-04, its README from the iraf-community repository. The ccddb *.cl files are kept too: they are lists of
+2026-10-29, mkconfig/ from noao/digiphot/photcal/mkconfig on 2026-11-04, scr/ from lib/scr on 2026-11-04, lib/units.dat from noao/lib on 2026-11-05, its README from the iraf-community repository. The ccddb *.cl files are kept too: they are lists of
 parameter settings (ccdproc.trim = yes), which setinstrument reads and puts
 in the project file -- harwood reads them, it does not run them. The other
 cl scripts (airvac.cl, mkbbcal.cl) were left out.

@@ -73,6 +73,9 @@ class Aperture:
     redshift: float = 0.0
     #: IRAF's beam number (APNUM's second), when it is not the aperture's (APBEAM).
     beam: int | None = None
+    #: The units of the wavelength column, IRAF's (APUNITS): empty is Angstroms, as
+    #: every task but disptrans writes and reads them.
+    units: str = ""
 
     @property
     def width(self) -> float:
@@ -137,6 +140,8 @@ def write(path: Path | str, apertures: list[Aperture], header: Any = None,
             hdu.header["APTITLE"] = aperture.title[:68]
         if aperture.beam is not None and aperture.beam != aperture.number:
             hdu.header["APBEAM"] = (int(aperture.beam), "beam number, IRAF's APNUM")
+        if aperture.units:
+            hdu.header["APUNITS"] = (aperture.units, "units of the wavelength column")
         if aperture.redshift:
             hdu.header["APZ"] = (float(aperture.redshift),
                                  "dopcor's z: wavelength = dispersion / (1+z)")
@@ -179,6 +184,7 @@ def read(path: Path | str, number: int | None = None) -> list[Aperture]:
                 title=str(hdu.header.get("APTITLE", "")),
                 redshift=float(hdu.header.get("APZ", 0.0)),
                 beam=int(hdu.header["APBEAM"]) if "APBEAM" in hdu.header else None,
+                units=str(hdu.header.get("APUNITS", "")),
             )
             for name in table.colnames:
                 if name in COLUMNS:

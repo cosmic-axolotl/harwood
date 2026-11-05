@@ -6,7 +6,7 @@ reads one from text, names spells out a record list, sbands measures bands, lcal
 lists the calibration tables, mkspec makes an artificial one, sinterp
 interpolates a table into one, scoords gives one its wavelengths from a list,
 sapertures changes what its apertures are, ndprep makes a neutral density filter's
-correction. Each is IRAF's
+correction, disptrans puts its dispersion in other units. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -1215,3 +1215,111 @@ class Ndprep(Task[NdprepParams]):
             fits.writeto(target, frame if axis == 1 else frame.T.copy(), header,
                          overwrite=True)
         return TaskResult(outputs=[target], steps=self.plan(params))
+
+
+class DisptransParams(TaskParams):
+    input: str = Field(..., description="Spectra with a dispersion.")
+    output: str | None = Field(
+        None, description="One name per input; the input's own name changes it in place. "
+                          "Left out, each goes to this run's own directory.",
+        json_schema_extra={"positional": True})
+    units: str = Field(..., description="The new units: nm, microns, hertz, ev, inverse "
+                                        "centimeters, km/s 6563 angstroms...")
+    error: float = Field(0.01, ge=1e-6, description="How far, in pixels, the dispersion "
+                                                    "function may be from a pixel's new "
+                                                    "coordinate.")
+    linearize: bool = Field(False, description="Resample onto an even grid in the new "
+                                               "units, the fluxes not conserved.")
+    verbose: bool = Field(True, description="Say each spectrum's new units.")
+    air: Literal["none", "air2vac", "vac2air"] = Field(
+        "none", description="From air to vacuum, or back.")
+    t: float = Field(15.0, description="The air's temperature, C.")
+    p: float = Field(760.0, description="Its pressure, mmHg.")
+    f: float = Field(4.0, description="Its water vapour pressure, mmHg.")
+
+
+@register
+class Disptrans(Task[DisptransParams]):
+    name = "disptrans"
+    package = "onedspec"
+    description = "Change the units of spectra's dispersion, and air to vacuum."
+    Params = DisptransParams
+
+    def plan(self, params: DisptransParams) -> list[Step]:
+        return [Step("transform", f"to {params.units}"
+                     + (f", {params.air}" if params.air != "none" else ""),
+                     why="Each pixel's coordinate in the new units -- a frequency or an "
+                         "energy goes as one over the wavelength, a velocity "
+                         "relativistically from its line -- and, for air and vacuum, "
+                         "Edlen's index of refraction. A straight line is fitted to them, "
+                         "or a cubic spline of as many pieces as it takes to keep within "
+                         "--error pixels, and that is the dispersion."),
+                Step("write", str(params.output or "this run's directory"),
+                     why="The wavelength column in the new units, which the spectrum's "
+                         "header says (APUNITS). The other tasks read it in Angstroms.")]
+
+    def execute(self, params: DisptransParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import disptrans, images, output, spectrum, units
+
+        if units.decode(params.units).kind == 0:
+            # shdr_units' error, which stops the task.
+            advice.fail("Cannot convert to specified units",
+                        "give units IRAF knows: angstroms, nm, microns, hertz, ev, "
+                        "inverse centimeters, km/s 6563 angstroms...")
+        names = [name if Path(name).exists() or not Path(name + ".fits").exists()
+                 else name + ".fits"
+                 for name in (str(spec) for spec in images.expand(params.input))]
+        outs = [part if Path(part).suffix else part + ".fits"
+                for part in (p.strip() for p in images.split_list(str(params.output)))] \
+            if params.output else []
+        said: list[str] = []
+        warnings: list = []
+        written: list[Path] = []
+        for index, name in enumerate(names):
+            target = Path(outs[index]) if index < len(outs) else \
+                output.named_for(name, ".dt.fits")
+            try:
+                header = fits.getheader(name)
+                apertures = spectrum.read(name)
+                shown_units = ""
+                for aperture in apertures:
+                    if aperture.wavelength is None:
+                        advice.fail(f"[{name}] has no dispersion function",
+                                    "run dispcor on it first.")
+                    wave, values, _, un = disptrans.transform(
+                        aperture.wavelength, aperture.flux, aperture.units, params.units,
+                        params.air, params.t, params.p, params.f, params.error,
+                        params.linearize)
+                    aperture.wavelength, aperture.flux = wave, values
+                    aperture.units, aperture.redshift = params.units, 0.0
+                    shown_units = un.units
+            except (OSError, ValueError) as error:
+                text = str(error.args[0] if error.args else error).splitlines()[0]
+                said.append(f"Warning: {text}")
+                warnings.append(advice.warn(text, "the spectrum was left as it was."))
+                continue
+            spectrum.write(target, apertures, header=header, source=name)
+            written.append(target)
+            if params.verbose:
+                label = target.name.removesuffix(".fits") if index < len(outs) else \
+                    str(target)
+                line = f"{label}: Dispersion transformed to {shown_units}"
+                if params.air == "none":
+                    said.append(line + ".")
+                else:
+                    four = lambda v: iraffmt_g(v, 4)  # noqa: E731
+                    said.append(line + (" in vacuum with" if params.air == "air2vac"
+                                        else " in air with"))
+                    said.append(f"  t = {four(params.t)} C, p = {iraffmt_g(params.p, 6)} "
+                                f"mmHg, f = {four(params.f)} mmHg.")
+        return TaskResult(outputs=written, steps=self.plan(params), warnings=warnings,
+                          data={"text": said})
+
+
+def iraffmt_g(value: float, digits: int) -> str:
+    """%.Ng of a double."""
+    from ..core import iraffmt
+
+    return iraffmt.printf(float(value), "g", digits, double=True)

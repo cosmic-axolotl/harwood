@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 103, partial: 0, planned: 252, replaced: 94, wontport: 161
+#   available: 104, partial: 0, planned: 251, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -810,7 +810,8 @@ tasks:
     note: "t_deredden.x: CCM 1989 in real, A(V), E(B-V) or c, by aperture, the DEREDDEN card read back to undo an old correction with override, held to IRAF's runs over the whole law, to the bit but a few pixels a unit of the last place off"}
   dispcor: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: dispcor,
     note: "IRAF's dispersion function (two arcs by their weights), its inverse, the output grid and the flux-conserving resampling with every interpolant, sinc included; samedisp, global, ignoreaps, wavelength tables, log grids, listonly and spectra already corrected. Checked against IRAF's output on 25 runs, one- and three-aperture, logs line for line; IRAF databases are read coefficient for coefficient"}
-  disptrans: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  disptrans: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: disptrans,
+    note: "t_disptrans.x with IRAF's units package ported (core/units.py, units.dat bundled): every unit class, log and inverse, velocities from a line, air to vacuum and back, the linear or spline3 dispersion within the error, linearize; held to IRAF's world coordinates and pixels. The wavelength column then holds the new units (APUNITS), which the other tasks do not read"}
   dopcor: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: dopcor,
     note: "t_dopcor.x ported: a redshift, a velocity or a header keyword (a minus undoes it), replaced or added, the fluxes by (1+z)^factor, by aperture, the DOPCORnn card and the verbose line, held to IRAF's runs; each aperture keeps its z (APZ), as IRAF's world coordinates do. IRAF's one-dimensional images (no apertures) are harwood's one-aperture spectra"}
   ecidentify: {pkg: imred.echelle, domain: spec-1d, status: planned, milestone: later}
