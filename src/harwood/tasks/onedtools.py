@@ -5,7 +5,8 @@ round, deredden takes the dust out, slist says what each aperture is, rspectext
 reads one from text, names spells out a record list, sbands measures bands, lcalib
 lists the calibration tables, mkspec makes an artificial one, sinterp
 interpolates a table into one, scoords gives one its wavelengths from a list,
-sapertures changes what its apertures are. Each is IRAF's
+sapertures changes what its apertures are, ndprep makes a neutral density filter's
+correction. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -1125,3 +1126,92 @@ class Sapertures(Task[SaperturesParams]):
             written.append(Path(path))
         return TaskResult(outputs=written, steps=self.plan(params),
                           data={"text": errors + said, "stdout": said, "errors": errors})
+
+
+class NdprepParams(TaskParams):
+    filter_curve: str = Field(..., description="The filter curve, in --directory: "
+                                               "nd1m.250mag.dat and the like.")
+    output: str = Field(..., description="The correction to make.")
+    w0: float = Field(..., description="Its first wavelength, A.")
+    dw: float = Field(..., description="Its step, A.")
+    nw: int = Field(..., ge=2, description="Its number of wavelengths.")
+    nspace: int = Field(0, ge=0, description="Points across the slit: 0 for a spectrum, "
+                                             "more for a frame.")
+    logarithm: bool = Field(False, description="Resample onto wavelengths even in log10.")
+    flux: bool = Field(True, description="Conserve flux in that resampling.")
+    dispaxis: int = Field(2, ge=1, le=2, description="The frame's dispersion axis: 1 along "
+                                                     "lines, 2 along columns.")
+    directory: str = Field("onedstds$ctio/", description="Where the filter curves are.")
+
+
+@register
+class Ndprep(Task[NdprepParams]):
+    name = "ndprep"
+    package = "onedspec"
+    description = "Make a neutral density filter's correction from its curve."
+    Params = NdprepParams
+
+    def plan(self, params: NdprepParams) -> list[Step]:
+        return [Step("interpolate", f"{params.filter_curve} onto {params.nw} wavelengths "
+                     f"from {params.w0:g} by {params.dw:g}",
+                     why="sinterp's curves, as IRAF's ndprep: the filter's transmission "
+                         "at each wavelength, two parabolas through the curve's points "
+                         "blended. Divide a spectrum taken through the filter by it."),
+                Step("resample", "onto log10 wavelengths", why="dispcor, as IRAF's does.",
+                     skipped=not params.logarithm, reason="--logarithm not given"),
+                Step("write", params.output, why="A spectrum, or with --nspace a frame.")]
+
+    def execute(self, params: NdprepParams) -> TaskResult:
+        import math
+
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import dispcor, flux, sinterp, spectrum
+
+        directory = params.directory
+        if params.filter_curve == "?":
+            menu = flux.resolve(directory.rstrip("/") + "/ndfilters.men")
+            return TaskResult(outputs=[], steps=self.plan(params),
+                              data={"text": menu.read_text(encoding="utf-8").splitlines()})
+        try:
+            curve = flux.resolve(directory.rstrip("/") + "/" + params.filter_curve)
+        except (OSError, ValueError):
+            curve = Path(directory) / params.filter_curve
+        if not Path(curve).is_file():
+            advice.fail(f"Filter curve {directory}{params.filter_curve} not found",
+                        "give ? as the curve to list the filters of the directory.",
+                        FileNotFoundError)
+        xtab, ytab = sinterp.read_table(Path(curve).read_text(encoding="utf-8"))
+        values, start, step = sinterp.make_image(xtab, ytab, "curves", 5, params.w0, 0.0,
+                                                 params.dw, params.nw)
+        n = values.size
+        wave = start + step * np.arange(n)
+        if params.logarithm:
+            w1, w2 = wave[0], wave[-1]
+            l1 = math.log10(w1)
+            ldw = (math.log10(w2) - l1) / (n - 1)
+            values = dispcor.resample(values, sinterp.Linear(start, step), l1, ldw, n,
+                                      conserve=params.flux, blank=0.0, log=True)
+            wave = 10 ** (l1 + ldw * np.arange(n))
+        target = Path(params.output if Path(params.output).suffix
+                      else params.output + ".fits")
+        header = fits.Header()
+        header["OBJECT"] = ""
+        header["DC-FLAG"] = 1 if params.logarithm else 0
+        if params.nspace == 0:
+            spectrum.write(target, [spectrum.Aperture(
+                number=1, centre=0.0, low=0.0, high=0.0, pixel=np.arange(1.0, n + 1.0),
+                flux=values.astype(float), wavelength=wave)], header=header)
+        else:
+            axis = params.dispaxis
+            header["DISPAXIS"] = axis
+            header[f"CRVAL{axis}"] = math.log10(wave[0]) if params.logarithm else wave[0]
+            header[f"CDELT{axis}"] = (math.log10(wave[-1]) - math.log10(wave[0])) / (n - 1) \
+                if params.logarithm else step
+            header[f"CRPIX{axis}"] = 1.0
+            frame = np.tile(values.astype(np.float32), (params.nspace, 1))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            fits.writeto(target, frame if axis == 1 else frame.T.copy(), header,
+                         overwrite=True)
+        return TaskResult(outputs=[target], steps=self.plan(params))

@@ -87,3 +87,27 @@ def line(x, y) -> str:
     """"%12.5g  %12.5g" of two reals."""
     g = lambda v: iraffmt.printf(float(f32(v)), "g", 5, width=12).rjust(12)  # noqa: E731
     return f"{g(x)}  {g(y)}"
+
+
+def make_image(xtab, ytab, mode: str, order: int, x1: float, x2: float, dx: float,
+               npts: int) -> tuple[np.ndarray, float, float]:
+    """sinterp's make_image: the pixels (the interpolant at x's in real) and the start
+    and step imaddr writes into the header, a real's seven figures."""
+    at = Interpolant(xtab, ytab, mode, order)
+    x2, dx, n = grid(x1, x2, dx, npts)
+    ys = np.array([f32(at(f32(f32(x1) + f32(i) * f32(dx)))) for i in range(n)], dtype=f32)
+    return ys, float(iraffmt.g(float(f32(x1)))), float(iraffmt.g(float(f32(dx))))
+
+
+class Linear:
+    """A linear dispersion, w1 + dw (x - 1), with its exact inverse, as dispcor finds a
+    one-dimensional image's world coordinates."""
+
+    def __init__(self, w1: float, dw: float):
+        self.w1, self.dw = w1, dw
+
+    def eval(self, x: float) -> float:
+        return self.w1 + self.dw * (x - 1)
+
+    def inverse(self, y: float) -> float:
+        return (y - self.w1) / self.dw + 1
