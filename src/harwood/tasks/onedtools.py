@@ -3,7 +3,7 @@
 dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
 round, deredden takes the dust out, slist says what each aperture is, rspectext
 reads one from text, names spells out a record list, sbands measures bands, lcalib
-lists the calibration tables. Each is IRAF's
+lists the calibration tables, mkspec makes an artificial one. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -805,3 +805,63 @@ class Lcalib(Task[LcalibParams]):
         # What IRAF prints on the error stream (the stars, a blackbody's line) first.
         return TaskResult(outputs=[], steps=self.plan(params),
                           data={"text": errors + said, "stdout": said, "errors": errors})
+
+
+class MkspecParams(TaskParams):
+    image_name: str = Field(..., description="The spectrum to make.")
+    image_title: str = Field("", description="Its title.")
+    ncols: int = Field(..., ge=2, description="Pixels along the dispersion.")
+    nlines: int = Field(1, ge=1, description="Lines: more than one makes a frame, the "
+                                             "same spectrum on every line.")
+    function: int = Field(1, ge=1, le=3, description="1 flat, 2 a ramp, 3 a blackbody.")
+    constant: float = Field(0.0, description="The flat spectrum's level.")
+    start_level: float = Field(0.0, description="The ramp's first value.")
+    end_level: float = Field(0.0, description="The ramp's last value.")
+    start_wave: float = Field(4000.0, gt=0, description="The blackbody's first wavelength, "
+                                                        "A.")
+    end_wave: float = Field(7000.0, gt=0, description="Its last.")
+    temperature: float = Field(5800.0, gt=0, description="Its temperature, K.")
+
+
+@register
+class Mkspec(Task[MkspecParams]):
+    name = "mkspec"
+    package = "onedspec"
+    description = "Make an artificial spectrum: flat, a ramp, or a blackbody."
+    Params = MkspecParams
+
+    def plan(self, params: MkspecParams) -> list[Step]:
+        kind = {1: f"flat at {params.constant:g}",
+                2: f"a ramp from {params.start_level:g} to {params.end_level:g}",
+                3: f"a {params.temperature:g} K blackbody from {params.start_wave:g} to "
+                   f"{params.end_wave:g} A"}[params.function]
+        return [Step("make", kind,
+                     why="A blackbody is divided by its peak, 1.2865e-4 T^5 (Wien's), so "
+                         "that it reaches 1 where the peak is in the range. In real, as "
+                         "IRAF's, its pixels to the bit. No wavelengths: dispcor or "
+                         "rspectext give it some."),
+                Step("write", params.image_name,
+                     why="A spectrum of one aperture; with more lines, a frame of them.")]
+
+    def execute(self, params: MkspecParams) -> TaskResult:
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import mkspec, spectrum
+
+        line = mkspec.row(params.ncols, params.function, params.constant,
+                          params.start_level, params.end_level, params.start_wave,
+                          params.end_wave, params.temperature)
+        target = Path(params.image_name if Path(params.image_name).suffix
+                      else params.image_name + ".fits")
+        header = fits.Header()
+        header["OBJECT"] = params.image_title
+        if params.nlines == 1:
+            spectrum.write(target, [spectrum.Aperture(
+                number=1, centre=0.0, low=0.0, high=0.0,
+                pixel=np.arange(1.0, params.ncols + 1.0), flux=line.astype(float),
+                title=params.image_title)], header=header)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            fits.writeto(target, np.tile(line, (params.nlines, 1)), header, overwrite=True)
+        return TaskResult(outputs=[target], steps=self.plan(params))

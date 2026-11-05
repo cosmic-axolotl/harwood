@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 98, partial: 0, planned: 257, replaced: 94, wontport: 161
+#   available: 99, partial: 0, planned: 256, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -823,7 +823,8 @@ tasks:
   mk1dspec: {pkg: artdata, domain: spec-1d, status: planned, milestone: later}
   mk2dspec: {pkg: artdata, domain: spec-1d, status: planned, milestone: later}
   mkechelle: {pkg: artdata, domain: spec-1d, status: planned, milestone: later}
-  mkspec: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  mkspec: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: mkspec,
+    note: "t_mkspec.x: flat, ramp and blackbody, in real with f2c's pow_ri and a double exp, IRAF's pixels to the bit; one line a spectrum, more a frame"}
   msresp1d: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
   names: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: names,
     note: "t_names.x and odropenp.x, with onedspec's own decode_ranges (from 0, sorted, once each, at most 1000), the extension stripping that leaves .fits, append and check, held to IRAF's print line for line"}
