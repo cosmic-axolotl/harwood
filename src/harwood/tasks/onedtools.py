@@ -1,8 +1,9 @@
 """onedspec -- the tools that work on a spectrum once it has wavelengths.
 
-dopcor takes it to the rest frame. Each is IRAF's task of the same name, ported
-from its .x and held to what IRAF 2.18 writes, on harwood's spectra: a table per
-aperture, the wavelengths in a column (core/spectrum.py).
+dopcor takes it to the rest frame, specshift moves its zero point. Each is IRAF's
+task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
+harwood's spectra: a table per aperture, the wavelengths in a column
+(core/spectrum.py).
 """
 
 from __future__ import annotations
@@ -144,3 +145,72 @@ class Dopcor(Task[DopcorParams]):
                           data={"text": said},
                           history=[f"dopcor: z={params.redshift}"
                                    + (" (km/s)" if params.isvelocity else "")])
+
+
+class SpecshiftParams(TaskParams):
+    spectra: str = Field(..., description="Spectra to shift, in place, as IRAF's does. "
+                                          "Commas, globs and @lists expand.")
+    shift: float = Field(..., description="What to add to the dispersion coordinates: "
+                                          "Angstroms, before any dopcor.")
+    apertures: str = Field("", description="Apertures to shift (1,3-5); all when empty.")
+    verbose: bool = Field(False, description="Say each aperture's start before and after.")
+
+
+@register
+class Specshift(Task[SpecshiftParams]):
+    name = "specshift"
+    package = "onedspec"
+    description = "Shift the wavelength zero point of spectra."
+    Params = SpecshiftParams
+
+    def plan(self, params: SpecshiftParams) -> list[Step]:
+        return [Step("shift", f"{params.shift:g} added to the dispersion of "
+                     f"{params.spectra}",
+                     why="The zero point of a dispersion solution is its weakest part: a "
+                         "night's flexure or a sky line seen in the wrong place shifts "
+                         "every wavelength by the same amount, and this puts it back. "
+                         "The shift is in the dispersion's coordinates, so a spectrum "
+                         "dopcor has corrected moves by shift/(1+z)."),
+                Step("write", "in place", why="As IRAF's specshift, which has no output.")]
+
+    def execute(self, params: SpecshiftParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import dopcor, images, ranges, spectrum
+
+        aps = ranges.parse(params.apertures, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        names = [name if Path(name).exists() or not Path(name + ".fits").exists()
+                 else name + ".fits"
+                 for name in (str(spec) for spec in images.expand(params.spectra))]
+        if not names:
+            advice.fail(f"'{params.spectra}' matches nothing.",
+                        "check the path; 'harwood sections' shows what a template "
+                        "expands to.", FileNotFoundError)
+        steps = self.plan(params)
+        said: list[str] = []
+        warnings: list = []
+        written: list[Path] = []
+        g = dopcor.iraffmt.g
+        for name in names:
+            try:
+                apertures = spectrum.read(name)
+                header = fits.getheader(name)
+            except (OSError, ValueError) as error:
+                text = str(error.args[0] if error.args else error).splitlines()[0]
+                warnings.append(advice.warn(text, "the spectrum was left as it was."))
+                said.append(f"Warning: {text}")
+                continue
+            for aperture in apertures:
+                if aperture.number not in aps or aperture.wavelength is None:
+                    continue
+                before, after = dopcor.shift_zero(aperture, params.shift)
+                # sshift's "%s: shift = %g" waits for a count it never makes, so only
+                # the apertures' lines are said.
+                if params.verbose:
+                    said.append(f"  Aperture {aperture.number}:  {g(before, double=True)}"
+                                f" --> {g(after, double=True)}")
+            spectrum.write(name, apertures, header=header)
+            written.append(Path(name))
+        return TaskResult(outputs=written, steps=steps, warnings=warnings,
+                          data={"text": said},
+                          history=[f"specshift: {params.shift:g}"])

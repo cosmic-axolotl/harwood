@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 90, partial: 0, planned: 265, replaced: 94, wontport: 161
+#   available: 91, partial: 0, planned: 264, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -837,7 +837,8 @@ tasks:
   sflip: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   skysub: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
   skytweak: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
-  specshift: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  specshift: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: specshift,
+    note: "t_specshift.x ported: the shift added to the dispersion of the apertures chosen, in place, over 1+z after a dopcor; the verbose lines without the header line IRAF's never prints (its count of apertures is never made), held to IRAF's runs"}
   standard: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: standard,
     note: "t_standard.x and getcalib.x ported and checked against IRAF's std files on 20 runs: table bands or bandwidth/bandsep, every aperture (samestar), beam switching with the sky rebinned, EX-FLAG, airmass from RA/DEC/HA, bands edited from a cursor file or the window, blackbodies (units in microns); IRAF's format written on request. IRAF's getbbcal reads the colour two columns off and a band marked right to left gets a negative width; harwood does neither"}
   telluric: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}

@@ -128,3 +128,14 @@ def verbose_lines(output: str, apertures: str, z: float, given: float, isvelocit
 
 def _g8(value: float) -> str:
     return iraffmt.printf(float(value), "g", width=8, double=True).rjust(8)
+
+
+def shift_zero(aperture, shift: float) -> tuple[float, float]:
+    """t_specshift's sshift on one aperture: the dispersion's zero point moved by
+    `shift`, which in wavelengths over 1+z is shift/(1+z). Gives w1, the
+    dispersion's start, before and after, as its verbose line says them."""
+    z = float(getattr(aperture, "redshift", 0.0) or 0.0)
+    wave = np.asarray(aperture.wavelength, dtype=float)
+    w1 = float(f"{wave[0] * (1 + z):.15g}")
+    aperture.wavelength = wave + shift / (1 + z)
+    return w1, w1 + shift
