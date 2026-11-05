@@ -1,0 +1,6 @@
+     aperture = 1  beam = 1  center = 34.59  low = -5.00  upper = 5.00
+     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00
+window:xwindow = -12.5 12.5
+     aperture = 1  beam = 1  center = 34.59  low = -5.00  upper = 5.00
+xwindow = -12.5 12.5
+window:     aperture = 2  beam = 2  center = 69.26  low = -5.00  upper = 5.00

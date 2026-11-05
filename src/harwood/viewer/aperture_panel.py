@@ -12,15 +12,18 @@ IRAF's, listed along the foot. b opens the background's icfit on the profile unt
 Nothing is computed here. Every number and every line of text comes from
 `core.apeditsession`, held to IRAF's by files of cursor commands and to what IRAF draws by
 its graphics metacode. Positions across the slit are 1-based, as everywhere a user can see.
+The window is the one gtools gives (`viewer.gtplot`): w and the /commands set it, and the
+mouse zooms it besides; `:.snap file.png` saves the graph.
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import apeditsession
-from . import keyguide, theme
+from . import gtplot, keyguide, theme
 from ._qt import on_main
 from .icfit_panel import IcfitPanel
 from .theme import palette as _c
@@ -90,7 +93,9 @@ class AperturePanel(QtWidgets.QWidget):
         self.plot.clear()
         title = graph.title + (f"<br>{graph.params}" if graph.params else "")
         self.plot.setTitle(title, color=_c().ink, size="10pt")
-        self.plot.plot(range(1, graph.y.size + 1), graph.y, pen=pg.mkPen(_c().sky, width=1.2))
+        line = self._line
+        line(np.arange(1.0, graph.y.size + 1), graph.y, pg.mkPen(_c().sky, width=1.2))
+        # ap_gmark and ap_gmarkb, in the window's own units, as ggwind gives them.
         x0, x1, y0, y1 = graph.window
         dy = 0.025 * (y1 - y0)
         level = y1 - 4 * dy
@@ -98,22 +103,28 @@ class AperturePanel(QtWidgets.QWidget):
         for index, mark in enumerate(graph.marks, 1):
             width = 2.4 if index == current else 1.2
             pen = pg.mkPen(_c().accent, width=width)
-            self.plot.plot([mark.centre] * 2, [level - 2 * dy, level + 2 * dy], pen=pen)
+            line([mark.centre] * 2, [level - 2 * dy, level + 2 * dy], pen)
             for edge in (mark.low, mark.high):
-                self.plot.plot([edge] * 2, [level - dy, level + dy], pen=pen)
-            self.plot.plot([mark.low, mark.high], [level] * 2, pen=pen)
+                line([edge] * 2, [level - dy, level + dy], pen)
+            line([mark.low, mark.high], [level] * 2, pen)
             text = pg.TextItem(str(mark.number), color=_c().ink, anchor=(0.5, 1))
-            text.setPos(mark.centre, level + 2.5 * dy)
+            text.setPos(*(v[0] for v in self._on_axes([mark.centre], [level + 2.5 * dy])))
             self.plot.addItem(text)
         low = y0 + 0.02 * (y1 - y0)
         tick = 0.005 * (y1 - y0)
         for xl, xu in graph.sample:
             pen = pg.mkPen(_c().muted, width=1.2)
-            self.plot.plot([xl, xu], [low] * 2, pen=pen)
+            line([xl, xu], [low] * 2, pen)
             for edge in (xl, xu):
-                self.plot.plot([edge] * 2, [low - tick, low + tick], pen=pen)
+                line([edge] * 2, [low - tick, low + tick], pen)
         if rescale:
-            self.plot.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)
+            gtplot.set_window(self.plot, graph.window, graph.logs)
+
+    def _on_axes(self, x, y):
+        return gtplot.on_axes(self.session.gt.logs(), np.asarray(x), np.asarray(y))
+
+    def _line(self, x, y, pen) -> None:
+        self.plot.plot(*self._on_axes(x, y), pen=pen)
 
     # ------------------------------------------------------------- the keys
 
@@ -126,7 +137,7 @@ class AperturePanel(QtWidgets.QWidget):
         box = self.plot.getPlotItem().vb
         if box.sceneBoundingRect().contains(position):
             point = box.mapSceneToView(position)
-            self._cursor = (point.x(), point.y())
+            self._cursor = gtplot.world(self.session.gt.logs(), point.x(), point.y())
 
     def key(self, key: str) -> bool:
         """Handle one keystroke. Returns True if it was ours."""
@@ -136,7 +147,8 @@ class AperturePanel(QtWidgets.QWidget):
             self.command.setFocus()
             self.command.setText(":")
             return True
-        if key not in dict(HELP) and key not in "wet":
+        if not (key in dict(HELP) or key in "et"
+                or (self.session.pending and key.isprintable())):
             return False
         self.session.key(key, *self._cursor)
         self._after()
@@ -145,10 +157,16 @@ class AperturePanel(QtWidgets.QWidget):
     def _run_command(self) -> None:
         text = self.command.text().strip()
         self.command.clear()
+        rest = text.lstrip(":")
         if self.session.state != "keys":
             self.session.answer(text)
-        elif text.lstrip(":"):
-            self.session.key(":", rest=text.lstrip(":"))
+        elif rest.startswith("."):
+            said = gtplot.cursor_mode(self.plot, rest[1:], "apedit.png")
+            self.status.setText(said.strip())
+            self.plot.setFocus()
+            return
+        elif rest:
+            self.session.key(":", rest=rest)
         self.plot.setFocus()
         self._after()
 

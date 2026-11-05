@@ -109,10 +109,13 @@ for the trace. `m` and `n` make an aperture, `f` finds them, `d` deletes the nea
 `c`, `g` and `s` centre or move it, `l`, `u`, `y` and `z` set its limits, `b` opens the
 background's icfit until its `q`, `i`, `j` and `o` number them, `a` is a switch that makes
 the next ones act on all, and colon commands such as `:lower -5` and `:ylevel 0.2` work
-as in IRAF. Ten sessions IRAF ran say and draw the same, from its graphics metacode. Not
-ported: `w` and the `/` commands (the mouse zooms), `e` and `t`, the task going on to trace
-and extract, and `:parameters`, `:database`, `:logfile`, `:plotfile`, `:read`, `:write`
-and `:image`.
+as in IRAF. `w` and its second key set the window as IRAF's gtools does (`w x` zooms
+about the cursor, `w f` flips the axis), and so do the `/` commands, `:/xwindow 10 60` or
+`:/ytransform log`; the background's fit keeps its window from one aperture to the next,
+as IRAF's does. Thirteen sessions IRAF ran say and draw the same, from its graphics
+metacode. The mouse zooms besides, and `:.snap profile.png` saves the graph. Not ported:
+`e` and `t`, the task going on to trace and extract, and `:parameters`, `:database`,
+`:logfile`, `:plotfile`, `:read`, `:write` and `:image`.
 
 ## What it writes
 

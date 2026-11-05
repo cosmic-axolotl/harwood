@@ -1,0 +1,26 @@
+35 0 1 m
+0 0 1 :/xwindow
+0 0 1 :/xwindow 10 60
+0 0 1 :/ywindow 0 4000
+0 0 1 :/title A new title
+0 0 1 :/parameters new params
+0 0 1 :/xflip yes
+0 0 1 r
+35 0 1 .
+0 0 1 :/xflip no
+0 0 1 :/transpose
+0 0 1 r
+0 0 1 :/transpose
+0 0 1 :/ytransform log
+0 0 1 r
+0 0 1 :/ytransform linear
+0 0 1 :/mark box
+0 0 1 :/type mark
+0 0 1 r
+0 0 1 :/drawtitle no
+0 0 1 r
+0 0 1 :/drawtitle yes
+0 0 1 :/shift 5 0
+0 0 1 :.zero
+0 0 1 :/bogus
+0 0 1 q

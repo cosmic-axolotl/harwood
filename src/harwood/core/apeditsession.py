@@ -11,9 +11,17 @@ on, for every key after it that looks at it, until a again. A new aperture takes
 limits from the current one. l and u set a limit at the cursor, and a low above the high
 is swapped. Two apertures within .01 of as near the cursor ask which is meant.
 
-Not ported: w and the /commands, which set a window (the mouse does that here); e and t,
-extraction and tracing being the steps the task goes on to; and :parameters, :database,
-:logfile, :plotfile, :read, :write and :image, the database being the task's.
+The graph's window is gtools' (`core.gtools`), as ap_graph sets it through gt_swind:
+w and the /commands set it, flip and transpose it. ap_graph draws the profile with
+gvline and not gt_plot, so of the rest only the title block and an elog axis take: a
+mark or a type changes nothing, and under :/transpose the window is swapped and the
+profile is not. The apertures and the background along the top and the bottom are
+where ggwind says those are, by its x the smaller and the larger, by its y as they
+come; the keys take the cursor as gt_gcur gives it, not swapped.
+
+Not ported: e and t, extraction and tracing being the steps the task goes on to; and
+:parameters, :database, :logfile, :plotfile, :read, :write and :image, the database
+being the task's.
 
 Translated from IRAF, Copyright (c) 1986 Association of Universities for Research in
 Astronomy Inc.; the notice it is distributed under is in LICENSES/IRAF-COPYRIGHT.
@@ -28,8 +36,7 @@ import numpy as np
 from . import apextract, icfit, icfitsession, iraffmt
 from .apextract import Aperture
 from .center1d import center1d
-from .gio import with_room
-from .gtools import GTools
+from .gtools import GTools, span
 
 f32 = np.float32
 MAX_REAL = float(np.finfo(f32).max)
@@ -57,6 +64,7 @@ HELP = [
     ("-", "the previous"),
     ("a", "all, or not: a switch"),
     ("r", "redraw"),
+    ("w", "window, then a key: a b c d e f g j k l m n p r t u x y z ?"),
     ("?", "these keys"),
     (":", "show, line, nsum, center, lower, upper, title, and apall's parameters"),
     ("q", "finish"),
@@ -122,13 +130,14 @@ class Mark:
 
 @dataclass
 class Graph:
-    """What ap_graph draws."""
+    """What ap_graph draws: the profile at pixels 1 to npts, whatever the window."""
     title: str
     params: str
     window: tuple[float, float, float, float]
     y: np.ndarray
     marks: list[Mark] = field(default_factory=list)
     sample: list[tuple[float, float]] = field(default_factory=list)
+    logs: tuple[bool, bool] = (False, False)    #: which of the screen's axes are elog
 
 
 class ApeditSession:
@@ -143,6 +152,12 @@ class ApeditSession:
         self.profile, self.line = apextract.getdata(self.frame, line, nsum)
         self.npts = self.profile.size
         self.image = image
+        #: ap_edit's gt, for as long as the task runs.
+        self.gt = GTools()
+        self.gt.title = "Define and Edit Apertures"
+        self.pending = ""               #: "window" after w, "again" after w e
+        self._corner: tuple[float, float] = (0.0, 0.0)
+        self._window = (0.0, 1.0, 0.0, 1.0)     #: the window as last drawn, ggwind's
         self.params = title
         self.axis = axis
         self.settings = {**SETTINGS, **(settings or {})}
@@ -160,6 +175,15 @@ class ApeditSession:
         self._graph_keys: dict = {}     #: each aperture's icfit keeps its graph key
         self._ic_gt: GTools | None = None   #: apedit's ic_gt, made at the first b
         self._status()
+
+    @property
+    def params(self) -> str:
+        """GTPARAMS: the image's title, which a new line or nsum sets again."""
+        return self.gt.params
+
+    @params.setter
+    def params(self, text: str) -> None:
+        self.gt.params = text
 
     # ------------------------------------------------------------- the output
 
@@ -209,10 +233,28 @@ class ApeditSession:
             return
         if self.state != "keys":
             return
+        if self.pending:
+            self._window_key(key, x, y)
+            return
         self._cursor = (x, y)
         if key in _NEAREST and not self._nearest(x, key):
             return
         self._act(key, x, y, rest)
+
+    def _window_key(self, key: str, x: float, y: float) -> None:
+        """gt_window: the key after w; then the graph, and the status line."""
+        if self.pending == "window" and key == "e":
+            self.pending, self._corner = "again", (x, y)
+            self._print("again:")
+            return
+        if self.pending == "again":
+            redraw = self.gt.window2(self._corner, (x, y), self._window)
+        else:
+            said, redraw = self.gt.window1(key, x, y, self._window)
+            self._print(said)
+        self.pending = ""
+        self.newgraph = self.newgraph or redraw
+        self._after(True)
 
     def _nearest(self, x: float, key: str) -> bool:
         """ap_nearest. False if it has asked which is meant."""
@@ -259,7 +301,9 @@ class ApeditSession:
         elif key == "r":
             self.newgraph = True
         elif key == "w":
-            pass
+            self.pending = "window"
+            self._print("window:")
+            return
         elif key in "bcdeg ijlostuyz" and key != " " and ap is None:
             status = self._beep()
         elif key == "b":
@@ -544,9 +588,13 @@ class ApeditSession:
         words = text.split()
         if not words:
             return True
-        if words[0].startswith("/"):
-            self._print("the /commands are not ported: the mouse sets the window here\n")
-            return False
+        if text.lstrip().startswith("/"):
+            out, err, redraw = self.gt.colon(text.lstrip(), self._window)
+            self._print(out)
+            self.stderr += err
+            self._new += err
+            self.newgraph = self.newgraph or redraw
+            return True
         command = _strdic(words[0], _CMDS)
         value = words[1] if len(words) > 1 else None
         if command is None:
@@ -659,7 +707,7 @@ class ApeditSession:
 
     def graph(self) -> Graph:
         """ap_graph, and it is drawn."""
-        window = (*with_room(np.array([1.0, float(self.npts)])), *with_room(self.profile))
+        window = self._window = self.gt.swind((1.0, float(self.npts)), span(self.profile))
         marks = [Mark(ap.number, self._centre(ap),
                       self._centre(ap) + ap.low, self._centre(ap) + ap.high)
                  for ap in self.apertures]
@@ -667,7 +715,7 @@ class ApeditSession:
         if len(self.apertures) == 1:
             ap = self.apertures[0]
             centre = self._centre(ap)
-            x1, x2 = window[:2]
+            x1, x2 = min(window[:2]), max(window[:2])
             count = int(x2 - x1 + 2)
             x = x1 + np.arange(count) - centre
             try:
@@ -677,8 +725,10 @@ class ApeditSession:
             for run in icfit._runs(inside):
                 sample.append((float(x[run[0]] + centre), float(x[run[-1]] + centre)))
         self.newgraph = False
-        return Graph("Define and Edit Apertures", self.params, window, self.profile, marks,
-                     sample)
+        drawn = self.gt.title_block()
+        n = len(self.params.rstrip("\n").split("\n")) if self.params.rstrip("\n") else 0
+        return Graph("\n".join(drawn[n:]), "\n".join(drawn[:n]), window, self.profile,
+                     marks, sample, self.gt.logs())
 
     # ------------------------------------------------------------- a whole run
 
@@ -709,6 +759,7 @@ class ApeditSession:
                 continue
             words = next_cursor()
             if words is None:
+                self.pending = ""           # gt_window returns at the end of the file
                 self.key("q")
                 continue
             x, y, key = float(words[0]), float(words[1]), words[3]
