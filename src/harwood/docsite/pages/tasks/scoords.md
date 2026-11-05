@@ -3,7 +3,7 @@ atlas's spectrum whose wavelengths came separately.
 
 ```console
 $ harwood scoords model.fits waves.dat
-SCOORDS: Setting coordinates for model from coordinate file waves.dat.
+SCOORDS: Setting coordinates for model.fits from coordinate file waves.dat.
 $ harwood scoords 'atlas/*.fits' @waves.lis
 ```
 

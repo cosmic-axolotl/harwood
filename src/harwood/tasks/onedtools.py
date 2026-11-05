@@ -1012,7 +1012,8 @@ class Scoords(Task[ScoordsParams]):
                     advice.fail("Wrong number of coordinate values in file",
                                 f"the file needs {n} wavelengths, one a line.")
                 if params.verbose:
-                    shown = name.removesuffix(".fits")
+                    shown = name.removesuffix(".fits") if ".fits" not in params.images \
+                        else name
                     said.append(f"SCOORDS: Setting coordinates for {shown} from coordinate "
                                 f"file {coord}.")
                 if len(apertures) != 1:
