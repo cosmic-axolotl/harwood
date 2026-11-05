@@ -6,7 +6,8 @@ reads one from text, names spells out a record list, sbands measures bands, lcal
 lists the calibration tables, mkspec makes an artificial one, sinterp
 interpolates a table into one, scoords gives one its wavelengths from a list,
 sapertures changes what its apertures are, ndprep makes a neutral density filter's
-correction, disptrans puts its dispersion in other units. Each is IRAF's
+correction, disptrans puts its dispersion in other units, sarith and scopy copy,
+cut and operate on spectra. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -1323,3 +1324,396 @@ def iraffmt_g(value: float, digits: int) -> str:
     from ..core import iraffmt
 
     return iraffmt.printf(float(value), "g", digits, double=True)
+
+
+class SarithParams(TaskParams):
+    input1: str = Field(..., description="Spectra to operate on. Commas, globs and @lists "
+                                         "expand.")
+    op: Literal["abs", "copy", "dex", "exp", "flam", "fnu", "inv", "ln", "log", "lum",
+                "mag", "sqrt", "replace", "+", "-", "*", "/", "^"] = Field(
+        ..., description="The operation: one of the spectrum alone, or with a second "
+                         "operand (replace + - * / ^).")
+    input2: str = Field("", description="The second operand: spectra, resampled onto the "
+                                        "first's pixels, or a number.")
+    output: str = Field(..., description="The result: one spectrum, or one per input.")
+    w1: float | None = Field(None, description="The region's first wavelength.")
+    w2: float | None = Field(None, description="Its last.")
+    apertures: str = Field("", description="Apertures to take (1,3-5); ! before takes the "
+                                           "others.")
+    bands: str = Field("", description="Bands to take: 1 the spectrum, 2 raw, 3 the sky, "
+                                       "4 the error, of those there are.")
+    beams: str = Field("", description="Beams to take.")
+    apmodulus: int = Field(0, ge=0, description="Aperture numbers taken modulo this for "
+                                                "--apertures.")
+    reverse: bool = Field(False, description="The second operand first.")
+    ignoreaps: bool = Field(False, description="Pair the second operand's spectra by line, "
+                                               "not by aperture number.")
+    format: Literal["multispec", "onedspec"] = Field(
+        "multispec", description="One spectrum of all the apertures, or one each "
+                                 "(output.0001...).")
+    renumber: bool = Field(False, description="Number the output's apertures from 1.")
+    offset: int = Field(0, description="Add this to the output's aperture numbers.")
+    clobber: bool = Field(False, description="Write over an output that exists.")
+    merge: bool = Field(False, description="With --clobber, add the apertures to an output "
+                                           "that exists.")
+    rebin: bool = Field(True, description="Cut the region at its wavelengths exactly, "
+                                          "resampled; off, at the nearest whole pixels.")
+    errval: float = Field(0.0, description="What cannot be computed is this.")
+    verbose: bool = Field(False, description="Say each spectrum done.")
+    interp: Literal["nearest", "linear", "poly3", "poly5", "spline3", "sinc"] = Field(
+        "poly5", description="Interpolant of the resampling (onedspec.interp).")
+
+
+@register
+class Sarith(Task[SarithParams]):
+    name = "sarith"
+    package = "onedspec"
+    description = "Operate on spectra: copy, cut, resample, and arithmetic."
+    Params = SarithParams
+
+    def plan(self, params: SarithParams) -> list[Step]:
+        return [Step("select", params.input1,
+                     why="The apertures, beams and bands asked for; a region cut at its "
+                         "wavelengths, resampled onto as many pixels as it covered, or at "
+                         "the nearest whole pixels with --no-rebin."),
+                Step("operate", params.op + (f" {params.input2}" if params.input2 else ""),
+                     why="A second spectrum is resampled onto the first's pixels -- the "
+                         "mean of the interpolant over each -- and paired by aperture "
+                         "number; one that has none is copied. The error is only ever "
+                         "copied. In real, as IRAF's; what cannot be computed is errval."),
+                Step("write", params.output, why="One spectrum, or one per aperture.")]
+
+    def execute(self, params: SarithParams) -> TaskResult:
+        from ..core import images
+
+        if params.op in ("replace", "+", "-", "*", "/", "^") and not params.input2.strip():
+            advice.fail("Error in second operand", "give --input2, a spectrum or a number.")
+        ins = [str(s) for s in images.expand(params.input1)]
+        seconds = [str(s) for s in images.expand(params.input2)] if params.input2 else []
+        if params.input2 and not seconds:
+            seconds = [params.input2]
+        outs = [o.strip() for o in images.split_list(params.output)]
+        if len(outs) > 1 and len(outs) != len(ins):
+            advice.fail("Input and output image lists don't make sense",
+                        "give one output, or one for each input.")
+        said: list[str] = []
+        written: list[Path] = []
+        groups = [([i], [seconds[min(k, len(seconds) - 1)]] if seconds else [], outs[k])
+                  for k, i in enumerate(ins)] if len(outs) > 1 else \
+            [(ins, seconds, outs[0])]
+        for group, operands, out in groups:
+            try:
+                if params.format == "multispec":
+                    written += _sa_ms(group, operands, out, params, said)
+                else:
+                    written += _sa_1d(group, operands, out, params, said)
+            except (OSError, ValueError) as error:
+                text = str(error.args[0] if error.args else error)
+                said.extend(f"Warning: {text}".split("\n"))
+        return TaskResult(outputs=written, steps=self.plan(params), data={"text": said})
+
+
+class ScopyParams(TaskParams):
+    input: str = Field(..., description="Spectra to copy.")
+    output: str = Field(..., description="The copy: one spectrum, or one per input.")
+    w1: float | None = Field(None, description="The region's first wavelength.")
+    w2: float | None = Field(None, description="Its last.")
+    apertures: str = Field("", description="Apertures to take; ! before takes the others.")
+    bands: str = Field("", description="Bands to take: 1 the spectrum, 2 raw, 3 the sky, "
+                                       "4 the error.")
+    beams: str = Field("", description="Beams to take.")
+    apmodulus: int = Field(0, ge=0, description="Aperture numbers taken modulo this.")
+    format: Literal["multispec", "onedspec"] = Field("multispec",
+                                                     description="One spectrum, or one "
+                                                                 "per aperture.")
+    renumber: bool = Field(False, description="Number the output's apertures from 1.")
+    offset: int = Field(0, description="Add this to the output's aperture numbers.")
+    clobber: bool = Field(False, description="Write over an output that exists.")
+    merge: bool = Field(False, description="With --clobber, add to an output that exists.")
+    rebin: bool = Field(True, description="Cut the region at its wavelengths exactly.")
+    verbose: bool = Field(False, description="Say each spectrum copied.")
+
+
+@register
+class Scopy(Task[ScopyParams]):
+    name = "scopy"
+    package = "onedspec"
+    description = "Copy spectra: apertures, bands, a wavelength region."
+    Params = ScopyParams
+
+    def plan(self, params: ScopyParams) -> list[Step]:
+        return [Step("copy", f"{params.input} to {params.output}",
+                     why="sarith with copy, as IRAF's scopy script is.")]
+
+    def execute(self, params: ScopyParams) -> TaskResult:
+        values = params.model_dump()
+        values["input1"] = values.pop("input")
+        result = Sarith().execute(SarithParams(op="copy", input2="", reverse=False,
+                                               ignoreaps=False, errval=0.0, **values))
+        result.steps = self.plan(params)
+        return result
+
+
+def _selected(ap: int, beam: int, aps, beams, apmod: int, complement: bool) -> bool:
+    j = ap % apmod if apmod > 1 else ap
+    chosen = j in aps and beam in beams
+    return chosen != complement
+
+
+def _ranges(params):
+    from ..core import ranges
+
+    complement = False
+    out = []
+    for text, what in ((params.apertures, "aperture/column/line"), (params.bands, "band"),
+                       (params.beams, "beam")):
+        text = text.strip()
+        if text.startswith("!"):
+            complement, text = True, text[1:]
+        try:
+            out.append(ranges.parse(text, -ranges.RNG_MAXINT, ranges.RNG_MAXINT))
+        except ValueError:
+            advice.fail(f"Bad {what} list", "write it as 1,3-5.")
+    return (*out, complement)
+
+
+def _read(name: str):
+    from astropy.io import fits
+
+    from ..core import spectrum
+
+    path = name if Path(name).exists() or not Path(name + ".fits").exists() \
+        else name + ".fits"
+    return path, fits.getheader(path), spectrum.read(path)
+
+
+def _band_names(aperture) -> list[str]:
+    from ..core.sarith import BANDS
+
+    return [band for band in BANDS if getattr(aperture, band, None) is not None]
+
+
+def _operand(text: str):
+    """A second operand: a spectrum, or a number."""
+    from ..core import iraffmt
+
+    name = text if Path(text).exists() or not Path(text + ".fits").exists() else text + ".fits"
+    if Path(name).exists():
+        path, header, apertures = _read(text)
+        return apertures, None
+    value = iraffmt.ctod(text)
+    if value is None or value > 1e300:
+        advice.fail("Error in second operand", "a spectrum, or a number.")
+    return None, value
+
+
+def _sections(nlines: int, nbands: int, line: int, band: int) -> str:
+    if nbands > 1:
+        return f"[*,{line},{band}]"
+    if nlines > 1:
+        return f"[*,{line}]"
+    return ""
+
+
+def _process(sh, params, operand, aperture, band_name, line, band):
+    """The band of one aperture extracted and operated on: data, wavelengths, the
+    operation done, and the second operand's view."""
+    from ..core import sarith
+
+    sarith.extract(sh, params.w1, params.w2, params.rebin, params.interp)
+    op, other, const = params.op, None, None
+    if op in sarith.BINARY:
+        apertures, const, opname = operand
+        if apertures is not None:
+            if params.ignoreaps:
+                match = apertures[line - 1] if line - 1 < len(apertures) else None
+            else:
+                match = next((a for a in apertures if a.number == sh.ap), None)
+            if match is None or (not params.ignoreaps and match.number != sh.ap):
+                op = "copy"
+            else:
+                names = _band_names(match)
+                other = sarith.open_aperture(match, opname, _sections(
+                    len(apertures), len(names), apertures.index(match) + 1, band),
+                    names[min(band, len(names)) - 1])
+                sarith.rebin(other, sh, params.interp)
+    if band_name == "error":
+        op = "copy"                     # "For now just copy noise band."
+    data = sarith.arith(op, sh, other, const, params.reverse, params.errval)
+    return data, op, other, const
+
+
+def _wavelengths(sh) -> object:
+    """The output's world coordinates for the band: sa_ms's w and dw from shdr_lw."""
+    import math
+
+    import numpy as np
+
+    n = sh.n
+    if sh.dc == 2:
+        # A nonlinear dispersion keeps its function, cut or not: its own wavelengths.
+        return sh.wave.copy()
+    w, wb = sh.lw(1.0) * (1 + sh.z), sh.lw(float(n)) * (1 + sh.z)
+    if n == 1:
+        return np.array([w / (1 + sh.z)])
+    if sh.dc == 1:
+        lw, lwb = math.log10(w), math.log10(wb)
+        dw = (lwb - lw) / (n - 1)
+        world = 10 ** (lw + dw * np.arange(n))
+    else:
+        dw = (wb - w) / (n - 1)
+        world = w + dw * np.arange(n)
+    return world / (1 + sh.z)
+
+
+def _sa_ms(group, operands, output, params, said) -> list[Path]:
+    """sa_ms: the spectra of the group into one output."""
+    import numpy as np
+
+    from ..core import sarith, spectrum
+
+    target = Path(output if Path(output).suffix else output + ".fits")
+    aps, bands, beams, complement = _ranges(params)
+    existing = []
+    if target.exists():
+        if not params.clobber:
+            advice.fail(f"Output spectrum {output} already exists",
+                        "give --clobber to write over it, with --merge to add to it.")
+        if params.merge:
+            _, _, existing = _read(str(target))
+            for i, aperture in enumerate(existing, 1):
+                if params.renumber:
+                    aperture.number = i + params.offset
+    outaps = [a.number for a in existing]
+    naps = len(outaps)
+    selected = []                   # (input, its apertures, header, aperture, new number)
+    for name in group:
+        _, header, apertures = _read(name)
+        for aperture in apertures:
+            if not _selected(aperture.number, aperture.number if aperture.beam is None
+                             else aperture.beam, aps, beams, params.apmodulus, complement):
+                continue
+            ap = (naps + 1 if params.renumber else aperture.number) + params.offset
+            if ap not in outaps:
+                naps += 1
+            selected.append((name, apertures, header, aperture, ap))
+    if not selected:
+        advice.fail("No spectra selected", "check --apertures, --beams and --bands.")
+    numbers = [ap for *_, ap in selected]
+    if len(set(numbers)) != len(numbers):
+        advice.fail("Output spectra cannot have the same aperture number.\n\tUse renumber "
+                    "parameter.", "give --renumber, or --offset to one of them.")
+    nbands = max(len([b for i, b in enumerate(_band_names(a), 1) if i in bands])
+                 for _, _, _, a, _ in selected)
+    nbands = max(nbands, *[len(_band_names(a)) for a in existing]) if existing else nbands
+    results = list(existing)
+    last = len(outaps)
+    operand_at = 0
+    for name in group:
+        names_here = [s for s in selected if s[0] == name]
+        if not names_here:
+            continue
+        operand = None
+        if params.op in sarith.BINARY:
+            text = operands[min(operand_at, len(operands) - 1)]
+            apertures2, const = _operand(text)
+            operand = (apertures2, const, text.removesuffix(".fits"))
+        operand_at += 1
+        for _, apertures, _header, aperture, _ in names_here:
+            ap = (last + 1 if params.renumber else aperture.number) + params.offset
+            if ap in outaps:
+                position = outaps.index(ap)
+            else:
+                position, last = last, last + 1
+            line = apertures.index(aperture) + 1
+            columns = _band_names(aperture)
+            beam = aperture.number if aperture.beam is None else aperture.beam
+            made = spectrum.Aperture(number=ap, centre=aperture.centre, low=aperture.low,
+                                     high=aperture.high, title=aperture.title,
+                                     beam=beam if beam != ap else None)
+            k = 0
+            for band, column in enumerate(columns, 1):
+                if band not in bands:
+                    continue
+                k += 1
+                sh = sarith.open_aperture(aperture, name.removesuffix(".fits"),
+                                          _sections(len(apertures), len(columns), line,
+                                                    band), column)
+                data, op, other, const = _process(sh, params, operand, aperture, column,
+                                                  line, band)
+                setattr(made, column, data.astype(float))
+                if made.wavelength is None:
+                    made.wavelength = _wavelengths(sh)
+                    made.pixel = np.arange(1.0, sh.n + 1.0)
+                if params.verbose:
+                    said.append(sarith.said(sh, other, output.removesuffix(".fits"),
+                                            _sections(naps, nbands, position + 1, k), ap, op,
+                                            const, params.reverse))
+            if made.flux is None:
+                for column in ("raw", "sky", "error"):
+                    if getattr(made, column) is not None:
+                        made.flux = getattr(made, column)
+                        setattr(made, column, None)
+                        break
+            if position < len(results):
+                results[position] = made
+            else:
+                results.append(made)
+    header = selected[0][2].copy()
+    spectrum.write(target, results, header=header, source=group[0])
+    return [target]
+
+
+def _sa_1d(group, operands, output, params, said) -> list[Path]:
+    """sa_1d: each aperture and band of the group to a spectrum of its own."""
+    import re
+
+    import numpy as np
+
+    from ..core import sarith, spectrum
+
+    aps, bands, beams, complement = _ranges(params)
+    root = re.sub(r"\.\d{4}$", "", output.removesuffix(".fits"))
+    written: list[Path] = []
+    naps = 0
+    for at, name in enumerate(group):
+        _, header, apertures = _read(name)
+        operand = None
+        if params.op in sarith.BINARY:
+            text = operands[min(at, len(operands) - 1)]
+            apertures2, const = _operand(text)
+            operand = (apertures2, const, text.removesuffix(".fits"))
+        for line, aperture in enumerate(apertures, 1):
+            if not _selected(aperture.number, aperture.number if aperture.beam is None
+                             else aperture.beam, aps, beams, params.apmodulus, complement):
+                continue
+            if params.renumber:
+                naps += 1
+            ap = (naps if params.renumber else aperture.number) + params.offset
+            columns = _band_names(aperture)
+            for band, column in enumerate(columns, 1):
+                if band not in bands:
+                    continue
+                stem = f"{root}.{band - 1}{ap:03d}"
+                target = Path(stem + ".fits")
+                if target.exists() and not params.clobber:
+                    said.append(f"Warning: Output spectrum {output} already exists")
+                    continue
+                sh = sarith.open_aperture(aperture, name.removesuffix(".fits"),
+                                          _sections(len(apertures), len(columns), line,
+                                                    band), column)
+                data, op, other, const = _process(sh, params, operand, aperture, column,
+                                                  line, band)
+                beam = aperture.number if aperture.beam is None else aperture.beam
+                made = spectrum.Aperture(number=ap, centre=aperture.centre,
+                                         low=aperture.low, high=aperture.high,
+                                         title=aperture.title, flux=data.astype(float),
+                                         wavelength=_wavelengths(sh),
+                                         pixel=np.arange(1.0, sh.n + 1.0),
+                                         beam=beam if beam != ap else None)
+                spectrum.write(target, [made], header=header.copy(), source=name)
+                written.append(target)
+                if params.verbose:
+                    said.append(sarith.said(sh, other, stem, "", ap, op, const,
+                                            params.reverse))
+    return written
