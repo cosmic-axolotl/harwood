@@ -1,7 +1,8 @@
 """onedspec -- the tools that work on a spectrum once it has wavelengths.
 
 dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
-round, deredden takes the dust out, slist says what each aperture is. Each is IRAF's
+round, deredden takes the dust out, slist says what each aperture is, rspectext
+reads one from text. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -497,3 +498,105 @@ class Slist(Task[SlistParams]):
                                 f"{spectrum.dispersion_type(aperture.wavelength)} {g(w0)} "
                                 f"{g(wp)} {npts} {aperture.title or title}")
         return TaskResult(outputs=[], steps=self.plan(params), data={"text": said})
+
+
+class RspectextParams(TaskParams):
+    input: str = Field(..., description="Text spectra: lines of wavelength and flux, "
+                                        "after a FITS header if there is one.")
+    output: str = Field(..., description="One spectrum per input; one that exists is "
+                                         "not written over.")
+    title: str = Field("", description="The title, when the text has no header.")
+    flux: bool = Field(False, description="The fluxes are calibrated (CA-FLAG and EX-FLAG "
+                                          "0), when the text has no header.")
+    dtype: Literal["none", "linear", "log", "nonlinear", "interp"] = Field(
+        "linear", description="The dispersion, when the text has no header: none, linear "
+                              "or log from --crval1 and --cdelt1 (the first column is not "
+                              "read), nonlinear (the first column is each pixel's "
+                              "wavelength) or interp (the same, resampled onto an even "
+                              "grid).")
+    crval1: float = Field(1.0, description="Wavelength of the first pixel (its log10 "
+                                           "for log).")
+    cdelt1: float = Field(1.0, description="Wavelength per pixel (in log10 for log).")
+
+
+@register
+class Rspectext(Task[RspectextParams]):
+    name = "rspectext"
+    package = "onedspec"
+    description = "Read a text spectrum into a spectrum."
+    Params = RspectextParams
+
+    def plan(self, params: RspectextParams) -> list[Step]:
+        return [Step("read", params.input,
+                     why="Two columns, wavelength and flux; the lines that are not two "
+                         "numbers are skipped. Both go through seven figures (%g), as "
+                         "IRAF's script passes them on as text."),
+                Step("dispersion", params.dtype,
+                     why="With a FITS header in front (wspectext's), the header says it. "
+                         "Without, linear or log take --crval1 and --cdelt1 and not the "
+                         "first column; nonlinear keeps the first column as each pixel's "
+                         "wavelength, and interp resamples onto an even grid between its "
+                         "ends, as dispcor does, the fluxes not conserved."),
+                Step("write", params.output, why="A spectrum of one aperture.")]
+
+    def execute(self, params: RspectextParams) -> TaskResult:
+        import re
+
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import images, rspectext, spectrum
+
+        inputs = [str(spec) for spec in images.expand(params.input)]
+        outs = [part if Path(part).suffix else part + ".fits"
+                for part in (p.strip() for p in images.split_list(params.output))]
+        said: list[str] = []
+        written: list[Path] = []
+        for name, target in zip(inputs, outs, strict=False):    # join's shortest
+            target = Path(target)
+            if target.exists():
+                # The script looks for the name, .imh and .hhh, and so not for a FITS
+                # file, which rtextimage then refuses: the task stops there.
+                advice.fail(f"Operation would overwrite existing image ({target.name})",
+                            "name another output, or delete this one first.",
+                            FileExistsError)
+            cards, x, y = rspectext.read(Path(name).read_text(encoding="utf-8"))
+            header = fits.Header()
+            if cards is not None:
+                title = ""
+                for line in cards:
+                    keyword = line[:8].rstrip()
+                    if not re.fullmatch(r"[A-Z0-9_-]{1,8}", keyword):
+                        continue                    # IRAF-B/P and the like: not FITS
+                    card = fits.Card.fromstring(line.ljust(80)[:80])
+                    if keyword == "OBJECT":         # rt_rheader: the last one is it
+                        title = str(card.value).rstrip()
+                        continue
+                    if keyword in ("", "END", "BITPIX", "NDIM", "FORMAT", "IRAFTYPE",
+                                   "SIMPLE", "EXTEND") or keyword.startswith(("NAXIS", "LEN")):
+                        continue
+                    try:
+                        header.append(card)
+                    except ValueError:
+                        continue
+                header["OBJECT"] = title
+                wave = rspectext.header_dispersion(header.cards, y.size)
+            else:
+                header["OBJECT"] = params.title
+                title = params.title
+                if params.dtype == "interp":
+                    wave, y = rspectext.interpolated(x, y)
+                else:
+                    wave = rspectext.wavelengths(params.dtype, x, params.crval1,
+                                                 params.cdelt1)
+                if params.dtype in ("linear", "log"):
+                    header["DC-FLAG"] = 0 if params.dtype == "linear" else 1
+                if params.flux:
+                    header["CA-FLAG"] = 0
+                    header["EX-FLAG"] = 0
+            pixel = np.arange(1.0, y.size + 1.0)
+            spectrum.write(target, [spectrum.Aperture(
+                number=1, centre=0.0, low=0.0, high=0.0, pixel=pixel, flux=y,
+                wavelength=wave, title=title)], header=header, source=name)
+            written.append(target)
+        return TaskResult(outputs=written, steps=self.plan(params), data={"text": said})

@@ -1,0 +1,94 @@
+BITPIX  =                    8  /  8-bit ASCII characters                       
+NAXIS   =                    1  /  Number of Image Dimensions                   
+NAXIS1  =                   60  /  Length of axis                               
+ORIGIN  = 'NOAO-IRAF: WTEXTIMAGE'  /
+IRAF-MAX=                   0.  /  Max image pixel (out of date)                
+IRAF-MIN=                   0.  /  Min image pixel (out of date)                
+IRAF-B/P=                   32  /  Image bits per pixel                         
+IRAFTYPE= 'REAL FLOATING     '  /  Image datatype                              
+OBJECT  = 'A STAR            '  /                                              
+FILENAME= 'O_LINEAR          '  /  IRAF filename                               
+FORMAT  = '5G14.7            '  /  Text line format                            
+EXTEND  =                    F / File may contain extensions                    
+OBJECT  = 'a star  '           / Name of the object observed                    
+ORIGIN  = 'NOAO-IRAF FITS Image Kernel July 2003' / FITS file originator        
+DATE    = '2026-11-05T10:38:21' / Date FITS file was generated                  
+IRAF-TLM= '2026-11-05T10:38:41' / Time of last modification                     
+DC-FLAG =                    0                                                  
+CRPIX1  =                   1.                                                  
+CRVAL1  =                4000.                                                  
+CDELT1  =                  2.5                                                  
+END                                                                             
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+4000.  1234.568
+4002.5  1242.883
+4005.  1250.968
+4007.5  1258.598
+4010.  1265.563
+4012.5  1271.668
+4015.  1276.745
+4017.5  1280.654
+4020.  1283.285
+4022.5  1284.566
+4025.  1284.461
+4027.5  1282.974
+4030.  1280.145
+4032.5  1276.053
+4035.  1270.811
+4037.5  1264.565
+4040.  1257.488
+4042.5  1249.775
+4045.  1241.641
+4047.5  1233.311
+4050.  1225.016
+4052.5  1216.985
+4055.  1209.442
+4057.5  1202.595
+4060.  1196.634
+4062.5  1191.725
+4065.  1188.002
+4067.5  1185.571
+4070.  1184.497
+4072.5  1184.811
+4075.  1186.503
+4077.5  1189.528
+4080.  1193.801
+4082.5  1199.204
+4085.  1205.587
+4087.5  1212.773
+4090.  1220.563
+4092.5  1228.741
+4095.  1237.08
+4097.5  1245.35
+4100.  1253.322
+4102.5  1260.773
+4105.  1267.498
+4107.5  1273.311
+4110.  1278.05
+4112.5  1281.584
+4115.  1283.815
+4117.5  1284.681
+4120.  1284.158
+4122.5  1282.261
+4125.  1279.042
+4127.5  1274.591
+4130.  1269.03
+4132.5  1262.515
+4135.  1255.225
+4137.5  1247.362
+4140.  1239.145
+4142.5  1230.801
+4145.  1222.562
+4147.5  1214.655

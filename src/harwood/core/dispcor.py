@@ -29,7 +29,7 @@ from .asi import Interpolant
 f32 = np.float32
 NIT = 10
 DX = 0.0001
-CHEBYSHEV, LEGENDRE, SPLINE3, SPLINE1 = 1, 2, 3, 4
+CHEBYSHEV, LEGENDRE, SPLINE3, SPLINE1, PIXEL = 1, 2, 3, 4, 5
 FUNCTIONS = {"chebyshev": CHEBYSHEV, "legendre": LEGENDRE, "spline3": SPLINE3,
              "spline1": SPLINE1}
 
@@ -77,6 +77,11 @@ class Curve:
                     y += c[i - 1] * cc
                     a, b = b, cc
             return y
+        if self.type == PIXEL:
+            # wf_msp_eval's lookup table: linear between the values at whole pixels.
+            i = max(1, min(int(x), order - 1))
+            f = x - i
+            return (1 - f) * c[i - 1] + f * c[i]
         scale = order / (self.xmax - self.xmin)
         xx = (x - self.xmin) * scale
         i = max(0, min(int(xx), order - 1))
