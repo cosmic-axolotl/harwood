@@ -1,7 +1,7 @@
 """onedspec -- the tools that work on a spectrum once it has wavelengths.
 
 dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
-round. Each is IRAF's
+round, deredden takes the dust out. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -10,6 +10,7 @@ harwood's spectra: a table per aperture, the wavelengths in a column
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 
@@ -291,3 +292,116 @@ class Sflip(Task[SflipParams]):
                           history=["sflip: " + ", ".join(
                               part for part, on in (("coordinates", params.coord_flip),
                                                     ("data", params.data_flip)) if on)])
+
+
+class DereddenParams(TaskParams):
+    input: str = Field(..., description="Spectra with wavelengths. Commas, globs and "
+                                        "@lists expand.")
+    output: str | None = Field(
+        None, description="One name per input; the input's own name corrects it in "
+                          "place. Left out, each goes to this run's own directory.",
+        json_schema_extra={"positional": True})
+    value: float = Field(..., description="The extinction: A(V), E(B-V) or c, as --type "
+                                          "says.")
+    R: float = Field(3.1, description="A(V)/E(B-V): 3.1 in the diffuse interstellar "
+                                      "medium of the Galaxy.")
+    type: Literal["A(V)", "E(B-V)", "c"] = Field(
+        "E(B-V)", description="What --value is: A(V), E(B-V), or c, the logarithmic "
+                              "extinction at H-beta.")
+    apertures: str = Field("", description="Apertures to correct (1,3-5); all when "
+                                           "empty. The others are copied as they are.")
+    override: bool = Field(False, description="Correct a spectrum whose header says it "
+                                              "has been corrected already.")
+    uncorrect: bool = Field(True, description="With --override, take the old correction "
+                                              "out first, as its DEREDDEN card says it.")
+
+
+@register
+class Deredden(Task[DereddenParams]):
+    name = "deredden"
+    package = "onedspec"
+    description = "Correct spectra for interstellar extinction."
+    Params = DereddenParams
+
+    def plan(self, params: DereddenParams) -> list[Step]:
+        return [Step("law", f"Cardelli, Clayton & Mathis, R = {params.R:g}",
+                     why="Dust dims the blue more than the red, by a law that depends on "
+                         "the grains along the line of sight; R = A(V)/E(B-V) says which, "
+                         "3.1 for the Galaxy's diffuse medium. CCM (1989) is IRAF's "
+                         "law, from 1000 to 33333 A."),
+                Step("correct", f"{params.type} = {params.value:g}",
+                     why="Each pixel times 10^(0.4 A(V) A(lambda)/A(V)). c, the "
+                         "logarithmic extinction at H-beta, is A(V) = R c (0.61 + 0.024 c)."),
+                Step("write", str(params.output or "this run's directory"),
+                     why="With a DEREDDEN card that says what was done and when, so that "
+                         "the spectrum is not corrected twice.")]
+
+    def execute(self, params: DereddenParams) -> TaskResult:
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import deredden, images, output, ranges, spectrum
+
+        av, words = deredden.to_av(params.value, params.R, params.type)
+        log = f"{deredden.cnvdate()} {words}"
+        aps = ranges.parse(params.apertures, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        if params.apertures.strip():
+            log += f" ap={params.apertures.strip()}"
+        names = [name if Path(name).exists() or not Path(name + ".fits").exists()
+                 else name + ".fits"
+                 for name in (str(spec) for spec in images.expand(params.input))]
+        if not names:
+            advice.fail(f"'{params.input}' matches nothing.",
+                        "check the path; 'harwood sections' shows what a template "
+                        "expands to.", FileNotFoundError)
+        shown = [name.removesuffix(".fits") if ".fits" not in params.input else name
+                 for name in names]
+        outs = [part if Path(part).suffix else part + ".fits"
+                for part in (p.strip() for p in images.split_list(str(params.output)))] \
+            if params.output else []
+        said: list[str] = []
+        warnings: list = []
+        written: list[Path] = []
+        for index, name in enumerate(names):
+            if outs and index >= len(outs):
+                break
+            target = Path(outs[index]) if outs else output.named_for(name, ".dered.fits")
+            try:
+                header = fits.getheader(name)
+                apertures = spectrum.read(name)
+                if any(a.wavelength is None or not any(a.wavelength) for a in apertures):
+                    advice.fail(f"[{shown[index]}] has no dispersion function",
+                                "run dispcor on it first: the extinction is a function "
+                                "of wavelength.")
+                avold, rvold = 0.0, params.R
+                if "DEREDDEN" in header:
+                    if not params.override:
+                        advice.fail(f"[{shown[index]}] has already been corrected",
+                                    "give --override to correct it again; the old "
+                                    "correction is taken out first.")
+                    if params.uncorrect:
+                        avold, rvold = deredden.previous(header["DEREDDEN"], params.R)
+                # Said as it goes: an error in an aperture comes after its line.
+                said.extend([f"[{target.name.removesuffix('.fits') if outs else target}]: "
+                             f"{header.get('OBJECT', '')}", f"  {log}"])
+                for aperture in apertures:
+                    if aperture.number not in aps:
+                        continue
+                    said.append(f"  Ap {aperture.number}: "
+                                f"{aperture.title or header.get('OBJECT', '')}")
+                    wave = np.asarray(aperture.wavelength, dtype=np.float32)
+                    for band in ("flux", "error", "sky", "raw"):
+                        values = getattr(aperture, band, None)
+                        if values is not None:
+                            setattr(aperture, band, deredden.correct(
+                                wave, values, av, params.R, avold, rvold).astype(float))
+            except (KeyError, ValueError) as error:
+                text = str(error.args[0] if error.args else error).splitlines()[0]
+                warnings.append(advice.warn(text, "the spectrum was left as it was."))
+                said.append(f"Warning: {text}")
+                continue
+            header["DEREDDEN"] = log
+            spectrum.write(target, apertures, header=header, source=name)
+            written.append(target)
+        return TaskResult(outputs=written, steps=self.plan(params), warnings=warnings,
+                          data={"text": said}, history=[f"deredden: {log}"])
