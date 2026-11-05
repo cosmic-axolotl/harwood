@@ -18,7 +18,6 @@ Astronomy Inc.; the notice it is distributed under is in LICENSES/IRAF-COPYRIGHT
 from __future__ import annotations
 
 import re
-import time
 
 import numpy as np
 
@@ -97,10 +96,8 @@ def to_av(value: float, rv: float, kind: str) -> tuple[float, str]:
 
 
 def cnvdate(when: float | None = None) -> str:
-    """IRAF's cnvdate: the month, the day and the time, "Nov  5  7:29"."""
-    now = time.localtime(when)
-    return f"{time.strftime('%b', now)} {now.tm_mday:2d} {now.tm_hour:2d}:{now.tm_min:02d}"
-
+    """IRAF's cnvdate (iraffmt's)."""
+    return iraffmt.cnvdate(when)
 
 def previous(card: str, rv: float) -> tuple[float, float]:
     """The A(V) and R an old DEREDDEN card says, as t_deredden reads its words back:

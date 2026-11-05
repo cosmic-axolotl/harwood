@@ -37,7 +37,7 @@ Everything is computed in real, as IRAF's: thirty-two sessions IRAF 2.18 ran
 -- copies, regions resampled and not and backwards, every operation, constants
 and spectra on other dispersions, unmatched apertures, bands, onedspec's files,
 an output that exists, a merge, two inputs with and without renumbering -- say
-the same line for line, and of 17354 pixels 96% are IRAF's to the bit, the rest
+the same line for line, and of 17354 pixels 98.5% are IRAF's to the bit, the rest
 a unit of the last place of the operands. IRAF's ways kept: over exactly whole
 pixels the resampling sums them and divides by one fewer, and the output's
 wavelengths after a cut come from the first one and the step in real.

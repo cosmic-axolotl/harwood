@@ -1,8 +1,8 @@
 """sapertures against IRAF 2.18's: what it says on both streams, and each aperture's
 beam, dispersion, redshift, limits and title after it.
 
-tests/data/iraf_sapertures holds the cases and the table (sa_cases.py) and what IRAF
-said and left in the world coordinates (sa.json), on ../iraf_slist's spectrum. The
+tests/data/iraf_sapertures holds the cases and the table (sap_cases.py) and what IRAF
+said and left in the world coordinates (sap.json), on ../iraf_slist's spectrum. The
 wavelengths are held to the dispersion IRAF's attributes describe, over 1+z.
 """
 
@@ -20,10 +20,10 @@ from harwood.core import spectrum
 from harwood.core.registry import get_task
 
 HERE = Path(__file__).parent / "data"
-GOLD = json.loads((HERE / "iraf_sapertures" / "sa.json").read_text(encoding="utf-8"))
+GOLD = json.loads((HERE / "iraf_sapertures" / "sap.json").read_text(encoding="utf-8"))
 sys.path.insert(0, str(HERE / "iraf_slist"))
 sys.path.insert(0, str(HERE / "iraf_sapertures"))
-from sa_cases import CASES, TABLE  # noqa: E402
+from sap_cases import CASES, TABLE  # noqa: E402
 from sl_inputs import HEADER, N, spectra  # noqa: E402
 
 

@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 106, partial: 0, planned: 249, replaced: 94, wontport: 161
+#   available: 107, partial: 0, planned: 248, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -446,7 +446,8 @@ tasks:
     note: "IRAF's combining and rejection bit by bit -- every combine and reject, scale, zero and weight (files and keywords too), thresholds, grow, nkeep, offsets, outlimits, project, pixel masks, and the sigma, rejection, bad pixel and exposure outputs; no headers, imcmb or outtype, the output is real"}
   lscombine: {pkg: twodspec.longslit, domain: combine, status: planned, milestone: later}
   odcombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
-  scombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
+  scombine: {pkg: onedspec, domain: combine, status: available, milestone: later, harwood: scombine,
+    note: "t_scombine.x and its own old icombine: groups, the output grid (first, w1/w2/dw/nw, log), resampling and masks, every combine and reject, scale, zero and weight (statistics over a sample, exposure, files, keywords), thresholds, nkeep, grow, blank, the number combined, NCOMBINE and EXPTIME, and the log; 51 sessions held to IRAF's to the bit, its slips kept"}
   zerocombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: zerocombine}
 
   # --- ccd-reduction (core, 42 tasks) ---------------------------
@@ -838,7 +839,7 @@ tasks:
   reidentify: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: reidentify,
     note: "t_reidentify.x ported: multispec apertures, long-slit lines traced or not, other arcs, shift carried from line to line, shift found from the spectrum (search INDEF) or by autoidentify's search within a radius (id_shift), refit or shift only, addfeatures, newaps, override, nlost, logfiles; identical to IRAF 2.18 on 9 runs, log line for line, and on 3 with a radius the same lines and the log to its last figure; interactive (yes, YES, no, NO), each fit looked at with identify's keys, IRAF's on 2 runs"}
   sarith: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: sarith,
-    note: "t_sarith.x and shdr's extract, linear and rebin: every operation in real, constants and spectra resampled onto the first, apertures, beams, bands, complement, modulus, renumber, offset, regions resampled or not, multispec and onedspec outputs, clobber and merge, the verbose lines; 32 sessions held to IRAF's, 96% of the pixels to the bit and the rest a unit of the last place"}
+    note: "t_sarith.x and shdr's extract, linear and rebin: every operation in real, constants and spectra resampled onto the first, apertures, beams, bands, complement, modulus, renumber, offset, regions resampled or not, multispec and onedspec outputs, clobber and merge, the verbose lines; 32 sessions held to IRAF's, 98.5% of the pixels to the bit and the rest a unit of the last place"}
   sbands: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: sbands,
     note: "t_sbands.x: band fluxes with filters, one or two continua, index and equivalent width, magnitudes, the band file read word after word as IRAF reads it, the world coordinates' inverse held half a pixel past the ends, held to IRAF's output line for line"}
   scoords: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: scoords,

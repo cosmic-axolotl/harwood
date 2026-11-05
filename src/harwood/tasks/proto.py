@@ -168,10 +168,9 @@ class Fixpix(Task[FixpixParams]):
 def _mark(header, mask: str) -> None:
     """IRAF's record: FIXPIX = '<date> Bad pixel file is <mask>', or FIXPIX02
     and on when the frame was fixed before. The date is cnvdate's, local."""
-    import time
+    from ..core import iraffmt
 
-    now = time.localtime()
-    stamp = time.strftime("%b", now) + f" {now.tm_mday:2d} {now.tm_hour:2d}:{now.tm_min:02d}"
+    stamp = iraffmt.cnvdate()
     value = f"{stamp} Bad pixel file is {mask}"
     if "FIXPIX" not in header:
         header["FIXPIX"] = value

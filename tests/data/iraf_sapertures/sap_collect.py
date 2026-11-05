@@ -1,4 +1,4 @@
-"""What IRAF's sapertures left in each case's folder, as sa.json: what it said, and
+"""What IRAF's sapertures left in each case's folder, as sap.json: what it said, and
 each line's aperture, beam, dtype, w1, dw, z, limits and title."""
 
 import json
@@ -29,4 +29,4 @@ for work in sorted(results.iterdir()):
                            "title": str(header.get(f"APID{line}", header.get("OBJECT")))}
     out[work.name] = {"said": (work / "said.txt").read_text(encoding="utf-8").splitlines(),
                       "lines": lines}
-Path(__file__).with_name("sa.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
+Path(__file__).with_name("sap.json").write_text(json.dumps(out, indent=1), encoding="utf-8")

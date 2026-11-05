@@ -42,6 +42,12 @@ def cnvtime(when: float | None = None) -> str:
             f"{t.tm_mday:02d}-{_MONTHS[t.tm_mon - 1]}-{t.tm_year}")
 
 
+def cnvdate(when: float | None = None) -> str:
+    """IRAF's cnvdate, local time: "Nov  5  7:29", the month in English."""
+    t = time.localtime(when)
+    return f"{_MONTHS[t.tm_mon - 1]} {t.tm_mday:2d} {t.tm_hour:2d}:{t.tm_min:02d}"
+
+
 def g(value: float, double: bool = False, decpl: int | None = None) -> str:
     """printf("%g") of a real (or, with double, a double) as IRAF does it."""
     return printf(value, "g", decpl, double=double)

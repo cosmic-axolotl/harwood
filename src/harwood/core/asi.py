@@ -199,23 +199,28 @@ class Interpolant:
             def pc(near):
                 return _newton(c, self.offset + near, nterms)
 
+            # (1./i) * pcoeff[i] is real; deltax ** i is f2c's pow_ri, in double, and
+            # so is the rest of the term until it is added into accum.
+            def weight(p, i):
+                return float(f32(f32(1) / f32(i)) * p[i - 1])
+
             if nearb == neara:
                 db = f32(xb - f32(nearb))
                 p = pc(neara)
                 for i in range(1, nterms + 1):
-                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * f32(db ** i - da ** i))
+                    accum = f32(float(accum) + weight(p, i) * (pow_ri(db, i) - pow_ri(da, i)))
             else:
                 p = pc(neara)
                 for i in range(1, nterms + 1):
-                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * f32(f32(1) - da ** i))
+                    accum = f32(float(accum) + weight(p, i) * (1.0 - pow_ri(da, i)))
                 for j in range(neara + 1, nearb):
                     p = pc(j)
                     for i in range(1, nterms + 1):
-                        accum = f32(accum + f32(1.0 / i) * p[i - 1])
+                        accum = f32(accum + f32(f32(1) / f32(i)) * p[i - 1])
                 db = f32(xb - f32(nearb))
                 p = pc(nearb)
                 for i in range(1, nterms + 1):
-                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * f32(db ** i))
+                    accum = f32(float(accum) + weight(p, i) * pow_ri(db, i))
             return float(accum if a < b else -accum)
         if self.kind == "linear":
             if nearb == neara:
@@ -231,24 +236,41 @@ class Interpolant:
                 accum = f32(accum + c[nearb] * db
                             + f32(0.5) * (c[nearb + 1] - c[nearb]) * db * db)
         else:
+            def weight(p, i):
+                return float(f32(f32(1) / f32(i)) * p[i - 1])
+
             if nearb == neara:
                 db = f32(xb - f32(nearb))
                 p = _poly(c, 1 + neara)
                 for i in range(1, 5):
-                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * (db ** i - da ** i))
+                    accum = f32(float(accum) + weight(p, i) * (pow_ri(db, i) - pow_ri(da, i)))
             else:
                 p = _poly(c, 1 + neara)
                 for i in range(1, 5):
-                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * (f32(1) - da ** i))
+                    accum = f32(float(accum) + weight(p, i) * (1.0 - pow_ri(da, i)))
                 for j in range(neara + 1, nearb):
                     p = _poly(c, 1 + j)
                     for i in range(1, 5):
-                        accum = f32(accum + f32(1.0 / i) * p[i - 1])
+                        accum = f32(accum + f32(f32(1) / f32(i)) * p[i - 1])
                 db = f32(xb - f32(nearb))
                 p = _poly(c, 1 + nearb)
                 for i in range(1, 5):
-                    accum = f32(accum + f32(1.0 / i) * p[i - 1] * db ** i)
+                    accum = f32(float(accum) + weight(p, i) * pow_ri(db, i))
         return float(accum if a < b else -accum)
+
+
+def pow_ri(x, n: int) -> float:
+    """libf2c's pow_ri: a real to a whole power, by squaring, in double."""
+    result, x = 1.0, float(x)
+    if n < 0:
+        n, x = -n, 1.0 / x
+    while True:
+        if n & 1:
+            result *= x
+        n >>= 1
+        if not n:
+            return result
+        x *= x
 
 
 def _poly(c, index):

@@ -7,7 +7,7 @@ lists the calibration tables, mkspec makes an artificial one, sinterp
 interpolates a table into one, scoords gives one its wavelengths from a list,
 sapertures changes what its apertures are, ndprep makes a neutral density filter's
 correction, disptrans puts its dispersion in other units, sarith and scopy copy,
-cut and operate on spectra. Each is IRAF's
+cut and operate on spectra, scombine combines them. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -1716,4 +1716,303 @@ def _sa_1d(group, operands, output, params, said) -> list[Path]:
                 if params.verbose:
                     said.append(sarith.said(sh, other, stem, "", ap, op, const,
                                             params.reverse))
+    return written
+
+
+SCWHY = {
+    "group": "With group apertures, each aperture number is combined across the "
+             "inputs into an aperture of one output; with all, every spectrum into one; "
+             "with images, the apertures of each input into an output of its own.",
+    "grid": "Unless --first, the output runs over all the inputs' wavelengths in the "
+            "smallest of their steps, or as --w1/--w2/--dw/--nw say; each spectrum is "
+            "resampled onto it, the mean of its interpolant over each pixel, and where "
+            "it does not reach is left out.",
+    "scale": "Scales, zero offsets and weights -- from the spectra's mode, median or "
+             "mean over --sample, their exposure, a file or a header keyword -- are "
+             "made relative to their mean before combining.",
+    "reject": "The rejection is IRAF's onedspec one, older than imcombine's: values put "
+              "back after a sigma clip are looked for among all those rejected, and "
+              "grow is a number of pixels along the spectrum.",
+}
+
+
+class ScombineParams(TaskParams):
+    input: str = Field(..., description="Spectra to combine. Commas, globs and @lists "
+                                        "expand.")
+    output: str = Field(..., description="The combined spectrum; with --group images, "
+                                         "one per input.")
+    noutput: str = Field("", description="Spectra of the number combined at each pixel.")
+    logfile: str = Field("STDOUT", description="The log: STDOUT, a file it is added to, "
+                                               "or empty for none.")
+    apertures: str = Field("", description="Apertures to combine (1,3-5).")
+    group: Literal["all", "images", "apertures"] = Field(
+        "apertures", description="What is combined with what.")
+    combine: Literal["average", "median", "sum"] = Field("average",
+                                                         description="How.")
+    reject: Literal["none", "minmax", "ccdclip", "crreject", "sigclip", "avsigclip",
+                    "pclip"] = Field("none", description="Rejection.")
+    first: bool = Field(False, description="The output on the first spectrum's "
+                                           "dispersion.")
+    w1: float | None = Field(None, description="The output's first wavelength.")
+    w2: float | None = Field(None, description="Its last.")
+    dw: float | None = Field(None, description="Its step.")
+    nw: int | None = Field(None, description="Its length.")
+    log: bool = Field(False, description="Steps even in log wavelength.")
+    scale: str = Field("none", description="none, mode, median, mean, exposure, @file or "
+                                           "!keyword.")
+    zero: str = Field("none", description="none, mode, median, mean, @file or !keyword.")
+    weight: str = Field("none", description="none, mode, median, mean, exposure, @file "
+                                            "or !keyword.")
+    sample: str = Field("", description="Wavelength regions for the statistics, "
+                                        "w1:w2,...")
+    lthreshold: float | None = Field(None, description="Values below are left out.")
+    hthreshold: float | None = Field(None, description="Values above are left out.")
+    nlow: int = Field(1, ge=0, description="minmax: the lowest to reject.")
+    nhigh: int = Field(1, ge=0, description="minmax: the highest to reject.")
+    nkeep: int = Field(1, description="The fewest to keep, or negative, the most to "
+                                      "reject.")
+    mclip: bool = Field(True, description="Clip about the median, not the average.")
+    lsigma: float = Field(3.0, ge=0, description="Low clipping factor.")
+    hsigma: float = Field(3.0, ge=0, description="High clipping factor.")
+    rdnoise: str = Field("0.", description="ccdclip: read noise (electrons), or a "
+                                           "keyword.")
+    gain: str = Field("1.", description="ccdclip: gain (electrons/DN), or a keyword.")
+    snoise: str = Field("0.", description="ccdclip: sensitivity noise (fraction), or a "
+                                          "keyword.")
+    sigscale: float = Field(0.1, ge=0, description="Scales or zeros differing by more "
+                                                   "than this correct the sigmas.")
+    pclip: float = Field(-0.5, description="pclip: the percentile, or a number of "
+                                           "places from the median.")
+    grow: int = Field(0, ge=0, description="Pixels either side rejected with one.")
+    blank: float = Field(0.0, description="The value where nothing is left.")
+    interp: Literal["nearest", "linear", "poly3", "poly5", "spline3", "sinc"] = Field(
+        "poly5", description="Interpolant of the resampling (onedspec.interp).")
+
+
+@register
+class Scombine(Task[ScombineParams]):
+    name = "scombine"
+    package = "onedspec"
+    description = "Combine spectra: resampled, scaled, rejected, averaged."
+    Params = ScombineParams
+
+    def plan(self, params: ScombineParams) -> list[Step]:
+        return [Step("group", params.group, why=SCWHY["group"]),
+                Step("resample", "first" if params.first else "common grid",
+                     why=SCWHY["grid"]),
+                Step("scale", f"scale {params.scale}, zero {params.zero}, weight "
+                              f"{params.weight}", why=SCWHY["scale"]),
+                Step("combine", f"{params.combine}, reject {params.reject}",
+                     why=SCWHY["reject"]),
+                Step("write", params.output, why="NCOMBINE in the header; the log as "
+                                                 "IRAF's.")]
+
+    def execute(self, params: ScombineParams) -> TaskResult:
+        from ..core import images, ranges, scombine
+
+        ins = [str(s) for s in images.expand(params.input)]
+        outs = [o.strip() for o in images.split_list(params.output)]
+        nouts = [o.strip() for o in images.split_list(params.noutput)] \
+            if params.noutput.strip() else []
+        reject1 = "none" if params.combine == "sum" else params.reject
+        if params.pclip == 0 and reject1 == "pclip":
+            advice.fail("Pclip parameter may not be zero", "give --pclip, e.g. -0.5.")
+        big = float(scombine.MAX_REAL)
+        st = scombine.State(
+            combine=params.combine, blank=params.blank, lsigma=params.lsigma,
+            hsigma=params.hsigma, grow=params.grow, mclip=params.mclip,
+            sigscale=params.sigscale,
+            dothresh=params.lthreshold is not None or params.hthreshold is not None,
+            lthresh=-big if params.lthreshold is None else float(params.lthreshold),
+            hthresh=big if params.hthreshold is None else float(params.hthreshold))
+        texts = {"scale": params.scale, "zero": params.zero, "weight": params.weight,
+                 "rdnoise": params.rdnoise, "gain": params.gain, "snoise": params.snoise,
+                 "sample": params.sample, "interp": params.interp}
+        aps = ranges.parse(params.apertures, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        said: list[str] = []
+        log: list[str] = []
+        written: list[Path] = []
+        k = o = 0
+        while k < len(ins):
+            if o >= len(outs):
+                said.append("No output image")
+                break
+            out_name, nout_name = outs[o], nouts[o] if o < len(nouts) else ""
+            o += 1
+            groups: list[list] = []
+            numbers: list[int] = []
+            while k < len(ins):
+                name = ins[k]
+                k += 1
+                try:
+                    specs = _sc_read(name, params, reject1)
+                except (OSError, ValueError) as error:
+                    if params.group != "images":
+                        raise
+                    said.append(f"Warning: {error}")
+                    continue
+                header = specs[0][2] if specs else None
+                for spec, aperture_number, _ in specs:
+                    if aperture_number not in aps:
+                        continue
+                    if params.group == "apertures":
+                        if aperture_number not in numbers:
+                            numbers.append(aperture_number)
+                            groups.append([])
+                        groups[numbers.index(aperture_number)].append((spec, header))
+                    else:
+                        if not groups:
+                            groups.append([])
+                        groups[0].append((spec, header))
+                if params.group == "images":
+                    break
+            if not groups:
+                said.append("No input spectra to combine")
+                continue
+            written += _sc_output(st, groups, out_name, nout_name, params, reject1, texts,
+                                  said, log)
+        text = said + log if params.logfile.strip() == "STDOUT" else said
+        if params.logfile.strip() and params.logfile.strip() != "STDOUT":
+            with open(params.logfile.strip(), "a", encoding="utf-8") as handle:
+                handle.write("".join(line + "\n" for line in log))
+        return TaskResult(outputs=written, steps=self.plan(params), data={"text": text})
+
+
+def _sc_header_real(header, key: str):
+    from ..core import iraffmt
+
+    if key not in header:
+        return None
+    value = header[key]
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return iraffmt.ctod(str(value).strip())
+
+
+def _sc_read(name: str, params, reject1: str):
+    """Each aperture of an input as t_scombine reads it: band 1, and the header values
+    it may want."""
+    from ..core import sarith, scombine, spectrum
+
+    path, header, apertures = _read(name)
+    shown = name.removesuffix(".fits")
+    exptime = None
+    for key in ("EXPOSURE", "ITIME", "EXPTIME"):
+        value = _sc_header_real(header, key)
+        if value is not None:
+            exptime = value
+    keys = {}
+    for param, text in (("scale", params.scale), ("zero", params.zero),
+                        ("weight", params.weight)):
+        text = "".join(text.split())
+        if text.startswith("!"):
+            keys[param] = _sc_header_real(header, text[1:])
+            if keys[param] is None:
+                advice.fail(f"Image header parameter not found ({text[1:]})",
+                            f"the header needs {text[1:]}, or give another {param}.")
+    for param in ("rdnoise", "gain", "snoise"):
+        text = getattr(params, param)
+        keys[param] = None
+        if reject1 in ("ccdclip", "crreject") and scombine._leading_number(text) is None:
+            keys[param] = _sc_header_real(header, text.strip())
+            if keys[param] is None:
+                advice.fail(f"Image header parameter not found ({text.strip()})",
+                            f"the header needs {text.strip()}, or give --{param} a "
+                            "number.")
+    out = []
+    nlines = len(apertures)
+    for line, aperture in enumerate(apertures, 1):
+        names = _band_names(aperture)
+        sh = sarith.open_aperture(aperture, shown,
+                                  _sections(nlines, len(names), line, 1), names[0])
+        spec = scombine.Spectrum(sh, shown, spectrum.dispersion_type(aperture.wavelength),
+                                 aperture, exptime, dict(keys))
+        out.append((spec, aperture.number, header))
+    return out
+
+
+def _sc_output(st, groups, out_name, nout_name, params, reject1, texts, said, log):
+    """scb_output and the combining: an output aperture for each group."""
+    import numpy as np
+
+    from ..core import sarith, scombine, spectrum
+
+    target = Path(out_name if Path(out_name).suffix else out_name + ".fits")
+    if target.exists():
+        advice.fail(f"Output spectrum {out_name} already exists",
+                    "give another name, or remove it.")
+    header = groups[0][0][1].copy()
+    if len(groups) == 1:
+        # One aperture is a one-dimensional spectrum, whose title is the aperture's.
+        header["OBJECT"] = groups[0][0][0].aperture.title
+    nheader = header.copy()             # made before NCOMBINE is added, as IRAF's
+    nheader["OBJECT"] = f"Number combined for {out_name}"
+    made, counts = [], []
+    for members in groups:
+        specs = [spec for spec, _ in members]
+        first = specs[0]
+        a1 = first.aperture
+        beam = a1.number if a1.beam is None else a1.beam
+        if params.first:
+            wave = None if a1.wavelength is None else np.asarray(a1.wavelength, float)
+            z = float(a1.redshift or 0.0)
+            dtype, nw = first.dc, first.sh.n
+        else:
+            dtype, w1, dw, nw = scombine.default_grid(specs, params.w1, params.w2,
+                                                      params.dw, params.nw, params.log)
+            wave, z = scombine.grid_wavelengths(dtype, w1, dw, nw), 0.0
+        aperture = spectrum.Aperture(number=a1.number, centre=a1.centre, low=a1.low,
+                                     high=a1.high, title=a1.title,
+                                     pixel=np.arange(1.0, nw + 1.0),
+                                     flux=np.zeros(nw), wavelength=wave, redshift=z,
+                                     beam=beam if beam != a1.number else None)
+        out = sarith.open_aperture(aperture, out_name.removesuffix(".fits"), "", "flux")
+        n = len(specs)
+        st.reject, st.nkeep = reject1, params.nkeep
+        if st.nkeep < 0:
+            st.nkeep = n + st.nkeep
+        if st.reject == "pclip":
+            half = int((n - 1) / 2.0)
+            p = scombine.f32(params.pclip)
+            if abs(p) < 1:
+                p = scombine.f32(p * scombine.f32(half))
+            p = min(-1, max(-half, int(p))) if p < 0 else max(1, min(half, int(p)))
+            st.pclip = float(p)
+        if st.reject == "minmax":
+            f32 = scombine.f32
+            flow, fhigh = f32(params.nlow), f32(params.nhigh)
+            if flow >= 1:
+                flow = f32(flow / f32(n))
+            if fhigh >= 1:
+                fhigh = f32(fhigh / f32(n))
+            st.flow, st.fhigh = float(flow), float(fhigh)
+            total = int(f32(f32(flow * f32(n)) + f32(fhigh * f32(n))))
+            if total == 0:
+                st.reject = "none"
+            elif total >= n:
+                said += ["Bad minmax rejection parameters", "Using no rejection"]
+                st.reject = "none"
+        logged = {"rdnoise": params.rdnoise, "gain": params.gain, "snoise": params.snoise,
+                  "sample": params.sample, "output": out_name.removesuffix(".fits"),
+                  "out": out, "dtype": dtype}
+        result, number, scaling = scombine.combine_group(st, specs, out, texts, logged)
+        said += scaling.said
+        log += scaling.log
+        aperture.flux = result.astype(float)
+        made.append(aperture)
+        counts.append(spectrum.Aperture(number=aperture.number, centre=aperture.centre,
+                                        low=aperture.low, high=aperture.high,
+                                        title=aperture.title, pixel=aperture.pixel,
+                                        flux=number.astype(float),
+                                        wavelength=aperture.wavelength, redshift=z,
+                                        beam=aperture.beam))
+        header["NCOMBINE"] = scaling.ncombine
+        if scaling.expname:
+            header["EXPTIME"] = float(f"{scaling.exposure:.7g}")
+    written = [spectrum.write(target, made, header=header, source=groups[0][0][0].name)]
+    if nout_name:
+        ntarget = Path(nout_name if Path(nout_name).suffix else nout_name + ".fits")
+        written.append(spectrum.write(ntarget, counts, header=nheader, source=out_name))
     return written

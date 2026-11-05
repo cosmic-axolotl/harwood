@@ -3,7 +3,7 @@ each case runs on a fresh copy of ../iraf_slist's spectra.
 
     python ../iraf_slist/sl_inputs.py <folder>                      (harwood's)
     HOME=<scratch with .iraf/uparm> python3 run.py <folder> <results>   (with PyRAF)
-    python sa_collect.py <results>                                  (harwood's)
+    python sap_collect.py <results>                                  (harwood's)
 """
 
 import io
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 from pyraf import iraf
-from sa_cases import CASES, TABLE
+from sap_cases import CASES, TABLE
 
 if __name__ == "__main__":
     iraf.noao(_doprint=0)
