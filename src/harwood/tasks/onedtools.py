@@ -4,7 +4,8 @@ dopcor takes it to the rest frame, specshift moves its zero point, sflip turns i
 round, deredden takes the dust out, slist says what each aperture is, rspectext
 reads one from text, names spells out a record list, sbands measures bands, lcalib
 lists the calibration tables, mkspec makes an artificial one, sinterp
-interpolates a table into one. Each is IRAF's
+interpolates a table into one, scoords gives one its wavelengths from a list. Each is
+IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -950,3 +951,89 @@ class Sinterp(Task[SinterpParams]):
                     x = f32(value)          # gargr leaves x as it was on a word it can't read
                 said.append(sinterp.line(x, at(x)))
         return TaskResult(outputs=outputs, steps=self.plan(params), data={"text": said})
+
+
+class ScoordsParams(TaskParams):
+    images: str = Field(..., description="Spectra of one aperture, given wavelengths in "
+                                         "place.")
+    coords: str = Field(..., description="Files of wavelengths, one a line and one a pixel: "
+                                         "one for every spectrum, or one for each.")
+    label: str = Field("", description="The axis's label, as IRAF's takes it; harwood's "
+                                       "wavelength column has none to set.")
+    units: str = Field("", description="Its units: the same. IRAF's writes the label "
+                                       "there instead.")
+    verbose: bool = Field(True, description="Say each spectrum and its file.")
+
+
+@register
+class Scoords(Task[ScoordsParams]):
+    name = "scoords"
+    package = "onedspec"
+    description = "Give spectra their wavelengths from a list, one a pixel."
+    Params = ScoordsParams
+
+    def plan(self, params: ScoordsParams) -> list[Step]:
+        return [Step("coordinates", f"{params.coords} onto {params.images}",
+                     why="Each pixel's wavelength, from a list that had them: a lookup "
+                         "table, as IRAF's multispec pixel array function, the wavelength "
+                         "of each whole pixel the list's own.")]
+
+    def execute(self, params: ScoordsParams) -> TaskResult:
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import images, iraffmt, spectrum
+
+        specs = [str(s) for s in images.expand(params.images)]
+        coords = [c.strip() for c in images.split_list(params.coords)]
+        if len(coords) > 1 and len(coords) != len(specs):
+            advice.fail("Image and coordinate lists do not match",
+                        "give one file of coordinates, or one for each spectrum.")
+        said: list[str] = []
+        warnings: list = []
+        written: list[Path] = []
+        for index, name in enumerate(specs):
+            coord = coords[min(index, len(coords) - 1)]
+            path = name if Path(name).exists() or not Path(name + ".fits").exists() \
+                else name + ".fits"
+            try:
+                apertures = spectrum.read(path)
+                header = fits.getheader(path)
+                n = len(apertures[0].flux)
+                values = []
+                for line in Path(coord).read_text(encoding="utf-8").splitlines():
+                    words = line.split()
+                    value = iraffmt.ctod(words[0]) if words else None
+                    if value is not None and value < 1e300:
+                        values.append(value)
+                    if len(values) > n:
+                        break
+                if len(values) != n:
+                    advice.fail("Wrong number of coordinate values in file",
+                                f"the file needs {n} wavelengths, one a line.")
+                if params.verbose:
+                    shown = name.removesuffix(".fits")
+                    said.append(f"SCOORDS: Setting coordinates for {shown} from coordinate "
+                                f"file {coord}.")
+                if len(apertures) != 1:
+                    advice.fail("scoords: image must be one dimensional",
+                                "give a spectrum of one aperture.")
+                dw = (values[-1] - values[0]) / (n - 1)
+                # scoords checks from the third pixel on: the first step goes unchecked.
+                for i in range(2, n):
+                    if (values[i] - values[i - 1]) * dw <= 0:
+                        advice.fail("Coordinates are not monotonic",
+                                    "the wavelengths must rise, or fall, all the way.")
+                # Written into the WCS with %g, and read back from it.
+                wave = np.array([float(iraffmt.g(v, double=True)) for v in values])
+            except (OSError, ValueError) as error:
+                text = str(error.args[0] if error.args else error).splitlines()[0]
+                said.append(f"Warning: {text}")
+                warnings.append(advice.warn(text, "the spectrum was left as it was."))
+                continue
+            aperture = apertures[0]
+            aperture.wavelength, aperture.number, aperture.beam = wave, 1, None
+            spectrum.write(path, [aperture], header=header)
+            written.append(Path(path))
+        return TaskResult(outputs=written, steps=self.plan(params), warnings=warnings,
+                          data={"text": said})

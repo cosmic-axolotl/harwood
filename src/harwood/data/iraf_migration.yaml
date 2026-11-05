@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 100, partial: 0, planned: 255, replaced: 94, wontport: 161
+#   available: 101, partial: 0, planned: 254, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -837,7 +837,8 @@ tasks:
   sarith: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sbands: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: sbands,
     note: "t_sbands.x: band fluxes with filters, one or two continua, index and equivalent width, magnitudes, the band file read word after word as IRAF reads it, the world coordinates' inverse held half a pixel past the ends, held to IRAF's output line for line"}
-  scoords: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  scoords: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: scoords,
+    note: "t_scoords.x: a pixel's wavelength a line, counted and checked as IRAF does (from the third pixel on), in place, held to IRAF's world coordinates; label and units have no column to go to"}
   scopy: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
   sensfunc: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: sensfunc,
     note: "noao/onedspec/sensfunc and math/curfit (single precision) ported: the sensitivity spectra, logfile, :stats/:vstats and revised extinction identical to IRAF's bit for bit on 17 runs -- every aperture or ignoreaps, four functions, and from a cursor file or the window delete/undelete/move/add/reweight, grey shift, composite, residual extinction, original data. The calibrated-image graphs (i, l, c, e) are not drawn"}
