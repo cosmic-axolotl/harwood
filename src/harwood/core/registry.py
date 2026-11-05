@@ -35,6 +35,7 @@ _MODULES = (
     "harwood.tasks.photometry",
     "harwood.tasks.photcal",
     "harwood.tasks.onedspec",
+    "harwood.tasks.onedtools",
     "harwood.tasks.apextract",
     "harwood.tasks.astutil",
     "harwood.tasks.fluxcal",

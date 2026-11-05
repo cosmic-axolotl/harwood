@@ -1,0 +1,146 @@
+"""onedspec -- the tools that work on a spectrum once it has wavelengths.
+
+dopcor takes it to the rest frame. Each is IRAF's task of the same name, ported
+from its .x and held to what IRAF 2.18 writes, on harwood's spectra: a table per
+aperture, the wavelengths in a column (core/spectrum.py).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import Field
+
+from ..core import advice
+from ..core.registry import register
+from ..core.task import Step, Task, TaskParams, TaskResult
+
+DOPWHY = {
+    "read": "A spectrum with wavelengths: dopcor moves its scale, so it has to have one.",
+    "redshift": "A velocity is turned into a redshift relativistically, "
+                "sqrt((1+v/c)/(1-v/c)) - 1, so that a fast galaxy and a slow star are "
+                "corrected the same way. A redshift read from the header can be undone "
+                "with a minus sign: -Z applies 1/(1+z) - 1.",
+    "correct": "The rest wavelength is the observed one over 1+z. The correction "
+               "replaces the one the spectrum already has, unless --add puts the two "
+               "together, (1+z)(1+zold) - 1, as for a heliocentric correction and then "
+               "a galaxy's own velocity.",
+    "flux": "A flux per unit wavelength at redshift z is (1+z)^3 fainter than at rest "
+            "(the factor's default); per unit frequency, (1+z)^1. Off by default: most "
+            "of the time the wavelengths are what is wanted.",
+    "write": "The header gets a DOPCORnn card saying what was done, as IRAF's does, and "
+             "each aperture keeps its z (APZ), so that a second dopcor knows it.",
+}
+
+
+class DopcorParams(TaskParams):
+    input: str = Field(..., description="Spectra with wavelengths. Commas, globs and "
+                                        "@lists expand.")
+    output: str | None = Field(
+        None, description="One name per input; the input's own name corrects it in "
+                          "place, as IRAF's default does. Left out, each goes to this "
+                          "run's own directory.",
+        json_schema_extra={"positional": True})
+    redshift: str = Field(..., description="A redshift, a velocity in km/s with "
+                                           "--isvelocity, or a header keyword holding "
+                                           "one; a minus before a keyword undoes it.")
+    isvelocity: bool = Field(False, description="The redshift is a velocity, km/s.")
+    add: bool = Field(False, description="Add to the correction the spectrum already "
+                                         "has, instead of replacing it.")
+    dispersion: bool = Field(True, description="Correct the wavelengths.")
+    flux: bool = Field(False, description="Correct the fluxes by (1+z)^factor.")
+    factor: float = Field(3.0, description="The power of 1+z the fluxes are corrected "
+                                           "by.")
+    apertures: str = Field("", description="Apertures to correct (1,3-5); all when "
+                                           "empty. The others are copied as they are.")
+    verbose: bool = Field(False, description="Say what was done to each spectrum.")
+
+
+@register
+class Dopcor(Task[DopcorParams]):
+    name = "dopcor"
+    package = "onedspec"
+    description = "Correct spectra for a redshift or a velocity."
+    Params = DopcorParams
+
+    def plan(self, params: DopcorParams) -> list[Step]:
+        return [Step("read", params.input, why=DOPWHY["read"]),
+                Step("redshift", f"{params.redshift}"
+                     + (" km/s" if params.isvelocity else ""), why=DOPWHY["redshift"]),
+                Step("correct", "the wavelengths", why=DOPWHY["correct"],
+                     skipped=not params.dispersion, reason="--no-dispersion"),
+                Step("flux", f"by (1+z)^{params.factor:g}", why=DOPWHY["flux"],
+                     skipped=not params.flux, reason="--flux not given"),
+                Step("write", str(params.output or "this run's directory"),
+                     why=DOPWHY["write"])]
+
+    def execute(self, params: DopcorParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import dopcor, images, output, ranges, spectrum
+
+        if not params.dispersion and not params.flux:
+            advice.fail("No correction specified",
+                        "leave --dispersion on, or give --flux, or both.")
+        aps = ranges.parse(params.apertures, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        apstr = params.apertures.strip() or "all"
+        inputs = [name if Path(name).exists() or not Path(name + ".fits").exists()
+                  else name + ".fits"
+                  for name in (str(spec) for spec in images.expand(params.input))]
+        # IRAF's image names leave the extension out, and are said as they were typed.
+        given = [name.removesuffix(".fits") if ".fits" not in params.input else name
+                 for name in inputs]
+        if not inputs:
+            advice.fail(f"'{params.input}' matches nothing.",
+                        "check the path; 'harwood sections' shows what a template "
+                        "expands to.", FileNotFoundError)
+        outs = [part if Path(part).suffix else part + ".fits"
+                for part in (p.strip() for p in images.split_list(str(params.output)))] \
+            if params.output else []
+
+        steps = self.plan(params)
+        said: list[str] = []
+        warnings: list = []
+        written: list[Path] = []
+        for index, name in enumerate(inputs):
+            target = Path(outs[index]) if index < len(outs) else \
+                output.named_for(name, ".dop.fits")
+            try:
+                header = fits.getheader(name)
+                apertures = spectrum.read(name)
+                if any(a.wavelength is None or not len(a.wavelength) or
+                       not any(a.wavelength) for a in apertures):
+                    advice.fail(f"[{given[index]}] has no dispersion function",
+                                "run dispcor on it first: dopcor moves a wavelength "
+                                "scale, and this spectrum is still in pixels.")
+                z, given = dopcor.redshift(params.redshift, header, params.isvelocity)
+            except (KeyError, ValueError) as error:
+                # erract (EA_WARN): the image is skipped, the others go on.
+                text = str(error.args[0] if error.args else error).splitlines()[0]
+                warnings.append(advice.warn(text, "the spectrum was left as it was."))
+                said.append(f"Warning: {text}")
+                continue
+            fcval = dopcor.flux_factor(z, params.factor) if params.flux else None
+            zold = znew = 0.0
+            for aperture in apertures:
+                if aperture.number in aps:
+                    zold, znew = dopcor.correct(aperture, z, params.add, params.dispersion,
+                                                fcval)
+            out_header = header.copy()
+            card = dopcor.card_name(out_header)
+            out_header[card] = dopcor.log_card(z, given, params.isvelocity,
+                                               params.factor if params.flux else None,
+                                               apstr)
+            spectrum.write(target, apertures, header=out_header, source=name)
+            written.append(target)
+            if params.verbose:
+                said.extend(dopcor.verbose_lines(
+                    target.name.removesuffix(".fits") if index < len(outs) else str(target),
+                    apstr, z, given, params.isvelocity,
+                    params.factor if params.flux else 0.0, params.add, zold, znew))
+
+        steps[-1].measured = {"written": ", ".join(str(p) for p in written) or "nothing"}
+        return TaskResult(outputs=written, steps=steps, warnings=warnings,
+                          data={"text": said},
+                          history=[f"dopcor: z={params.redshift}"
+                                   + (" (km/s)" if params.isvelocity else "")])

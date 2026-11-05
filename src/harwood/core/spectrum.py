@@ -68,6 +68,9 @@ class Aperture:
     trace: Any = field(default=None, repr=False)   #: centre against dispersion
     title: str = ""
     meta: dict = field(default_factory=dict)
+    #: The z dopcor has corrected the wavelengths by: they are the dispersion's
+    #: over 1+z, as IRAF's world coordinates are (APZ).
+    redshift: float = 0.0
 
     @property
     def width(self) -> float:
@@ -130,6 +133,9 @@ def write(path: Path | str, apertures: list[Aperture], header: Any = None,
                                 "upper edge, relative to the centre")
         if aperture.title:
             hdu.header["APTITLE"] = aperture.title[:68]
+        if aperture.redshift:
+            hdu.header["APZ"] = (float(aperture.redshift),
+                                 "dopcor's z: wavelength = dispersion / (1+z)")
         for index, name in enumerate(table.colnames, start=1):
             hdu.header[f"TCOMM{index}"] = MEANING.get(name, "")
         for key, value in aperture.meta.items():
@@ -167,6 +173,7 @@ def read(path: Path | str, number: int | None = None) -> list[Aperture]:
                 low=float(hdu.header.get("APLOW", 0.0)),
                 high=float(hdu.header.get("APHIGH", 0.0)),
                 title=str(hdu.header.get("APTITLE", "")),
+                redshift=float(hdu.header.get("APZ", 0.0)),
             )
             for name in table.colnames:
                 if name in COLUMNS:
