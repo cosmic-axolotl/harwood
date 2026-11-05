@@ -3,14 +3,13 @@
 tests/data/iraf_specshift holds the cases and IRAF's runs of them (run.py) on the
 spectrum of ../iraf_dopcor (three apertures with linear wavelengths), one of them
 after a dopcor, and what they left (specshift.json). The said starts of a
-dispersion are double %g's, whose last figures are those of IRAF's world
-coordinate arithmetic: they are held to a part in 10^12.
+dispersion are double %g's, and IRAF's dtoc prints 4010 as 4009.999999999999:
+iraffmt does the same, and the lines are held to IRAF's to the character.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -28,8 +27,6 @@ sys.path.insert(0, str(HERE / "iraf_specshift"))
 from dop_inputs import HEADER, N, spectra  # noqa: E402
 from ss_cases import CASES  # noqa: E402
 
-_NUMBER = re.compile(r"-?\d+\.?\d*(?:[eE][-+]?\d+)?")
-
 
 @pytest.fixture
 def start(tmp_path, monkeypatch):
@@ -46,13 +43,6 @@ def start(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _same(ours: str, theirs: str) -> bool:
-    if _NUMBER.sub("#", ours) != _NUMBER.sub("#", theirs):
-        return False
-    return all(float(a) == pytest.approx(float(b), rel=1e-12)
-               for a, b in zip(_NUMBER.findall(ours), _NUMBER.findall(theirs), strict=True))
-
-
 @pytest.mark.parametrize("case", list(CASES))
 def test_specshift_shifts_as_iraf_does(start, case):
     z, params = CASES[case]
@@ -61,9 +51,7 @@ def test_specshift_shifts_as_iraf_does(start, case):
     params = {k: (v == "yes") if v in ("yes", "no") else v for k, v in params.items()}
     result = get_task("specshift").run(spectra="in", **params)
     theirs = GOLD[case]
-    assert len(result.data["text"]) == len(theirs["said"])
-    for mine, iraf_s in zip(result.data["text"], theirs["said"], strict=True):
-        assert _same(mine, iraf_s), (mine, iraf_s)
+    assert result.data["text"] == theirs["said"]
     pixel = np.arange(N, dtype=float)
     for aperture in spectrum.read("in.fits"):
         iraf_s = theirs["apertures"][str(aperture.number)]

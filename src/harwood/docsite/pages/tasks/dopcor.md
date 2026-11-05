@@ -2,17 +2,18 @@ Takes a spectrum to the rest frame of a redshift or a velocity: its wavelengths
 over 1+z, and, if asked, its fluxes by a power of 1+z.
 
 ```console
-$ harwood dopcor ngc4486.fits ngc4486.rest.fits --redshift 0.00428 --verbose
-ngc4486.rest: Doppler correction - apertures=all, redshift= 0.00428, flux factor=0.
-$ harwood dopcor star.fits --redshift -VHELIO --isvelocity
+$ harwood dopcor galaxy.fits galaxy.rest.fits 0.00428 --verbose
+galaxy.rest: Doppler correction - apertures=all, redshift= 0.00428, flux factor=0.
+$ harwood dopcor --isvelocity star.fits star.helio.fits -- -VHELIO
 ```
 
-`--redshift` is a number, or the name of a header keyword holding one;
+The redshift is a number, or the name of a header keyword holding one;
 `--isvelocity` makes it a velocity in km/s, turned into a redshift
 relativistically, sqrt((1+v/c)/(1-v/c)) - 1. A minus before a keyword undoes
 it -- a velocity by its sign, a redshift to 1/(1+z) - 1 -- so `-VHELIO` takes
 out a heliocentric correction the header records. A minus before a number only
-makes it negative.
+makes it negative. On the command line a redshift that starts with a minus
+comes after `--`, so that it is not read as an option.
 
 **The correction replaces the last one.** Each aperture keeps the z it has been
 corrected by (`APZ` in its header), as IRAF keeps it in the spectrum's world
