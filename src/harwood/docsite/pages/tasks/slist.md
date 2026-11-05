@@ -1,14 +1,16 @@
 Lists the apertures of spectra, one line each, as IRAF's slist prints them.
 
 ```console
-$ harwood slist 'night1/*.w.fits'
-sp0019.w 1 1 1 0 4013.257 2.071906 1024 DHCep 6707
-sp0019.w 2 2 2 0 4011.886 2.072128 1024 DHCep 6707
-$ harwood slist sp0019.w --long-header
-sp0019.w: DHCep 6707
-    EXPTIME = 600.00   UT = 3:12:45.5      ST = 1:40:12.3
-    RA = 22:07:40.20   DEC = 57:43:36.0    HA = -0:58:10.20    AIRMASS = 1.084
-    1 1 1 0 4013.257 2.071906 1024 DHCep 6707
+$ harwood slist in,pix
+in 1 1 1 0 4010. 1.599999 120 first
+in 2 2 2 1 4000.368 1.893651 120 second
+in 3 3 5 0 4030. 1.800002 120 M 31
+pix 1 4 4 -1 1. 1. 120 arc
+$ harwood slist in --long-header --apertures 1
+in: M 31
+    EXPTIME = 1200.00  UT = 3:12:45.5      ST = 1:40:12.3
+    RA = 0:42:44.30    DEC = 41:16:09.0    HA = -0:58:10.20    AIRMASS = 1.084
+    1 1 1 0 4010. 1.599999 120 first
 ```
 
 After the name come the aperture's line in the file, its aperture and beam
