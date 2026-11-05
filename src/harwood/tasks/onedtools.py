@@ -1,7 +1,7 @@
 """onedspec -- the tools that work on a spectrum once it has wavelengths.
 
 dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
-round, deredden takes the dust out. Each is IRAF's
+round, deredden takes the dust out, slist says what each aperture is. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -405,3 +405,95 @@ class Deredden(Task[DereddenParams]):
             written.append(target)
         return TaskResult(outputs=written, steps=self.plan(params), warnings=warnings,
                           data={"text": said}, history=[f"deredden: {log}"])
+
+
+class SlistParams(TaskParams):
+    images: str = Field(..., description="Spectra to list. Commas, globs and @lists "
+                                         "expand.")
+    apertures: str = Field("", description="Apertures to list (1,3-5); all when empty.")
+    long_header: bool = Field(False, description="Each spectrum's exposure, times, place "
+                                                 "and airmass first.")
+
+
+def _tab(text: str, column: int) -> str:
+    """fmtio's %Nt: on to column N (1-based)."""
+    return text.ljust(column - 1)
+
+
+def _header_real(header, key: str):
+    """What shdr reads of a keyword, in real: sexagesimal too; None for INDEF."""
+    import numpy as np
+
+    from ..core import iraffmt
+
+    if key not in header:
+        return None
+    value = iraffmt.ctod(str(header[key]))
+    if value is None or value > 1e300:
+        return None
+    return float(np.float32(value))
+
+
+@register
+class Slist(Task[SlistParams]):
+    name = "slist"
+    package = "onedspec"
+    description = "List the apertures of spectra: number, beam, dispersion, title."
+    Params = SlistParams
+
+    def plan(self, params: SlistParams) -> list[Step]:
+        return [Step("list", params.images,
+                     why="One line an aperture: its line in the file, its aperture and "
+                         "beam numbers, its dispersion (-1 pixels, 0 linear, 1 log, 2 "
+                         "other), the first wavelength and the mean step to the last, "
+                         "the number of pixels, and the title.")]
+
+    def execute(self, params: SlistParams) -> TaskResult:
+        from astropy.io import fits
+
+        from ..core import images, iraffmt, ranges, spectrum
+
+        aps = ranges.parse(params.apertures, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        g = lambda v: iraffmt.g(float(v))  # noqa: E731
+
+        def h(value, places):
+            return "INDEF" if value is None else iraffmt.dtoc(value, places, "h")
+
+        said: list[str] = []
+        for token in images.split_list(params.images):
+            for spec in images.expand(token) or [token]:
+                name = str(spec)
+                path = name if Path(name).exists() or not Path(name + ".fits").exists() \
+                    else name + ".fits"
+                shown = name.removesuffix(".fits")
+                try:
+                    header = fits.getheader(path)
+                    apertures = spectrum.read(path)
+                except (OSError, ValueError):
+                    said.append(f"Warning: Cannot open image ({shown})")
+                    continue
+                title = str(header.get("OBJECT", ""))
+                if params.long_header:
+                    exptime = _header_real(header, "EXPTIME")
+                    said.append(f"{shown}: {title}")
+                    said.append(_tab(_tab(
+                        "    EXPTIME = " + ("INDEF" if exptime is None else f"{exptime:.2f}"),
+                        24) + f"UT = {h(_header_real(header, 'UT'), 1)}", 44)
+                        + f"ST = {h(_header_real(header, 'ST'), 1)}")
+                    airmass = _header_real(header, "AIRMASS")
+                    said.append(_tab(_tab(_tab(
+                        f"    RA = {h(_header_real(header, 'RA'), 2)}", 24)
+                        + f"DEC = {h(_header_real(header, 'DEC'), 1)}", 44)
+                        + f"HA = {h(_header_real(header, 'HA'), 2)}", 64)
+                        + "AIRMASS = " + ("INDEF" if airmass is None else f"{airmass:5.3f}"))
+                for line, aperture in enumerate(apertures, 1):
+                    if aperture.number not in aps:
+                        continue
+                    npts = len(aperture.flux)
+                    w0, wp = spectrum.start_and_step(aperture.wavelength, npts)
+                    beam = aperture.number if aperture.beam is None else aperture.beam
+                    said.append(("   " if params.long_header else shown) +
+                                f" {line} {aperture.number} {beam} "
+                                f"{spectrum.dispersion_type(aperture.wavelength)} {g(w0)} "
+                                f"{g(wp)} {npts} {aperture.title or title}")
+        return TaskResult(outputs=[], steps=self.plan(params), data={"text": said})

@@ -71,6 +71,8 @@ class Aperture:
     #: The z dopcor has corrected the wavelengths by: they are the dispersion's
     #: over 1+z, as IRAF's world coordinates are (APZ).
     redshift: float = 0.0
+    #: IRAF's beam number (APNUM's second), when it is not the aperture's (APBEAM).
+    beam: int | None = None
 
     @property
     def width(self) -> float:
@@ -133,6 +135,8 @@ def write(path: Path | str, apertures: list[Aperture], header: Any = None,
                                 "upper edge, relative to the centre")
         if aperture.title:
             hdu.header["APTITLE"] = aperture.title[:68]
+        if aperture.beam is not None and aperture.beam != aperture.number:
+            hdu.header["APBEAM"] = (int(aperture.beam), "beam number, IRAF's APNUM")
         if aperture.redshift:
             hdu.header["APZ"] = (float(aperture.redshift),
                                  "dopcor's z: wavelength = dispersion / (1+z)")
@@ -174,6 +178,7 @@ def read(path: Path | str, number: int | None = None) -> list[Aperture]:
                 high=float(hdu.header.get("APHIGH", 0.0)),
                 title=str(hdu.header.get("APTITLE", "")),
                 redshift=float(hdu.header.get("APZ", 0.0)),
+                beam=int(hdu.header["APBEAM"]) if "APBEAM" in hdu.header else None,
             )
             for name in table.colnames:
                 if name in COLUMNS:
@@ -204,3 +209,34 @@ def count(path: Path | str) -> int:
     with fits.open(str(path), memmap=False) as hdul:
         return sum(1 for hdu in hdul
                    if hdu.header.get("EXTNAME", "").upper() == EXTNAME)
+
+
+def dispersion_type(wavelength) -> int:
+    """IRAF's DC-FLAG of a wavelength column: -1 none, 0 linear, 1 linear in log10,
+    2 anything else."""
+    import numpy as np
+
+    if wavelength is None:
+        return -1
+    wave = np.asarray(wavelength, dtype=float)
+    if wave.size < 2 or not wave.any():
+        return -1
+    step = np.diff(wave)
+    if np.allclose(step, step[0], rtol=1e-9, atol=0):
+        return 0
+    if (wave > 0).all():
+        logs = np.diff(np.log10(wave))
+        if np.allclose(logs, logs[0], rtol=1e-7, atol=0):
+            return 1
+    return 2
+
+
+def start_and_step(wavelength, npts: int) -> tuple[float, float]:
+    """shdr's W0 and WP, in real: the first wavelength, and the mean step to the last
+    (pixels, 1 and 1, for a spectrum without wavelengths)."""
+    import numpy as np
+
+    if dispersion_type(wavelength) == -1:
+        return 1.0, 1.0
+    w0, w1 = np.float32(wavelength[0]), np.float32(wavelength[-1])
+    return float(w0), float((w1 - w0) / np.float32(npts - 1))

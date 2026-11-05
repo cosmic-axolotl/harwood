@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 93, partial: 0, planned: 262, replaced: 94, wontport: 161
+#   available: 94, partial: 0, planned: 261, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -324,7 +324,8 @@ tasks:
     note: "chooses a header translation and records it in the project, and applies the instrument's ccddb *.cl settings (includes followed) to the project's params, from IRAF's ccddb files, which ship with harwood; settings with no harwood counterpart are listed with the reason"}
   setjd: {pkg: [astutil, onedspec], domain: headers, status: available, milestone: mvp, harwood: setjd,
     note: "IRAF's t_setjd ported and checked against IRAF's output: JD, HJD by IRAF's Sun, LJD, utdate/uttime, every keyword renameable; --barycentric is harwood's own"}
-  slist: {pkg: onedspec, domain: headers, status: planned, milestone: later}
+  slist: {pkg: onedspec, domain: headers, status: available, milestone: later, harwood: slist,
+    note: "t_slist.x: an aperture a line, its beam, DC type, W0 and WP in real as shdr's, the long header with its tab stops and sexagesimals, held to IRAF's print line for line; spectra now keep a beam (APBEAM) when it is not the aperture's"}
   tabkey: {pkg: utilities.nttools, domain: headers, status: replaced,
     note: "astropy.table plus ECSV replace the t* family"}
   tabpar: {pkg: utilities.nttools, domain: headers, status: replaced,
