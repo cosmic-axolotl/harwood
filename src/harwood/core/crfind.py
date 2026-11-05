@@ -20,14 +20,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import gio, iraffmt
+from . import iraffmt
+from .gtools import GTools
 from .jit import jit
 
 REAL = np.float32
 MAX_REAL = 3.4028234663852886e38
 NO, YES, ALWAYSNO, ALWAYSYES = 0, 1, 3, 4
 RMAX = 3.0  # CR_RMAX: how near a training position has to be
-BUFFER = 0.03  # GT_XBUF and GT_YBUF
 
 HELP = [
     ("a", "all the candidates, or the training objects"),
@@ -39,6 +39,8 @@ HELP = [
     ("t", "set the flux ratio threshold at the cursor"),
     ("u", "do not replace the nearest"),
     ("v", "do not replace those in a region: v at two corners"),
+    ("w", "window, then a key: a b c d e f g j k l m n p r t u x y z ?"),
+    (":", "/xwindow and the other gtools commands"),
     ("space", "print the column and line of the nearest"),
 ]
 
@@ -442,21 +444,39 @@ def _axis(place: int, logs: bool) -> float:
     return 10.0 * place
 
 
+def _cr_gt() -> GTools:
+    """t_cosmicrays' GTOOLS: marks, a log axis of flux from 10, ratios from 0."""
+    gt = GTools()
+    gt.set_type("mark")
+    gt.set_transform("x", "log")
+    gt.setr("xmin", 10.0)
+    gt.setr("ymin", 0.0)
+    gt.title = "Parameters of cosmic rays candidates"
+    gt.xlabel, gt.ylabel = "Flux", "Flux Ratio"
+    return gt
+
+
 @dataclass
 class Session:
     """cr_examine's keys and cr_train's, with no window: the graph is flux against flux ratio,
     with a threshold. A read is in the coordinates of its own: flux and ratio for the graph,
-    column and line for the training."""
+    column and line for the training.
+
+    The graph's window is gtools' (`core.gtools`), as cr_graph sets it through gt_ascale and
+    gt_swind: w and the /commands set, flip and transpose it. cr_graph marks the candidates
+    with gmark, not gt_plot, so under :/transpose the window is swapped and the marks are
+    not, and the keys take the cursor as clgcur gives it. e and v sort their corners in the
+    graph's coordinates and then compare in NDC, so on an axis run backwards the region
+    holds nothing."""
 
     found: Candidates
     fluxratio: float
     title: str = ""
     show: int = 0                #: 0 all, 1 the training objects
-    limits: list = field(default_factory=lambda: [10.0, None, 0.0, None])   #: gtools'
-    flips: list = field(default_factory=lambda: [False, False])
+    gt: GTools = field(default_factory=_cr_gt)
     window: tuple = (10.0, 100.0, 0.0, 1.0)
-    logs: bool = True
     printed: list = field(default_factory=list)
+    said: str = ""               #: what IRAF prints besides: the window's prompts, the bell
     save: list = field(default_factory=list)
     done: bool = False
     newgraph: bool = False
@@ -466,12 +486,20 @@ class Session:
     graphing: bool = False
 
     def __post_init__(self) -> None:
-        # glb_set_viewport on stdvdm, cw .0125 and ch .0294: a title of the system's line, the
-        # image's if it has one, and the graph's
-        lines = 3 if self.title.strip() else 2
-        self._width = 1.0 - 2 * 11 * 0.0125
-        self._height = 1.0 - 5 * 0.0294 - (lines + 1) * 0.0294
+        self.gt.params = self.title.strip()
         self.graph()
+
+    @property
+    def logs(self) -> tuple[bool, bool]:
+        """Which of the screen's axes are elog."""
+        return self.gt.logs()
+
+    @property
+    def viewport(self) -> tuple[float, float]:
+        """glb_set_viewport on stdvdm, cw .0125 and ch .0294: eleven characters either side,
+        and above the graph a line of the system's and the title block's."""
+        lines = int(self.gt.sysid) + len(self.gt.title_block())
+        return 1.0 - 2 * 11 * 0.0125, 1.0 - 5 * 0.0294 - (lines + 1) * 0.0294
 
     # ------------------------------------------------------------- the graph
 
@@ -482,83 +510,77 @@ class Session:
         return [i for i in range(len(self.found)) if self.found.wt[i] != 0.0]
 
     def graph(self) -> None:
-        """gt_ascale, gt_swind and glabax on the log axis of flux. A list with nothing to show
-        leaves the window as it was."""
+        """cr_graph's window: gt_ascale over what the limits let in, then gt_swind and
+        glabax. A list with nothing to show leaves the window as it was."""
         shown = self.shown()
         if not shown:
             return
-        xs = np.array([self.found.flux[i] for i in shown], float)
-        ys = np.array([self.found.ratio[i] for i in shown], float)
+        gt = self.gt
+        xs = np.array([self.found.flux[i] for i in shown], REAL)
+        ys = np.array([self.found.ratio[i] for i in shown], REAL)
+        limits = (gt.xmin, gt.xmax, gt.ymin, gt.ymax)
+        if gt.transpose:
+            limits = limits[2:] + limits[:2]
         xmin, xmax, ymin, ymax = (
             ((MAX_REAL if at % 2 else -MAX_REAL) if value is None else value)
-            for at, value in enumerate(self.limits))
+            for at, value in enumerate(limits))
         xmin, xmax = min(xmin, xmax), max(xmin, xmax)
         ymin, ymax = min(ymin, ymax), max(ymin, ymax)
         inside = (xs >= xmin) & (xs <= xmax) & (ys >= ymin) & (ys <= ymax)
         # gclear has left the window at unity, and with nothing in it gt_ascale leaves it there
-        x1, x2, y1, y2 = 0.0, 1.0, 0.0, 1.0
+        x_span, y_span = (0.0, 1.0), (0.0, 1.0)
         if inside.any():
-            x1, x2 = xs[inside].min(), xs[inside].max()
-            y1, y2 = ys[inside].min(), ys[inside].max()
-        dx, dy = x2 - x1, y2 - y1
-        low = x1 - BUFFER * dx if self.limits[0] is None else self.limits[0]
-        high = x2 + BUFFER * dx if self.limits[1] is None else self.limits[1]
-        bottom = y1 - BUFFER * dy if self.limits[2] is None else self.limits[2]
-        top = y2 + BUFFER * dy if self.limits[3] is None else self.limits[3]
-        if self.flips[0]:
-            low, high = high, low
-        if self.flips[1]:
-            bottom, top = top, bottom
-        self.logs = low > 0 and high > 0
-        out = (math.floor, math.ceil) if low <= high else (math.ceil, math.floor)
-        self.window = (_axis(out[0](self._scale(low)), self.logs),
-                       _axis(out[1](self._scale(high)), self.logs),
-                       *gio.widened(bottom, top))
+            x_span = float(xs[inside].min()), float(xs[inside].max())
+            y_span = float(ys[inside].min()), float(ys[inside].max())
+            y_span = self._clipped(np.sort(ys[inside])) or y_span
+        self.window = gt.swind(x_span, y_span)
 
-    def _scale(self, x: float) -> float:
-        return math.log10(x) if self.logs else float(gio.elog(x))
-
-    def _ndc(self, x: float, y: float) -> tuple[float, float] | None:
-        """gctran, up to where the viewport starts. On a log axis what is at or under zero has
-        no place, and is too far for anything to be nearer; glabax takes a window that reaches
-        it to its elog axis, where it has one."""
-        if self.logs and x <= 0:
+    def _clipped(self, ys: np.ndarray) -> tuple[float, float] | None:
+        """gt_ascale's :/clip, which takes the ratios at the clips only when the low one
+        is past the high one -- and then, those being the wrong way round, gswind is not
+        called and the axis stays at gclear's unity. Otherwise the clips change nothing."""
+        gt = self.gt
+        if not (gt.lclip > 0 or gt.hclip > 0):
             return None
-        x0, x1, y0, y1 = self.window
-        start, end = self._scale(x0), self._scale(x1)
-        return ((self._scale(x) - start) / (end - start) * self._width,
-                (y - y0) / (y1 - y0) * self._height)
+        n = ys.size
+        j = int(gt.lclip / 100 * n) if gt.lclip > 1 else int(max(0.0, gt.lclip * n))
+        k = int(gt.hclip / 100 * n) if gt.hclip > 1 else int(max(0.0, gt.hclip * n))
+        k = n - 1 - k
+        if j <= k:
+            return None
+        low, high = float(ys[min(j, n - 1)]), float(ys[max(k, 0)])
+        return (low, high) if low <= high else (0.0, 1.0)
+
+    def _ndc(self, xs, ys):
+        return self.gt.ndc(xs, ys, self.window, self.viewport)
 
     def nearest(self, wx: float, wy: float, skip=()) -> int | None:
-        """cr_nearest, cr_delete, cr_undelete: the nearest of those not to skip."""
-        cursor = self._ndc(wx, wy)
-        if cursor is None:
+        """cr_nearest, cr_delete, cr_undelete: the nearest of those not to skip, in NDC
+        through the window as drawn."""
+        shown = self.shown()
+        if not shown:
             return None
-        best, nearest = MAX_REAL, None
-        for i in self.shown():
-            if self.found.flag[i] in skip:
-                continue
-            point = self._ndc(self.found.flux[i], self.found.ratio[i])
-            if point is None:
-                continue
-            r2 = float(REAL(REAL(point[0] - cursor[0]) ** 2 + REAL(point[1] - cursor[1]) ** 2))
-            if r2 < best:
-                best, nearest = r2, i
-        return nearest
+        use = [self.found.flag[i] not in skip for i in shown]
+        found = self.gt.nearest([self.found.flux[i] for i in shown],
+                                [self.found.ratio[i] for i in shown], wx, wy, self.window,
+                                self.viewport, use=use)
+        return None if found is None else shown[found]
 
     def _region(self, a, b, deleting: bool) -> None:
-        """cr_delete_reg and cr_undelete_reg."""
-        one, two = self._ndc(*a), self._ndc(*b)
-        if one is None or two is None:
-            return
-        low_x, high_x = min(one[0], two[0]), max(one[0], two[0])
-        low_y, high_y = min(one[1], two[1]), max(one[1], two[1])
+        """cr_delete_reg and cr_undelete_reg: the corners in order in the graph's
+        coordinates, and then each point in NDC strictly between them."""
+        (wx1, wy1), (wx2, wy2) = a, b
+        wx1, wx2 = min(wx1, wx2), max(wx1, wx2)
+        wy1, wy2 = min(wy1, wy2), max(wy1, wy2)
+        (cx1, cx2), (cy1, cy2) = self._ndc([wx1, wx2], [wy1, wy2])
         skip = (YES, ALWAYSYES) if deleting else (NO, ALWAYSNO)
-        for i in self.shown():
-            if self.found.flag[i] in skip:
-                continue
-            point = self._ndc(self.found.flux[i], self.found.ratio[i])
-            if point and low_x < point[0] < high_x and low_y < point[1] < high_y:
+        shown = [i for i in self.shown() if self.found.flag[i] not in skip]
+        if not shown:
+            return
+        px, py = self._ndc([self.found.flux[i] for i in shown],
+                           [self.found.ratio[i] for i in shown])
+        for i, x0, y0 in zip(shown, px, py, strict=True):
+            if cx1 < x0 < cx2 and cy1 < y0 < cy2:
                 self._mark(i, deleting)
 
     def _mark(self, i: int, deleting: bool) -> None:
@@ -580,38 +602,10 @@ class Session:
             elif REAL(self.found.ratio[i]) >= REAL(self.fluxratio):
                 self.found.flag[i] = NO
 
-    def _window(self, key: str, wx: float, wy: float) -> None:
-        """gt_window1, for what the mouse does in the panel."""
-        x1, x2, y1, y2 = self.window
-        dx, dy = x2 - x1, y2 - y1
-        set_to = {
-            "a": (None, None, None, None), "b": (..., ..., wy, ...), "j": (wx, ..., ..., ...),
-            "k": (..., wx, ..., ...), "t": (..., ..., ..., wy),
-            "c": (wx - dx / 2, wx + dx / 2, wy - dy / 2, wy + dy / 2),
-            "d": (..., ..., y1 - 0.75 * dy, y2 - 0.75 * dy),
-            "l": (x1 - 0.75 * dx, x2 - 0.75 * dx, ..., ...), "m": (None, None, ..., ...),
-            "n": (..., ..., None, None), "p": (wx - dx, wx + dx, wy - dy, wy + dy),
-            "r": (x1 + 0.75 * dx, x2 + 0.75 * dx, ..., ...),
-            "u": (..., ..., y1 + 0.75 * dy, y2 + 0.75 * dy),
-            "x": (wx - dx / 4, wx + dx / 4, ..., ...),
-            "y": (..., ..., wy - dy / 4, wy + dy / 4),
-            "z": (wx - dx / 4, wx + dx / 4, wy - dy / 4, wy + dy / 4),
-        }
-        if key in ("f", "g"):
-            at = 0 if key == "f" else 1
-            self.flips[at] = not self.flips[at]
-        elif key in set_to:
-            for at, value in enumerate(set_to[key]):
-                if value is not ...:
-                    self.limits[at] = value
-        else:
-            return
-        self.newgraph = True
-
     # -------------------------------------------------------------- the keys
 
-    def key(self, key: str, wx: float = 0.0, wy: float = 0.0) -> None:
-        """A read of cr_examine's cursor loop."""
+    def key(self, key: str, wx: float = 0.0, wy: float = 0.0, rest: str = "") -> None:
+        """A read of cr_examine's cursor loop; `rest` a colon command's text."""
         state, self.state = self.state, ""
         if state in ("e", "v"):
             self._region(self.first, (wx, wy), state == "e")
@@ -620,15 +614,20 @@ class Session:
         elif state == "window":
             if key == "e":
                 self.first, self.state = (wx, wy), "window2"
+                self.said += "again:"
             else:
-                self._window(key, wx, wy)
+                said, redraw = self.gt.window1(key, wx, wy, self.window)
+                self.said += said
+                self.newgraph = self.newgraph or redraw
         elif state == "window2":
-            x1, x2, y1, y2 = self.window
-            if abs(wx - self.first[0]) > 0.001 * abs(x2 - x1):
-                self.limits[:2] = self.first[0], wx
-            if abs(wy - self.first[1]) > 0.001 * abs(y2 - y1):
-                self.limits[2:] = self.first[1], wy
-            self.newgraph = True
+            self.newgraph = self.gt.window2(self.first, (wx, wy), self.window)
+        elif key == ":":
+            if rest.startswith("/"):
+                out, err, redraw = self.gt.colon(rest, self.window)
+                self.said += out + err
+                self.newgraph = self.newgraph or redraw
+            else:
+                self.said += "\a"
         elif key == "a":
             self.show = 0 if self.show else 1
             self.newgraph = True
@@ -642,6 +641,7 @@ class Session:
                 self._mark(nearest, False)
         elif key in ("e", "v"):
             self.first, self.state = (wx, wy), key
+            self.said += "again:"
         elif key == "q":
             self.done = True
         elif key == "r":
@@ -652,6 +652,7 @@ class Session:
             self.update(wy)
         elif key == "w":
             self.state = "window"
+            self.said += "window:"
         elif key == " ":
             nearest = self.nearest(wx, wy)
             if nearest is not None:
@@ -723,7 +724,10 @@ def examine_reads(session: Session, cursor: Iterator) -> None:
     """cr_examine, from a file of reads. The next call goes on where this one has stopped."""
     session.done = False
     for x, y, _, key in cursor:
-        session.key(key, x, y)
+        if key.startswith(":"):
+            session.key(":", x, y, rest=key[1:])
+        else:
+            session.key(key, x, y)
         if session.done:
             return
 

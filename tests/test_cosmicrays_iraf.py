@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from astropy.io import fits
 
-from harwood.core import crfind
+from harwood.core import crfind, gtools
 
 HERE = Path(__file__).parent / "data" / "iraf_cosmicrays"
 GOLD = json.loads((HERE / "crf.json").read_text(encoding="utf-8"))
@@ -171,7 +171,25 @@ def test_the_panel_is_the_session(frames):
     assert panel._section is not None
     assert panel.key("x")
     assert panel._section is None
-    assert not panel.key("w")
+    box = panel.plot.getViewBox()
+    panel._cursor = (1500.0, 17.0)
+    assert panel.key("w") and session.state == "window"
+    assert panel.key("x") and not session.state
+    (x0, x1), _ = box.viewRange()
+    low, high = (gtools.elog(v) for v in session.window[:2])
+    assert (x0, x1) == pytest.approx((low, high), rel=1e-6), "flux on elog, as zoomed"
+    panel.command.setText(":/xflip yes")
+    panel._run_command()
+    assert not box.xInverted(), "as in IRAF, a format waits for the next graph"
+    assert panel.key("r") and box.xInverted()
+    panel._cursor = (1500.0, 17.0)
+    assert panel.key(" ") and session.printed[-1] == "42 49", "nearest, flipped"
+    panel.command.setText(":/xwindow")
+    panel._run_command()
+    assert panel.status.text().startswith("xwindow = ")
+    panel.command.setText(":.zero")
+    panel._run_command()
+    assert "cursor-mode command harwood does not have" in panel.status.text()
     assert panel.key("q")
     assert ended == [True]
 

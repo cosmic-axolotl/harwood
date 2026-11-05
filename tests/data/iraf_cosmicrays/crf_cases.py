@@ -49,6 +49,15 @@ SESSIONS = {
     "window-flip": "1 1 1 w\n1 1 1 f\n1 1 1 w\n1 1 1 g\n" + _POINTS + QUIT,
     "window-shift": "1 1 1 w\n1 1 1 r\n1 1 1 w\n1 1 1 u\n" + _POINTS + QUIT,
     "unknown": "1000 5 1 x\n1000 5 1 :nothing\n1000 5 1 \\040\n" + QUIT,
+    # gtools: on a flipped axis j sets the edge on the left of the screen, and a region
+    # sorted in flux and compared in NDC holds nothing
+    "window-flip-edge": "1 1 1 w\n1 1 1 f\n1 1 1 w\n1000 1 1 j\n" + _POINTS + QUIT,
+    "window-flip-region": "1 1 1 w\n1 1 1 f\n100 2 1 e\n100000 20 1 e\n" + QUIT,
+    "colon-window": "1 1 1 :/xwindow 100 5000\n1 1 1 :/ywindow 0 20\n1 1 1 r\n"
+                    + _POINTS + QUIT,
+    "colon-transpose": "1 1 1 :/transpose\n1 1 1 r\n" + _POINTS + QUIT,
+    "colon-linear": "1 1 1 :/xtransform linear\n1 1 1 r\n" + _POINTS + QUIT,
+    "colon-clip": "1 1 1 :/clip 0.6 0.6\n1 1 1 r\n" + _POINTS + QUIT,
     "eof": "1000 5 1 t\n",
     "eof-region": "100 2 1 e\n",
 }

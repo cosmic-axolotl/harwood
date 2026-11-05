@@ -89,14 +89,19 @@ it should.
 the flux ratio of the candidates of each frame, with IRAF's keys: `t` sets
 the threshold at the cursor, `d` and `u` decide one candidate, `e` and `v`
 those in a region, `a` shows only the training objects, `s` the pixels around
-a candidate, space prints its column and line, `q` goes on. The mouse does
-what `w` does there. A threshold you set goes on to the next frame.
+a candidate, space prints its column and line, `q` goes on. `w` and its second
+key set the window as IRAF's gtools does, and so do the `/` commands
+(`:/xwindow 100 5000`, `:/transpose`); on an axis `w f` has turned round, `w j`
+sets the edge on the left of the screen, and a region of `e` or `v` holds
+nothing, as in IRAF, which sorts its corners before it looks where they are.
+The mouse zooms besides, and `:.snap graph.png` saves the graph. A threshold
+you set goes on to the next frame.
 
 `--train` lets the objects you know set it: in the first frame's image, `s`
 at a star and `c` at a cosmic ray, each the candidate within three pixels,
 and `g` for the graph, with the threshold that errs least on them. Those stay
 as you said, whatever the threshold. `--savefile` adds the marks to a file
 `--objects` reads back; `--objects` and `--cursor` are files of `x y wcs key`
-instead of the window. What is at or under zero flux has no place on the log
-axis, and the keys cannot reach it. IRAF's `plotfile` is not here: the graph
-is the panel.
+instead of the window. The flux is on IRAF's elog axis, which is log10 from 10
+up and goes on through zero, so a candidate with no flux above zero is drawn
+and can be reached. IRAF's `plotfile` is not here: the graph is the panel.

@@ -1,20 +1,20 @@
 """The graph of cosmicrays: flux against flux ratio, and IRAF's keys.
 
 Nothing is computed here: every decision is `core.crfind.Session`'s, held to IRAF's by files of
-cursor commands. The keys are IRAF's, all but w, for which the mouse is here; s, which draws
-four surfaces of the pixels around a candidate there, draws them as an image here.
+cursor commands. The keys are IRAF's; s, which draws four surfaces of the pixels around a
+candidate there, draws them as an image here. The graph is drawn as gtools leaves it
+(`viewer.gtplot`): w and the /commands set its window, the flux on IRAF's elog axis, and the
+mouse zooms it besides; `:.snap file.png` saves it.
 """
 
 from __future__ import annotations
-
-import math
 
 import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import crfind
-from . import keyguide, theme
+from . import gtplot, keyguide, theme
 from ._qt import on_main
 from .theme import palette as _c
 
@@ -49,6 +49,12 @@ class CrGraphPanel(QtWidgets.QWidget):
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addWidget(keyguide.strip(crfind.HELP))
+        self.command = QtWidgets.QLineEdit()
+        self.command.setObjectName("command")
+        self.command.setPlaceholderText(
+            ":/xwindow   ·   press a key over the plot, or type a colon command here")
+        self.command.returnPressed.connect(self._run_command)
+        layout.addWidget(self.command)
         self.plot.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.plot.installEventFilter(self)
         self.setFocusProxy(self.plot)
@@ -56,35 +62,31 @@ class CrGraphPanel(QtWidgets.QWidget):
 
     def redraw(self, rescale: bool = False) -> None:
         session = self.session
-        found = session.found
+        found, gt = session.found, session.gt
         self.plot.clear()
-        self.plot.setLogMode(x=True, y=False)
-        self.plot.setLabel("bottom", "Flux", color=_c().muted)
-        self.plot.setLabel("left", "Flux ratio", color=_c().muted)
-        self.plot.setTitle("Parameters of cosmic rays candidates", color=_c().ink, size="10pt")
+        self.plot.setLabel("bottom", gt.label("y" if gt.transpose else "x"), color=_c().muted)
+        self.plot.setLabel("left", gt.label("x" if gt.transpose else "y"), color=_c().muted)
+        self.plot.setTitle("<br>".join(gt.title_block()), color=_c().ink, size="10pt")
         shown = session.shown()
-        on_axis = [i for i in shown if found.flux[i] > 0]
         # Marks that differ in shape, so that colour is never the only channel.
         for flags, colour, symbol in (((crfind.NO, crfind.ALWAYSNO), _c().sky, "+"),
                                       ((crfind.YES, crfind.ALWAYSYES), _c().drop, "x")):
-            chosen = [i for i in on_axis if found.flag[i] in flags]
+            chosen = [i for i in shown if found.flag[i] in flags]
             self._mark(chosen, colour, symbol)
-        self._mark([i for i in on_axis if found.wt[i] != 0.0], _c().accent, "s")
-        self.plot.addItem(pg.InfiniteLine(session.fluxratio, angle=0, pen=pg.mkPen(
+        self._mark([i for i in shown if found.wt[i] != 0.0], _c().accent, "s")
+        _, (level,) = gtplot.on_axes(session.logs, [], [session.fluxratio])
+        self.plot.addItem(pg.InfiniteLine(level, angle=0, pen=pg.mkPen(
             _c().accent, width=1.4, style=QtCore.Qt.PenStyle.DashLine)))
         if rescale:
-            x0, x1, y0, y1 = session.window
-            self.plot.setRange(xRange=(math.log10(x0), math.log10(x1)), yRange=(y0, y1),
-                               padding=0)
-        off = len(shown) - len(on_axis)
-        self.status.setText(
-            f"flux ratio {session.fluxratio:g}: x is replaced, + is kept, a square is trained."
-            + (f" {off} with no flux above zero are off this axis." if off else ""))
+            gtplot.set_window(self.plot, session.window, session.logs)
+        self.status.setText(f"flux ratio {session.fluxratio:g}: x is replaced, + is kept, "
+                            "a square is trained.")
 
     def _mark(self, chosen, colour, symbol) -> None:
         if chosen:
             found = self.session.found
-            self.plot.plot([found.flux[i] for i in chosen], [found.ratio[i] for i in chosen],
+            self.plot.plot(*gtplot.on_axes(self.session.logs, [found.flux[i] for i in chosen],
+                                           [found.ratio[i] for i in chosen]),
                            pen=None, symbol=symbol, symbolSize=9 if symbol != "s" else 13,
                            symbolBrush=None, symbolPen=pg.mkPen(colour, width=1.4))
 
@@ -97,28 +99,52 @@ class CrGraphPanel(QtWidgets.QWidget):
         box = self.plot.getPlotItem().vb
         if self._section is None and box.sceneBoundingRect().contains(position):
             point = box.mapSceneToView(position)
-            self._cursor = (10.0 ** point.x(), point.y())
+            self._cursor = gtplot.world(self.session.logs, point.x(), point.y())
 
     def key(self, key: str) -> bool:
         """Handle one keystroke. Returns True if it was ours."""
         session = self.session
-        if not key or key == "w":
+        if not key:
             return False
+        if key == ":" and self._section is None and not session.state:
+            self.command.setFocus()
+            self.command.setText(":")
+            return True
         if self._section is not None:
             session.key(key, *self._cursor)
             self._section = None
             self.redraw(rescale=True)
             return True
-        if key == "s":
+        if key == "s" and not session.state:
             self._show_section()
+        window = session.window
         session.key(key, *self._cursor)
+        self._after(key, window)
+        return True
+
+    def _after(self, key: str, window) -> None:
+        session = self.session
         if session.done:
             self.finished.emit()
         elif self._section is None:
-            self.redraw(rescale=key in ("a", "r"))
+            self.redraw(rescale=key in ("a", "r") or session.window != window)
+            said, session.said = session.said.replace("\a", ""), ""
             if key == " " and session.printed:
                 self.status.setText(f"column and line {session.printed[-1]}")
-        return True
+            elif said.strip():
+                self.status.setText(said.strip().splitlines()[-1])
+
+    def _run_command(self) -> None:
+        text = self.command.text().strip().lstrip(":")
+        self.command.clear()
+        self.plot.setFocus()
+        if text.startswith("."):
+            self.status.setText(gtplot.cursor_mode(self.plot, text[1:], "cosmicrays.png")
+                                .strip())
+        elif text:
+            window = self.session.window
+            self.session.key(":", *self._cursor, rest=text)
+            self._after(":", window)
 
     def _show_section(self) -> None:
         """cr_examine's s: the 11 by 11 pixels around the candidate, until the next key."""
