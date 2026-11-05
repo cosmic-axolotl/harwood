@@ -710,7 +710,7 @@ class Sbands(Task[SbandsParams]):
                     shown = name.removesuffix(".fits")
                     lines.append(f"Warning: Cannot open image ({shown})")
                     warnings.append(advice.warn(f"Cannot open image ({shown})",
-                                                "check the name."))
+                                                "check the name, and that it is a spectrum."))
                     continue
                 opened += 1
                 if opened == 1 and params.verbose:
