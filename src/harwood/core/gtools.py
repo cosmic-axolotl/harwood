@@ -568,8 +568,8 @@ class GTools:
             return []
         lines = []
         for part in (self.params, self.title, self.subtitle, self.comments):
-            if part:
-                lines.extend(part.split("\n"))
+            if part.rstrip("\n"):
+                lines.extend(part.rstrip("\n").split("\n"))
         return lines
 
     def label(self, axis: str) -> str:
@@ -579,6 +579,61 @@ class GTools:
         text = getattr(self, f"{axis}label")
         units = getattr(self, f"{axis}units")
         return text + (f" ({units})" if units else "")
+
+    # ------------------------------------------------------ the nearest point
+
+    def on_screen(self, xs, ys):
+        """The data's x and y as the screen's: swapped under transpose, as gt_plot
+        draws them and gt_gcur1 swaps the cursor back."""
+        return (ys, xs) if self.transpose else (xs, ys)
+
+    def ndc(self, xs, ys, window, viewport, view=None, size=None):
+        """gctran to NDC: the screen's coordinates through the window as drawn (or
+        the view a panel has zoomed to), logarithmic where the axis is, over the
+        viewport's width and height (or the panel's)."""
+        x1, x2, y1, y2 = view if view is not None else window
+        width, height = size if size is not None else viewport
+        xlog, ylog = self.logs()
+
+        def one(values, a, b, log, extent):
+            values = np.atleast_1d(np.asarray(values, dtype=float))
+            if log:
+                values = np.array([elog(v) for v in values])
+                a, b = elog(a), elog(b)
+            return (values - a) / ((b - a) or 1.0) * extent
+
+        return one(xs, x1, x2, xlog, width), one(ys, y1, y2, ylog, height)
+
+    def nearest(self, xs, ys, x: float, y: float, window, viewport, scale=None,
+                use=None) -> int | None:
+        """The point nearest the cursor on the screen, as the tasks' _nearest
+        procedures find it through gctran: the first of several at one distance,
+        as the strict comparison leaves it. xs, ys and the cursor are the screen's;
+        `use` the points that may be chosen; `scale` a panel's (view, size)."""
+        view, size = scale if scale is not None else (None, None)
+        px, py = self.ndc(xs, ys, window, viewport, view, size)
+        cx, cy = self.ndc([x], [y], window, viewport, view, size)
+        best, found = float(np.finfo(np.float32).max), None
+        for i in range(px.size):
+            if use is not None and not use[i]:
+                continue
+            r2 = float(np.float32((px[i] - cx[0]) ** 2 + (py[i] - cy[0]) ** 2))
+            if r2 < best:
+                best, found = r2, i
+        return found
+
+
+def span(values) -> tuple[float, float]:
+    """gascale: the range of the values there are."""
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if not values.size:
+        return -1.0, 1.0
+    return float(values.min()), float(values.max())
+
+
+#: What gt_plot draws for a type other than marks.
+DRAWN = {2: "line", 3: "histogram"}
 
 
 def pagefile(name: str) -> str:

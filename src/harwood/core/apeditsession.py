@@ -29,6 +29,7 @@ from . import apextract, icfit, icfitsession, iraffmt
 from .apextract import Aperture
 from .center1d import center1d
 from .gio import with_room
+from .gtools import GTools
 
 f32 = np.float32
 MAX_REAL = float(np.finfo(f32).max)
@@ -157,6 +158,7 @@ class ApeditSession:
         self._then = None
         self._cursor = (0.0, 0.0)
         self._graph_keys: dict = {}     #: each aperture's icfit keeps its graph key
+        self._ic_gt: GTools | None = None   #: apedit's ic_gt, made at the first b
         self._status()
 
     # ------------------------------------------------------------- the output
@@ -509,13 +511,18 @@ class ApeditSession:
         self._fitting = ap
         centre = self._centre(ap)
         x = np.arange(1, self.npts + 1, dtype=f32) - f32(centre)
-        wide = max(10.0, ap.high - ap.low)
+        if self._ic_gt is None:
+            # One GTOOLS for every b, its window that of the first aperture.
+            wide = max(10.0, ap.high - ap.low)
+            self._ic_gt = GTools()
+            self._ic_gt.set_type("line")
+            self._ic_gt.setr("xmin", ap.low - 2 * wide)
+            self._ic_gt.setr("xmax", ap.high + 2 * wide)
         title = f"Set Background Subtraction for Aperture {ap.number}"
         self.sub = icfitsession.IcfitSession(
             x, self.profile, ap.background, None, title, self.axis, "", "line",
-            ap.background_limits(self.npts), xwindow=(ap.low - 2 * wide, ap.high + 2 * wide),
-            axes=self._graph_keys.get(id(ap), (None, "h"))[0],
-            gkey=self._graph_keys.get(id(ap), (None, "h"))[1])
+            ap.background_limits(self.npts), axes=self._graph_keys.get(id(ap), (None, "h"))[0],
+            gkey=self._graph_keys.get(id(ap), (None, "h"))[1], gt=self._ic_gt)
 
     def fit_finished(self) -> None:
         """Icfit's q: the parameters stay, the fit does not."""

@@ -569,6 +569,7 @@ class IdentifySession:
             [f.pix for f in use], [f.user for f in use], ident.spec,
             [max(1.0, f.wts) for f in use], "", "Feature positions (pixels)", "Wavelength",
             "mark", (1.0, float(ident.npts)), self.units, _FIT_AXES, "j")
+        self.sub.real = False           # icg_fitd: v, x and y read with gargd
         self._print("")
         return True
 

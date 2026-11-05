@@ -1,0 +1,41 @@
+0 0 1 :/xwindow
+0 0 1 :/xwindow 20 80
+0 0 1 :/ywindow 520 620
+0 0 1 :/xwindow
+0 0 1 :/ywindow
+0 0 1 :/shift 5 0
+0 0 1 :/xwindow
+0 0 1 :low_reject 2.5
+0 0 1 :/shift
+0 0 1 :/xwindow
+0 0 1 :/ywindow
+0 0 1 :/expand 10 50 500 600
+0 0 1 :/xwindow
+0 0 1 :/ywindow
+0 0 1 :/xview 0.2 0.8
+0 0 1 :/yview 0.3 0.7
+30 560 1 c
+0 0 1 :/xview
+0 0 1 :/yview
+0 0 1 :/xflip
+0 0 1 :/yflip
+0 0 1 r
+30 560 1 c
+0 0 1 :/xflip
+0 0 1 :/yflip
+0 0 1 :/xwindow
+0 0 1 r
+0 0 1 :/transpose
+0 0 1 r
+577 62 1 c
+590 70 1 d
+0 0 1 f
+600 40 1 a
+0 20 1 s
+0 60 1 s
+0 0 1 f
+0 40 1 z
+0 0 1 f
+0 0 1 :/transpose
+0 0 1 r
+0 0 1 q

@@ -34,12 +34,14 @@ def instructions(path):
         i += length
 
 
-def mark(points):
-    """The kind of mark five points are and its centre, or None."""
+def mark(points, within=1):
+    """The kind of mark five points are and its centre, or None. `within`: how far
+    a plus or a cross may be from its centre, which on an elog axis, where GIO
+    takes the ends through the transform, is some units."""
     if len(points) != 5:
         return None
     a, b, c, d, e = points
-    if abs((a + b) / 2 - c).max() <= 1 and abs((d + e) / 2 - c).max() <= 1:
+    if abs((a + b) / 2 - c).max() <= within and abs((d + e) / 2 - c).max() <= within:
         return ("plus" if a[0] == b[0] else "cross"), c
     if abs(a[0] - b[0]) <= 1 and abs(d[1] - e[1]) <= 1 and abs(c[0] - a[0]) <= 1:
         return "plus", c            # cut by the edge of the plot, as implot's are
@@ -104,8 +106,9 @@ def _cut_at_edge(frame, points):
 def everything(path):
     """Frames of several graphs, in the order drawn: the window and viewport of each
     WCS at the end of the frame, every mark (kind, x, y, width, height) and every
-    line, the axes' too. A workstation opened anew is a frame with no clear."""
-    out, frame, style = [], None, 1
+    line, the axes' too. A workstation opened anew is a frame with no clear. Where
+    a WCS has an elog axis, "logs" says which, x then y, for each window."""
+    out, frame, style, within = [], None, 1, 1
     for opcode, data in instructions(path):
         if opcode in (CLEAR, OPEN):
             if frame is None or frame["lines"] or frame["marks"] or frame["text"]:
@@ -116,9 +119,15 @@ def everything(path):
             continue
         elif opcode == WCS:
             values = np.frombuffer(data[1:].tobytes(), dtype="<f4")[::2]
-            tables = [values[i:i + 8] for i in range(0, len(values), 12)]
-            frame["windows"] = [[round(float(v), 7) for v in table] for table in tables
-                                if table[0] != table[1] and table[2] != table[3]]
+            ints = np.frombuffer(data[1:].tobytes(), dtype="<i4")[::2]
+            tables = [(values[i:i + 8], ints[i + 8:i + 10]) for i in range(0, len(values), 12)]
+            used = [(table, tran) for table, tran in tables
+                    if table[0] != table[1] and table[2] != table[3]]
+            frame["windows"] = [[round(float(v), 7) for v in table] for table, _ in used]
+            frame.pop("logs", None)
+            if any(tran.any() for _, tran in used):
+                frame["logs"] = [[bool(t == 2) for t in tran] for _, tran in used]
+            within = 20 if "logs" in frame else 1
         elif opcode == PLSET:
             style = int(data[0])
         elif opcode == TEXT:
@@ -127,7 +136,7 @@ def everything(path):
                 frame["text"].append(text)
         elif opcode == LINE:
             points = data[1:1 + 2 * int(data[0])].astype(int).reshape(-1, 2) & 0xffff
-            found = mark(points)
+            found = mark(points, within)
             if found:
                 size = (points.max(axis=0) - points.min(axis=0)).tolist()
                 frame["marks"].append([found[0], *np.round(found[1]).astype(int).tolist(),

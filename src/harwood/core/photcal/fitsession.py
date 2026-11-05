@@ -41,7 +41,7 @@ from pathlib import Path
 import numpy as np
 
 from .. import iraffmt
-from ..gtools import GTools, elog
+from ..gtools import DRAWN, GTools, span
 from ..nlfit import DONE
 from . import io
 from .config import Config, evaluate
@@ -57,7 +57,6 @@ from .fit import (
 )
 
 f32 = np.float32
-MAX_REAL = float(np.finfo(np.float32).max)
 
 #: The keys, as the panel lists them (inlgfit.key).
 HELP = [
@@ -523,44 +522,13 @@ class FitSession:
         code = (eq.xplot if number == 1 else eq.yplot).code
         return np.array([evaluate(code, row, fitter.nl.param) for row in fitter.x], dtype=f32)
 
-    def _ndc(self, xs, ys, view=None, size=None) -> tuple[np.ndarray, np.ndarray]:
-        """gctran to NDC: the screen's coordinates through the window as drawn (or
-        the view a panel has zoomed to), logarithmic where the axis is, over the
-        viewport's width and height (or the panel's)."""
-        x1, x2, y1, y2 = view if view is not None else self.window
-        width, height = size if size is not None else VIEWPORT
-        xlog, ylog = self.gt.logs()
-
-        def one(values, a, b, log, extent):
-            values = np.atleast_1d(np.asarray(values, dtype=float))
-            if log:
-                values = np.array([elog(v) for v in values])
-                a, b = elog(a), elog(b)
-            return (values - a) / ((b - a) or 1.0) * extent
-
-        return one(xs, x1, x2, xlog, width), one(ys, y1, y2, ylog, height)
-
-    def _screen(self, xs, ys):
-        """The data's x and y as the screen's: swapped under transpose."""
-        return (ys, xs) if self.gt.transpose else (xs, ys)
-
     def _nearest(self, xs, ys, x: float, y: float, scale, part: str) -> int | None:
-        """ing_n, ing_d1, ing_u1: the first of several at one distance, as the
-        strict comparison leaves it, in NDC. `part`: all, kept (weight), or
-        deleted. `scale`: a panel's (view, size), else the graph's own."""
-        view, size = scale if scale is not None else (None, None)
-        px, py = self._ndc(*self._screen(xs, ys), view, size)
-        cx, cy = self._ndc([x], [y], view, size)
-        best, found = MAX_REAL, None
-        for i in range(len(xs)):
-            if part == "kept" and self.fitter.wts[i] == 0:
-                continue
-            if part == "deleted" and self.fitter.wts[i] != 0:
-                continue
-            r2 = float(np.float32((px[i] - cx[0]) ** 2 + (py[i] - cy[0]) ** 2))
-            if r2 < best:
-                best, found = r2, i
-        return found
+        """ing_n, ing_d1, ing_u1, in NDC. `part`: all, kept (weight), or deleted.
+        `scale`: a panel's (view, size), else the graph's own."""
+        wts = self.fitter.wts
+        use = None if part == "all" else (wts != 0 if part == "kept" else wts == 0)
+        return self.gt.nearest(*self.gt.on_screen(xs, ys), x, y, self.window, VIEWPORT,
+                               scale, use)
 
     def _print_nearest(self, x: float, y: float, scale) -> None:
         xs, ys = self._axis(0), self._axis(1)
@@ -766,17 +734,17 @@ class FitSession:
         gt.xlabel, gt.ylabel = self._label(0), self._label(1)
         gt.xunits = gt.yunits = ""
         if not self.overplot:
-            self.window = gt.swind(_span(xs), _span(ys))
+            self.window = gt.swind(span(xs), span(ys))
         labels = (gt.label("x"), gt.label("y"))
         if gt.transpose:
             labels = labels[::-1]
         drawn = gt.title_block()
         params, title = (drawn[:len(params)], drawn[len(params):]) if drawn else ([], [])
-        screen = self._screen
+        screen = gt.on_screen
         graph = Graph(title, params, *labels, self.window,
                       screen(xs[kept], ys[kept]), screen(xs[deleted], ys[deleted]),
                       screen(xs[rejected], ys[rejected]), screen(*fit), self.overplot,
-                      mark=gt.type_name() if gt.type == 1 else TYPES_DRAWN[gt.type],
+                      mark=gt.type_name() if gt.type == 1 else DRAWN[gt.type],
                       size=(gt.xsize, gt.ysize), logs=gt.logs())
         self.overplot = self.newgraph = False
         return graph
@@ -835,18 +803,6 @@ class FitSession:
 
 #: What a graph of lines or histograms draws one point at a time with: a
 #: polyline of one point, which is no mark at all.
-TYPES_DRAWN = {2: "line", 3: "histogram"}
-
-
-def _span(values: np.ndarray) -> tuple[float, float]:
-    """gascale: the range of the values there are."""
-    values = np.asarray(values)
-    values = values[np.isfinite(values)]
-    if not values.size:
-        return -1.0, 1.0
-    return float(values.min()), float(values.max())
-
-
 def _vtran(name: str) -> str:
     """pr_vtran."""
     if "@E_" in name:

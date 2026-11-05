@@ -49,7 +49,11 @@ the fit, the line under the plot says the fit is out of date, and `q` keeps the 
 fit. Seventeen sessions IRAF ran through fit1d, the same code on one line, say and draw
 the same, to about the sixth figure, IRAF's being in real and this in double. Three
 points or so fitted exactly are the exception: IRAF's real arithmetic leaves an rms
-there, this one none. `w` and the `/` commands are not ported (the mouse zooms), nor
+there, this one none. `w` and its second key set the window as IRAF's gtools does
+(`w z` zooms about the cursor, `w e e` marks two corners, `w f` flips an axis), and so
+do the `/` commands -- `:/xwindow 20 80`, `:/transpose`, `:/xtransform log`, `:/mark
+box`; seven more sessions, of those keys and commands, are held to what IRAF printed
+and drew. The mouse zooms besides, and `:.snap fit.png` saves the graph. Not ported:
 the coefficients in `:vshow`.
 
 ```example

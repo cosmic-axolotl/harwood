@@ -2,7 +2,9 @@
 
 This is the interaction that the IRAF inventory says is "reused by dozens of tasks",
 and it is the single strongest reason a long-time IRAF user can sit down in front of
-harwood and work. The keys are IRAF's, all but w, for which the mouse is here.
+harwood and work. The keys are IRAF's, w and the /commands too: the graph is drawn
+as gtools leaves it (`viewer.gtplot`), and the mouse zooms it besides. `:.` commands
+are cursor mode's, which the panel takes (`:.snap file.png` saves the graph).
 
 Nothing is computed here. Every number and every line of text comes from
 `core.icfitsession`, held to IRAF's by files of cursor commands and to what IRAF draws
@@ -19,7 +21,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import icfit, icfitsession
-from . import keyguide, theme
+from . import gtplot, keyguide, theme
 from ._qt import on_main
 from .theme import palette as _c
 
@@ -109,33 +111,40 @@ class IcfitPanel(QtWidgets.QWidget):
         # Marks that differ in shape, so that colour is never the only channel.
         x, y = graph.kept
         if graph.kind == "line":
-            self.plot.plot(x, y, pen=pg.mkPen(_c().sky, width=1.2))
+            self.plot.plot(*self._on_axes(x, y), pen=pg.mkPen(_c().sky, width=1.2))
+        elif graph.kind == "histogram":
+            self.plot.plot(*self._on_axes(*gtplot.steps(x, y)),
+                           pen=pg.mkPen(_c().sky, width=1.2))
         else:
-            self._mark(x, y, _c().sky, "+")
+            self._mark(x, y, _c().sky, gtplot.SYMBOLS.get(graph.mark, "+"),
+                       11 * max(graph.size) / 2)
         self._mark(*graph.deleted, _c().muted, "x")
         self._mark(*graph.averaged, _c().sky, "+")
         self._mark(*graph.rejected, _c().drop, "d")
         self._draw_fit(graph)
         self._draw_sample(graph)
         if rescale:
-            x0, x1, y0, y1 = graph.window
-            self.plot.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)
+            gtplot.set_window(self.plot, graph.window, graph.logs)
         self.status.setText(self._status_text(graph))
+
+    def _on_axes(self, x, y):
+        return gtplot.on_axes(self.session.gt.logs(), x, y)
 
     def _draw_fit(self, graph) -> None:
         x, y = graph.fit
         if len(x):
-            self.plot.plot(x, y, pen=pg.mkPen(_c().accent, width=2,
-                                              style=QtCore.Qt.PenStyle.DashLine))
+            self.plot.plot(*self._on_axes(x, y), pen=pg.mkPen(
+                _c().accent, width=2, style=QtCore.Qt.PenStyle.DashLine))
 
     def _draw_sample(self, graph) -> None:
         for x1, y1, x2, y2 in graph.sample:
-            self.plot.plot([x1, x2], [y1, y2], pen=pg.mkPen(_c().line, width=1.4))
+            self.plot.plot(*self._on_axes([x1, x2], [y1, y2]),
+                           pen=pg.mkPen(_c().line, width=1.4))
 
-    def _mark(self, x, y, colour, symbol) -> None:
+    def _mark(self, x, y, colour, symbol, size=9) -> None:
         if len(x):
-            self.plot.plot(x, y, pen=None, symbol=symbol, symbolSize=9, symbolBrush=None,
-                           symbolPen=pg.mkPen(colour, width=1.4))
+            self.plot.plot(*self._on_axes(x, y), pen=None, symbol=symbol, symbolSize=size,
+                           symbolBrush=None, symbolPen=pg.mkPen(colour, width=1.4))
 
     def _status_text(self, graph) -> str:
         lines = list(graph.params)
@@ -154,15 +163,10 @@ class IcfitPanel(QtWidgets.QWidget):
         box = self.plot.getPlotItem().vb
         if box.sceneBoundingRect().contains(position):
             point = box.mapSceneToView(position)
-            self._cursor = (point.x(), point.y())
+            self._cursor = gtplot.world(self.session.gt.logs(), point.x(), point.y())
 
-    def _scale(self) -> tuple[float, float]:
-        """Pixels per unit on each axis, so that nearest means nearest on the
-        screen, however the plot has been zoomed."""
-        box = self.plot.getPlotItem().vb
-        (x0, x1), (y0, y1) = box.viewRange()
-        return (box.width() or 1.0) / max(x1 - x0, 1e-12), \
-            (box.height() or 1.0) / max(y1 - y0, 1e-12)
+    def _scale(self) -> tuple[tuple, tuple[float, float]]:
+        return gtplot.scale(self.plot, self.session.gt.logs())
 
     def key(self, key: str) -> bool:
         """Handle one keystroke. Returns True if it was ours."""
@@ -173,7 +177,8 @@ class IcfitPanel(QtWidgets.QWidget):
             self.command.setFocus()
             self.command.setText(":")
             return True
-        if key not in dict(HELP) and key != "w" and session.state != "second":
+        if not (key in dict(HELP) or session.state == "second"
+                or (session.pending and key.isprintable())):
             return False
         session.key(key, *self._cursor, scale=self._scale())
         self._after()
@@ -195,7 +200,10 @@ class IcfitPanel(QtWidgets.QWidget):
     def _offer(self) -> None:
         session = self.session
         asking = session.state not in ("fit", "second")
-        if session.state == "second":
+        if session.pending:
+            text = ("the window: a key, as w ? lists them" if session.pending == "window"
+                    else "the other corner: e again")
+        elif session.state == "second":
             text = "the other end of the range: s again"
         elif asking:
             text = session.prompt
@@ -207,10 +215,16 @@ class IcfitPanel(QtWidgets.QWidget):
     def _run_command(self) -> None:
         text = self.command.text().strip()
         self.command.clear()
+        rest = text.lstrip(":")
         if self.session.state not in ("fit", "second"):
             self.session.answer(text)
-        elif text.lstrip(":"):
-            self.session.key(":", rest=text.lstrip(":"))
+        elif rest.startswith("."):
+            said = gtplot.cursor_mode(self.plot, rest[1:], "icfit.png")
+            self.status.setText(self.status.text() + "\n" + said.strip())
+            self.plot.setFocus()
+            return
+        elif rest:
+            self.session.key(":", rest=rest)
         self.plot.setFocus()
         self._after()
 

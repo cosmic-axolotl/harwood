@@ -14,9 +14,13 @@ if the graph is not on that key already. The title prints the rejection limits a
 grow as whole numbers, as %r does, whatever they are. When the sample is not all the
 points, deleted counts the first `sample` weights of the input and not of the sample.
 
-Not ported: w and the /commands, which set a window (the mouse does that here);
-:vshow's coefficients and their errors, since the fit here is not in IRAF's basis;
-:color, :help and :gui, which have nothing to act on.
+The graph is gtools' (`core.gtools`): w and the /commands set its window, flip,
+transpose and mark it as IRAF's do, and the nearest point is found on the screen,
+in NDC through the window as drawn. As gt_gcur1 does, under :/transpose the cursor
+comes to the keys swapped back to the data's x and y, and w takes it as it is. A
+change of graph key lets go of the limits only of an axis that shows something
+else. Not ported: :vshow's coefficients and their errors, since the fit here is
+not in IRAF's basis; :color, :help and :gui, which have nothing to act on.
 
 Translated from IRAF, Copyright (c) 1986 Association of Universities for Research in
 Astronomy Inc.; the notice it is distributed under is in LICENSES/IRAF-COPYRIGHT.
@@ -30,10 +34,13 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 
 from . import icfit, iraffmt
-from .gio import with_room
+from .gtools import DRAWN, GTools, span
 
 f32 = np.float32
 MAX_REAL = float(np.finfo(np.float32).max)
+#: The viewport's width and height in NDC, as glabax leaves it in fit1d: what
+#: nearest measures in.
+VIEWPORT = (0.775, 0.706)
 
 #: The keys, as the panel and `?` list them (icgfit.key).
 HELP = [
@@ -56,8 +63,10 @@ HELP = [
     ("z", "drop the sample range nearest the cursor"),
     ("o", "the next graph over this one"),
     ("r", "redraw"),
+    ("w", "window, then a key: a b c d e f g j k l m n p r t u x y z ?"),
     ("?", "these keys"),
-    (":", "function, order, sample, naverage, niterate, low_reject, high_reject, grow, show"),
+    (":", "function, order, sample, naverage, niterate, low_reject, high_reject, grow, "
+          "show; /xwindow and the other gtools commands"),
     ("q", "accept the last fit: q does not fit"),
 ]
 
@@ -102,7 +111,7 @@ class Graph:
     xlabel: str
     ylabel: str
     window: tuple[float, float, float, float]
-    kind: str
+    kind: str                       #: line, mark or histogram, as gtools' type
     kept: tuple[np.ndarray, np.ndarray]
     deleted: tuple[np.ndarray, np.ndarray]
     averaged: tuple[np.ndarray, np.ndarray]
@@ -110,29 +119,46 @@ class Graph:
     fit: tuple[np.ndarray, np.ndarray]
     sample: list[tuple[float, float, float, float]] = field(default_factory=list)
     overplot: bool = False
+    mark: str = "plus"              #: the mark of the points, when kind is mark
+    size: tuple[float, float] = (2.0, 2.0)
+    logs: tuple[bool, bool] = (False, False)    #: which of the screen's axes are elog
 
 
 class IcfitSession:
-    """icg_fit: the data, the parameters, and the fit as it last was."""
+    """icg_fit: the data, the parameters, and the fit as it last was. Everything
+    is in the data's coordinates but the graph, which is the screen's: under
+    :/transpose its x is the data's y."""
 
     def __init__(self, x, y, spec: icfit.FitSpec | None = None, weights=None, title: str = "",
                  xlabel: str = "", ylabel: str = "", kind: str = "line", xrange=None,
                  yunits: str = "", axes: dict | None = None, gkey: str = "h",
-                 xwindow=None) -> None:
+                 xwindow=None, gt: GTools | None = None) -> None:
         self.x = np.asarray(x, dtype=float).copy()
         self.y = np.asarray(y, dtype=float).copy()
         self.wts = (np.ones(self.x.shape) if weights is None
                     else np.asarray(weights, dtype=float).copy())
         self.userwts = self.wts.copy()
         self.spec = spec or icfit.FitSpec()
-        self.title, self.xlabel, self.ylabel = title, xlabel, ylabel
+        self.xlabel, self.ylabel = xlabel, ylabel
         self.yunits = yunits
         self.kind = kind
         self.xrange = xrange or ((float(self.x.min()), float(self.x.max())) if self.x.size
                                  else (0.0, 1.0))
-        self.xwindow = xwindow        #: GTXMIN and GTXMAX, what a task fixes
+        #: The task's GTOOLS, which it keeps from one fit to the next; a task
+        #: fixes GTXMIN and GTXMAX with `xwindow`.
+        self.gt = gt or GTools()
+        if gt is None:
+            self.gt.set_type("mark" if kind == "mark" else "line")
+        if xwindow is not None:
+            self.gt.xmin, self.gt.xmax = (float(f32(v)) for v in xwindow)
+        self.title = title
         self.axes = {**_AXES, **(axes or {})}
         self.gkey = gkey
+        self._shown = self.axes[gkey]   #: icg_fit's axes[], what the graph last showed
+        self.pending = ""               #: "window" after w, "again" after w e
+        #: icfit's PIXEL is real (fit1d, apedit): v, x and y then read with gargr.
+        self.real = True
+        self._corner: tuple[float, float] = (0.0, 0.0)
         self.markrej = True
         self.overplot = False
         self.newgraph = True
@@ -147,6 +173,15 @@ class IcfitSession:
         self._first: tuple[float, float] | None = None
         self._pending: tuple | None = None
         self._refit()
+
+    @property
+    def title(self) -> str:
+        """GTTITLE, which the task sets and :/title changes; :show prints it."""
+        return self.gt.title
+
+    @title.setter
+    def title(self, text: str) -> None:
+        self.gt.title = text
 
     # ------------------------------------------------------------- the output
 
@@ -248,10 +283,15 @@ class IcfitSession:
 
     # --------------------------------------------------------------- the keys
 
-    def key(self, key: str, x: float = 0.0, y: float = 0.0,
-            scale: tuple[float, float] | None = None, rest: str = "") -> None:
-        """One key at the cursor (x, y). `scale` is the screen's units per data
-        unit on each axis, so that nearest means nearest on the screen."""
+    def key(self, key: str, x: float = 0.0, y: float = 0.0, scale=None,
+            rest: str = "") -> None:
+        """One key at the cursor (x, y), on the screen. `scale` is a panel's view
+        as zoomed and its size, (x0, x1, y0, y1), (width, height), so that
+        nearest means nearest there; without it, the graph's window."""
+        if self.pending:
+            self._window_key(key, x, y)
+            return
+        x, y = self.gt.on_screen(x, y)          # gt_gcur1
         if self.state == "second":
             self._second_end(x, y)
             return
@@ -285,6 +325,9 @@ class IcfitSession:
             self.overplot = True
         elif key == "r":
             self.newgraph = True
+        elif key == "w":
+            self.pending = "window"
+            self._print("window:")
         elif key == "s":
             if "x" in self.axes[self.gkey]:
                 if "*" in self.spec.sample:
@@ -296,8 +339,22 @@ class IcfitSession:
             self._ask_value(key, x, y, scale)
         elif key == "z":
             self._drop_sample(x, y)
-        elif key != "w":
+        else:
             self._print("\a\n")
+
+    def _window_key(self, key: str, x: float, y: float) -> None:
+        """gt_window: the key after w, at the screen's cursor, not gt_gcur1's."""
+        if self.pending == "window" and key == "e":
+            self.pending, self._corner = "again", (x, y)
+            self._print("again:")
+            return
+        if self.pending == "again":
+            redraw = self.gt.window2(self._corner, (x, y), self.window)
+        else:
+            said, redraw = self.gt.window1(key, x, y, self.window)
+            self._print(said)
+        self.pending = ""
+        self.newgraph = self.newgraph or redraw
 
     def answer(self, text: str | None) -> None:
         """What a prompt read: None at the end of the input."""
@@ -312,21 +369,12 @@ class IcfitSession:
             self._take_value(state, text)
 
     def _nearest(self, x: float, y: float, scale, part: str) -> int | None:
-        """icg_n: `part` all, or those with weight, or those without."""
-        xs, ys = self._on_graph(self.x, self.y)
-        if scale is None:
-            x0, x1, y0, y1 = self.window
-            scale = 1.0 / ((x1 - x0) or 1.0), 1.0 / ((y1 - y0) or 1.0)
-        best, found = MAX_REAL, None
-        for i in range(xs.size):
-            if part == "kept" and self.wts[i] == 0:
-                continue
-            if part == "deleted" and self.wts[i] != 0:
-                continue
-            r2 = float(((xs[i] - x) * scale[0]) ** 2 + ((ys[i] - y) * scale[1]) ** 2)
-            if r2 < best:
-                best, found = r2, i
-        return found
+        """icg_nearest and icg_n, in NDC: `part` all, or those with weight, or those
+        without. The cursor is the data's, as gt_gcur1 gives it."""
+        gt = self.gt
+        use = None if part == "all" else (self.wts != 0 if part == "kept" else self.wts == 0)
+        return gt.nearest(*gt.on_screen(*self._on_graph(self.x, self.y)),
+                          *gt.on_screen(x, y), self.window, VIEWPORT, scale, use)
 
     def _mark(self, x: float, y: float, scale, delete: bool) -> None:
         """icg_d1 and icg_u1."""
@@ -357,7 +405,7 @@ class IcfitSession:
         if text is not None:
             value = _number(text)
             if value is not None:
-                weight = value
+                weight = self._read_real(value)
         x, y = self._pending
         ascending = self.x[0] < self.x[-1]
         i = self.x.size
@@ -381,6 +429,8 @@ class IcfitSession:
     def _take_value(self, key: str, text: str | None) -> None:
         value = None if text is None else _number(text)
         if value is not None:
+            if self.real:
+                self._read_real(value)
             {"v": self.wts, "x": self.x, "y": self.y}[key][self._pending] = value
             self._changed = True
 
@@ -452,13 +502,21 @@ class IcfitSession:
 
     # ------------------------------------------------------- the colon commands
 
+    def _read_real(self, value: float) -> float:
+        """What gargr read, which its static keeps for gt_colon's :/shift."""
+        self.gt.last_real[0] = float(f32(value))
+        return value
+
     def _colon(self, text: str) -> None:
         """icg_colon."""
         words = text.split()
         if not words:
             return
-        if words[0].startswith("/"):
-            self._print("the /commands are not ported: the mouse sets the window here\n")
+        if text.startswith("/"):
+            out, err, redraw = self.gt.colon(text, self.window)
+            self._print(out)
+            self._eprint(err)
+            self.newgraph = self.newgraph or redraw
             return
         command = _strdic(words[0], _CMDS)
         value = words[1] if len(words) > 1 else None
@@ -499,6 +557,7 @@ class IcfitSession:
             if number is None:
                 self._print(f"{command} = {_g(f32(getattr(self.spec, command)))}\n")
             else:
+                self._read_real(number)
                 self.spec = replace(self.spec, **{command: number})
         elif command == "markrej":
             if value is None:
@@ -509,6 +568,8 @@ class IcfitSession:
             self._show(command, value)
         elif command == "evaluate":
             number = None if value is None else _number(value)
+            if number is not None and self.real:
+                self._read_real(number)
             if number is None:
                 self._print("evaluate requires a value to evaluate\n")
             elif self.fit is not None:
@@ -649,11 +710,27 @@ class IcfitSession:
                 f"deleted={deleted}, RMS={_width(rms, 4, 7)}"]
 
     def graph(self) -> Graph:
-        """icg_graph: the graph, and it is drawn: the next one starts clean."""
+        """icg_graph: the graph, and it is drawn: the next one starts clean. An
+        axis that now shows something else lets go of its limits first, as
+        icg_fit does before it redraws."""
+        gt = self.gt
+        shown = self.axes[self.gkey]
+        if shown[0] != self._shown[0]:
+            gt.setr("xmin", None)
+            gt.setr("xmax", None)
+        if shown[1] != self._shown[1]:
+            gt.setr("ymin", None)
+            gt.setr("ymax", None)
+        self._shown = shown
         xs, ys = self._on_graph(self.x, self.y)
         overplot, self.overplot = self.overplot, False
+        a, b = shown
+        params = self._params()
+        gt.params = "\n".join(params)
+        gt.xlabel, gt.ylabel = self._label(a, 0), self._label(b, 1)
+        gt.xunits = gt.yunits = ""
         if not overplot:
-            self.window = (*(self.xwindow or with_room(xs)), *with_room(ys))
+            self.window = gt.swind(span(xs), span(ys))
         kept = self.wts != 0
         none = np.zeros(0)
         averaged = rejected = (none, none)
@@ -675,27 +752,36 @@ class IcfitSession:
             xmin, xmax = self.xrange
             grid = xmin + np.arange(count) * ((xmax - xmin) / (count - 1))
             curve = self._on_graph(grid, self._at(grid))
-        a, b = self.axes[self.gkey]
-        graph = Graph(self.title, self._params(), self._label(a, 0), self._label(b, 1),
-                      self.window, self.kind, (xs[kept], ys[kept]), (xs[~kept], ys[~kept]),
-                      averaged, rejected, curve, self._sample_bars(), overplot)
+        labels = (gt.label("x"), gt.label("y"))
+        if gt.transpose:
+            labels = labels[::-1]
+        drawn = gt.title_block()
+        title = "\n".join(drawn[len(params):]) if gt.drawtitle else ""
+        screen = gt.on_screen
+        graph = Graph(title, drawn[:len(params)], *labels, self.window,
+                      DRAWN.get(gt.type, "mark"), screen(xs[kept], ys[kept]),
+                      screen(xs[~kept], ys[~kept]), screen(*averaged), screen(*rejected),
+                      screen(*curve), self._sample_bars(), overplot, mark=gt.mark,
+                      size=(gt.xsize, gt.ysize), logs=gt.logs())
         self.newgraph = False
         return graph
 
     def _sample_bars(self) -> list[tuple[float, float, float, float]]:
-        """icg_sample."""
+        """icg_sample, on the screen: along whichever of its axes the data's x is,
+        inside the window as ggwind gives it -- so that on an axis run backwards
+        the ticks at the ends, which want x1 < x < x2, are not drawn."""
         if "*" in self.spec.sample or "x" not in self.axes[self.gkey]:
             return []
         try:
             ranges = self._ranges()
         except ValueError:
             return []
-        along_x = self.axes[self.gkey][0] == "x"
+        along_x = (self.axes[self.gkey][0] == "x") != self.gt.transpose
         xl, xr, yb, yt = self.window if along_x else (*self.window[2:], *self.window[:2])
-        dy = yt - yb
-        y1 = yb + dy / 100
-        y2 = y1 + dy / 20
-        y3 = (y1 + y2) / 2
+        dy = f32(yt) - f32(yb)
+        y1 = f32(yb) + dy / f32(100)
+        y2 = y1 + dy / f32(20)
+        y3 = (y1 + y2) / f32(2)
         bars = []
         for x1, x2 in ranges:
             if xl < x1 < xr:
@@ -703,6 +789,7 @@ class IcfitSession:
             if xl < x2 < xr:
                 bars.append((x2, y1, x2, y2))
             bars.append((x1, y3, x2, y3))
+        bars = [tuple(float(v) for v in bar) for bar in bars]
         return bars if along_x else [(b, a, d, c) for a, b, c, d in bars]
 
     # ------------------------------------------------------------- a whole run
@@ -728,6 +815,7 @@ class IcfitSession:
                 continue
             words = next_cursor()
             if words is None:
+                self.pending = ""           # gt_window returns at the end of the file
                 self.done = True
                 break
             x, y, key = float(words[0]), float(words[1]), words[3]
@@ -736,8 +824,6 @@ class IcfitSession:
                 self.key(":", rest=rest)
             else:
                 self.key(key, x, y)
-                if key == "w" and self.state == "fit":
-                    next_cursor()
 
     def result(self) -> icfit.Fit:
         """The fit: the last one, whatever has changed since, as q leaves it."""

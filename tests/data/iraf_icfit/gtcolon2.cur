@@ -1,0 +1,40 @@
+0 0 1 :/mark box
+0 0 1 :/type mark
+0 0 1 r
+62 577 1 c
+0 0 1 :/xsize 3
+0 0 1 :/ysize
+62 577 1 d
+0 0 1 f
+0 0 1 :/type hist
+0 0 1 r
+0 0 1 :/type line
+0 0 1 :/title A new title
+0 0 1 :/parameters gone
+0 0 1 :/subtitle sub
+0 0 1 :/comments some comments
+0 0 1 :/xlabel new x
+0 0 1 :/xunits pix
+0 0 1 :/yunits du
+0 0 1 r
+0 0 1 :/drawtitle no
+0 0 1 r
+0 0 1 :/drawtitle yes
+0 0 1 :/drawxlabels no
+0 0 1 :/drawylabels no
+0 0 1 r
+0 0 1 :/drawxlabels yes
+0 0 1 :/drawylabels yes
+0 0 1 :/sysid no
+0 0 1 :/bogus
+0 0 1 :/mark nosuch
+0 0 1 :/type nosuch
+0 0 1 :/xtransform nosuch
+0 0 1 :/xbuf 0.1
+0 0 1 :/ybuf
+0 0 1 r
+0 0 1 :/help
+0 0 1 :.zero
+0 0 1 :/mark
+0 0 1 :/type
+0 0 1 q

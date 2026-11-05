@@ -1,0 +1,21 @@
+xwindow = INDEF INDEF
+xwindow = 20. 80.
+ywindow = 520. 620.
+xwindow = -25. 35.
+xwindow = -27.5 32.5
+ywindow = -47.5 52.5
+xwindow = 10. 50.
+ywindow = 500. 600.
+x = 30.  y = 549.5399  fit = 549.6418
+xview = 0.2 0.8
+yview = 0.3 0.7
+xflip = NO
+yflip = NO
+x = 30.  y = 549.5399  fit = 549.6418
+xflip = NO
+yflip = NO
+xwindow = 10. 50.
+x = 62.  y = 576.4821  fit = 579.3704
+weight = (1.) again:
+
+Singular solution

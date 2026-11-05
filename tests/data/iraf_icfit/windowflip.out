@@ -1,0 +1,5 @@
+window:x = 35.  y = 558.4827  fit = 555.3005
+window:window:window:xwindow = 30. INDEF
+ywindow = 520. INDEF
+window:window:xwindow = INDEF 30.
+window:
