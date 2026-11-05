@@ -1,0 +1,38 @@
+0 0 1 :/xwindow
+0 0 1 :/ywindow 0 3000
+0 0 1 :/ywindow
+0 0 1 :/title A new title
+0 0 1 :/xlabel new x
+0 0 1 r
+0 0 1 :/mark box
+0 0 1 :/type mark
+0 0 1 r
+0 0 1 :/type hist
+0 0 1 r
+0 0 1 :/type line
+0 0 1 :/drawtitle no
+0 0 1 r
+0 0 1 :/drawtitle yes
+0 0 1 :/xflip yes
+0 0 1 :/yflip yes
+0 0 1 r
+318 0 1 m
+542 0 1 m
+0 0 1 f
+0 0 1 q
+0 0 1 r
+0 0 1 :/xflip no
+0 0 1 :/yflip no
+0 0 1 :/transpose
+0 0 1 r
+500 300 1 .
+0 0 1 :/transpose
+0 0 1 :/ytransform log
+0 0 1 r
+0 0 1 :/ytransform linear
+0 0 1 :/xsize 3
+0 0 1 :.zero
+0 0 1 :/shift 10 0
+0 0 1 :/xwindow
+0 0 1 :/bogus
+0 0 1 q

@@ -3,7 +3,8 @@
 tests/data/iraf_identify holds cursor files IRAF ran on tests/iraf_field.arc_spectrum(),
 with what its prompts read and what f's icfit was told: what it printed, the record it
 wrote, and from its graphics metacode each frame's window, title, label, spectrum and
-ticks, and icfit's graphs between them.
+ticks, and icfit's graphs between them; where w and the /commands put the window, what
+GIO clipped is not held to anything.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import numpy as np
 import pytest
 from iraf_field import arc_spectrum
 
-from harwood.core import icfit, icfitsession, identifysession
+from harwood.core import gtools, icfit, icfitsession, identifysession
 from harwood.core import identify as idn
 
 DATA = Path(__file__).parent / "data"
@@ -87,11 +88,28 @@ def _same(ours: str, theirs: str) -> bool:
     return True
 
 
-def _on_screen(window, x, y):
+def _on_screen(window, x, y, logs=(False, False)):
+    """GKI units, through elog on a logarithmic axis."""
     wx1, wx2, wy1, wy2, sx1, sx2, sy1, sy2 = window
     x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    if logs[0]:
+        x, (wx1, wx2) = _elog(x), _elog([wx1, wx2])
+    if logs[1]:
+        y, (wy1, wy2) = _elog(y), _elog([wy1, wy2])
     return np.c_[(sx1 + (x - wx1) / (wx2 - wx1) * (sx2 - sx1)) * 32767,
                  (sy1 + (y - wy1) / (wy2 - wy1) * (sy2 - sy1)) * 32767]
+
+
+def _elog(values):
+    return np.array([gtools.elog(v) for v in np.atleast_1d(values)])
+
+
+def _within(window, points, margin=2.0):
+    """The points well inside the viewport: not where GIO cut a line at its edge."""
+    sx1, sx2, sy1, sy2 = np.array(window[4:8]) * 32767
+    points = np.reshape(points, (-1, 2))
+    return points[(points[:, 0] > sx1 + margin) & (points[:, 0] < sx2 - margin)
+                  & (points[:, 1] > sy1 + margin) & (points[:, 1] < sy2 - margin)]
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -135,19 +153,33 @@ def test_the_graphs_are_what_iraf_draws(case):
             assert graph.window[2:] == pytest.approx(window[2:4], abs=2e-4 * height), where
         lines = np.array([p for _, points in frame["lines"] for p in points]).reshape(-1, 2)
         if isinstance(graph, identifysession.Graph):
-            for text in (graph.title, graph.xlabel, *(t.label for t in graph.ticks)):
+            logs = frame.get("logs", [[False, False]])[0]
+            assert tuple(graph.logs) == tuple(logs), where
+            said = [*graph.title.split("\n"), graph.xlabel, graph.ylabel,
+                    *(t.label for t in graph.ticks)]
+            for text in said:
                 assert not text or text in frame["text"], (where, text)
             for tick in graph.ticks:
-                base = _on_screen(window, [tick.x], [tick.y])[0]
+                base = _on_screen(window, [tick.x], [tick.y], logs)[0]
                 sign = 1 if tick.upward else -1
                 top = base[1] + sign * 0.05 * 32767
                 if window[6] * 32767 < top < window[7] * 32767:
                     end = np.array([base[0], top])
                     assert np.abs(lines - end).max(axis=1).min() <= GKI_UNITS, (where, tick)
-            spectrum = np.array(max((p for _, p in frame["lines"]), key=len))
-            mine = _on_screen(window, graph.x, graph.y)
-            for point in spectrum[1:-1:40]:
-                assert np.abs(mine - point).max(axis=1).min() <= GKI_UNITS, where
+            mine = _on_screen(window, graph.x, graph.y, logs)
+            if graph.kind == "mark":
+                marks = np.array([m[1:3] for m in frame["marks"]]).reshape(-1, 2)
+                for point in _within(window, mine, 371):
+                    assert np.abs(marks - point).max(axis=1).min() <= GKI_UNITS, where
+            elif graph.kind == "line":
+                # The spectrum, in as many pieces as the window cut it into; off the
+                # edges, where the axes' ticks are.
+                pieces = [p for _, p in frame["lines"] if len(p) >= 3]
+                spectrum = np.array([q for p in pieces for q in p[1:-1]]).reshape(-1, 2)
+                inside = _within(window, spectrum, 1000)
+                assert len(inside), where
+                for point in inside[::40]:
+                    assert np.abs(mine - point).max(axis=1).min() <= GKI_UNITS, where
         else:
             words = [t for t in frame["text"] if not re.fullmatch(r"[-.0-9E+]+", t)]
             for text in (*graph.params, graph.xlabel, graph.ylabel):

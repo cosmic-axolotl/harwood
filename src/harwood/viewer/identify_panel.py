@@ -7,16 +7,19 @@ thorium lamp whose dispersion you do not already know.
 
 Nothing is computed here. Every number and every line of text comes from
 `core.identifysession`, held to IRAF's by files of cursor commands and to what IRAF
-draws by its graphics metacode.
+draws by its graphics metacode. The graph is drawn as gtools leaves it
+(`viewer.gtplot`): w and the /commands set its window, and the mouse zooms it
+besides; `:.snap file.png` saves it.
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from ..core import identifysession
-from . import keyguide, theme
+from . import gtplot, keyguide, theme
 from ._qt import on_main
 from .icfit_panel import IcfitPanel
 from .theme import palette as _c
@@ -90,24 +93,38 @@ class IdentifyPanel(QtWidgets.QWidget):
         self.plot.clear()
         self.plot.setTitle(graph.title, color=_c().ink, size="10pt")
         self.plot.setLabel("bottom", graph.xlabel or "pixel", color=_c().muted)
-        self.plot.plot(graph.x, graph.y, pen=pg.mkPen(_c().sky, width=1.2))
-        x0, x1, y0, y1 = graph.window
+        self.plot.setLabel("left", graph.ylabel, color=_c().muted)
+        on_axes = self._on_axes
+        if graph.kind == "mark":
+            self.plot.plot(*on_axes(graph.x, graph.y), pen=None,
+                           symbol=gtplot.SYMBOLS.get(graph.mark, "+"),
+                           symbolSize=11 * max(graph.size) / 2, symbolBrush=None,
+                           symbolPen=pg.mkPen(_c().sky, width=1.2))
+        else:
+            xs, ys = (gtplot.steps(graph.x, graph.y) if graph.kind == "histogram"
+                      else (graph.x, graph.y))
+            self.plot.plot(*on_axes(xs, ys), pen=pg.mkPen(_c().sky, width=1.2))
+        # id_mark: the tick's gap and length in NDC, so through elog where it is.
+        _, (y0, y1) = on_axes([], graph.window[2:])
         current = (session.features[session.current - 1].fit
                    if 0 < session.current <= len(session.features) else None)
         for tick in graph.ticks:
             sign = 1 if tick.upward else -1
-            start = tick.y + sign * _GAP * (y1 - y0)
+            (x,), (base,) = on_axes([tick.x], [tick.y])
+            start = base + sign * _GAP * (y1 - y0)
             end = start + sign * _TICK * (y1 - y0)
             width = 2.4 if tick.x == current else 1.2
-            self.plot.plot([tick.x, tick.x], [start, end],
-                           pen=pg.mkPen(_c().accent, width=width))
+            self.plot.plot([x, x], [start, end], pen=pg.mkPen(_c().accent, width=width))
             if tick.label:
                 text = pg.TextItem(tick.label, color=_c().ink, angle=90,
                                    anchor=(0, 0.5) if tick.upward else (1, 0.5))
-                text.setPos(tick.x, end)
+                text.setPos(x, end)
                 self.plot.addItem(text)
         if rescale:
-            self.plot.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)
+            gtplot.set_window(self.plot, graph.window, graph.logs)
+
+    def _on_axes(self, x, y):
+        return gtplot.on_axes(self.session.gt.logs(), np.asarray(x), np.asarray(y))
 
     # ------------------------------------------------------------- the keys
 
@@ -120,7 +137,7 @@ class IdentifyPanel(QtWidgets.QWidget):
         box = self.plot.getPlotItem().vb
         if box.sceneBoundingRect().contains(position):
             point = box.mapSceneToView(position)
-            self._cursor = (point.x(), point.y())
+            self._cursor = gtplot.world(self.session.gt.logs(), point.x(), point.y())
 
     def key(self, key: str) -> bool:
         """Handle one keystroke. Returns True if it was ours."""
@@ -130,7 +147,7 @@ class IdentifyPanel(QtWidgets.QWidget):
             self.command.setFocus()
             self.command.setText(":")
             return True
-        if key not in dict(HELP) and key not in "wjko":
+        if not (key in dict(HELP) or (self.session.pending and key.isprintable())):
             return False
         self.session.key(key, *self._cursor)
         self._after()
@@ -139,10 +156,16 @@ class IdentifyPanel(QtWidgets.QWidget):
     def _run_command(self) -> None:
         text = self.command.text().strip()
         self.command.clear()
+        rest = text.lstrip(":")
         if self.session.state != "keys":
             self.session.answer(text)
-        elif text.lstrip(":"):
-            self.session.key(":", rest=text.lstrip(":"))
+        elif rest.startswith("."):
+            said = gtplot.cursor_mode(self.plot, rest[1:], "identify.png")
+            self.status.setText(said.strip())
+            self.plot.setFocus()
+            return
+        elif rest:
+            self.session.key(":", rest=rest)
         self.plot.setFocus()
         self._after()
 

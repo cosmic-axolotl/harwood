@@ -12,9 +12,16 @@ to what is typed. d in icfit deletes the feature; rejected, it stays with no wei
 feature's fit does not change when the user coordinate does, only after f. a applies to
 the key after next as well as the next, as the counter runs; only c and d look at it.
 
-Not ported: w and the /commands, which set a window (the mouse does that here);
-:image, :nsum, :database, :read, :write and :add, the database being the task's, and
-one spectrum at a time, so that j, k and o stay on it.
+The graph is gtools' (`core.gtools`), as id_graph1 draws it through gt_swind: w and
+the /commands set its window, flip, transpose and mark it. The quirks of that kept:
+the keys take the cursor as clgcur gives it, not swapped under :/transpose, and the
+features' ticks stay on the screen's x whatever is on it; a window that leaves the
+whole spectrum out lets go of its x limits; z's graph, id_graph2, sets its window
+itself and none of that applies to it but the drawing; a new dispersion solution
+sets the x label again, whatever :/xlabel said.
+
+Not ported: :image, :nsum, :database, :read, :write and :add, the database being the
+task's, and one spectrum at a time, so that j, k and o stay on it.
 
 Translated from IRAF, Copyright (c) 1986 Association of Universities for Research in
 Astronomy Inc.; the notice it is distributed under is in LICENSES/IRAF-COPYRIGHT.
@@ -32,7 +39,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from . import icfitsession, iraffmt
-from .gio import with_room
+from .gtools import DRAWN, GTools
 from .identify import Feature, Identify, find_peaks
 
 f32 = np.float32
@@ -68,6 +75,7 @@ HELP = [
     ("k", "the next line or aperture of the image"),
     ("o", "the line or aperture typed"),
     ("r", "redraw"),
+    ("w", "window, then a key: a b c d e f g j k l m n p r t u x y z ?"),
     ("?", "these keys"),
     (":", "show, features, read, add, write, nsum, match, minsep, zwidth, labels, fwidth, "
           "ftype, threshold"),
@@ -117,13 +125,19 @@ class Tick:
 
 @dataclass
 class Graph:
-    """What id_graph draws."""
+    """What id_graph draws, on the screen: under :/transpose x and y are the
+    spectrum's y and x, but the ticks stay at the features' coordinates."""
     title: str
     xlabel: str
     window: tuple[float, float, float, float]
     x: np.ndarray
     y: np.ndarray
     ticks: list[Tick] = field(default_factory=list)
+    ylabel: str = ""
+    kind: str = "line"              #: line, mark or histogram, as gtools' type
+    mark: str = "plus"
+    size: tuple[float, float] = (2.0, 2.0)
+    logs: tuple[bool, bool] = (False, False)    #: which of the screen's axes are elog
 
 
 @dataclass
@@ -171,6 +185,11 @@ class IdentifySession:
         self.ident = ident
         self.image, self.coordlist, self.database = image, coordlist, database
         self.section = section
+        #: ID_GT, the task's for as long as it runs.
+        self.gt = GTools()
+        self.gt.set_type("line")
+        self.pending = ""               #: "window" after w, "again" after w e
+        self._corner: tuple[float, float] = (0.0, 0.0)
         self.title = title or f"identify {image}{section}"
         self.units = units
         self.zwidth = zwidth
@@ -209,10 +228,26 @@ class IdentifySession:
             ident.newfeatures = False
         if lines is not None:
             self._read_record(verbose=True)
+        self._labels()
 
     @property
     def features(self) -> list[Feature]:
         return self.ident.features
+
+    @property
+    def title(self) -> str:
+        """GTTITLE, which id_gdata sets for each spectrum."""
+        return self.gt.title
+
+    @title.setter
+    def title(self, text: str) -> None:
+        self.gt.title = text
+
+    def _labels(self) -> None:
+        """What id_fitdata sets the x label to: the spectrum's, or the units'."""
+        fitted = self.ident.fit is not None
+        self.gt.xlabel = "Wavelength" if fitted else ""
+        self.gt.xunits = self.units if fitted else ""
 
     # ------------------------------------------------------------- the output
 
@@ -252,6 +287,9 @@ class IdentifySession:
                 self.fit_finished()
             return
         if self.state != "keys":
+            return
+        if self.pending:
+            self._window_key(key, x, y)
             return
         self._cursor = (x, y)
         print_it = True
@@ -373,11 +411,28 @@ class IdentifySession:
                     self.newgraph = True
                 self.gtype = ZOOM
                 self._nearest(x)
-        elif key in "jkw":
-            pass
+        elif key == "w":
+            self.pending = "window"
+            self._print("window:")
+            return
         else:
             self._beep()
         self._tail(print_it)
+
+    def _window_key(self, key: str, x: float, y: float) -> None:
+        """gt_window: the key after w, and then what the loop does after any."""
+        if self.pending == "window" and key == "e":
+            self.pending, self._corner = "again", (x, y)
+            self._print("again:")
+            return
+        if self.pending == "again":
+            redraw = self.gt.window2(self._corner, (x, y), self._window)
+        else:
+            said, redraw = self.gt.window1(key, x, y, self._window)
+            self._print(said)
+        self.pending = ""
+        self.newgraph = self.newgraph or redraw
+        self._tail(True)
 
     def answer(self, text: str | None) -> None:
         """What a prompt read: None at the end of the input."""
@@ -832,6 +887,8 @@ class IdentifySession:
             self._error = ""
         except ValueError as error:
             self._error = str(error)
+            return
+        self._labels()
 
     # ---------------------------------------------------------- after each key
 
@@ -897,8 +954,11 @@ class IdentifySession:
         words = text.split()
         if not words:
             return True
-        if words[0].startswith("/"):
-            self._print("the /commands are not ported: the mouse sets the window here\n")
+        if text.lstrip().startswith("/"):
+            out, err, redraw = self.gt.colon(text.lstrip(), self._window)
+            self._print(out)
+            self._eprint(err)
+            self.newgraph = self.newgraph or redraw
             return True
         command = _strdic(words[0], _CMDS)
         value = words[1] if len(words) > 1 else None
@@ -1042,12 +1102,13 @@ class IdentifySession:
 
     # -------------------------------------------------------------- the graph
 
+    _window = (0.0, 1.0, 0.0, 1.0)     #: the window as last drawn, ggwind's
+
     def graph(self) -> Graph:
         """id_graph1 and id_graph2, and it is drawn."""
-        ident = self.ident
+        ident, gt = self.ident, self.gt
         x = np.asarray(ident.fitdata, dtype=f32).astype(float)
         y = np.asarray(ident.data, dtype=float)
-        xlabel = f"Wavelength ({self.units})" if ident.fit is not None else ""
         if self.gtype == ZOOM and self.current > 0:
             centre = float(f32(self.features[self.current - 1].fit))
             half = float(f32(self.zwidth)) / 2
@@ -1059,11 +1120,16 @@ class IdentifySession:
             dy = ymax - ymin
             window = (x0, x1, ymin - 0.2 * dy, ymax + 0.2 * dy)
         else:
+            xmin, xmax = float(min(x[0], x[-1])), float(max(x[0], x[-1]))
+            low, high = gt.getr("xmin"), gt.getr("xmax")
+            if (low is not None and xmax < low) or (high is not None and xmin > high):
+                gt.setr("xmin", None)
+                gt.setr("xmax", None)
             ymin, ymax = float(y.min()), float(y.max())
-            dy = ymax - ymin
-            low, high = with_room(np.array([min(x[0], x[-1]), max(x[0], x[-1])]))
-            room_low, room_high = with_room(np.array([ymin - 0.2 * dy, ymax + 0.2 * dy]))
-            window = (low, high, room_low, room_high)
+            dy = float(f32(ymax) - f32(ymin))
+            window = gt.swind((xmin, xmax), (float(f32(ymin) - f32(0.2) * f32(dy)),
+                                             float(f32(ymax) + f32(0.2) * f32(dy))))
+        self._window = window
         ticks = []
         for i, feature in enumerate(self.features, 1):
             if not min(window[:2]) <= feature.fit <= max(window[:2]):
@@ -1074,7 +1140,12 @@ class IdentifySession:
             ticks.append(Tick(float(feature.fit), max(pair) if upward else min(pair), upward,
                               self._mark_label(i, feature)))
         self.newgraph = False
-        return Graph(self.title, xlabel, window, x, y, ticks)
+        labels = (gt.label("x"), gt.label("y"))
+        if gt.transpose:
+            labels = labels[::-1]
+        sx, sy = gt.on_screen(x, y)
+        return Graph("\n".join(gt.title_block()), labels[0], window, sx, sy, ticks, labels[1],
+                     DRAWN.get(gt.type, "mark"), gt.mark, (gt.xsize, gt.ysize), gt.logs())
 
     def _mark_label(self, number: int, feature: Feature) -> str:
         if self.labels == "index":
@@ -1127,6 +1198,7 @@ class IdentifySession:
                 continue
             words = next_cursor()
             if words is None:
+                self.pending = ""           # gt_window returns at the end of the file
                 self.key("q")
                 continue
             x, y, key = float(words[0]), float(words[1]), words[3].replace("\\040", " ")

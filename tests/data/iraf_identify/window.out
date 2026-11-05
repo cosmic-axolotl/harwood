@@ -1,0 +1,49 @@
+    100.02  100.02481 (     INDEF ):     100.02  100.02481  4043.3948 
+    193.36  193.36433 (     INDEF ):     193.36  193.36433  4069.2833 
+    318.01  318.00735 (     INDEF ):     318.01  318.00735  4104.3821 
+    542.43  542.43384 (     INDEF ):     542.43  542.43384  4168.6341 
+    744.26  744.26404 (     INDEF ):     744.26  744.26404  4226.9876 
+    968.01  968.01428 (     INDEF ):     968.01  968.01428  4292.3057 
+    968.01   4292.293  4292.3057 
+window:    968.01   4292.293  4292.3057 
+    542.43  4168.5658  4168.6341 
+window:    542.43  4168.5658  4168.6341 
+window:    542.43  4168.5658  4168.6341 
+window:    542.43  4168.5658  4168.6341 
+window:    542.43  4168.5658  4168.6341 
+window:    542.43  4168.5658  4168.6341 
+window:    542.43  4168.5658  4168.6341 
+window:    542.43  4168.5658  4168.6341 
+    744.26  4227.0399  4226.9876 
+    968.01   4292.293  4292.3057 
+window:    968.01   4292.293  4292.3057 
+window:    968.01   4292.293  4292.3057 
+window:	SET GRAPH WINDOW
+
+a  Autoscale x and y axes
+b  Set bottom edge of window
+c  Center window at cursor position
+d  Shift window down
+e  Expand window (mark lower left and upper right of new window)
+f  Flip x axis
+g  Flip y axis
+j  Set left edge of window
+k  Set right edge of window
+l  Shift window left
+m  Autoscale x axis
+n  Autoscale y axis
+p  Pan x and y axes about cursor
+r  Shift window right
+t  Set top edge of window
+u  Shift window up
+x  Zoom x axis about cursor
+y  Zoom y axis about cursor
+z  Zoom x and y axes about cursor
+    968.01   4292.293  4292.3057 
+window:    968.01   4292.293  4292.3057 
+window:again:    968.01   4292.293  4292.3057 
+    968.01   4292.293  4292.3057 
+    542.43  4168.5658  4168.6341 
+    542.43  4168.5658  4168.6341 
+window:    542.43  4168.5658  4168.6341 
+Write feature data to the database (yes)? 

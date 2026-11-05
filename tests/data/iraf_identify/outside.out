@@ -1,0 +1,7 @@
+xwindow = INDEF INDEF
+window:window:window:    100.02  100.02481 (     INDEF ):     100.02  100.02481  4043.3948 
+xwindow = 600. 500.
+    100.02  100.02481  4043.3948 
+window:    100.02  100.02481  4043.3948 
+window:    100.02  100.02481  4043.3948 
+Write feature data to the database (yes)? 

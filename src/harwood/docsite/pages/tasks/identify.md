@@ -37,8 +37,13 @@ features in hand, which the solution of a neighbour usually needs only `a c` and
 another line's record (`:read arc 3`) or another image's, in place of these or among
 them, `:write` writes this one at once, and `:nsum` sets how many lines are summed.
 A session starts from the record the line already has, as IRAF's does. Five more
-sessions IRAF ran say and write the same. Not ported: `w` and the `/` commands (the
-mouse zooms), and `:image`, which goes on to another image: run identify on it.
+sessions IRAF ran say and write the same. `w` and its second key set the graph's
+window as IRAF's gtools does (`w x` zooms in x about the cursor, `w f` flips the axis,
+`w e e` marks two corners), and so do the `/` commands -- `:/xwindow 4100 4200`,
+`:/ytransform log`, `:/mark box` -- in the fit's graph too; three more sessions of
+those, a window that leaves the spectrum out among them, are held to what IRAF printed
+and drew. The mouse zooms besides, and `:.snap arc.png` saves the graph. Not ported:
+`:image`, which goes on to another image: run identify on it.
 harwood does not write `REFSPEC1` into the arc's header, as IRAF does with every
 record: [refspectra](task:refspectra) says which arc a spectrum takes.
 

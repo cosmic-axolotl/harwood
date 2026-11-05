@@ -146,3 +146,32 @@ def test_identify_with_nothing_to_start_from_says_so_at_once(tmp_path, monkeypat
         get_task("identify").run(image="arc.fits", coordlist="linelists$thar.dat")
     assert "no approximate wavelength or dispersion" in str(raised.value)
     assert "--interactive" in raised.value.fix and "autoidentify" in raised.value.fix
+
+
+def test_the_panel_draws_and_takes_what_gtools_has(panel, tmp_path, monkeypatch):
+    """w and its key, :/ commands and :. ones: the view is the window gtools gives,
+    flipped, on elog, and the ticks stay over their lines."""
+    monkeypatch.chdir(tmp_path)
+    session, box = panel.session, panel.plot.getViewBox()
+    _mark(panel, 395.0, _wave(395.0))
+    panel._cursor = (395.0, 300.0)
+    assert panel.key("w") and session.pending == "window"
+    assert panel.key("x") and not session.pending
+    (x0, x1), _ = box.viewRange()
+    assert x0 < 395 < x1 and x1 - x0 == pytest.approx(
+        session._window[1] - session._window[0], rel=1e-6)
+    panel.command.setText(":/xflip yes")
+    panel._run_command()
+    assert panel.key("r") and box.xInverted() and session._window[0] > session._window[1]
+    assert panel.key(".") and "395." in session.stdout.splitlines()[-1]
+    panel.command.setText(":/ytransform log")
+    panel._run_command()
+    panel.key("r")
+    ticks = panel.plot.getAxis("left")._tickLevels
+    assert ticks and "100" in [label for _, label in ticks[0]]
+    panel.command.setText(":.snap arc.png")
+    panel._run_command()
+    assert (tmp_path / "arc.png").stat().st_size > 0
+    panel.command.setText(":.zero")
+    panel._run_command()
+    assert "cursor-mode command harwood does not have" in panel.status.text()
