@@ -2,7 +2,8 @@
 
 dopcor takes it to the rest frame, specshift moves its zero point, sflip turns it
 round, deredden takes the dust out, slist says what each aperture is, rspectext
-reads one from text, names spells out a record list. Each is IRAF's
+reads one from text, names spells out a record list, sbands measures bands.
+Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -639,3 +640,101 @@ class Names(Task[NamesParams]):
                 continue
             said.append(f"{name}{params.append}")
         return TaskResult(outputs=[], steps=self.plan(params), data={"text": said})
+
+
+class SbandsParams(TaskParams):
+    input: str = Field(..., description="Spectra with wavelengths. Commas, globs and "
+                                        "@lists expand.")
+    output: str = Field(..., description="The file the measurements are added to; STDOUT "
+                                         "to say them.")
+    bands: str = Field(..., description="The band file: lines of id, centre, width and "
+                                        "filter (a file of wavelength and response, or "
+                                        "none), one band or a band and one or two "
+                                        "continua.")
+    apertures: str = Field("", description="Apertures to measure (1,3-5); all when empty.")
+    normalize: bool = Field(True, description="Divide each band's flux by its filter's "
+                                              "summed response.")
+    mag: bool = Field(False, description="Magnitudes, magzero - 2.5 log10 flux, instead of "
+                                         "fluxes.")
+    magzero: float = Field(0.0, description="The magnitudes' zero point.")
+    verbose: bool = Field(True, description="A header first: the parameters, the bands "
+                                            "and the columns.")
+
+
+@register
+class Sbands(Task[SbandsParams]):
+    name = "sbands"
+    package = "onedspec"
+    description = "Measure fluxes, indices and equivalent widths in bandpasses."
+    Params = SbandsParams
+
+    def plan(self, params: SbandsParams) -> list[Step]:
+        return [Step("measure", f"the bands of {params.bands} on {params.input}",
+                     why="A band's flux is the sum of the pixels it covers, the end "
+                         "pixels by the fraction inside it, each weighed by the filter's "
+                         "response; with continua beside it, the index is the flux over "
+                         "the continuum at the band's centre and the equivalent width "
+                         "(1 - index) times its width -- a Lick index, say."),
+                Step("write", params.output, why="Added to the file, as IRAF appends.")]
+
+    def execute(self, params: SbandsParams) -> TaskResult:
+        import getpass
+        import socket
+
+        import numpy as np
+
+        from ..core import images, ranges, sbands, spectrum
+        from ..core.deredden import cnvdate
+
+        bandfile = Path(params.bands)
+        if not bandfile.exists():
+            advice.fail(f"Cannot open file ({params.bands})",
+                        "give the band file: lines of id, centre, width and filter.",
+                        FileNotFoundError)
+        table = sbands.read_bands(bandfile.read_text(encoding="utf-8"), bandfile.parent)
+        aps = ranges.parse(params.apertures, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        lines: list[str] = []
+        warnings: list = []
+        opened = 0
+        for token in images.split_list(params.input):
+            for spec in images.expand(token) or [token]:
+                name = str(spec)
+                path = name if Path(name).exists() or not Path(name + ".fits").exists() \
+                    else name + ".fits"
+                try:
+                    apertures = spectrum.read(path)
+                except (OSError, ValueError):
+                    shown = name.removesuffix(".fits")
+                    lines.append(f"Warning: Cannot open image ({shown})")
+                    warnings.append(advice.warn(f"Cannot open image ({shown})",
+                                                "check the name."))
+                    continue
+                opened += 1
+                if opened == 1 and params.verbose:
+                    from ..core.provenance import _version
+
+                    sysid = (f"harwood {_version()} {getpass.getuser()}@"
+                             f"{socket.gethostname()} {cnvdate()}")
+                    lines.extend(sbands.header(sysid, params.bands, table, params.normalize,
+                                               params.mag, params.magzero))
+                for line, aperture in enumerate(apertures, 1):
+                    if aperture.number not in aps or aperture.wavelength is None:
+                        continue
+                    wave = np.asarray(aperture.wavelength, dtype=float)
+                    to_pixel = sbands.inverse(wave)
+                    # IRAF names it by its line of the multispec image: in[*,2](2).
+                    lines.extend(sbands.measure(
+                        f"{name.removesuffix('.fits')}[*,{line}]({aperture.number})", wave,
+                        aperture.flux, table, to_pixel, params.normalize, params.mag,
+                        params.magzero))
+        said = [line for line in lines if line.startswith("Warning:")]
+        written = [line for line in lines if not line.startswith("Warning:")]
+        outputs = []
+        if params.output == "STDOUT":
+            said = lines
+        elif written:
+            with open(params.output, "a", encoding="utf-8") as out:
+                out.write("\n".join(written) + "\n")
+            outputs.append(Path(params.output))
+        return TaskResult(outputs=outputs, steps=self.plan(params), warnings=warnings,
+                          data={"text": said, "lines": written})
