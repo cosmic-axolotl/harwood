@@ -3,7 +3,8 @@ of .. and of this folder: python3 run_iraf.py NAME < /dev/null. stdvdm takes the
 graphics, so no screen is needed; the prompts read NAME.ans, and what the keys
 print is in NAME.out and NAME.err. A blank answer after a bad command is `first`,
 so an answers file that ends there runs for ever; stdvdm appends to uparm$vdm, so it
-goes first and is moved aside after, and ../decode_gki.py makes NAME.json of it."""
+goes first and is moved aside after, and ../decode_gki.py NAME.vdm --windows makes
+NAME.json of it."""
 import shutil
 import sys
 from pathlib import Path

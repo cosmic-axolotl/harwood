@@ -1,0 +1,20 @@
+0 0 1 : /mark diamond
+0 0 1 : /redraw
+-8.467 0.01539993 1 c
+0 0 1 : /type line
+0 0 1 : /type
+0 0 1 : /redraw
+0 0 1 : /type line3
+0 0 1 : /type
+0 0 1 : /type mark
+0 0 1 : /type
+0 0 1 : /xsize 4
+0 0 1 : /ysize
+0 0 1 : /redraw
+0 0 1 : /mark cross
+0 0 1 : /redraw
+0 0 1 : /mark plus
+-8.467 0.01539993 1 d
+0 0 1 f
+0 0 1 : errors
+0 0 1 q

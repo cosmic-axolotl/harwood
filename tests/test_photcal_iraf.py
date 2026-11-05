@@ -294,9 +294,17 @@ GKI_UNITS = 2
 
 
 def _on_screen(frame, x, y):
-    """Data coordinates as metacode ones, through the frame's own window."""
+    """Data coordinates as metacode ones, through the frame's own window, on
+    GIO's elog scale where the frame's axis is logarithmic."""
+    from harwood.core.gtools import elog
+
     wx1, wx2, wy1, wy2, sx1, sx2, sy1, sy2 = frame["window"]
     x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    xlog, ylog = frame.get("log", (False, False))
+    if xlog:
+        x, wx1, wx2 = np.array([elog(v) for v in x]), elog(wx1), elog(wx2)
+    if ylog:
+        y, wy1, wy2 = np.array([elog(v) for v in y]), elog(wy1), elog(wy2)
     return np.c_[(sx1 + (x - wx1) / (wx2 - wx1) * (sx2 - sx1)) * 32767,
                  (sy1 + (y - wy1) / (wy2 - wy1) * (sy2 - sy1)) * 32767]
 
@@ -539,9 +547,8 @@ FITCASES = sorted(path.stem for path in FITKEYS.glob("*.cur"))
 
 
 def _said(text: str) -> list[str]:
-    """What IRAF printed less the terminal's: the bell, and `w`, which is not
-    ported, asking for its window."""
-    text = text.replace("window:\a", "").replace("\a", "")
+    """What IRAF printed less the terminal's bell."""
+    text = text.replace("\a", "")
     return [line for line in text.splitlines() if not _stamped(line)]
 
 
@@ -621,14 +628,31 @@ def test_fitparams_draws_what_iraf_draws(here, case):
         assert graph.window[:2] == pytest.approx(frame["window"][:2], abs=1e-4 * width), where
         assert graph.window[2:] == pytest.approx(frame["window"][2:4],
                                                  abs=1e-4 * height), where
-        said = {graph.xlabel, graph.ylabel, *graph.title, *graph.params}
+        said = {graph.xlabel, graph.ylabel, *graph.title, *graph.params} - {""}
         assert said <= set(frame["text"]), where
-        for kind, part in (("plus", "kept"), ("cross", "deleted"), ("diamond", "rejected"),
-                           ("box", "fit")):
-            mine = np.vstack([_on_screen(frame, *getattr(g, part)) for g in graphs])
-            assert len(mine) == len(frame[kind]), (where, kind)
-            assert not len(_unmatched(mine, frame[kind])), (where, kind)
-            assert not len(_unmatched(frame[kind], mine)), (where, kind)
+        assert bool(graph.xlabel) == (graph.xlabel in frame["text"]), where
+        for kind in ("plus", "cross", "diamond", "box"):
+            mine = np.vstack([np.zeros((0, 2))] + [_on_screen(frame, *getattr(g, part))
+                                                    for g in graphs
+                              for part, drawn_as in (("kept", g.mark), ("deleted", "cross"),
+                                                     ("rejected", "diamond"), ("fit", "box"))
+                              if drawn_as == kind]).reshape(-1, 2)
+            mine, theirs = _whole(frame, mine, graph), _whole(frame, frame[kind], graph)
+            assert len(mine) == len(theirs), (where, kind)
+            assert not len(_unmatched(mine, theirs)), (where, kind)
+            assert not len(_unmatched(theirs, mine)), (where, kind)
+
+
+def _whole(frame, points, graph):
+    """The marks GIO draws whole: those a mark's width inside the viewport, where
+    a window that leaves points out clips them (size 2 is 371 metacode units, and
+    the diamonds and boxes are 3)."""
+    points = np.reshape(np.asarray(points, dtype=float), (-1, 2))
+    sx1, sx2, sy1, sy2 = np.array(frame["window"][4:8]) * 32767
+    margin = 371 / 4 * max(3.0, *graph.size) + GKI_UNITS
+    inside = ((points[:, 0] > sx1 + margin) & (points[:, 0] < sx2 - margin)
+              & (points[:, 1] > sy1 + margin) & (points[:, 1] < sy2 - margin))
+    return points[inside]
 
 
 def _run_fitparams(tmp_path, case=None, **params):
@@ -1482,3 +1506,47 @@ def test_mkconfig_as_a_task_checks_what_it_wrote(tmp_path, monkeypatch):
     result = run("mkconfig", config="ubvri.cfg", catalog="landolt",
                  observations="obsA", transform="landolt")
     assert result.data["errors"] == 9 and result.warnings
+
+
+def test_the_fit_panel_draws_and_takes_what_gtools_has(here):
+    """w and its key, :/ commands and :. ones at the panel: the view is the
+    window gtools gives, flipped, on elog, and nearest is nearest in it."""
+    pytest.importorskip("PySide6")
+    pytest.importorskip("pyqtgraph")
+    from harwood.viewer import _qt
+    from harwood.viewer.fit_panel import FitPanel
+
+    _qt.application()
+    session = _fit_session({}, "out.fit")
+    panel = FitPanel(session)
+    box = panel.plot.getViewBox()
+    xs, ys = session._axis(0), session._axis(1)
+    panel._cursor = (float(xs[4]), float(ys[4]))
+    assert panel.key("w") and session.pending == "window"
+    assert panel.key("z") and not session.pending
+    (x0, x1), _ = box.viewRange()
+    assert x0 < xs[4] < x1 and x1 - x0 == pytest.approx(
+        (session.window[1] - session.window[0]), rel=1e-6)
+    panel.command.setText(":/xflip yes")
+    panel._run_command()
+    assert not box.xInverted(), "as in IRAF, a format waits for the next graph"
+    assert panel.key("r") and box.xInverted() and session.window[0] > session.window[1]
+    assert panel.key("c")
+    assert f"5 {session.obs.names[4]} x=" in session.stdout.splitlines()[-1]
+    panel.command.setText(":/mark box")
+    panel._run_command()
+    panel.command.setText(":/redraw")
+    panel._run_command()
+    assert session.graph().mark == "box"
+    panel.command.setText(":/xtransform log")
+    panel._run_command()
+    panel.key("k")
+    ticks = panel.plot.getAxis("bottom")._tickLevels
+    assert ticks and [label for _, label in ticks[0]][-2:] == ["10", "100"]
+    panel.command.setText(":.snap graph.png")
+    panel._run_command()
+    assert (here / "graph.png").stat().st_size > 0
+    panel.command.setText(":.zero")
+    panel._run_command()
+    assert "cursor-mode command harwood does not have" in panel.text.toPlainText()
+    assert ":.zero" not in session.stdout, "cursor mode is the panel's, not the task's"

@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 88, partial: 1, planned: 266, replaced: 94, wontport: 161
+#   available: 89, partial: 0, planned: 266, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -674,8 +674,8 @@ tasks:
     note: "ported and checked against IRAF's output to the seventh decimal"}
   findpars: {pkg: digiphot.apphot, domain: photometry, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
-  fitparams: {pkg: digiphot.photcal, domain: photometry, status: partial, milestone: later, harwood: fitparams,
-    note: "the configuration language, the three weightings with the scatter term, rejection and the log, ported and checked against IRAF's output to the last digit; the interactive graphs, keys and prompts in a tab, held to IRAF on 33 cursor files; w and the graphics cursor's colon commands are not ported, the mouse zooms instead"}
+  fitparams: {pkg: digiphot.photcal, domain: photometry, status: available, milestone: later, harwood: fitparams,
+    note: "the configuration language, the three weightings with the scatter term, rejection and the log, ported and checked against IRAF's output to the last digit; the interactive graphs, keys and prompts in a tab, w and the gtools :/ commands included, held to IRAF on 46 cursor files and 223 frames of metacode; cursor mode's :. commands are the panel's"}
   fitpsf: {pkg: digiphot.apphot, domain: photometry, status: planned, milestone: later}
   fitsky: {pkg: digiphot.apphot, domain: photometry, status: available, milestone: mvp,
     note: "centroid, mode, median, mean, gauss, ofilter, crosscor and constant, with region growing, the percentile clips and histogram smoothing, ported and checked against IRAF's output; histplot and radplot marked in the window or from gcommands (not compared: IRAF needs a graphics terminal), file through phot's skyfile, with IRAF's error codes"}

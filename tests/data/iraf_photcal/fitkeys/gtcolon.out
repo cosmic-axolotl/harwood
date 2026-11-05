@@ -1,0 +1,20 @@
+xwindow = INDEF INDEF
+ywindow = INDEF INDEF
+xwindow = -6. -2.
+xflip = NO
+9 3S x=-6.931 y=-0.05562544 func=-6.931 fit=-6.875375, resid=-0.05562544
+mark = box
+type = box
+xbuf = 0.03
+ybuf = 0.03
+clip = 0. 0.
+xsize = 2.
+sysid = YES
+drawtitle = YES
+drawxlabel = YES
+line = 1
+color = 1
+xtransform = linear
+xview = INDEF INDEF
+yview = INDEF INDEF
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

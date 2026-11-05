@@ -2,6 +2,7 @@ abbrev: {}
 again: {}
 blank: {}
 const: {}
+cursormode: {}
 data: {}
 del: {}
 delh: {}
@@ -24,7 +25,11 @@ goall: {}
 graphkeys: {}
 graphuser: {}
 grow: {}
+gtcolon: {}
+gtcolon2: {}
 keys: {}
+logaxis: {}
+marks: {}
 near: {}
 nocursor: {}
 nosave: {}
@@ -43,5 +48,10 @@ rejstart:
   low_reject: 1.5
   nreject: 2
 tol: {}
+transposed: {}
 undel: {}
+window: {}
+windoweq: {}
+windowflip: {}
+windowkey: {}
 wkey: {}

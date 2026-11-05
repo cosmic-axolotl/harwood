@@ -1,0 +1,19 @@
+0 0 1 : /expand -7 -1 -0.1 0.1
+0 0 1 : /shift -3 0
+0 0 1 : /shift
+0 0 1 : /window 0 0 1 a
+0 0 1 : /drawtitle no
+0 0 1 : /drawxlabels no
+0 0 1 : /drawylabels no
+0 0 1 r
+0 0 1 : /drawtitle yes
+0 0 1 : /drawxlabels yes
+0 0 1 : /drawylabels yes
+0 0 1 : /sysid no
+0 0 1 : /drawgrid yes yes
+0 0 1 : /transpose
+0.01539993 -8.467 1 d
+0 0 1 f
+0 0 1 : errors
+0 0 1 : /help
+0 0 1 q

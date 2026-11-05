@@ -1,0 +1,4 @@
+window:Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : 11 2S x=-7.792 y=0.01271439 func=-7.792 fit=-7.804714, resid=0.01271439
+xflip = YES
+mark = box
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

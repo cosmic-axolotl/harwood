@@ -1,0 +1,41 @@
+0 0 1 : /xwindow
+0 0 1 : /ywindow
+0 0 1 : /xwindow -6 -2
+0 0 1 : /xwindow
+0 0 1 : /ywindow -0.1 0.1
+0 0 1 : /xflip
+0 0 1 : /xflip yes
+0 0 1 : /yflip yes
+0 0 1 : /transpose
+0 0 1 r
+-8.467 0.01539993 1 c
+0 0 1 : /transpose
+0 0 1 : /mark box
+0 0 1 : /mark
+0 0 1 : /type
+0 0 1 : /subtitle a subtitle
+0 0 1 : /comments some comments
+0 0 1 : /title new title
+0 0 1 : /xlabel new x
+0 0 1 : /xunits mag
+0 0 1 : /xbuf
+0 0 1 : /xbuf 0.2
+0 0 1 : /ybuf
+0 0 1 : /clip
+0 0 1 : /xsize
+0 0 1 : /sysid
+0 0 1 : /drawtitle
+0 0 1 : /drawxlabels
+0 0 1 : /line
+0 0 1 : /color
+0 0 1 : /xtransform
+0 0 1 : /redraw
+0 0 1 : /bogus
+0 0 1 : /mark nosuch
+0 0 1 : /xtransform nosuch
+0 0 1 : /type nosuch
+0 0 1 : /xview
+0 0 1 : /yview
+0 0 1 : /xview 0.2 0.8
+0 0 1 r
+0 0 1 q

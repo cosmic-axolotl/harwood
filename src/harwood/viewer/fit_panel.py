@@ -9,19 +9,58 @@ offers the answers as buttons; a line typed at the foot does the same, and an
 empty one takes the default the prompt names.
 
 One tab holds every equation, and stays after the last one to look through.
+
+The graph is drawn as gtools leaves it -- the window `w` and `:/xwindow` set,
+flipped axes, `:/transpose`, a logarithmic axis on IRAF's elog scale with its
+decades marked, the marks `:/mark` names -- and the mouse zooms it besides;
+nearest is measured in the view on the screen. `:.` commands are cursor mode's,
+which in IRAF never reach the task: here the panel takes them (`:.snap file.png`
+saves the graph, `:.help` says what there is).
 """
 
 from __future__ import annotations
 
-import pyqtgraph as pg
-from PySide6 import QtCore, QtWidgets
+from pathlib import Path
 
+import numpy as np
+import pyqtgraph as pg
+from PySide6 import QtCore, QtGui, QtWidgets
+
+from ..core.gtools import elog, unelog
 from ..core.photcal import fitsession
 from . import keyguide, theme
 from ._qt import on_main
 from .theme import palette as _c
 
 HELP = fitsession.HELP
+
+#: Cursor mode, as far as the panel has it.
+CURSOR_MODE = [(":.snap [file]", "the graph to a file: .png, .svg, .pdf or .csv"),
+               (":.write [file]", "the same"),
+               (":.help", "these")]
+
+
+def _bar(horizontal: bool, ends: bool) -> QtGui.QPainterPath:
+    """gtools' hline, vline, hebar and vebar as pyqtgraph symbols."""
+    path = QtGui.QPainterPath()
+    a, b = (QtCore.QPointF(-0.5, 0), QtCore.QPointF(0.5, 0)) if horizontal else (
+        QtCore.QPointF(0, -0.5), QtCore.QPointF(0, 0.5))
+    path.moveTo(a)
+    path.lineTo(b)
+    if ends:
+        for end in (a, b):
+            tick = QtCore.QPointF(0, 0.2) if horizontal else QtCore.QPointF(0.2, 0)
+            path.moveTo(end - tick)
+            path.lineTo(end + tick)
+    return path
+
+
+#: A gtools mark as pyqtgraph draws it; lines and histograms of one point each
+#: are nothing in IRAF, and dots here.
+SYMBOLS = {"plus": "+", "cross": "x", "box": "s", "diamond": "d", "circle": "o",
+           "point": "o", "line": "o", "histogram": "o",
+           "hline": _bar(True, False), "vline": _bar(False, False),
+           "hebar": _bar(True, True), "vebar": _bar(False, True)}
 
 #: The answers worth a button, by what is being asked.
 _CHOICES = {"save": ("yes", "no"), "quit": ("yes", "no"), "end": ("yes", "no"),
@@ -96,19 +135,50 @@ class FitPanel(QtWidgets.QWidget):
         self.plot.setLabel("left", graph.ylabel, color=_c().muted)
         self.params.setText("   ·   ".join(graph.params))
         # Marks that differ in shape, so that colour is never the only channel.
-        for (x, y), colour, symbol, size in ((graph.kept, _c().sky, "+", 11),
-                                             (graph.deleted, _c().muted, "x", 11),
-                                             (graph.fit, _c().accent, "s", 7)):
+        scale = max(graph.size) / 2
+        kept = 4 if graph.mark in ("point", "line", "histogram") else 11 * scale
+        for (x, y), colour, symbol, size in (
+                (graph.kept, _c().sky, SYMBOLS.get(graph.mark, "+"), kept),
+                (graph.deleted, _c().muted, "x", 11 * scale),
+                (graph.fit, _c().accent, "s", 7)):
             if len(x):
-                self.plot.plot(x, y, pen=None, symbol=symbol, symbolSize=size,
-                               symbolBrush=pg.mkBrush(colour), symbolPen=None)
+                self.plot.plot(*self._on_axes(x, y), pen=None, symbol=symbol,
+                               symbolSize=size, symbolBrush=pg.mkBrush(colour),
+                               symbolPen=pg.mkPen(colour, width=1.2))
         x, y = graph.rejected
         if len(x):
-            self.plot.plot(x, y, pen=None, symbol="d", symbolSize=13, symbolBrush=None,
-                           symbolPen=pg.mkPen(_c().drop, width=1.6))
+            self.plot.plot(*self._on_axes(x, y), pen=None, symbol="d", symbolSize=13,
+                           symbolBrush=None, symbolPen=pg.mkPen(_c().drop, width=1.6))
         if not keep_view and not graph.overplot:
-            x0, x1, y0, y1 = graph.window
-            self.plot.getViewBox().setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)
+            self._set_window(graph)
+
+    def _on_axes(self, x, y):
+        """Where the values go on the plot: through elog on a logarithmic axis."""
+        xlog, ylog = self.session.gt.logs()
+        x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+        return (np.array([elog(v) for v in x]) if xlog else x,
+                np.array([elog(v) for v in y]) if ylog else y)
+
+    def _set_window(self, graph) -> None:
+        """The window gtools gives, the way its axes run; a logarithmic axis
+        drawn on elog, with ticks at its decades that say what they are."""
+        x1, x2, y1, y2 = graph.window
+        box = self.plot.getViewBox()
+        box.invertX(x1 > x2)
+        box.invertY(y1 > y2)
+        ranges = []
+        for name, (a, b), log in (("bottom", (x1, x2), graph.logs[0]),
+                                  ("left", (y1, y2), graph.logs[1])):
+            axis = self.plot.getAxis(name)
+            if log:
+                low, high = sorted((elog(a), elog(b)))
+                steps = range(int(np.floor(low)), int(np.ceil(high)) + 1)
+                axis.setTicks([[(float(k), f"{unelog(k):g}") for k in steps]])
+                ranges.append((low, high))
+            else:
+                axis.setTicks(None)
+                ranges.append(tuple(sorted((a, b))))
+        box.setRange(xRange=ranges[0], yRange=ranges[1], padding=0)
 
     # ---------------------------------------------------------- what is shown
 
@@ -156,23 +226,32 @@ class FitPanel(QtWidgets.QWidget):
             return True
         return super().eventFilter(obj, event)
 
+    def _world(self, x: float, y: float) -> tuple[float, float]:
+        """A point of the plot as the graph's coordinates: back off elog."""
+        xlog, ylog = self.session.gt.logs()
+        return (unelog(x) if xlog else x), (unelog(y) if ylog else y)
+
     def _mouse_moved(self, position) -> None:
         box = self.plot.getViewBox()
         if box.sceneBoundingRect().contains(position):
             point = box.mapSceneToView(position)
-            self._cursor = (point.x(), point.y())
+            self._cursor = self._world(point.x(), point.y())
 
-    def _scale(self) -> tuple[float, float]:
-        """Pixels per unit on each axis, so that nearest means nearest on the
-        screen, however the plot has been zoomed."""
+    def _scale(self) -> tuple[tuple, tuple[float, float]]:
+        """The view as zoomed, in the graph's coordinates, and its size on the
+        screen, so that nearest means nearest there."""
         box = self.plot.getViewBox()
         (x0, x1), (y0, y1) = box.viewRange()
-        return (box.width() or 1.0) / max(x1 - x0, 1e-12), \
-            (box.height() or 1.0) / max(y1 - y0, 1e-12)
+        (x0, y0), (x1, y1) = self._world(x0, y0), self._world(x1, y1)
+        return (x0, x1, y0, y1), (box.width() or 1.0, box.height() or 1.0)
 
     def key(self, key: str) -> bool:
-        """Handle one keystroke. Returns True if it was ours."""
-        if key == ":":
+        """Handle one keystroke. Returns True if it was ours. After w, the next
+        printable key is the window's."""
+        if self.session.pending and key and key.isprintable():
+            self.session.key(key, *self._cursor, scale=self._scale())
+            self._sync()
+        elif key == ":":
             self.command.setFocus()
             self.command.setText(":")
         elif key and key in dict(HELP):
@@ -196,9 +275,45 @@ class FitPanel(QtWidgets.QWidget):
             self._answer(text)
             return
         self.plot.setFocus()
-        if text.lstrip(":"):
-            self.session.key(":", rest=text.lstrip(":"))
+        rest = text.lstrip(":")
+        if rest.startswith("."):
+            self._cursor_mode(rest[1:])
+        elif rest:
+            self.session.key(":", rest=rest)
             self._sync()
+
+    def _cursor_mode(self, text: str) -> None:
+        """IRAF's cursor mode, the part of it worth having beside a mouse."""
+        words = text.split()
+        command = words[0] if words else ""
+        if command and "help".startswith(command):
+            said = "".join(f"{what:<16}{why}\n" for what, why in CURSOR_MODE)
+        elif command and ("snap".startswith(command) or "write".startswith(command)):
+            from .window import save_plot
+
+            path = Path(words[1]) if len(words) > 1 else _free("fitparams.png")
+            try:
+                save_plot(self.plot, path)
+                said = f"The graph is in {path}.\n"
+            except (OSError, ValueError) as error:
+                said = f"Could not write {path}: {error}. Name a .png, .svg, .pdf or .csv.\n"
+        else:
+            said = (f":.{command} is a cursor-mode command harwood does not have: the mouse "
+                    "zooms and drags the graph, and :.snap file.png saves it. :.help lists "
+                    "what there is.\n")
+        self.text.moveCursor(self.text.textCursor().MoveOperation.End)
+        self.text.insertPlainText(said)
+        self.text.ensureCursorVisible()
+
+
+def _free(name: str) -> Path:
+    """name, or name with a number in it, so that nothing is written over."""
+    path = Path(name)
+    number = 1
+    while path.exists():
+        path = Path(f"{Path(name).stem}-{number}{Path(name).suffix}")
+        number += 1
+    return path
 
 
 @on_main

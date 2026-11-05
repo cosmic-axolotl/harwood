@@ -1,0 +1,64 @@
+# Wed 22:54:23 04-Nov-2026
+begin	VFIT
+	status	0	(Solution converged)
+	variance	8.367226E-4
+	stdeviation	0.02892616
+	avsqerror	1.
+	averror		1.
+	avsqscatter	0.
+	avscatter	0.
+	chisqr		8.367226E-4
+	msq		6.574249E-4
+	rms		0.0256403
+	reference	mV
+	fitting		V+v1+v2*(B-V)+v3*XV
+	weights		uniform
+	parameters	3
+		v1	(fit)
+		v2	(fit)
+		v3	(fit)
+	derivatives	3
+		0.1
+		0.1
+		0.1
+	values	3
+		-21.90208
+		0.0427763
+		0.2028092
+	errors	3
+		0.04103723
+		0.01892777
+		0.02697037
+
+# Wed 22:54:23 04-Nov-2026
+begin	BFIT
+	status	0	(Solution converged)
+	variance	3.031337E-4
+	stdeviation	0.01741073
+	avsqerror	1.
+	averror		1.
+	avsqscatter	0.
+	avscatter	0.
+	chisqr		3.031337E-4
+	msq		2.425069E-4
+	rms		0.01557263
+	reference	mB
+	fitting		B+b1+b2*(B-V)+b3*XB
+	weights		uniform
+	parameters	3
+		b1	(fit)
+		b2	(fit)
+		b3	(fit)
+	derivatives	3
+		0.1
+		0.1
+		0.1
+	values	3
+		-21.8851
+		-0.09095873
+		0.309916
+	errors	3
+		0.02259882
+		0.01123632
+		0.01447465
+

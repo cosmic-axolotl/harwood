@@ -17,9 +17,15 @@ saved, so `again` after a save starts from where it ended. What `:const` and
 `:fit` change lasts for that equation's turn only, as do the graph keys. Said no
 to "quit?" is the same equation over again. `go` saves the rest unasked.
 
-Not ported: `w` and the `:.` and `:/` commands of the graphics cursor (the mouse
-zooms the panel), and `I`. In a cursor file `w` takes the next line with it, as
-IRAF's does.
+`w` and the `:/` commands are gtools' (core/gtools.py): one GTOOLS for the whole
+task, so what `:/xflip` or `:/mark` change carries from one equation to the next,
+while the window is let go at each equation, as ft_trneq does. When the graph key
+changes the x limits go and the y limits stay: ing_fit compares the new y axis
+with the x's it has just updated. Everything is drawn and found on the screen:
+under `:/transpose` the data's y runs across it, and nearest is nearest in the
+viewport, on a logarithmic axis too. A `:.` command in a cursor file comes to the
+task, which knows none (IRAF's cursor mode takes them only from a terminal); the
+panel takes them itself. Not ported: `I`.
 
 Translated from IRAF, Copyright (c) 1986 Association of Universities for
 Research in Astronomy Inc.; the notice it is distributed under is in
@@ -35,7 +41,7 @@ from pathlib import Path
 import numpy as np
 
 from .. import iraffmt
-from ..gio import with_room
+from ..gtools import GTools, elog
 from ..nlfit import DONE
 from . import io
 from .config import Config, evaluate
@@ -68,9 +74,10 @@ HELP = [
     ("o", "next graph over this one"),
     ("t", "the fit's values, or not"),
     ("r", "redraw"),
+    ("w", "window, then a key: z x y zoom, e e a box, a whole, ? the rest"),
     ("?", "these keys"),
     (":", "errors results show const fit nreject low_reject high_reject grow "
-          "tolerance maxiter"),
+          "tolerance maxiter; /xwindow /mark /transpose /help ... the graph's"),
     ("q", "finish this equation"),
 ]
 
@@ -79,6 +86,9 @@ _COMMANDS = ("show", "low_reject", "high_reject", "nreject", "grow", "errors", "
 _MOVES = ("first", "last", "prev", "next", "again", "go", "quit")
 _TYPES = ("function", "fit", "residuals", "ratio", "nonlinear", "var", "user")
 _NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eEdD][+-]?\d+)?$")
+
+#: The viewport IRAF draws fitparams in, in NDC: where nearest is measured.
+VIEWPORT = (0.725, 0.6472)
 
 #: The graph keys: (x, number), (y, number); in_init's.
 _KEYS = {"h": (("function", None), ("fit", None)),
@@ -117,17 +127,21 @@ def _yes(text: str | None, default: bool) -> bool:
 
 @dataclass
 class Graph:
-    """What ing_graph draws."""
+    """What ing_graph draws, as the screen has it: under transpose the data's y
+    is the screen's x. `window` runs the way the axes do, flipped or not."""
     title: list[str]
     params: list[str]
     xlabel: str
     ylabel: str
     window: tuple[float, float, float, float]
-    kept: tuple[np.ndarray, np.ndarray]         #: as +
+    kept: tuple[np.ndarray, np.ndarray]         #: as `mark`, + unless :/mark
     deleted: tuple[np.ndarray, np.ndarray]      #: as x
     rejected: tuple[np.ndarray, np.ndarray]     #: as diamonds
     fit: tuple[np.ndarray, np.ndarray]          #: as boxes, after t
     overplot: bool = False
+    mark: str = "plus"                          #: a gtools mark, or line or histogram
+    size: tuple[float, float] = (2.0, 2.0)      #: :/xsize, :/ysize
+    logs: tuple[bool, bool] = (False, False)    #: the screen's x and y logarithmic
 
 
 class FitSession:
@@ -160,6 +174,10 @@ class FitSession:
         self.prompt = ""
         self._graphkey = ""
         self.newgraph = False           #: the graph is out of date (ing_fit's newgraph)
+        self.gt = GTools()              #: gt_init, once for the task
+        self.pending = ""               #: "window" after w, "again" after w e
+        self._corner = (0.0, 0.0)
+        self.window = (0.0, 1.0, 0.0, 1.0)  #: the last graph's, as ggwind has it
         self._begin()
 
     # ------------------------------------------------------------- printing
@@ -216,6 +234,10 @@ class FitSession:
             self.keys["l"] = [("user", 1), ("user", 2)]
         self.plotfit = False
         self.overplot = False
+        self.pending = ""
+        self.gt.reset_window()
+        # ing_fit's second in_gkey writes the y axis into what holds the x's.
+        self._xaxis = tuple(self.keys[self.graphkey][1])
         self.fitter.run()
         self.xmin = self.fitter.x.min(axis=0)
         self.xmax = self.fitter.x.max(axis=0)
@@ -328,6 +350,9 @@ class FitSession:
                 return
         elif self.state != "fit":
             return
+        if self.pending:
+            self._window_key(key, x, y)
+            return
         fitter = self.fitter
         if key == "q":
             if self.state == "fit":
@@ -359,8 +384,25 @@ class FitSession:
         elif key == "t":
             self.plotfit = not self.plotfit
             self.newgraph = True
-        elif key != "w":
+        elif key == "w":
+            self.pending = "window"
+            self._print("window:")
+        else:
             self._print("\a\n")
+
+    def _window_key(self, key: str, x: float, y: float) -> None:
+        """gt_window: the key after w, at the screen's cursor, not gt_gcur1's."""
+        if self.pending == "window" and key == "e":
+            self.pending, self._corner = "again", (x, y)
+            self._print("again:")
+            return
+        if self.pending == "again":
+            redraw = self.gt.window2(self._corner, (x, y), self.window)
+        else:
+            said, redraw = self.gt.window1(key, x, y, self.window)
+            self._print(said)
+        self.pending = ""
+        self.newgraph = self.newgraph or redraw
 
     def _define_key(self, text: str | None) -> None:
         """ing_defkey, the first prompt."""
@@ -481,21 +523,41 @@ class FitSession:
         code = (eq.xplot if number == 1 else eq.yplot).code
         return np.array([evaluate(code, row, fitter.nl.param) for row in fitter.x], dtype=f32)
 
-    def _scale(self, xs, ys) -> tuple[float, float]:
-        x0, x1, y0, y1 = _window(xs, ys)
-        return 1.0 / ((x1 - x0) or 1.0), 1.0 / ((y1 - y0) or 1.0)
+    def _ndc(self, xs, ys, view=None, size=None) -> tuple[np.ndarray, np.ndarray]:
+        """gctran to NDC: the screen's coordinates through the window as drawn (or
+        the view a panel has zoomed to), logarithmic where the axis is, over the
+        viewport's width and height (or the panel's)."""
+        x1, x2, y1, y2 = view if view is not None else self.window
+        width, height = size if size is not None else VIEWPORT
+        xlog, ylog = self.gt.logs()
+
+        def one(values, a, b, log, extent):
+            values = np.atleast_1d(np.asarray(values, dtype=float))
+            if log:
+                values = np.array([elog(v) for v in values])
+                a, b = elog(a), elog(b)
+            return (values - a) / ((b - a) or 1.0) * extent
+
+        return one(xs, x1, x2, xlog, width), one(ys, y1, y2, ylog, height)
+
+    def _screen(self, xs, ys):
+        """The data's x and y as the screen's: swapped under transpose."""
+        return (ys, xs) if self.gt.transpose else (xs, ys)
 
     def _nearest(self, xs, ys, x: float, y: float, scale, part: str) -> int | None:
         """ing_n, ing_d1, ing_u1: the first of several at one distance, as the
-        strict comparison leaves it. `part`: all, kept (weight), or deleted."""
-        sx, sy = scale if scale is not None else self._scale(xs, ys)
+        strict comparison leaves it, in NDC. `part`: all, kept (weight), or
+        deleted. `scale`: a panel's (view, size), else the graph's own."""
+        view, size = scale if scale is not None else (None, None)
+        px, py = self._ndc(*self._screen(xs, ys), view, size)
+        cx, cy = self._ndc([x], [y], view, size)
         best, found = MAX_REAL, None
         for i in range(len(xs)):
             if part == "kept" and self.fitter.wts[i] == 0:
                 continue
             if part == "deleted" and self.fitter.wts[i] != 0:
                 continue
-            r2 = float(((xs[i] - x) * sx) ** 2 + ((ys[i] - y) * sy) ** 2)
+            r2 = float(np.float32((px[i] - cx[0]) ** 2 + (py[i] - cy[0]) ** 2))
             if r2 < best:
                 best, found = r2, i
         return found
@@ -520,9 +582,16 @@ class FitSession:
     # ------------------------------------------------------- colon commands
 
     def _colon(self, text: str) -> None:
-        """ing_colon: none of them asks for a new graph."""
+        """ing_colon, and gt_colon for what begins with '/': of ing_colon's none
+        asks for a new graph."""
+        if text.startswith("/"):
+            out, err, redraw = self.gt.colon(text, self.window)
+            self._print(out)
+            self._eprint(err)
+            self.newgraph = self.newgraph or redraw
+            return
         words = text.split()
-        if not words or words[0].startswith((".", "/")):
+        if not words:
             return
         found = strdic(words[0], _COMMANDS)
         if not found:
@@ -624,6 +693,7 @@ class FitSession:
                 self._eprint(f"Bad parameter value ({words[1]})\n")
                 return
             value = f32(words[1].replace("d", "e").replace("D", "e"))
+            self.gt.last_real[0] = float(value)
         fitter.values[number - 1] = value
         plist = fitter.plist
         pos = next((i for i, k in enumerate(plist) if k >= number), len(plist))
@@ -653,6 +723,7 @@ class FitSession:
         number = None
         if value is not None and _NUMBER.match(value):
             number = float(f32(value.replace("d", "e").replace("D", "e")))
+            self.gt.last_real[0] = number
         if number is None:
             self._print(f"{name} = {_g(f32(getattr(fitter, name)))}\n")
         else:
@@ -661,8 +732,13 @@ class FitSession:
     # ------------------------------------------------------------ the graph
 
     def graph(self) -> Graph:
-        """ing_graph, and ing_params for the title and the line under it."""
+        """ing_graph, and ing_params for the title and the line under it; what
+        they set in the GTOOLS overwrites what colon commands put there."""
         fitter = self.fitter
+        xaxis = tuple(self.keys[self.graphkey][0])
+        if xaxis != self._xaxis:
+            self._xaxis = xaxis
+            self.gt.xmin = self.gt.xmax = None
         xs, ys = self._axis(0), self._axis(1)
         wts = fitter.wts
         rejected = fitter.rejected
@@ -685,9 +761,23 @@ class FitSession:
                   f"iterations={fitter.nl.iter}"]
         title = [f"{self.eq.ref.text} = {self.eq.fit.text}",
                  io.STATUS.get(fitter.stat, "Unknown error code")]
-        graph = Graph(title, params, self._label(0), self._label(1), _window(xs, ys),
-                      (xs[kept], ys[kept]), (xs[deleted], ys[deleted]),
-                      (xs[rejected], ys[rejected]), fit, self.overplot)
+        gt = self.gt
+        gt.params, gt.title = "\n".join(params), "\n".join(title)
+        gt.xlabel, gt.ylabel = self._label(0), self._label(1)
+        gt.xunits = gt.yunits = ""
+        if not self.overplot:
+            self.window = gt.swind(_span(xs), _span(ys))
+        labels = (gt.label("x"), gt.label("y"))
+        if gt.transpose:
+            labels = labels[::-1]
+        drawn = gt.title_block()
+        params, title = (drawn[:len(params)], drawn[len(params):]) if drawn else ([], [])
+        screen = self._screen
+        graph = Graph(title, params, *labels, self.window,
+                      screen(xs[kept], ys[kept]), screen(xs[deleted], ys[deleted]),
+                      screen(xs[rejected], ys[rejected]), screen(*fit), self.overplot,
+                      mark=gt.type_name() if gt.type == 1 else TYPES_DRAWN[gt.type],
+                      size=(gt.xsize, gt.ysize), logs=gt.logs())
         self.overplot = self.newgraph = False
         return graph
 
@@ -732,6 +822,7 @@ class FitSession:
                 continue
             words = next_cursor()
             if words is None:
+                self.pending = ""           # gt_window returns at the end of the file
                 self.key("q")
                 continue
             x, y, key = float(words[0]), float(words[1]), words[3]
@@ -740,12 +831,20 @@ class FitSession:
                 self.key(":", rest=rest)
             else:
                 self.key(key, x, y)
-                if key == "w":
-                    next_cursor()
 
 
-def _window(xs: np.ndarray, ys: np.ndarray) -> tuple[float, float, float, float]:
-    return (*with_room(xs), *with_room(ys))
+#: What a graph of lines or histograms draws one point at a time with: a
+#: polyline of one point, which is no mark at all.
+TYPES_DRAWN = {2: "line", 3: "histogram"}
+
+
+def _span(values: np.ndarray) -> tuple[float, float]:
+    """gascale: the range of the values there are."""
+    values = np.asarray(values)
+    values = values[np.isfinite(values)]
+    if not values.size:
+        return -1.0, 1.0
+    return float(values.min()), float(values.max())
 
 
 def _vtran(name: str) -> str:

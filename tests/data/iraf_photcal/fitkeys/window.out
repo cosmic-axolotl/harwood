@@ -1,0 +1,53 @@
+window:5 2S x=-8.467 y=0.01539993 func=-8.467 fit=-8.4824, resid=0.01539993
+window:window:window:window:window:window:window:window:window:window:window:window:window:window:window:window:5 2S x=-8.467 y=0.01539993 func=-8.467 fit=-8.4824, resid=0.01539993
+window:window:window:	SET GRAPH WINDOW
+
+a  Autoscale x and y axes
+b  Set bottom edge of window
+c  Center window at cursor position
+d  Shift window down
+e  Expand window (mark lower left and upper right of new window)
+f  Flip x axis
+g  Flip y axis
+j  Set left edge of window
+k  Set right edge of window
+l  Shift window left
+m  Autoscale x axis
+n  Autoscale y axis
+p  Pan x and y axes about cursor
+r  Shift window right
+t  Set top edge of window
+u  Shift window up
+x  Zoom x axis about cursor
+y  Zoom y axis about cursor
+z  Zoom x and y axes about cursor
+window:again:5 2S x=-8.467 y=0.01539993 func=-8.467 fit=-8.4824, resid=0.01539993
+window:again:
+#Wed 22:54:21 04-Nov-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            0
+standard deviation 0.02809818
+reduced chi        0.02809818
+average error              1.
+average scatter            0.
+RMS                0.02513178
+
+parameter            value           error
+v1             -21.9059124       0.0393189    (fit)
+v2               0.0445506       0.0181337    (fit)
+v3               0.2056334       0.0257491    (fit)
+
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

@@ -1,12 +1,19 @@
 """IRAF's graphics metacode (GKI, what stdvdm writes to uparm$vdm) as what the graph
-tests compare: python decode_gki.py NAME.vdm [--over-lines | --everything] writes NAME.json.
+tests compare: python decode_gki.py NAME.vdm [--over-lines | --everything | --windows]
+writes NAME.json.
 
 A frame is a clear of the screen. A mark is drawn as five points: a plus or a cross
 through its centre, a box or a diamond closed on itself. What d and u put over a
 finished frame is left out, the frame after the next redraw showing where things
 then stand, which is what the panels redraw at once. In mkapfile those come after
 the frame's lines; in fitparams, whose title gives the number of points, after the
-last whole set of them."""
+last whole set of them.
+
+--windows, for graphs whose window a person sets (fitparams' w and :/): when the
+window leaves points out GIO clips their marks, so a frame with fewer than the
+total keeps every whole mark it has (a d or u before the redraw would then count
+as the frame's: the cases redraw first), and the pieces of a mark cut at the edge
+of the viewport are neither marks nor lines. An elog axis is in "log", x then y."""
 import json
 import re
 import sys
@@ -41,7 +48,7 @@ def mark(points):
     return None
 
 
-def frames(path, over_lines=False):
+def frames(path, over_lines=False, windows=False):
     """`over_lines`: marks after a frame's lines are the frame's too, as implot's."""
     out, frame, style = [], None, 1
     for opcode, data in instructions(path):
@@ -53,9 +60,14 @@ def frames(path, over_lines=False):
         elif frame is None:
             continue
         elif opcode == WCS:
-            # Eight reals, each in a slot of eight bytes: window, then viewport.
+            # Eight reals, each in a slot of eight bytes: window, then viewport;
+            # then the two transforms, 2 for GIO's elog.
             values = np.frombuffer(data[1:].tobytes()[:64], dtype="<f4")[::2]
             frame["window"] = [round(float(v), 7) for v in values]
+            transforms = np.frombuffer(data[1:].tobytes()[64:80], dtype="<i4")[::2]
+            frame.pop("log", None)
+            if windows and transforms.any():
+                frame["log"] = [bool(t == 2) for t in transforms]
         elif opcode == PLSET:
             style = int(data[0])
         elif opcode == TEXT:
@@ -72,9 +84,21 @@ def frames(path, over_lines=False):
                     frame[found[0]].append(centre)
                 elif over_lines or not frame["lines"]:
                     frame["drawn"].append((found[0], centre))
-            else:
+            elif not (windows and _cut_at_edge(frame, points)):
                 frame["lines"].append([style, points.tolist()])
-    return [_without_what_came_after(frame) for frame in out]
+    return [_without_what_came_after(frame, windows) for frame in out]
+
+
+def _cut_at_edge(frame, points):
+    """A piece of a mark the viewport's edge cut: a stroke or two of a few
+    points, one of them on the edge."""
+    if frame["window"] is None or len(points) > 5:
+        return False
+    sx1, sx2, sy1, sy2 = (np.array(frame["window"][4:8]) * 32767).round()
+    if (points.max(axis=0) - points.min(axis=0)).max() > 2 * 371:
+        return False
+    return bool((np.abs(points[:, 0, None] - [sx1, sx2]) <= 1).any()
+                or (np.abs(points[:, 1, None] - [sy1, sy2]) <= 1).any())
 
 
 def everything(path):
@@ -113,10 +137,10 @@ def everything(path):
     return out
 
 
-def _without_what_came_after(frame):
+def _without_what_came_after(frame, windows=False):
     found = re.search(r"total=(\d+)", " ".join(frame["text"]))
     drawn = frame.pop("drawn")
-    if found:
+    if found and (not windows or len(drawn) >= int(found[1])):
         drawn = drawn[:len(drawn) // int(found[1]) * int(found[1])]
     for kind, centre in drawn:
         frame[kind].append(centre)
@@ -126,6 +150,6 @@ def _without_what_came_after(frame):
 if __name__ == "__main__":
     path = Path(sys.argv[1])
     read = everything(path) if "--everything" in sys.argv else frames(
-        path, "--over-lines" in sys.argv)
+        path, "--over-lines" in sys.argv, "--windows" in sys.argv)
     text = json.dumps(read, separators=(",", ":"))
     path.with_suffix(".json").write_text(text + "\n", encoding="utf-8")

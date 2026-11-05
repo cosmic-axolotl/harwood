@@ -1,0 +1,35 @@
+xtransform = logarithmic
+6 3S x=23.70944 y=-0.04207611 func=-6.828 fit=-6.785924, resid=-0.04207611
+8 2S x=1.55 y=0.0288496 func=-8.543 fit=-8.57185, resid=0.0288496
+window:again:6 3S x=23.70944 y=-0.040061 func=-6.828 fit=-6.787939, resid=-0.040061
+6 3S x=23.70944 y=-0.040061 func=-6.828 fit=-6.787939, resid=-0.040061
+6 3S x=23.70944 y=-0.040061 func=-6.828 fit=-6.787939, resid=-0.040061
+
+#Wed 22:54:25 04-Nov-2026
+#mV = V+v1+v2*(B-V)+v3*XV
+#Solution converged
+
+low_reject    3.
+high_reject   3.
+nreject       0
+grow          0.
+tol           3.000000E-5
+maxiter       15
+
+
+niterations        4
+total_points       15
+rejected           0
+deleted            1
+standard deviation 0.02780659
+reduced chi        0.02780659
+average error              1.
+average scatter            0.
+RMS                0.02464791
+
+parameter            value           error
+v1             -21.9164677       0.0400371    (fit)
+v2               0.0411512       0.0182008    (fit)
+v3               0.2124925       0.0262083    (fit)
+
+Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Do you want to save fit results ? (yes): Command (|first|last|prev|next|again|go|quit|) (next) : Program will quit. Do you really want to do so ? (yes): 

@@ -74,14 +74,34 @@ invertfit reads the last. What `:const` and `g` changed lasts for that turn of
 the equation. Closing the tab before the end saves nothing more, and the task
 says which equations have no record.
 
+**The graph.** `w` and a key after it set the window, as IRAF's gtools do: `z`,
+`x` and `y` zoom about the cursor, `e` and `e` again mark two corners, `j` `k`
+`b` `t` an edge, `l` `r` `u` `d` shift, `c` and `p` centre and pan, `f` and `g`
+flip an axis, `a`, `m` and `n` let the limits go, `w ?` lists them. The colon
+commands that begin with `/` are gtools' too: `:/xwindow -8 -6` and `:/ywindow`
+set the window or show it, `:/expand` and `:/shift` move it, `:/xflip yes`,
+`:/transpose`, `:/xtransform log` (IRAF's elog scale, out to whole decades),
+`:/mark box`, `:/type line`, `:/xsize`, `:/subtitle`, `:/comments`,
+`:/drawtitle no`, `:/drawxlabels no`, and `:/help` for the rest. As IRAF's help
+says, they take effect at the next graph (`r`), and the title, the labels and
+the parameters line are set anew at each one, so `:/title` changes nothing here.
+The window starts over with each equation; flips, marks and the rest carry on to
+the next. On a flipped axis an edge is the screen's: `w j` is the left one
+whichever way the numbers run. The mouse zooms and drags the graph besides, and
+`c`, `d` and `u` take the point nearest on the screen as it is. `:.` commands
+are IRAF's cursor mode, which the panel has in part: `:.snap graph.png` (or .svg,
+.pdf, .csv) saves the graph, `:.help` says what else there is.
+
 **Identical to IRAF.** The parameters file and the log agree with IRAF's
 to the last digit printed, in every weighting, with rejection, and with the
-whole configuration language exercised; so do thirty-six sessions by the keys,
-with the text they print on both streams. What is drawn is held to IRAF's graphics
-metacode as well: 133 frames, windows, titles, labels and every mark. Three
-differences are deliberate.
-`:const 3` names the parameter, where IRAF prints whatever was in memory. `w` and
-the graphics cursor's `:.` and `:/` commands are not ported: the mouse zooms the
-panel. `?` lists the keys above instead of paging IRAF's help file. One IRAF
-habit is kept for the file of answers only: a blank line after a command it did
-not know means `first`.
+whole configuration language exercised; so do forty-six sessions by the keys,
+with the text they print on both streams -- `w` with every key after it, the
+`:/` commands, flipped, transposed and logarithmic graphs among them. What is
+drawn is held to IRAF's graphics metacode as well: 223 frames, windows, titles,
+labels and every mark the window leaves whole. Three differences are deliberate.
+`:const 3` names the parameter, where IRAF prints whatever was in memory. `?`
+lists the keys above instead of paging IRAF's help file. Cursor mode's `:.`
+commands are the panel's, as they are the terminal's in IRAF; from a file of
+cursor commands they reach the task, which rings the bell, as IRAF's does. One
+IRAF habit is kept for the file of answers only: a blank line after a command it
+did not know means `first`. Not ported: `I`, which kills the task.

@@ -35,6 +35,23 @@ def on(command):
     return (0, 0, command)
 
 
+def across(key, i, command):
+    """The command on point i under :/transpose, the data's y across the screen."""
+    xs, ys = graphs[key]
+    return (ys[i], xs[i], command)
+
+
+def w(key, where=None):
+    """w and the key after it, both at point `where` of graph i or both at 0 0."""
+    point = at("i", where, "") if where is not None else on("")
+    return [point[:2] + ("w",), point[:2] + (key,)]
+
+
+GT = [": /" + c for c in (
+    "xwindow", "ywindow", "xwindow -6 -2", "xwindow", "ywindow -0.1 0.1", "xflip",
+    "xflip yes", "yflip yes")]
+
+
 ALL = ["h", "i", "j", "k", "l"]
 GO = ["yes", "next", "yes", "next", "yes"]  # save, on; save, on; leave
 CASES = {
@@ -107,6 +124,62 @@ CASES = {
     "eof": ([on(": show")], [], {}),
     "nocursor": ([], [], {}),
     "wkey": ([on("w"), on("q"), on(": show")], GO, {}),
+    # w and each key after it; e, then the other corner; a bad key, and ?.
+    "window": (w("z", 4) + [at("i", 4, "c")] + w("a") + w("x", 4) + w("y", 4) + w("p", 4)
+               + w("c", 4) + w("l") + w("r") + w("u") + w("d") + w("j", 2) + w("k", 9)
+               + w("b", 2) + w("t", 9) + w("m") + w("n") + w("f") + [at("i", 4, "c")]
+               + w("g") + w("q") + w("?") + [at("i", 2, "w"), at("i", 2, "e"), at("i", 9, "e"),
+                                             at("i", 4, "c")]
+               + [on("w"), on("e"), on("q"), on(": errors")], GO, {}),
+    # On a flipped axis gt_setr swaps min and max: j is the screen's left edge.
+    "windowflip": (w("f") + w("j", 2) + w("k", 9) + w("a") + w("j", 2) + w("f") + w("k", 9)
+                   + w("a") + w("f") + w("g") + w("c", 4) + w("x", 4) + w("b", 2)
+                   + [on(": /xwindow"), on(": /ywindow"), on(": /xwindow -8 -7"), on("r"),
+                      on(": /xwindow"), on(": /shift -7.2 0.01"),
+                      on(": /expand -9 -6 -0.1 0.1"), on(": /ywindow")]
+                   + w("u") + w("l") + [on(": errors")], GO, {}),
+    # Another graph key lets the x limits go and keeps the y's, as ing_fit does.
+    "windowkey": (w("z", 4) + [on("h"), on("i")] + w("f") + w("g") + [on("j"), on(": show")],
+                  GO, {}),
+    # The window goes with the equation; the flip and the marks stay for the next.
+    "windoweq": (w("z", 4) + [on(": /xflip yes"), on(": /mark box"), on("q"), at("i", 4, "c"),
+                              on(": /xflip"), on(": /mark")], GO, {}),
+    "gtcolon": ([on(c) for c in GT] + [on(": /transpose"), on("r"), at("i", 4, "c"),
+                                        on(": /transpose")]
+                + [on(": /" + c) for c in (
+                    "mark box", "mark", "type", "subtitle a subtitle",
+                    "comments some comments", "title new title", "xlabel new x", "xunits mag",
+                    "xbuf", "xbuf 0.2", "ybuf",
+                    "clip", "xsize", "sysid", "drawtitle", "drawxlabels", "line", "color",
+                    "xtransform", "redraw", "bogus", "mark nosuch", "xtransform nosuch",
+                    "type nosuch", "xview", "yview", "xview 0.2 0.8")] + [on("r")], GO, {}),
+    # :/shift with nothing to read takes the last real read; :/window is not there.
+    "gtcolon2": ([on(": /" + c) for c in (
+                     "expand -7 -1 -0.1 0.1", "shift -3 0", "shift", "window 0 0 1 a",
+                     "drawtitle no", "drawxlabels no", "drawylabels no")]
+                 + [on("r")] + [on(": /" + c) for c in (
+                     "drawtitle yes", "drawxlabels yes", "drawylabels yes", "sysid no",
+                     "drawgrid yes yes", "transpose")]
+                 + [across("i", 4, "d"), on("f"), on(": errors"), on(": /help")], GO, {}),
+    "transposed": ([on(": /transpose"), on("r"), across("i", 4, "c"), across("i", 7, "d"),
+                    on("f"), across("i", 7, "u"), on("f"), across("i", 4, "w"),
+                    across("i", 4, "x"), across("i", 4, "c"), across("i", 2, "w"),
+                    across("i", 2, "e"), across("i", 9, "e"), on(": /transpose"), on("r"),
+                    on(": errors")], GO, {}),
+    "marks": ([on(": /" + c) for c in ("mark diamond", "redraw")] + [at("i", 4, "c")]
+              + [on(": /" + c) for c in ("type line", "type", "redraw", "type line3", "type",
+                                         "type mark", "type", "xsize 4", "ysize", "redraw",
+                                         "mark cross", "redraw", "mark plus")]
+              + [at("i", 4, "d"), on("f"), on(": errors")], GO, {}),
+    # A logarithmic axis is drawn out to whole decades of elog; nearest is on it.
+    "logaxis": ([on("k"), on(": /xtransform log"), on(": /xtransform"), on("r"),
+                 at("k", 5, "c"), at("k", 7, "c"), at("k", 7, "d"), on("f"), at("k", 3, "w"),
+                 at("k", 3, "e"), at("k", 11, "e"), at("k", 5, "c"),
+                 on(": /ytransform logarithmic"), on("r"), at("k", 5, "c"),
+                 on(": /xtransform linear"), on(": /ytransform lin"), on("r"), at("k", 5, "c"),
+                 on(": errors")], GO, {}),
+    # Cursor mode's commands come to the task from a file, which knows none.
+    "cursormode": ([on(": .gflush"), on(": .bogus"), on(": .help"), on(": show")], GO, {}),
     # An axis with no width: the airmass of one image, at 1, under 1 and at 0.
     **{name: ([on("g"), on("h"), on("g")],
               ["h", "XV,fit", "h", "residuals,XB", *GO], {"observations": f"{name}.obsfile"})
