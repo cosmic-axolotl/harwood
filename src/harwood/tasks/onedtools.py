@@ -2681,3 +2681,296 @@ class Sfit(_Sfit, Task[SfitParams]):
     package = "onedspec"
     description = "Fit a curve to spectra, and write the fit, the data, or both."
     Params = SfitParams
+
+
+FPWHY = {
+    "profiles": "Each line of --positions is a profile: its position, and if given its "
+                "peak, its type (gaussian, lorentzian, voigt) and its widths; what is "
+                "left out is --profile, --gfwhm and --lfwhm, and a peak left out is the "
+                "data's there.",
+    "fit": "Over --region, above a straight background through its ends (or as "
+           "--background says), the profiles are fitted by least squares: the "
+           "background held and then fitted, the positions fixed, then together, then "
+           "each its own, as --fitpositions, --fitgfwhm and --fitlfwhm allow.",
+    "errors": "With --sigma0 and --invgain, the noise is sqrt(sigma0^2 + invgain*data); "
+              "--nerrsample fits of the model with that noise added give errors, the "
+              "68th percentile of how far they fall from the fit.",
+    "write": "The log gives each profile's centre, the continuum under it, its flux, "
+             "equivalent width, peak and widths; --output gets the model, or the data "
+             "less the model.",
+}
+
+
+class FitprofsParams(TaskParams):
+    input: str = Field(..., description="Spectra to fit. Commas, globs and @lists expand.")
+    lines: str = Field("", description="Apertures to fit (1,3-5); a leading ! all but "
+                                       "those.")
+    bands: str = Field("", description="Bands of the output (1 the spectrum); a leading "
+                                       "! all but those -- and, as IRAF's, all but the "
+                                       "apertures in --lines too.")
+    region: str = Field("", description="The region to fit: two wavelengths.")
+    positions: str = Field("", description="The file of profiles: position [peak "
+                                           "[type [gfwhm [lfwhm]]]] a line.")
+    background: str = Field("", description="The background at each end: a value, "
+                                            "avg(w1,w2[,scale]) or med(w1,w2[,scale]); "
+                                            "left out, the data at the region's ends.")
+    profile: Literal["gaussian", "lorentzian", "voigt"] = Field(
+        "gaussian", description="The profile of a line that does not say.")
+    gfwhm: float = Field(20.0, description="The gaussian FWHM of a line that does not "
+                                           "say.")
+    lfwhm: float = Field(20.0, description="The lorentzian FWHM of a line that does not "
+                                           "say.")
+    fitbackground: bool = Field(True, description="Fit the background.")
+    fitpositions: Literal["fixed", "single", "all"] = Field(
+        "all", description="Positions: held, moved together, or each its own.")
+    fitgfwhm: Literal["fixed", "single", "all"] = Field(
+        "all", description="Gaussian widths: held, scaled together, or each its own.")
+    fitlfwhm: Literal["fixed", "single", "all"] = Field(
+        "all", description="Lorentzian widths: held, scaled together, or each its own.")
+    nerrsample: int = Field(0, ge=0, description="Monte-Carlo samples for the errors "
+                                                 "(fewer than 15: none).")
+    sigma0: float | None = Field(None, description="The noise's constant term.")
+    invgain: float | None = Field(None, description="The noise's term in the data, the "
+                                                    "inverse gain.")
+    components: str = Field("", description="Profiles to log and model (1,3-5).")
+    verbose: bool = Field(True, description="Say it on the standard output.")
+    logfile: str = Field("logfile", description="A file the log is added to; empty for "
+                                                "none.")
+    plotfile: str = Field("", description="IRAF's metacode plot file: not harwood's.")
+    output: str = Field("", description="Spectra of the model, one per input.")
+    option: Literal["fit", "difference"] = Field(
+        "fit", description="The output: the model, or the data less the model.")
+    clobber: bool = Field(False, description="Replace an output that exists.")
+    merge: bool = Field(False, description="IRAF's merge into an existing output: not "
+                                           "harwood's.")
+
+
+@register
+class Fitprofs(Task[FitprofsParams]):
+    name = "fitprofs"
+    package = "onedspec"
+    description = "Fit gaussian, lorentzian and voigt profiles to lines of spectra."
+    Params = FitprofsParams
+
+    def plan(self, params: FitprofsParams) -> list[Step]:
+        steps = [Step("profiles", params.positions, why=FPWHY["profiles"]),
+                 Step("fit", f"region {params.region}", why=FPWHY["fit"])]
+        if params.sigma0 is not None and params.invgain is not None:
+            steps.append(Step("errors", f"{params.nerrsample} samples",
+                              why=FPWHY["errors"]))
+        return steps + [Step("write", params.output or "the log", why=FPWHY["write"])]
+
+    def execute(self, params: FitprofsParams) -> TaskResult:
+        from ..core import fitprofs, images, ranges
+
+        ins = [str(s) for s in images.expand(params.input)] or [params.input]
+        outs = [o.strip() for o in images.split_list(params.output)] \
+            if params.output.strip() else []
+        if len(outs) > 1 and len(outs) != len(ins):
+            advice.fail("Input and output image lists do not make sense",
+                        "give one output for each input.")
+        if params.plotfile.strip():
+            advice.fail("plotfile is IRAF's metacode, which harwood does not write",
+                        "leave --plotfile empty.")
+        if params.merge and params.clobber:
+            advice.fail("merge is not harwood's: IRAF 2.18's merge into an existing "
+                        "output ends in a segmentation violation, so there is nothing to "
+                        "hold it to",
+                        "write a new output, or --clobber the old one.")
+        fit = [fitprofs.SINGLE if params.fitbackground else fitprofs.FIXED,
+               fitprofs.FITTYPES.index(params.fitpositions) + 1, fitprofs.INDEP,
+               fitprofs.FITTYPES.index(params.fitgfwhm) + 1,
+               fitprofs.FITTYPES.index(params.fitlfwhm) + 1]
+        sigma0, invgain = params.sigma0, params.invgain
+        if sigma0 is None or invgain is None or sigma0 < 0 or invgain < 0:
+            sigma0 = invgain = None
+        profiles = _fp_positions(params)
+        region = params.region.split()
+        try:
+            region = [float(region[0]), float(region[1])]
+        except (IndexError, ValueError):
+            advice.fail(f"region '{params.region}' is not two wavelengths",
+                        "give the region to fit as --region 'w1 w2'.")
+        complement = False
+        texts = {}
+        for key in ("lines", "bands"):
+            text = getattr(params, key).strip()
+            if text.startswith("!"):
+                complement = True
+                text = text[1:]
+            texts[key] = ranges.parse(text, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        components = ranges.parse(params.components, -ranges.RNG_MAXINT,
+                                  ranges.RNG_MAXINT)
+        logged: list[str] = []
+        text: list[str] = []
+        written: list[Path] = []
+        gasdev = fitprofs.Gasdev()
+
+        def say(lines):
+            logged.extend(lines)
+            if params.verbose:
+                text.extend(lines)
+
+        def warn(message):
+            text.append(f"Warning: {message}")
+
+        for k, name in enumerate(ins):
+            output = outs[k] if k < len(outs) else ""
+            try:
+                done = _fp_one(name, output, params, texts, complement, profiles,
+                               region, fit, sigma0, invgain, components, gasdev, say,
+                               warn)
+            except ValueError as error:
+                warn(str(error))
+                continue
+            if done is not None:
+                written.append(done)
+        if params.logfile.strip():
+            with open(params.logfile.strip(), "a", encoding="utf-8") as handle:
+                handle.write("".join(line + "\n" for line in logged))
+        return TaskResult(outputs=written, steps=self.plan(params), data={"text": text})
+
+
+def _fp_positions(params):
+    """The positions file as t_fitprofs reads it: x, peak, type, gfwhm, lfwhm a line,
+    as many as scan, the rest from the defaults."""
+    import numpy as np
+
+    from ..core import fitprofs, iraffmt
+
+    name = params.positions.strip()
+    if not name:
+        advice.fail("A 'positions' file must be specified",
+                    "give --positions, a file of the lines to fit.")
+    if not Path(name).is_file():
+        advice.fail(f"Cannot open file ({name})", "check the name of the positions file.",
+                    FileNotFoundError)
+    ptype = fitprofs.PTYPES.index(params.profile) + 1
+    gfwhm, lfwhm = np.float32(params.gfwhm), np.float32(params.lfwhm)
+    profiles = []
+    for line in Path(name).read_text(encoding="utf-8").splitlines():
+        words = line.split()
+        values = []
+        word = ""
+        for index, kind in enumerate(("r", "r", "w", "r", "r")):
+            if index >= len(words):
+                break
+            if kind == "w":
+                word = words[index]
+                values.append(word)
+                continue
+            value = iraffmt.ctod(words[index])
+            if value is None:
+                break
+            values.append(value)
+        nscan = len(values)
+        if nscan == 0:
+            continue
+        matched = [i + 1 for i, p in enumerate(fitprofs.PTYPES)
+                   if word and p.startswith(word)]
+        p = matched[0] if len(matched) == 1 else ptype
+        x = np.float32(values[0])
+        y = None if nscan < 2 or values[1] >= 1e300 else np.float32(values[1])
+        g = np.float32(values[3]) if nscan >= 4 else gfwhm
+        l = np.float32(values[4]) if nscan >= 5 else lfwhm  # noqa: E741
+        if nscan <= 2:
+            p, g, l = ptype, gfwhm, lfwhm  # noqa: E741
+        elif nscan == 3:
+            g, l = gfwhm, lfwhm  # noqa: E741
+        elif nscan == 4:
+            if p == fitprofs.LORENTZ:
+                g, l = gfwhm, g  # noqa: E741
+            else:
+                l = lfwhm  # noqa: E741
+        # As t_fitprofs stores them: a lorentzian's width is g, which is --gfwhm unless
+        # the line has all five fields, and then its fourth.
+        if p == fitprofs.GAUSS:
+            profiles.append((p, x, y, g, np.float32(0)))
+        elif p == fitprofs.LORENTZ:
+            profiles.append((p, x, y, np.float32(0), g))
+        else:
+            profiles.append((p, x, y, g, l))
+    if not profiles:
+        advice.fail("No profiles defined", "the positions file has no lines in it.")
+    return profiles
+
+
+def _fp_one(name, output, params, texts, complement, profiles, region, fit, sigma0,
+            invgain, components, gasdev, say, warn) -> Path | None:
+    """fp_ms on one input: its selected apertures fitted, and the output written."""
+    import os
+
+    import numpy as np
+
+    from ..core import fitprofs, iraffmt, sarith, spectrum
+
+    shown = name.removesuffix(".fits")
+    outname = output.removesuffix(".fits") if output else ""
+    temp = outname
+    if outname:
+        target = Path(outname + ".fits")
+        if target.exists():
+            if not params.clobber:
+                raise ValueError(f"Output spectrum {outname} already exists")
+            temp = f"temp{os.getpid() % 100000}a"
+    path, header, apertures = _read(name)
+    nlines = len(apertures)
+    bands = _band_names(apertures[0]) if apertures else []
+    nbands = sum(1 for band in range(1, len(bands) + 1) if band in texts["bands"])
+    if nbands == 0:
+        raise ValueError("No bands selected in image")
+    chosen = []
+    for line, aperture in enumerate(apertures, 1):
+        select = aperture.number in texts["lines"]
+        if select != complement:
+            chosen.append((line, aperture))
+    if not chosen:
+        raise ValueError(f"No apertures selected in {shown}")
+    naps = len(chosen)
+    made = []
+    for line, aperture in chosen:
+        sh = sarith.open_aperture(aperture, shown, _sections(nlines, len(bands), line, 1),
+                                  "flux")
+        say([f"# {iraffmt.cnvdate()} {shown} - Ap {aperture.number}: {aperture.title}"])
+        x = np.asarray(aperture.wavelength if aperture.wavelength is not None
+                       else np.arange(1, len(aperture.flux) + 1), np.float32)
+        y = np.asarray(aperture.flux, np.float32)
+        try:
+            # IRAF's arithmetic, NaN and infinity included: a profile that starts with
+            # no peak is 0/0, and stays NaN, as it does in IRAF.
+            with np.errstate(all="ignore"):
+                lines, mod = fitprofs.fit_region(sh, x, y, profiles, region, fit,
+                                                 params.nerrsample, sigma0, invgain,
+                                                 components, params.background, gasdev)
+            say(lines)
+        except ValueError as error:
+            warn(str(error))
+            mod = np.zeros(y.size, np.float32)
+        if not outname:
+            continue
+        values = mod if params.option == "fit" else (y - mod).astype(np.float32)
+        l = len(made) + 1  # noqa: E741
+        out_bands = {}
+        for band in sarith.BANDS[:nbands]:
+            out_bands[band] = np.zeros(y.size) if band != "flux" else values.astype(float)
+        made.append(spectrum.Aperture(
+            number=aperture.number, centre=aperture.centre, low=aperture.low,
+            high=aperture.high, title=aperture.title, pixel=aperture.pixel,
+            wavelength=aperture.wavelength, beam=aperture.beam,
+            redshift=aperture.redshift, **out_bands))
+        if params.verbose:
+            # The output's line, as shdr names it; with --clobber, the temporary
+            # image IRAF writes before it renames it.
+            section = "" if naps == 1 and nbands == 1 else (
+                f"[*,{l}]" if nbands == 1 else f"[*,{l},1]")
+            say([f"{shown}{sh.section}({aperture.number})  -->  "
+                 f"{temp}{section}({aperture.number})"])
+    if not outname:
+        return None
+    out_header = header.copy()
+    if naps == 1:
+        out_header["OBJECT"] = made[0].title
+    target = Path(outname + ".fits")
+    if target.exists():
+        target.unlink()
+    return spectrum.write(target, made, header=out_header, source=str(path))
