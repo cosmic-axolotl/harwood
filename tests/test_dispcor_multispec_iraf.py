@@ -82,3 +82,19 @@ def test_an_aperture_without_a_reference_stops_as_iraf_stops(night):
     with pytest.raises(RuntimeError, match=case["error"]):
         get_task("dispcor").run(input=case["input"], output="d13", check=False,
                                 **case["params"])
+
+
+def test_the_outputs_may_be_named_by_a_template_or_a_list(night):
+    """IRAF's %old%new% (the course's %sp%l%*.ms.fits) and an @list name one output
+    for each input, and give what d3 gives under its own names."""
+    case = REFERENCE["cases"]["d3"]
+    get_task("dispcor").run(input=case["input"], output="%star%w%*", check=False,
+                            **case["params"])
+    (night / "names").write_text("x3a\nx3b\n", encoding="utf-8")
+    get_task("dispcor").run(input=case["input"], output="@names", check=False,
+                            **case["params"])
+    run("d3")
+    for mine, theirs in (("w3", "d3a"), ("w3b", "d3b"), ("x3a", "d3a"), ("x3b", "d3b")):
+        for a, b in zip(spectrum.read(f"{mine}.fits"), spectrum.read(f"{theirs}.fits"),
+                        strict=True):
+            np.testing.assert_array_equal(a.flux, b.flux)

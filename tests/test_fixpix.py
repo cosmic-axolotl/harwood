@@ -144,6 +144,12 @@ def test_fixpix_takes_the_dq_and_keeps_the_reason(tmp_path, monkeypatch):
     assert fixed.var[2, 4] == pytest.approx(5.0)
     assert fixed.dq[2, 4] == dq.COSMIC_RAY, "the reason stays"
 
+    get_task("fixpix").run(images=["f.fits"], masks=["DQ"], output="named.fits")
+    np.testing.assert_array_equal(mef.read(tmp_path / "named.fits").plane.sci, fixed.sci)
+    (tmp_path / "outs").write_text("listed.fits\n", encoding="utf-8")
+    get_task("fixpix").run(images=["f.fits"], masks=["DQ"], output="@outs")
+    assert (tmp_path / "listed.fits").exists()
+
     get_task("fixpix").run(images=["d_f.fits"], masks=["[7,*]"], output="c_")
     again = mef.read(tmp_path / "c_d_f.fits").plane
     assert np.all(again.dq[:, 6] == dq.BAD_PIXEL)

@@ -328,6 +328,29 @@ def test_the_task_writes_the_hits_into_the_frames_dq(frames_on_disk):
         "f1.mask.fits"
 
 
+def test_outputs_and_masks_are_named_as_iraf_names_them(frames_on_disk):
+    """IRAF's cosmicrays takes a name for each frame -- one name, a list or an @list
+    -- and so does --output; a mask's name with no extension in a list is IRAF's
+    pixel list, .pl. A name without an extension, alone, is still a prefix."""
+    from harwood.core import plio
+    from harwood.core.registry import get_task
+
+    task = get_task("cosmicrays")
+    task.run(input=["f1.fits"], output="f1cr.fits", crmask="crlist.f1.pl", gain=GAIN,
+             rdnoise=RDNOISE)
+    assert (frames_on_disk / "f1cr.fits").exists()
+    assert plio.read(frames_on_disk / "crlist.f1.pl")[0].sum() > 0
+    (frames_on_disk / "ins").write_text("f1.fits\nf2.fits\n", encoding="utf-8")
+    (frames_on_disk / "outs").write_text("a1.fits\na2.fits\n", encoding="utf-8")
+    (frames_on_disk / "masks").write_text("m1\nm2\n", encoding="utf-8")
+    task.run(input=["@ins"], output="@outs", crmask="@masks", gain=GAIN,
+             rdnoise=RDNOISE)
+    for name in ("a1.fits", "a2.fits", "m1.pl", "m2.pl"):
+        assert (frames_on_disk / name).exists(), name
+    task.run(input=["f1.fits"], output="pre_", gain=GAIN, rdnoise=RDNOISE)
+    assert (frames_on_disk / "pre_f1.fits").exists()
+
+
 def test_the_gain_comes_from_the_header_or_is_said_to_be_assumed(frames_on_disk):
     from harwood.core.registry import get_task
 

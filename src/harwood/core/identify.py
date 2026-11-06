@@ -33,6 +33,7 @@ from .center1d import center1d
 f32 = np.float32
 MAX_REAL = 3.4028235e38
 MAX_DOUBLE = 1.7976931348623157e308
+INDEFD = 1.6e308
 DXMIN = 0.01
 
 
@@ -636,8 +637,11 @@ class _Aid:
             self.cdsign = {"increasing": 1, "decreasing": -1}.get(
                 self.cddir, -1 if flip else 1)
             if self.crval is not None:
-                self.crmin = self.crval - self.crsearch
-                self.crmax = self.crval + self.crsearch
+                # crsearch is only resolved when cdelt is known too; left
+                # INDEF it is IRAF's INDEFD, so the search is unbounded.
+                crs = INDEFD if self.crsearch is None else self.crsearch
+                self.crmin = self.crval - crs
+                self.crmax = self.crval + crs
             wa, wb = -MAX_DOUBLE, MAX_DOUBLE
         elif self.crval is None:
             cdelt = self._signed(flip)

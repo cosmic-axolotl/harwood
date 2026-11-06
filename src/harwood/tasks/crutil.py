@@ -85,14 +85,17 @@ class CosmicRaysParams(TaskParams):
     )
     output: str = Field(
         "",
-        description="Where to write. A directory, or a prefix. Left out, it "
-                    "goes to this run's own directory.",
+        description="Where to write: IRAF's names -- one name for one frame, a,b,c "
+                    "or @list one per frame, or %old%new% -- or a directory "
+                    "(ending in /), or a prefix. Left out, it goes to this run's "
+                    "own directory.",
     )
     crmask: str = Field(
         "",
         description="Also write the cosmic rays as a mask image of their own, "
-                    "1 where a pixel was hit: a directory or a prefix. Left out, "
-                    "none -- they are in the DQ of the frame, bit 8.",
+                    "1 where a pixel was hit: names as --output's (a name without an "
+                    "extension in a list becomes IRAF's .pl), a directory or a "
+                    "prefix. Left out, none -- they are in the DQ of the frame, bit 8.",
     )
     algorithm: str = Field(
         "lacosmic",
@@ -239,6 +242,8 @@ class CosmicRays(Task[CosmicRaysParams]):
             advice.fail(f"nothing matched {', '.join(params.input)}.",
                         "check the path and the pattern; 'harwood sections' "
                         "shows what a template expands to.")
+        self._names = {"output": _named(params.output, frames),
+                       "crmask": _named(params.crmask, frames, mask=True)}
 
         params, said = _noise(params, images.read_header(frames[0]))
         steps = self.plan(params)
@@ -415,16 +420,22 @@ class CosmicRays(Task[CosmicRaysParams]):
 
         written = []
         if params.crmask:
-            mask = _destination(params.crmask, stem, ".mask.fits", spec, output,
-                                suffix=".mask.fits")
-            hdu = fits.PrimaryHDU(hit.astype(np.uint8))
-            hdu.header["HRWDCRM"] = (found.count, "pixels flagged as cosmic rays")
-            hdu.header.add_history(
-                "cosmicrays: 1 where the pixel is no longer a measurement")
-            hdu.writeto(mask, overwrite=True)
+            mask = self._names["crmask"].get(str(spec.path)) or _destination(
+                params.crmask, stem, ".mask.fits", spec, output, suffix=".mask.fits")
+            if Path(mask).suffix == ".pl":
+                from ..core import plio
+
+                plio.write(Path(mask), hit.astype(np.int32))
+            else:
+                hdu = fits.PrimaryHDU(hit.astype(np.uint8))
+                hdu.header["HRWDCRM"] = (found.count, "pixels flagged as cosmic rays")
+                hdu.header.add_history(
+                    "cosmicrays: 1 where the pixel is no longer a measurement")
+                hdu.writeto(mask, overwrite=True)
             header["CRMASK"] = (Path(mask).name, "the cosmic rays, as a mask image")
             written.append(Path(mask))
-        destination = _destination(params.output, stem, ".fits", spec, output)
+        destination = self._names["output"].get(str(spec.path)) or _destination(
+            params.output, stem, ".fits", spec, output)
         files, notes = mef.save(destination, out, header, var, quality,
                                 params.uncertainty, params.format)
         return files + written, notes
@@ -591,6 +602,30 @@ def _header_dispaxis(header) -> int | None:
     except (TypeError, ValueError):
         return None
     return axis if axis in (1, 2) else None
+
+
+IMAGE_EXTENSIONS = (".fits", ".fit", ".fts", ".pl", ".imh")
+
+
+def _named(where: str, frames, mask: bool = False) -> dict:
+    """IRAF's forms of an output: a name with an image extension for one frame, a list
+    (a,b,c or @list) one per frame, or a %old%new% template -- each frame's name; {}
+    for a directory or a prefix, which _destination works out. A mask's name without
+    an extension, in a list, is IRAF's pixel list, .pl."""
+    from ..core import images
+
+    where = (where or "").strip()
+    if not where:
+        return {}
+    listed = where.startswith("@") or "," in where or "%" in where
+    if not listed and not (len(frames) == 1 and Path(where).suffix.lower()
+                           in IMAGE_EXTENSIONS):
+        return {}
+    names = images.outputs_for(frames, where)
+    if mask:
+        names = [n if n.suffix.lower() in IMAGE_EXTENSIONS else n.with_name(n.name + ".pl")
+                 for n in names]
+    return {str(f.path): n for f, n in zip(frames, names, strict=True)}
 
 
 def _destination(where: str, stem: str, extension: str, spec, output,

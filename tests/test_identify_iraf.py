@@ -36,8 +36,15 @@ def compare(solution, iraf):
     assert (ours[:, 3] == theirs[:, 3]).all(), "other lines rejected"
 
 
+# A crval without a cdelt searches every dispersion, as IRAF does: IRAF takes
+# some 25 minutes on it and harwood as long, so the case runs on request.
+SLOW = {"crvalonly"}
+
+
 @pytest.mark.parametrize("case", list(REFERENCE["synthetic"]))
 def test_autoidentify_identifies_what_iraf_identifies(tmp_path, case):
+    if case in SLOW and not os.environ.get("HARWOOD_SLOW"):
+        pytest.skip("an unbounded search; HARWOOD_SLOW=1 runs it")
     params = dict(REFERENCE["synthetic"][case]["params"])
     image = params.pop("image")
     fits.writeto(tmp_path / "arc.fits", arc_spectrum(flip=image == "arcflip"))
@@ -91,3 +98,22 @@ def test_section_middle_line_is_a_spectrum_along_x():
     vector, where = arc_vector(frame, "middle column", nsum=3)
     np.testing.assert_array_equal(vector, frame[:, 2:5].sum(axis=1))
     assert where == "[4,*]"
+
+
+def test_a_crval_without_a_cdelt_bounds_nothing():
+    """IRAF resolves aidpars.crsearch only when both crval and cdelt are given;
+    with crval alone it stays INDEF, so crval -/+ INDEFD leaves the search
+    open and every line of the list is a reference line. This used to stop
+    with a TypeError on crval - None."""
+    from harwood.core import icfit
+    from harwood.core import identify as idn
+
+    ident = idn.Identify(
+        np.asarray(arc_spectrum(), dtype=float), idn.read_linelist(DATA / "arc_lines.dat"),
+        icfit.FitSpec(function="spline3", order=1, sample="*", naverage=1, niterate=0,
+                      low_reject=3.0, high_reject=3.0, grow=0.0))
+    aid = idn._Aid(ident, 4160.0, None, idn.AidPars())
+    aid.target()
+    aid.reference(idn._Ev(bin1=1, bin2=1), False)
+    assert aid.crmin < -1e307 and aid.crmax > 1e307
+    assert aid.nr == len(ident.linelist.values)

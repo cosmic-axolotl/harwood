@@ -624,9 +624,15 @@ class DispCor(Task[DispCorParams]):
             advice.fail(f"'{params.input}' matches nothing.",
                         "check the path; 'harwood sections' shows what a template "
                         "expands to.", FileNotFoundError)
-        outs = [part if Path(part).suffix else part + ".fits"
-                for part in (p.strip() for p in images.split_list(str(params.output)))] \
-            if params.output else []
+        template = str(params.output or "").strip()
+        if "%" in template or template.startswith("@"):
+            # IRAF's %old%new% -- %sp%l%*.ms.fits -- or an @list, one name per input.
+            outs = [str(path) if path.suffix else f"{path}.fits"
+                    for path in images.outputs_for(inputs, template)]
+        else:
+            outs = [part if Path(part).suffix else part + ".fits"
+                    for part in (p.strip() for p in images.split_list(template))] \
+                if template else []
         said: list[str] = []
         table = dispcor.Table(params.w1, params.w2, params.dw, params.nw)
         if params.table.strip():

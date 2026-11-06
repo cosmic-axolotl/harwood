@@ -74,6 +74,10 @@ def directory(task: str | None = None, workdir: Path | str = ".") -> Path:
         return run["path"]
 
     root = Path(run["workdir"]) / DIRECTORY
+    if root.exists() and not root.is_dir():
+        # A file of that name is the reduction's own -- an IRAF list called output,
+        # as the exercises have it -- and stays; the runs go beside it.
+        root = Path(run["workdir"]) / f"hrwd_{DIRECTORY}"
     suffix = 1
     while True:
         candidate = root / name_for(run["task"], suffix=suffix)

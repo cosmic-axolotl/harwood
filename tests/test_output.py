@@ -322,3 +322,12 @@ def test_display_from_the_prompt_loads_into_this_window(tmp_path, monkeypatch):
     finally:
         _qt.set_window(None)
         window.close()
+
+
+def test_a_file_called_output_is_left_alone(frames):
+    """The course's lists are called input and output; a file of that name stays,
+    and the runs go to hrwd_output beside it."""
+    (frames / "output").write_text("a1_bt.fits\n", encoding="utf-8")
+    folder = output.directory("fixpix", frames)
+    assert folder.parent.name == "hrwd_output"
+    assert (frames / "output").read_text(encoding="utf-8") == "a1_bt.fits\n"

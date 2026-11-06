@@ -519,6 +519,30 @@ def test_mkphotcors_asks_and_writes_what_iraf_does(tmp_path, monkeypatch, case, 
                 OBSKEYS / path).read_text(encoding="utf-8"), path
 
 
+def test_a_file_of_one_aperture_is_read_as_pdump_reads_it():
+    """qphot's file of one aperture names its fields MAG, MERR, RAPERT; IRAF's pdump
+    reads them as mag[1], which is what mknobsfile.cl asks for. The file and pdump's
+    lines are IRAF's own (oneaperture/), qphot on the M92 frame of the course."""
+    from harwood.core.photcal import mkobsfile
+
+    folder = DATA / "oneaperture"
+    mine = mkobsfile.dump([str(folder / "m92010s.mag.1")]).split("\n")
+    theirs = (folder / "pdump.txt").read_text(encoding="utf-8").split("\n")
+
+    def values(line):
+        out = []
+        for word in line.split():
+            try:
+                out.append(float(word))
+            except ValueError:
+                out.append(word)
+        return out
+
+    # pdump echoes the file's text (19.000); obsfile reads the numbers either way.
+    assert [values(line) for line in mine if line] == \
+        [values(line) for line in theirs if line]
+
+
 def test_mkobsfile_refuses_what_iraf_refuses(tmp_path, monkeypatch):
     from harwood.tasks.photcal import Mkobsfile
 

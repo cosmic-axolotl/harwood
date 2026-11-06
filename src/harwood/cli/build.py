@@ -124,9 +124,20 @@ def _click_type(annotation: Any):
     return scalar, False
 
 
+class _IntChoice(click.Choice):
+    """A choice among numbers -- Literal[1, 2] -- that hands back the number: the
+    model wants 2, and the command line types "2"."""
+
+    def convert(self, value, param, ctx):
+        return int(super().convert(str(value), param, ctx))
+
+
 def _scalar_type(annotation: Any):
     if get_origin(annotation) is Literal:
-        return click.Choice([str(v) for v in get_args(annotation)])
+        values = get_args(annotation)
+        if all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+            return _IntChoice([str(v) for v in values])
+        return click.Choice([str(v) for v in values])
     if annotation is bool:
         return bool
     if annotation is int:

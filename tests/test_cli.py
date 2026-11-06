@@ -4,6 +4,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import pytest
@@ -846,3 +847,12 @@ def test_setinstrument_in_a_night_has_no_such_note(run, tmp_path, monkeypatch):
     (tmp_path / "night").mkdir()
     monkeypatch.chdir(tmp_path / "night")
     assert "in your home directory" not in _said(run("setinstrument", "kpno/coude"))
+
+
+def test_a_choice_of_numbers_is_typed_as_a_number(run):
+    """--dispaxis 2 is a choice between 1 and 2, and the model wants the number."""
+    from harwood.cli.build import _IntChoice, _scalar_type
+
+    choice = _scalar_type(Literal[1, 2])
+    assert isinstance(choice, _IntChoice)
+    assert choice.convert("2", None, None) == 2

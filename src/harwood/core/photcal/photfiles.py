@@ -27,7 +27,15 @@ def read(path: str | Path):
     from astropy.table import Table
 
     if not is_ecsv(path):
-        return Table.read(str(path), format="ascii.daophot")
+        table = Table.read(str(path), format="ascii.daophot")
+        # A file of one aperture names its fields RAPERT, MAG...; pdump still reads
+        # them as mag[1], and photcal's scripts ask for that.
+        if "MAG" in table.colnames and "MAG1" not in table.colnames:
+            for name in ("RAPERT", "SUM", "AREA", "FLUX", "MAG", "MERR", "PIER",
+                         "PERROR"):
+                if name in table.colnames:
+                    table.rename_column(name, f"{name}1")
+        return table
     table = Table.read(str(path), format="ascii.ecsv")
     n = len(table)
     image = str(table.meta.get("harwood_image", Path(path).stem))   # as given to phot

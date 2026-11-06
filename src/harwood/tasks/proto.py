@@ -68,9 +68,11 @@ class FixpixParams(TaskParams):
         False, description="With --verbose, list every pixel replaced: x, y, the value "
                            "it had, the value it got, and the good pixels it came from.")
     output: str = Field(
-        "", description="Where to write: a directory or a prefix. Left out, this "
-                        "run's own directory. IRAF fixes in place; name the "
-                        "input's own directory to do the same.")
+        "", description="Where to write: a name for one image, a,b,c or @list one "
+                        "per image, %old%new%, a directory (ending in /) or a "
+                        "prefix. Left out, this run's own directory. IRAF fixes in "
+                        "place; name the input itself, or its directory, to do the "
+                        "same.")
     uncertainty: Literal["VAR", "ERR", "UNCERT"] = uncertainty_field()
     format: Literal["harwood", "iraf"] = format_field()
 
@@ -106,7 +108,7 @@ class Fixpix(Task[FixpixParams]):
         import numpy as np
 
         from ..core import dq, fixpix, images, mef, output
-        from .crutil import _destination
+        from .crutil import _destination, _named
 
         specs = images.expand(params.images)
         if not specs:
@@ -117,6 +119,7 @@ class Fixpix(Task[FixpixParams]):
             advice.fail(f"{len(params.masks)} masks for {len(specs)} images",
                         "give one mask for all of them, or one for each, in order")
 
+        named = _named(params.output, specs)
         rows, written, total, text, warnings = [], [], 0, [], []
         for number, spec in enumerate(specs):
             hdul, hdu = images.open_hdu(spec)
@@ -149,7 +152,8 @@ class Fixpix(Task[FixpixParams]):
             _mark(header, where)
             name = Path(spec.path).name
             stem = name[:-5] if name.endswith(".fits") else name
-            destination = _destination(params.output, stem, ".fits", spec, output)
+            destination = named.get(str(spec.path)) or _destination(
+                params.output, stem, ".fits", spec, output)
             files, notes = mef.save(destination, fixed, header, var, quality,
                                     params.uncertainty, params.format)
             written.extend(files)
