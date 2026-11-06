@@ -2974,3 +2974,211 @@ def _fp_one(name, output, params, texts, complement, profiles, region, fit, sigm
     if target.exists():
         target.unlink()
     return spectrum.write(target, made, header=out_header, source=str(path))
+
+
+TWWHY = {
+    "cal": "The calibration of each spectrum is the aperture of the same number in the "
+           "calibration (or its first, with --ignoreaps or when it has none such), "
+           "interpolated by --interp at the spectrum's wavelengths, shifted.",
+    "tweak": "The shift is first found by cross-correlating the two over --lag pixels "
+             "(--xcorr), then the shift and the scale that leave the least RMS in "
+             "--sample, by halving steps from --dshift and --dscale (--tweakrms). What "
+             "is found for one spectrum is where the next starts.",
+    "telluric": "The calibration, raised to the scale times the ratio of the airmasses "
+                "(Beer's law), divides the spectrum; the result is multiplied by the "
+                "mean of the correction, so that its level stays.",
+    "skytweak": "The calibration, times the scale, is subtracted from the spectrum.",
+}
+
+
+class _TweakParams(TaskParams):
+    input: str = Field(..., description="Spectra to correct. Commas, globs and @lists "
+                                        "expand.")
+    output: str = Field(..., description="The corrected spectra, one per input; empty "
+                                         "to correct the inputs in place.")
+    cal: str = Field(..., description="The calibration: one for all, or one per input.")
+    ignoreaps: bool = Field(False, description="Use the calibration's first aperture for "
+                                               "every spectrum.")
+    xcorr: bool = Field(True, description="Cross-correlate for the shift first.")
+    tweakrms: bool = Field(True, description="Then find the shift and scale of least "
+                                             "RMS.")
+    interactive: bool = Field(False, description="IRAF's interactive tweaking: not yet "
+                                                 "harwood's.")
+    sample: str = Field("*", description="Wavelength ranges the RMS and the correlation "
+                                         "are over: 6850:6900,7000:7040.")
+    lag: int = Field(10, ge=0, description="The cross-correlation's lag, in pixels.")
+    shift: float = Field(0.0, description="The calibration's shift to start from, in "
+                                          "pixels.")
+    scale: float = Field(1.0, ge=1e-10, description="Its scale to start from.")
+    dshift: float
+    dscale: float
+    offset: float = Field(1.0, ge=0, description="The graphs' offset (interactive).")
+    smooth: int = Field(1, ge=1, description="The graphs' boxcar (interactive).")
+    interp: Literal["nearest", "linear", "poly3", "poly5", "spline3", "sinc"] = Field(
+        "poly5", description="The calibration's interpolant (onedspec.interp).")
+
+
+class TelluricParams(_TweakParams):
+    threshold: float = Field(0.0, description="The least value the calibration is taken "
+                                              "to have.")
+    dshift: float = Field(1.0, ge=0, description="The shift's first search step.")
+    dscale: float = Field(0.2, ge=0, le=0.99, description="The scale's first search "
+                                                          "step, a fraction.")
+    airmass: float | None = Field(None, ge=1, description="The airmass of a spectrum or "
+                                                          "calibration with no AIRMASS.")
+
+
+class SkytweakParams(_TweakParams):
+    dshift: float = Field(0.1, ge=0, description="The shift's first search step.")
+    dscale: float = Field(0.1, ge=0, le=0.99, description="The scale's first search "
+                                                          "step, a fraction.")
+
+
+class _Tweak:
+    telluric = True
+
+    def plan(self, params) -> list[Step]:
+        kind = "telluric" if self.telluric else "skytweak"
+        return [Step("cal", params.cal, why=TWWHY["cal"]),
+                Step("tweak", f"xcorr {params.xcorr}, tweakrms {params.tweakrms}",
+                     why=TWWHY["tweak"]),
+                Step("correct", kind, why=TWWHY[kind])]
+
+    def execute(self, params) -> TaskResult:
+        import copy
+
+        import numpy as np
+
+        from ..core import images, iraffmt, sarith, spectrum, telluric
+
+        if params.interactive:
+            advice.fail("interactive tweaking is not harwood's yet",
+                        "leave --interactive off: the shift and scale are found "
+                        "automatically, as IRAF's are without it.")
+        f32 = np.float32
+        ins = [str(s) for s in images.expand(params.input)] or [params.input]
+        outs = [o.strip() for o in images.split_list(params.output)] \
+            if params.output.strip() else []
+        cals = [c.strip() for c in images.split_list(params.cal)]
+        if len(ins) != len(cals) and len(cals) != 1:
+            advice.fail("Image lists do not match",
+                        "give one calibration for all, or one for each input.")
+        kind = "TELLURIC" if self.telluric else "SKYTWEAK"
+        twk = telluric.Tweak(
+            telluric=self.telluric, shift=f32(params.shift), scale=f32(params.scale),
+            dshift=f32(max(0.0, params.dshift)),
+            dscale=f32(max(0.0, min(0.99, params.dscale))),
+            thresh=f32(getattr(params, "threshold", 0.0)), sample=params.sample)
+        buffer: list[str] = []
+        written: list[Path] = []
+        cache: dict = {}
+        calname = ""
+
+        def say(text: str) -> None:
+            buffer.append(text)
+
+        def airmass(header, name: str):
+            if "AIRMASS" in header:
+                return f32(float(header["AIRMASS"]))
+            say(f"{name}: ")
+            if params.airmass is None:
+                advice.fail(f"{name} has no AIRMASS", "give --airmass, or put AIRMASS "
+                                                      "in its header.")
+            return f32(params.airmass)
+
+        for k, name in enumerate(ins):
+            if k < len(cals):
+                if cals[k] != calname or k == 0:
+                    cache = {}
+                calname = cals[k]
+            if outs:
+                if k >= len(outs):
+                    break
+                output = outs[k]
+            else:
+                output = name
+            shown = name.removesuffix(".fits")
+            try:
+                path, header, apertures = _read(name)
+                nlines = len(apertures)
+                bands = _band_names(apertures[0])
+                if self.telluric:
+                    twk.am = airmass(header, shown)
+                made = copy.deepcopy(apertures)
+                for line, aperture in enumerate(apertures, 1):
+                    sh = sarith.open_aperture(aperture, shown,
+                                              _sections(nlines, len(bands), line, 1),
+                                              "flux")
+                    twk.wave = np.asarray(aperture.wavelength, float)
+                    twk.y = np.asarray(aperture.flux, f32)
+                    ap = None if params.ignoreaps else aperture.number
+                    if ap not in cache:
+                        cache[ap] = _twk_cal(calname, ap, params, airmass, self.telluric)
+                    cal, asi, am_cal = cache[ap]
+                    twk.cal, twk.asi, twk.am_cal = cal, asi, am_cal
+                    telluric.tweak(twk, params.xcorr, params.tweakrms, params.lag)
+                    data, mean, nout = telluric.correct(twk)
+                    made[line - 1].flux = data.astype(float)
+                    if line == 1:
+                        title = aperture.title if nlines == 1 and len(bands) == 1 \
+                            else str(header.get("OBJECT", ""))
+                        say(f"{kind}:\n  Output: {output.removesuffix('.fits')} - "
+                            f"{title}\n")
+                    say(f"  Input: {shown}{sh.section} - {aperture.title}\n")
+                    say(f"  Calibration: {cal.image}{cal.section} - {cal.title}\n")
+                    say(f"  Tweak: shift = {iraffmt.printf(float(twk.shift), 'f', 2)}, "
+                        f"scale = {iraffmt.printf(float(twk.scale), 'f', 3)}")
+                    say(f", normalization = {iraffmt.printf(float(mean), 'g', 4)}\n"
+                        if self.telluric else "\n")
+                    if nout > 0:
+                        say(f"  WARNING: {nout} pixels outside of calibration limits\n")
+            except (OSError, ValueError) as error:
+                # STDERR's line, apart from a prompt left on STDOUT's.
+                pending = "".join(buffer)
+                say(("\n" if pending and not pending.endswith("\n") else "")
+                    + f"Warning: {error}\n")
+                continue
+            target = Path(output if output.endswith(".fits") else output + ".fits")
+            written.append(spectrum.write(target, made, header=header, source=str(path)))
+        text = "".join(buffer).split("\n")
+        if text and text[-1] == "":
+            text.pop()
+        return TaskResult(outputs=written, steps=self.plan(params), data={"text": text})
+
+
+def _twk_cal(calname: str, ap, params, airmass, telluric_: bool):
+    """twk_gcal: the calibration's aperture -- of the number asked, or its first -- and
+    its interpolant and airmass."""
+    import numpy as np
+
+    from ..core import sarith
+    from ..core.asi import Interpolant
+
+    path, header, apertures = _read(calname)
+    line = next((i for i, a in enumerate(apertures, 1) if a.number == ap), 1)
+    aperture = apertures[line - 1]
+    bands = _band_names(aperture)
+    shown = calname.removesuffix(".fits")
+    cal = sarith.open_aperture(aperture, shown, _sections(len(apertures), len(bands),
+                                                          line, 1), "flux")
+    asi = Interpolant(params.interp, np.asarray(aperture.flux, np.float32))
+    am = airmass(header, shown) if telluric_ else np.float32(1)
+    return cal, asi, am
+
+
+@register
+class Telluric(_Tweak, Task[TelluricParams]):
+    name = "telluric"
+    package = "onedspec"
+    description = "Divide out telluric bands with a calibration, shifted and scaled."
+    Params = TelluricParams
+    telluric = True
+
+
+@register
+class Skytweak(_Tweak, Task[SkytweakParams]):
+    name = "skytweak"
+    package = "onedspec"
+    description = "Subtract sky with a sky spectrum, shifted and scaled."
+    Params = SkytweakParams
+    telluric = False
