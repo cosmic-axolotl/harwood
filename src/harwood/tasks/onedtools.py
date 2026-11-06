@@ -7,7 +7,7 @@ lists the calibration tables, mkspec makes an artificial one, sinterp
 interpolates a table into one, scoords gives one its wavelengths from a list,
 sapertures changes what its apertures are, ndprep makes a neutral density filter's
 correction, disptrans puts its dispersion in other units, sarith and scopy copy,
-cut and operate on spectra, scombine combines them. Each is IRAF's
+cut and operate on spectra, scombine and odcombine combine them. Each is IRAF's
 task of the same name, ported from its .x and held to what IRAF 2.18 writes, on
 harwood's spectra: a table per aperture, the wavelengths in a column
 (core/spectrum.py).
@@ -2016,3 +2016,331 @@ def _sc_output(st, groups, out_name, nout_name, params, reject1, texts, said, lo
         ntarget = Path(nout_name if Path(nout_name).suffix else nout_name + ".fits")
         written.append(spectrum.write(ntarget, counts, header=nheader, source=out_name))
     return written
+
+
+ODWHY = {
+    "group": "With group apertures, each aperture number is combined across the "
+             "inputs into an output of its own, root.NNNN; with all, every spectrum into "
+             "one; with images, the apertures of each input into an output of its own.",
+    "grid": "Unless --first, the output runs over all the inputs' wavelengths in the "
+            "smallest of their steps, or as --w1/--w2/--dw/--nw say. Each spectrum is "
+            "resampled onto it, the mean of its interpolant over each pixel, and kept "
+            "only where it reaches; the output then starts where the first one starts "
+            "and ends where the last one ends.",
+    "mask": "A bad pixel mask named by BPM in an input's header is resampled with its "
+            "spectrum, as 0 and 1000, and is bad where 10 or more of that is left. As "
+            "IRAF's odcombine: only the last spectrum taken of each output when the "
+            "image is read gets one.",
+    "combine": "imcombine's code then does the rest -- scaling, rejection, weights -- "
+               "with every spectrum's header values read from the first's image, as "
+               "IRAF's: a scale by exposure, or by a keyword, is the same for all.",
+}
+
+
+class OdcombineParams(TaskParams):
+    input: str = Field(..., description="Spectra to combine. Commas, globs and @lists "
+                                        "expand.")
+    output: str = Field(..., description="The combined spectrum: a root for "
+                                         "root.NNNN by aperture, one per input with "
+                                         "--group images.")
+    bpmasks: str = Field("", description="Masks of the output's pixels with no data "
+                                         "(root.NNNN.pl by aperture).")
+    rejmasks: str = Field("", description="Masks of what each spectrum lost, a line "
+                                          "per spectrum.")
+    nrejmasks: str = Field("", description="Masks of the number rejected or left out at "
+                                           "each pixel.")
+    expmasks: str = Field("", description="Masks of the exposure (--expname) at each "
+                                          "pixel.")
+    sigmas: str = Field("", description="Spectra of the sigma about the combination.")
+    logfile: str = Field("STDOUT", description="The log: STDOUT, a file it is added to, "
+                                               "or empty for none.")
+    apertures: str = Field("", description="Apertures to combine (1,3-5).")
+    group: Literal["all", "images", "apertures"] = Field(
+        "apertures", description="What is combined with what.")
+    first: bool = Field(False, description="The output on the first spectrum's "
+                                           "dispersion.")
+    w1: float | None = Field(None, description="The output's first wavelength.")
+    w2: float | None = Field(None, description="Its last.")
+    dw: float | None = Field(None, description="Its step.")
+    nw: int | None = Field(None, description="Its length.")
+    log: bool = Field(False, description="Steps even in log wavelength.")
+    combine: Literal["average", "median", "sum"] = Field("average", description="How.")
+    reject: Literal["none", "minmax", "ccdclip", "crreject", "sigclip", "avsigclip",
+                    "pclip"] = Field("none", description="Rejection.")
+    outtype: Literal["short", "ushort", "integer", "long", "real", "double"] = Field(
+        "real", description="The output's pixel type.")
+    smaskformat: Literal["bpmpixel", "bpmspectrum"] = Field(
+        "bpmspectrum", description="An input's mask: a line for each of its lines, or "
+                                   "a spectrum for each aperture on its own dispersion.")
+    smasktype: Literal["none", "goodvalue", "badvalue", "goodbits", "badbits"] = Field(
+        "none", description="What in the mask says a pixel is good or bad.")
+    smaskvalue: int = Field(0, description="The mask value, or bits.")
+    blank: float = Field(0.0, description="The value where nothing is left.")
+    scale: str = Field("none", description="none, mode, median, mean, exposure, @file or "
+                                           "!keyword.")
+    zero: str = Field("none", description="none, mode, median, mean, @file or !keyword.")
+    weight: str = Field("none", description="none, mode, median, mean, exposure, @file "
+                                            "or !keyword.")
+    statsec: str = Field("", description="The section for the statistics: [x1:x2], "
+                                         "input [..], output [..] or overlap.")
+    expname: str = Field("", description="The header keyword of the exposure time.")
+    lthreshold: float | None = Field(None, description="Values below are left out.")
+    hthreshold: float | None = Field(None, description="Values above are left out.")
+    nlow: int = Field(1, ge=0, description="minmax: the lowest to reject.")
+    nhigh: int = Field(1, ge=0, description="minmax: the highest to reject.")
+    nkeep: int = Field(1, description="The fewest to keep, or negative, the most to "
+                                      "reject.")
+    mclip: bool = Field(True, description="Clip about the median, not the average.")
+    lsigma: float = Field(3.0, ge=0, description="Low clipping factor.")
+    hsigma: float = Field(3.0, ge=0, description="High clipping factor.")
+    rdnoise: str = Field("0.", description="ccdclip: read noise (electrons), or a "
+                                           "keyword.")
+    gain: str = Field("1.", description="ccdclip: gain (electrons/DN), or a keyword.")
+    snoise: str = Field("0.", description="ccdclip: sensitivity noise (fraction), or a "
+                                          "keyword.")
+    sigscale: float = Field(0.1, ge=0, description="Scales differing from one by more "
+                                                   "than this correct the sigmas.")
+    pclip: float = Field(-0.5, description="pclip: the percentile, or a number of "
+                                           "places from the median.")
+    grow: float = Field(0.0, ge=0, description="Radius in pixels rejected around a "
+                                               "rejected one.")
+    interp: Literal["nearest", "linear", "poly3", "poly5", "spline3", "sinc"] = Field(
+        "poly5", description="Interpolant of the resampling (onedspec.interp).")
+
+
+@register
+class Odcombine(Task[OdcombineParams]):
+    name = "odcombine"
+    package = "onedspec"
+    description = "Combine spectra: resampled onto one grid, then imcombine's code."
+    Params = OdcombineParams
+
+    def plan(self, params: OdcombineParams) -> list[Step]:
+        steps = [Step("group", params.group, why=ODWHY["group"]),
+                 Step("resample", "first" if params.first else "common grid",
+                      why=ODWHY["grid"])]
+        if params.smasktype != "none":
+            steps.append(Step("mask", f"{params.smaskformat}, {params.smasktype} "
+                                      f"{params.smaskvalue}", why=ODWHY["mask"]))
+        steps += [Step("combine", f"{params.combine}, reject {params.reject}, scale "
+                                  f"{params.scale}, zero {params.zero}, weight "
+                                  f"{params.weight}", why=ODWHY["combine"]),
+                  Step("write", params.output, why="IMCMBnnn and NCOMBINE in the "
+                                                   "header; the log as IRAF's.")]
+        return steps
+
+    def execute(self, params: OdcombineParams) -> TaskResult:
+        from ..core import images, ranges
+
+        ins = [str(s) for s in images.expand(params.input)]
+        lists = {key: [o.strip() for o in images.split_list(getattr(params, key))]
+                 if getattr(params, key).strip() else []
+                 for key in ("output", "bpmasks", "rejmasks", "nrejmasks", "expmasks",
+                             "sigmas")}
+        if not ins:
+            advice.fail("No input images to combine", "give --input spectra.")
+        what = {"output": "output images", "bpmasks": "bad pixel masks",
+                "rejmasks": "rejection masks", "nrejmasks": "number rejected masks",
+                "expmasks": "exposure masks", "sigmas": "sigma images"}
+        for key, names in lists.items():
+            if params.group == "images":
+                wrong = len(names) != len(ins) if key == "output" else \
+                    len(names) > (1 if key == "sigmas" else 0) and len(names) != len(ins)
+            else:
+                wrong = len(names) != 1 if key == "output" else len(names) > 1
+            if wrong:
+                advice.fail(f"Wrong number of {what[key]}",
+                            "one for all with --group all or apertures, one per input "
+                            "with --group images.")
+        if params.reject == "pclip" and params.pclip == 0:
+            advice.fail("Pclip parameter may not be zero", "give --pclip, e.g. -0.5.")
+        if params.outtype == "double":
+            # IRAF's icombine then combines in double; harwood's engine is its real one.
+            advice.fail("outtype double is not harwood's: IRAF combines in double "
+                        "precision then, and harwood only as IRAF does in real",
+                        "use --outtype real; the output table holds the values in double "
+                        "anyway.")
+        mtype = params.smasktype
+        if mtype == "badbits" and params.smaskvalue == 0:
+            mtype = "none"
+        aps = ranges.parse(params.apertures, -ranges.RNG_MAXINT, ranges.RNG_MAXINT)
+        text: list[str] = []
+        written: list[Path] = []
+        index = k = 0
+        while k < len(ins):
+            groups: list[list] = []
+            while k < len(ins):
+                name = ins[k]
+                k += 1
+                try:
+                    _odc_read(groups, name, aps, params, mtype)
+                except (OSError, ValueError) as error:
+                    if params.group != "images":
+                        raise
+                    text.append(f"Warning: {error}")
+                    continue
+                if params.group == "images":
+                    break
+            if not groups:
+                text.append("No input spectra to combine")
+                continue
+            for members in groups:
+                if params.group == "images":
+                    index += 1
+                ap = members[0].sh.ap if params.group == "apertures" else None
+                at = index if params.group == "images" else 1
+                names = {key: _odc_name(names, at, ap) for key, names in lists.items()}
+                written += _odc_output(members, names, params, mtype, text)
+        log = params.logfile.strip()
+        if log and log != "STDOUT":
+            with open(log, "a", encoding="utf-8") as handle:
+                handle.write("".join(line + "\n" for line in text
+                                     if not line.startswith(("Warning:", "No input"))))
+        shown = text if log == "STDOUT" else [line for line in text if line.startswith(
+            ("Warning:", "No input"))]
+        return TaskResult(outputs=written, steps=self.plan(params), data={"text": shown})
+
+
+def _odc_read(groups, name: str, aps, params, mtype: str) -> None:
+    """odc_gspec on one input: its selected apertures, and then its mask's."""
+    from ..core import odcombine, sarith
+
+    path, header, apertures = _read(name)
+    shown = name.removesuffix(".fits")
+    members = []
+    for line, aperture in enumerate(apertures, 1):
+        if aperture.number not in aps:
+            continue
+        names = _band_names(aperture)
+        sh = sarith.open_aperture(aperture, shown,
+                                  _sections(len(apertures), len(names), line, 1), names[0])
+        members.append(odcombine.Member(sh, line, header, aperture))
+    odcombine.add_spectra(groups, members, params.group)
+    bpm = str(header.get("BPM", "")).strip() if mtype != "none" else ""
+    if bpm:
+        _, _, masks = _read(bpm)
+        odcombine.add_masks(groups, bpm, masks, params.smaskformat,
+                            lambda nlines, line: _sections(nlines, 1, line, 1))
+
+
+def _odc_name(names: list[str], index: int, aperture: int | None) -> str:
+    """odc_imtgetim: the list's name at index, with .NNNN for the aperture."""
+    if index > len(names):
+        return ""
+    name = names[index - 1]
+    if aperture is None:
+        return name
+    path = Path(name)
+    if path.suffix in (".fits", ".fit", ".fts", ".pl", ".imh"):
+        return f"{path.with_suffix('')}.{aperture:04d}{path.suffix}"
+    return f"{name}.{aperture:04d}"
+
+
+def _odc_output(members, names: dict, params, mtype: str, text: list[str]) -> list[Path]:
+    """One output: the template's grid, the spectra placed on it, combined, written."""
+    import numpy as np
+
+    from ..core import odcombine, sarith, spectrum
+    from .imcombine import _exposure, _write_plane
+
+    first = members[0]
+    a1 = first.aperture
+    beam = a1.number if a1.beam is None else a1.beam
+    dtype, wave, z = odcombine.grid(members, params.first, params.w1, params.w2,
+                                    params.dw, params.nw, params.log)
+    nw = len(wave) if wave is not None else first.sh.n
+    template = spectrum.Aperture(number=a1.number, centre=a1.centre, low=a1.low,
+                                 high=a1.high, title=a1.title,
+                                 pixel=np.arange(1.0, nw + 1.0), flux=np.zeros(nw),
+                                 wavelength=wave, redshift=z)
+    out = sarith.open_aperture(template, "template", "", "flux")
+    placed = [p for p in (odcombine.place(m, out, mtype, params.smaskvalue, params.interp)
+                          for m in members) if p is not None]
+    if not placed:
+        text.append("Warning: No images to combine")
+        return []
+    output = names["output"]
+    target = _odc_file(output, ".fits")
+    if target.exists():
+        advice.fail(f"Output spectrum {output} already exists",
+                    "give another name, or remove it.")
+    cfg = params.model_dump()
+    cfg["smasktype"] = mtype
+    shown = {key: names[key] for key in ("bpmasks", "rejmasks", "nrejmasks", "expmasks")}
+    for key, value in shown.items():
+        cfg[key] = str(_odc_file(value, ".pl")) if value else ""
+    cfg["sigmas"] = names["sigmas"].removesuffix(".fits")
+    cfg["output"] = output.removesuffix(".fits")
+    header = first.header
+    result = odcombine.combine(placed, cfg, header)
+    text += result.log
+
+    npts = result.combined.size
+    pixel = np.arange(1.0, npts + 1.0)
+    span = slice(result.first, result.first + npts)
+    wavelength = None if wave is None else np.asarray(wave)[span]
+    combined = result.combined.astype(np.float32)
+    if params.outtype != "real":
+        combined = _odc_outtype(combined, params.outtype)
+    made = spectrum.Aperture(number=a1.number, centre=a1.centre, low=a1.low, high=a1.high,
+                             title=a1.title, pixel=pixel, flux=combined.astype(float),
+                             wavelength=wavelength, redshift=z,
+                             beam=beam if beam != a1.number else None)
+    out_header = header.copy()
+    for key in [k for k in out_header if k.startswith("IMCMB")] + ["BPM", "ICBPM"]:
+        out_header.remove(key, ignore_missing=True, remove_all=True)
+    out_header["OBJECT"] = a1.title
+    if placed[0].member.mask is not None:
+        out_header["ICBPM"] = placed[0].member.mask_label
+    if len(placed) < 100:
+        for i, p in enumerate(placed, 1):
+            out_header[f"IMCMB{i:03d}"] = p.member.label
+    out_header["NCOMBINE"] = result.nout
+    if cfg["bpmasks"]:
+        out_header["BPM"] = cfg["bpmasks"]
+    written = [spectrum.write(target, [made], header=out_header, source=first.sh.image)]
+
+    if names["sigmas"]:
+        # icombine makes the sigma from the output before ic_scale gives that its
+        # NCOMBINE and BPM.
+        sigma_header = out_header.copy()
+        for key in ("NCOMBINE", "BPM"):
+            sigma_header.remove(key, ignore_missing=True)
+        sigma_header["OBJECT"] = f"Combine sigma images for {cfg['output']}"
+        sigma_target = _odc_file(names["sigmas"], ".fits")
+        sigma = spectrum.Aperture(number=a1.number, centre=a1.centre, low=a1.low,
+                                  high=a1.high, title=a1.title, pixel=pixel,
+                                  flux=result.sigma.astype(np.float32).astype(float),
+                                  wavelength=wavelength, redshift=z, beam=made.beam)
+        written.append(spectrum.write(sigma_target, [sigma], header=sigma_header,
+                                      source=first.sh.image))
+    nimages = len(placed)
+    planes = {}
+    if cfg["bpmasks"]:
+        planes["bpmasks"] = np.where(result.used > 0, 0, np.where(result.used == 0, 1, 2))
+    if cfg["rejmasks"]:
+        planes["rejmasks"] = np.where(result.used == nimages, False, ~result.keep)
+    if cfg["nrejmasks"]:
+        planes["nrejmasks"] = nimages - result.used
+    if cfg["expmasks"]:
+        planes["expmasks"], _ = _exposure(result.keep, [header] * nimages,
+                                          result.scaling.weights, params.expname)
+    for key, plane in planes.items():
+        _write_plane(cfg[key], plane, out_header)
+        written.append(Path(cfg[key]))
+    return written
+
+
+def _odc_file(name: str, extension: str) -> Path:
+    """The file of an image named as IRAF names it: its extension, or `extension`."""
+    known = (".fits", ".fit", ".fts", ".pl", ".imh")
+    return Path(name if Path(name).suffix in known else name + extension)
+
+
+def _odc_outtype(values, outtype: str):
+    """The combined spectrum in an integer pixel type, as IMIO converts a real."""
+    import numpy as np
+
+    kinds = {"short": np.int16, "ushort": np.uint16, "integer": np.int32,
+             "long": np.int32}
+    return np.trunc(values).astype(kinds[outtype])

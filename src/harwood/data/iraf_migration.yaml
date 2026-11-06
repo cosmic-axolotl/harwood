@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 107, partial: 0, planned: 248, replaced: 94, wontport: 161
+#   available: 108, partial: 0, planned: 247, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -445,7 +445,8 @@ tasks:
   imcombine: {pkg: images.immatch, domain: combine, status: available, milestone: mvp, harwood: imcombine,
     note: "IRAF's combining and rejection bit by bit -- every combine and reject, scale, zero and weight (files and keywords too), thresholds, grow, nkeep, offsets, outlimits, project, pixel masks, and the sigma, rejection, bad pixel and exposure outputs; no headers, imcmb or outtype, the output is real"}
   lscombine: {pkg: twodspec.longslit, domain: combine, status: planned, milestone: later}
-  odcombine: {pkg: onedspec, domain: combine, status: planned, milestone: later}
+  odcombine: {pkg: onedspec, domain: combine, status: available, milestone: later, harwood: odcombine,
+    note: "t_odcombine.x and its icombine: groups, the output grid (first, w1/w2/dw/nw, log), resampling to the pixels each spectrum reaches and physical offsets, bad pixel masks (bpmspectrum, bpmpixel, every masktype), every combine and reject, scale, zero and weight (statistics in every statsec, exposure, files, keywords), thresholds, nkeep, grow, blank, integer outtypes, the sigma and the four masks, IMCMB and NCOMBINE, and the log; 70 sessions held to IRAF's to the bit, against its source with the template the installed 2.18.1 cannot match corrected; its slips kept (every header value is the first spectrum's, a mask only for the last spectrum taken, the date for statsec); outtype double refused"}
   scombine: {pkg: onedspec, domain: combine, status: available, milestone: later, harwood: scombine,
     note: "t_scombine.x and its own old icombine: groups, the output grid (first, w1/w2/dw/nw, log), resampling and masks, every combine and reject, scale, zero and weight (statistics over a sample, exposure, files, keywords), thresholds, nkeep, grow, blank, the number combined, NCOMBINE and EXPTIME, and the log; 51 sessions held to IRAF's to the bit, its slips kept"}
   zerocombine: {pkg: imred.ccdred, domain: combine, status: available, milestone: mvp, harwood: zerocombine}

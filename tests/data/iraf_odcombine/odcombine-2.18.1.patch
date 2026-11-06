@@ -1,0 +1,21 @@
+--- a/t_odcombine.x	2026-11-05 22:24:52.705394172 -0300
++++ b/t_odcombine.x	2026-11-05 22:28:16.923249200 -0300
+@@ -272,11 +272,11 @@
+ 		    ;
+ 
+ 		# Set lists to be combined.
+-		call sprintf (Memc[str], SZ_LINE, "%s.*\\[^x]")
++		call sprintf (Memc[str], SZ_LINE, "%s.*")
+ 		    call pargstr (Memc[tmp])
+ 		ilist1 = imtopen (Memc[str])
+ 		if (mtype != NONE) {
+-		    call sprintf (Memc[str], SZ_LINE, "%sbpm.*\\[^x]")
++		    call sprintf (Memc[str], SZ_LINE, "%sbpm.*")
+ 			call pargstr (Memc[tmp])
+ 		    ilist2 = imtopen (Memc[str])
+ 		} else
+--- a/x_odcombine.x	2026-11-05 22:24:52.705394172 -0300
++++ b/x_odcombine.x	2026-11-05 22:27:20.627524116 -0300
+@@ -1 +1 @@
+-task	scombine = t_scombine
++task	odcombine = t_odcombine
