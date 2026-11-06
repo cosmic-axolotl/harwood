@@ -205,8 +205,9 @@ def _cvfit(curve, x, y, w) -> int:
     return curve.solve()
 
 
-def _deviant(curve, x, y, w, ic: Ic, nreject: int) -> tuple[int, int]:
-    """ic_deviant: reject and refit once; nreject and how many are new."""
+def _deviant(curve, x, y, w, ic: Ic, nreject: int, refit: bool = True) -> tuple[int, int]:
+    """ic_deviant: reject and refit once; nreject and how many are new. Without
+    `refit`, as ic_clean calls it, the points are only marked."""
     real, rej = type(x[0]), ic.rejpts
     npts = x.size
     low, high, grow = (np.float32(v) for v in (ic.low_reject, ic.high_reject, ic.grow))
@@ -241,12 +242,13 @@ def _deviant(curve, x, y, w, ic: Ic, nreject: int) -> tuple[int, int]:
             continue
         for k in range(max(0, i - pixgrow), min(npts - 1, i + pixgrow) + 1):
             if abs(real(x[i] - x[k])) <= real(grow) and w[k] != 0 and rej[k] == 0:
-                curve.reject(x[k], y[k], w[k])
+                if refit:
+                    curve.reject(x[k], y[k], w[k])
                 rej[k] = 2
                 newreject += 1
     rej[rej != 0] = 1
     nreject += newreject
-    if newreject > 0:
+    if refit and newreject > 0:
         status = curve.solve()
         if status == SINGULAR:
             raise FitError("ic_reject: Singular solution")

@@ -2344,3 +2344,340 @@ def _odc_outtype(values, outtype: str):
     kinds = {"short": np.int16, "ushort": np.uint16, "integer": np.int32,
              "long": np.int32}
     return np.trunc(values).astype(kinds[outtype])
+
+
+SFWHY = {
+    "select": "The lines (apertures, in the image's order) and bands to fit. What the "
+              "image's SFIT and SFITB say was fitted before -- in the input, or in an "
+              "output that exists -- is not fitted again unless --override, so that a "
+              "spectrum fitted by hand is not lost to a later run.",
+    "fit": "icfit's curve, IRAF's in real: the sample, averaged by --naverage (a median "
+           "when negative), fitted, and the points beyond --low-reject or "
+           "--high-reject sigma rejected --niterate times, with those within --grow.",
+    "write": "The output is a copy of the input with each fitted line replaced by the "
+             "fit, the data (the rejected points replaced by the fit with --replace), "
+             "data minus fit, or data over fit; a division by zero is 0.",
+}
+
+
+class _SfitParams(TaskParams):
+    input: str = Field(..., description="Spectra to fit. Commas, globs and @lists expand.")
+    output: str = Field("", description="An output for each input; the input itself "
+                                        "to fit it in place. Not with --listonly.",
+                        json_schema_extra={"positional": True})
+    lines: str = Field("*", description="Lines (apertures, in order) to fit: 1,3:5.")
+    bands: str = Field("1", description="Bands to fit: 1 the spectrum, 2 raw, 3 sky, "
+                                        "4 sigma, as apall writes them.")
+    type: Literal["data", "fit", "difference", "ratio"]
+    replace: bool = Field(False, description="Replace the rejected points by the fit.")
+    wavescale: bool = Field(True, description="Fit against wavelength, not pixel.")
+    logscale: bool = Field(False, description="Fit the log10 of both axes.")
+    override: bool = Field(False, description="Fit again what SFIT says was fitted.")
+    listonly: bool = Field(False, description="Log the fits, write nothing.")
+    logfiles: str = Field("logfile", description="Log files: STDOUT, names, or empty.")
+    interactive: bool = Field(False, description="Fit each spectrum by hand, in the icfit "
+                                                 "panel, with IRAF's keys.")
+    cursor: str = Field("", description="Those keys from a file, 'x y 1 key' a line, for "
+                                        "a session with no window; each spectrum reads "
+                                        "on to its q.")
+    sample: str = Field("*", description="Sample ranges to fit, in x: 4010:4150,4210:4300.")
+    naverage: int = Field(1, description="Points averaged, or with a minus their median, "
+                                         "into each fitted.")
+    function: Literal["spline3", "legendre", "chebyshev", "spline1"] = Field(
+        "spline3", description="The curve.")
+    order: int = Field(1, ge=1, description="Its order: terms, or a spline's pieces.")
+    low_reject: float
+    high_reject: float
+    niterate: int
+    grow: float = Field(1.0, ge=0, description="Reject too what is this close in x.")
+
+
+class ContinuumParams(_SfitParams):
+    type: Literal["data", "fit", "difference", "ratio"] = Field(
+        "ratio", description="What to write: data, fit, difference or ratio.")
+    low_reject: float = Field(2.0, ge=0, description="Reject below this many sigma.")
+    high_reject: float = Field(0.0, ge=0, description="Reject above this many sigma.")
+    niterate: int = Field(10, ge=0, description="Rejection passes.")
+
+
+class SfitParams(_SfitParams):
+    type: Literal["data", "fit", "difference", "ratio"] = Field(
+        "fit", description="What to write: data, fit, difference or ratio.")
+    low_reject: float = Field(3.0, ge=0, description="Reject below this many sigma.")
+    high_reject: float = Field(3.0, ge=0, description="Reject above this many sigma.")
+    niterate: int = Field(0, ge=0, description="Rejection passes.")
+
+
+class _Sfit:
+    def plan(self, params) -> list[Step]:
+        return [Step("select", f"lines {params.lines}, bands {params.bands}",
+                     why=SFWHY["select"]),
+                Step("fit", f"{params.function} order {params.order}, sample "
+                            f"{params.sample}", why=SFWHY["fit"]),
+                Step("write", params.type, why=SFWHY["write"])]
+
+    def execute(self, params) -> TaskResult:
+        import getpass
+        import socket
+
+        from ..core import images, sfit
+        from ..core.iraffmt import cnvdate
+        from ..core.provenance import _version
+
+        ins = [str(s) for s in images.expand(params.input)] or [params.input]
+        outs = [] if params.listonly else (
+            [o.strip() for o in images.split_list(params.output)]
+            if params.output.strip() else [])
+        if not params.listonly and len(outs) != len(ins):
+            advice.fail("Input and output image lists do not match",
+                        "give an output for each input, or the input itself to fit it "
+                        "in place.")
+        ymax = bmax = 0
+        for name in ins + outs:
+            found = _sft_file(_sft_split(name)[0])
+            if found is not None:
+                apertures = _sft_apertures(found)
+                ymax = max(ymax, len(apertures))
+                bmax = max(bmax, len(_band_names(apertures[0])) if apertures else 0)
+        ranges = {}
+        for key in ("lines", "bands"):
+            text = getattr(params, key)
+            if "x" in text.lower():
+                advice.fail("Range step (`x' notation) not implemented",
+                            "list the lines, 1,3,5, or a range, 1:5.")
+            ranges[key] = sfit.rg_ranges(text.replace("-", ":"), 1,
+                                         ymax if key == "lines" else bmax)
+        if not ranges["lines"] or not ranges["bands"]:
+            advice.fail("With range specification for `lines or bands'",
+                        "lines and bands are ranges of the image's lines and bands.")
+        spec = {key: getattr(params, key) for key in (
+            "function", "order", "sample", "naverage", "low_reject", "high_reject",
+            "niterate", "grow")}
+        logs = [w for w in params.logfiles.replace(",", " ").split()]
+        sysid = (f"harwood {_version()} {getpass.getuser()}@{socket.gethostname()} "
+                 f"{cnvdate()}")
+        text: list[str] = []
+        logged: list[str] = []
+
+        def log(lines):
+            logged.extend(lines)
+            if "STDOUT" in logs or "STDERR" in logs:
+                text.extend(lines)
+
+        log(["", f"SFIT: {sysid}", ""])
+        written: list[Path] = []
+        for k, name in enumerate(ins):
+            output = outs[k] if outs else name
+            try:
+                done = _sft_one(name, output, params, ranges, spec, text, log)
+            except _SftWarning as warning:
+                text.append(f"Warning: {warning}")
+                if warning.written is not None:
+                    written.append(warning.written)
+                continue
+            if done is not None:
+                written.append(done)
+        log(["", f"END: {sysid}", ""])
+        _SFT_CURSORS.pop(params.cursor, None)
+        for name in logs:
+            if name not in ("STDOUT", "STDERR"):
+                with open(name, "a", encoding="utf-8") as handle:
+                    handle.write("".join(line + "\n" for line in logged))
+        return TaskResult(outputs=written, steps=self.plan(params), data={"text": text})
+
+
+class _SftWarning(Exception):
+    """sft_immap's error, which t_sfit takes as a warning and goes on."""
+
+    def __init__(self, message: str, written: Path | None = None):
+        super().__init__(message)
+        self.written = written
+
+
+def _sft_file(name: str) -> Path | None:
+    for candidate in (name, name + ".fits"):
+        if Path(candidate).is_file():
+            return Path(candidate)
+    return None
+
+
+def _sft_apertures(path: Path):
+    from ..core import spectrum
+
+    return spectrum.read(path)
+
+
+def _sft_one(name, output, params, ranges, spec, text, log) -> Path | None:
+    """sft_immap and sft_icfit on one input: the output, or None with --listonly."""
+    import copy
+
+    import numpy as np
+    from astropy.io import fits
+
+    from ..core import sfit, spectrum
+
+    inroot, insect = _sft_split(name)
+    outroot, outsect = _sft_split(output)
+    inroot = inroot.removesuffix(".fits")
+    if insect or outsect:
+        raise _SftWarning(f"Sections not allowed ({inroot}{insect} --> {output})")
+    inpath = _sft_file(inroot)
+    if inpath is None:
+        raise _SftWarning(f"Cannot access {name.removesuffix('.fits')}")
+    header = fits.getheader(inpath)
+    apertures = _sft_apertures(inpath)
+    outpath = None if params.listonly else _sft_file(outroot)
+    if params.listonly:
+        out_header, out_apertures = header, apertures
+    elif outpath is not None and outpath.resolve() == inpath.resolve():
+        out_header, out_apertures, outpath = header, apertures, inpath
+    elif outpath is None:
+        outpath = Path(outroot if Path(outroot).suffix == ".fits" else outroot + ".fits")
+        out_header = header.copy()
+        out_apertures = copy.deepcopy(apertures)
+        for aperture in out_apertures:
+            for band in _band_names(aperture):
+                setattr(aperture, band, np.asarray(getattr(aperture, band), np.float32)
+                        .astype(float))
+    else:
+        out_header = fits.getheader(outpath)
+        out_apertures = _sft_apertures(outpath)
+        if len(out_apertures) != len(apertures) or any(
+                len(a.flux) != len(b.flux) or _band_names(a) != _band_names(b)
+                for a, b in zip(apertures, out_apertures, strict=True)):
+            raise _SftWarning(f"{inroot} & {outroot} aren't the same size")
+    ax2 = len(apertures)
+    ax3 = len(_band_names(apertures[0])) if apertures else 0
+    sfit_in = str(header.get("SFIT", ""))
+    if "SFIT" not in out_header:
+        out_header["SFIT"] = ""
+    if "SFITB" not in out_header:
+        out_header["SFITB"] = ""
+    before = sfit.rg_ranges(sfit_in, 1, ax2) | sfit.rg_ranges(str(out_header["SFIT"]), 1, ax2)
+    if params.override:
+        lines = {line for line in ranges["lines"] if 1 <= line <= ax2}
+    else:
+        lines = {line for line in ranges["lines"] if 1 <= line <= ax2 and line not in before}
+    bands = sorted(band for band in ranges["bands"] if 1 <= band <= ax3)
+
+    def save():
+        if not params.listonly:
+            spectrum.write(outpath, out_apertures, header=out_header,
+                           source=str(inpath))
+        return None if params.listonly else outpath
+
+    if not lines:
+        raise _SftWarning(f"No lines left to fit for {inroot}", save())
+    shown = str(inpath)
+    current = dict(spec)
+    for band in bands:
+        for line in sorted(lines):
+            aperture = apertures[line - 1]
+            column = _band_names(aperture)[band - 1]
+            y = np.asarray(getattr(aperture, column), np.float32).copy()
+            n = y.size
+            if params.logscale:
+                y = sfit.alog(y)
+            if params.wavescale and aperture.wavelength is not None:
+                x = np.asarray(aperture.wavelength, np.float32)
+            else:
+                x = np.arange(1, n + 1, dtype=np.float32)
+            if params.logscale:
+                x = sfit.alog(x)
+            weights = None
+            if params.interactive or params.cursor:
+                current, x, y, weights = _sft_session(current, x, y, params, shown, line,
+                                                      band, aperture.title)
+            data, curve, ic = sfit.fit(x, y, current, params.type, params.replace,
+                                       weights)
+            text.extend(ic.messages)
+            if not params.listonly:
+                target = out_apertures[line - 1]
+                setattr(target, column, data.astype(float))
+                out_header["SFIT"] = sfit.rg_encode(
+                    {line} | sfit.rg_ranges(str(out_header["SFIT"]), 1, ax2))
+                out_header["SFITB"] = sfit.rg_encode(
+                    {band} | sfit.rg_ranges(str(out_header["SFITB"]), 1, ax3))
+            log(sfit.power(curve, current["function"], line, shown))
+    return save()
+
+
+def _sft_split(name: str) -> tuple[str, str]:
+    """imgimage and imgsection: the image and its section, [...] at the end."""
+    if name.endswith("]") and "[" in name:
+        at = name.index("[")
+        return name[:at], name[at:]
+    return name, ""
+
+
+def _sft_session(spec, x, y, params, image, line, band, title):
+    """icg_fit on one spectrum: the parameters it leaves, which the next spectrum
+    starts from, and the points and weights the fit is of."""
+    import numpy as np
+
+    from ..core import icfit, icfitsession
+    from ..viewer import icfit_panel
+
+    fitspec = icfit.FitSpec(**spec)
+    name = f"{image}, [{line},{band}]"
+    if params.cursor:
+        session = icfitsession.IcfitSession(x.astype(float), y.astype(float), fitspec,
+                                            np.ones(x.size), name)
+        session.run_commands("\n".join(_sft_keys(params.cursor)))
+    else:
+        session = icfit_panel.make(x.astype(float), y.astype(float), fitspec,
+                                   title=f"{params_name(params)} · {name} · {title}",
+                                   weights=np.ones(x.size))
+    done = session.spec
+    out = {key: getattr(done, key) for key in spec}
+    return (out, np.asarray(session.x, np.float32), np.asarray(session.y, np.float32),
+            np.asarray(session.fitted_wts, np.float32))
+
+
+_SFT_CURSORS: dict[str, list[list[str]]] = {}
+
+
+def _sft_keys(cursor: str) -> list[str]:
+    """The next spectrum's keys from the cursor file: up to and with its q, as IRAF
+    reads one file on from spectrum to spectrum; none once it is used up."""
+    if cursor not in _SFT_CURSORS:
+        if not Path(cursor).exists():
+            advice.fail(f"cursor file '{cursor}' does not exist",
+                        "write one key a line, or use --interactive for the window",
+                        FileNotFoundError)
+        chunks, chunk = [], []
+        for text in Path(cursor).read_text(encoding="utf-8").splitlines():
+            words = text.split()
+            if not words:
+                continue
+            keyed = len(words) >= 4 and words[0][0] not in ":"
+            line = text if keyed else f"0 0 1 {text.strip()}"
+            chunk.append(line)
+            if line.split()[3] == "q":
+                chunks.append(chunk)
+                chunk = []
+        if chunk:
+            chunks.append(chunk)
+        _SFT_CURSORS[cursor] = chunks
+    chunks = _SFT_CURSORS[cursor]
+    return chunks.pop(0) if chunks else []
+
+
+def params_name(params) -> str:
+    return "continuum" if isinstance(params, ContinuumParams) else "sfit"
+
+
+@register
+class Continuum(_Sfit, Task[ContinuumParams]):
+    name = "continuum"
+    package = "onedspec"
+    description = "Fit the continuum of spectra, and divide by it (or subtract it)."
+    Params = ContinuumParams
+
+
+@register
+class Sfit(_Sfit, Task[SfitParams]):
+    name = "sfit"
+    package = "onedspec"
+    description = "Fit a curve to spectra, and write the fit, the data, or both."
+    Params = SfitParams

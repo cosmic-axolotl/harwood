@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 108, partial: 0, planned: 247, replaced: 94, wontport: 161
+#   available: 110, partial: 0, planned: 245, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -807,7 +807,8 @@ tasks:
     note: "IRAF's aid algorithm with its centring, line list matching and fitting, ported and checked against IRAF's output (the same lines, fits and rejections); no reference spectrum (refspec)"}
   calibrate: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: calibrate,
     note: "IRAF's per-pixel calibration (extinction by intrp, the interpolated sensitivity spectrum, the pixel width), fnu and per-aperture sensitivities (ignoreaps), ported and checked against IRAF's output; reads IRAF's sensitivity spectra too"}
-  continuum: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  continuum: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: continuum,
+    note: "t_sfit.x with continuum's defaults; see sfit"}
   deredden: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: deredden,
     note: "t_deredden.x: CCM 1989 in real, A(V), E(B-V) or c, by aperture, the DEREDDEN card read back to undo an old correction with override, held to IRAF's runs over the whole law, to the bit but a few pixels a unit of the last place off"}
   dispcor: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: dispcor,
@@ -849,7 +850,8 @@ tasks:
     note: "scopy.cl: sarith with copy, held to IRAF's with sarith's sessions"}
   sensfunc: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: sensfunc,
     note: "noao/onedspec/sensfunc and math/curfit (single precision) ported: the sensitivity spectra, logfile, :stats/:vstats and revised extinction identical to IRAF's bit for bit on 17 runs -- every aperture or ignoreaps, four functions, and from a cursor file or the window delete/undelete/move/add/reweight, grey shift, composite, residual extinction, original data. The calibrated-image graphs (i, l, c, e) are not drawn"}
-  sfit: {pkg: onedspec, domain: spec-1d, status: planned, milestone: later}
+  sfit: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: sfit,
+    note: "t_sfit.x on icfit in real: lines and bands, every output type, replace (ic_clean), sample, naverage, rejection and grow, wavescale and logscale, SFIT and SFITB with override, in place, existing outputs, listonly, the power series in the log files, its warnings and errors; 45 sessions held to IRAF's to the bit; interactive through the icfit panel or a cursor file, without IRAF's prompts"}
   sflip: {pkg: onedspec, domain: spec-1d, status: available, milestone: later, harwood: sflip,
     note: "t_sflip.x: the data, the coordinates (wavelength and physical pixel), both or neither, held to IRAF's listpixels of its output"}
   skysub: {pkg: imred.specred, domain: spec-1d, status: planned, milestone: later}
