@@ -2018,3 +2018,178 @@ class ImExpr(Task[ImExprParams]):
         return TaskResult(outputs=[target.path], steps=self.plan(params), history=[line],
                           data={"expression": result.expression, "shape": shape,
                                 "type": result.type})
+
+
+# ------------------------------------------------------------------ imreplace
+
+IMRWHY = {
+    "read": "Each image the template matches. imreplace is meant for a whole set at "
+            "once -- the same bad values out of every frame of a night.",
+    "window": "Pixels from lower to upper, both included; a side left empty has no "
+              "limit, and neither side means every pixel. In an integer image the "
+              "limits are made integers as IRAF makes them: upper truncated, lower "
+              "truncated when whole and raised by one when not -- for a negative "
+              "limit that is not whole, that is one off where it reads (-100.5 "
+              "starts at -99). The value is truncated toward zero too.",
+    "radius": "Every pixel within the radius of one in the window is replaced as "
+              "well: the edge of a bad region, which is bad without being far off.",
+    "write": "The pixel type is kept, as IRAF keeps it in place. The input is not "
+             "modified unless --output names it.",
+}
+
+
+class ImReplaceParams(TaskParams):
+    images: list[str] = Field(
+        ..., description="Images to edit. Globs, @lists and an image section work; a "
+                         "section changes only its pixels.",
+        json_schema_extra={"positional": True},
+    )
+    value: float = Field(
+        ..., description="The value the pixels get. A negative one goes after --.",
+        json_schema_extra={"positional": True},
+    )
+    lower: float | None = Field(None, description="Lower limit of the window. Empty is "
+                                                  "IRAF's INDEF: no lower limit.")
+    upper: float | None = Field(None, description="Upper limit of the window. Empty is "
+                                                  "IRAF's INDEF: no upper limit.")
+    radius: float = Field(0.0, ge=0.0, description="Also replace every pixel within this "
+                                                   "many pixels of one in the window. "
+                                                   "Below 1, none.")
+    imaginary: float = Field(0.0, description="IRAF's imaginary part, for a complex "
+                                              "image. FITS images are not complex: it "
+                                              "changes nothing, and is kept for epar.")
+    output: str = Field(
+        "", description="Where to write: a name for one image, a,b,c or @list one per "
+                        "image, %old%new%, a directory (ending in /) or a prefix. Left "
+                        "out, this run's own directory. IRAF edits in place; name the "
+                        "input itself to do the same.")
+    uncertainty: Literal["VAR", "ERR", "UNCERT"] = uncertainty_field()
+    format: Literal["harwood", "iraf"] = format_field()
+
+
+@register
+class ImReplace(Task[ImReplaceParams]):
+    """IRAF's imreplace, from images/imutil/src/imrep.gx: pixels in a window, and
+    with a radius those near them, set to a value. What the window is in an
+    integer image, how value lands in it, and what the radius writes are IRAF's,
+    defects included (core/imreplace.py lists them); checked pixel for pixel
+    against IRAF 2.18 on every pixel type it writes."""
+
+    name = "imreplace"
+    package = "imutil"
+    description = "Replace the pixels in a window of values by a constant."
+    Params = ImReplaceParams
+
+    def plan(self, params: ImReplaceParams) -> list[Step]:
+        low = "INDEF" if params.lower is None else f"{params.lower:g}"
+        high = "INDEF" if params.upper is None else f"{params.upper:g}"
+        steps = [Step("read", ", ".join(params.images), why=IMRWHY["read"]),
+                 Step("window", f"{low} to {high} -> {params.value:g}",
+                      why=IMRWHY["window"])]
+        if params.radius >= 1.0:
+            steps.append(Step("radius", f"{params.radius:g} pixels", why=IMRWHY["radius"]))
+        steps.append(Step("write", params.output or "this run's directory",
+                          why=IMRWHY["write"]))
+        return steps
+
+    def execute(self, params: ImReplaceParams) -> TaskResult:
+        import dataclasses
+
+        import numpy as np
+
+        from ..core import images, imreplace, mef, output, pixels
+        from .crutil import _destination, _named
+
+        specs = images.expand(params.images)
+        if not specs:
+            advice.fail(f"'{' '.join(params.images)}' matches no image",
+                        "check the name, or run `harwood sections` on the template",
+                        FileNotFoundError)
+        named = _named(params.output, specs)
+        written, rows, warnings, total = [], [], [], 0
+        for spec in specs:
+            hdul, hdu = images.open_hdu(spec)
+            try:
+                stored = np.array(hdu.data)
+                header = images.inherited(hdul, hdu)
+                index = hdul.index(hdu)
+            finally:
+                hdul.close()
+            # astropy rewrites BITPIX once it has scaled the data: the file's own.
+            from astropy.io import fits
+
+            bitpix = int(fits.getheader(spec.path, index).get("BITPIX", 0))
+            scaled = bitpix > 0 and stored.dtype.kind == "f"
+            whole = dataclasses.replace(spec, section=None)
+            _, _, var, quality = mef.load(whole)
+            kind = imreplace.working_type(stored.dtype)
+            if stored.dtype.kind == "u" and stored.dtype.itemsize == 1 or scaled:
+                warnings.append(advice.note(
+                    f"{spec}: IRAF cannot write {'a scaled' if scaled else 'an 8-bit'} "
+                    "image back in place and stops; harwood writes it as IRAF reads it, "
+                    f"{'real' if scaled else 'short'}.",
+                    "nothing to do: the values are the ones IRAF would compare; only "
+                    "the file's pixel type differs."))
+                target = np.float32 if scaled else np.int16
+            else:
+                target = stored.dtype.newbyteorder("=")
+            work = np.array(stored, dtype=imreplace.DTYPES[kind])
+            where = (Ellipsis,)
+            if spec.section:
+                where = pixels.parse_section(spec.section.strip("[]"), work.shape)
+            before = work[where].copy()
+            work[where] = imreplace.replace(before, params.value, params.lower,
+                                            params.upper, params.radius, kind)
+            note = _imreplace_unwritten(work[where].shape, params)
+            if note and not any(w.message == note.message for w in warnings):
+                warnings.append(note)
+            changed = int(np.count_nonzero(work[where] != before))
+            total += changed
+            result = work.astype(target)
+            low = "INDEF" if params.lower is None else f"{params.lower:g}"
+            high = "INDEF" if params.upper is None else f"{params.upper:g}"
+            header.add_history(f"imreplace: {changed} pixels from {low} to {high}"
+                               + (f" and within {params.radius:g}"
+                                  if params.radius >= 1 else "")
+                               + f" set to {params.value:g}")
+            name = Path(spec.path).name
+            stem = name[:-5] if name.endswith(".fits") else name
+            destination = named.get(str(spec.path)) or _destination(
+                params.output, stem, ".fits", spec, output)
+            files, notes = mef.save(destination, result, header, var, quality,
+                                    params.uncertainty, params.format, keep_type=True)
+            written.extend(files)
+            warnings.extend(n for n in notes if n not in warnings)
+            rows.append({"image": str(spec), "type": kind, "changed": changed})
+
+        steps = self.plan(params)
+        steps[1].measured = {"images": len(specs), "pixels changed": total}
+        return TaskResult(outputs=written, steps=steps, data={"rows": rows},
+                          warnings=warnings, history=[f"imreplace: {total} pixels"])
+
+
+def _imreplace_unwritten(shape, params: ImReplaceParams):
+    """The radius cases where IRAF writes less than it marked, said: harwood writes
+    what IRAF writes, and the image stays as it was where IRAF leaves it."""
+    import numpy as np
+
+    if params.radius < 1.0 or (params.lower is None and params.upper is None):
+        return None
+    nradius = int(np.float32(params.radius))
+    if len(shape) == 1 or shape[-2] <= nradius:
+        what = "a 1-D image" if len(shape) == 1 else \
+            f"an image of {shape[-2]} lines with a radius of {params.radius:g}"
+        return advice.warn(
+            f"IRAF's imreplace writes nothing on {what}: a line is written only "
+            "once the one int(radius) further on has been read. harwood does the "
+            "same, and the image is left as it was.",
+            "use a radius smaller than the number of lines, or imexpr for a 1-D "
+            "image")
+    if len(shape) > 2:
+        return advice.warn(
+            "IRAF's imreplace with a radius on a cube leaves the last lines of the "
+            "last band as they were (its line counter goes back to 0 at each band's "
+            "end, so they are never written), and the other bands' last lines "
+            "written late. harwood does the same.",
+            "replace band by band, with a section such as [*,*,2]")
+    return None

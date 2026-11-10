@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 111, partial: 2, planned: 242, replaced: 94, wontport: 161
+#   available: 112, partial: 2, planned: 241, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -357,7 +357,8 @@ tasks:
   imjoin: {pkg: [images.imutil, proto.vol], domain: arithmetic, status: planned, milestone: later}
   imrename: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imrename,
     note: "IRAF's rules for the new name; refuses before renaming anything when one would clobber, where IRAF warns and goes on"}
-  imreplace: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  imreplace: {pkg: images.imutil, domain: arithmetic, status: available, milestone: later, harwood: imreplace,
+    note: "imrep.gx ported: the window and value as each pixel type takes them (integer limits truncated, lower raised when not whole), the radius with its ring buffer and what it leaves unwritten, NaN/Inf/-0/subnormals read as 0 by the IEEE input -- identical to IRAF 2.18 on short, ushort, int, real and double. IRAF stops on 8-bit and scaled images; harwood writes them as short and real. Writes a new file unless --output names the input"}
   imscale: {pkg: proto, domain: arithmetic, status: planned, milestone: later}
   imslice: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imstack: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}

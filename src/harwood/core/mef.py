@@ -222,9 +222,12 @@ def _read_ccddata(hdul, names) -> Image:
 # --------------------------------------------------------------------- writing
 
 def write(path: Path | str, image: Image, uncertainty: str = "VAR",
-          format: str = "harwood", overwrite: bool = True) -> tuple[list[Path], list[str]]:
+          format: str = "harwood", overwrite: bool = True,
+          keep_type: bool = False) -> tuple[list[Path], list[str]]:
     """Write `image`. Returns the files written and, for --format iraf, what
-    IRAF's single HDU could not hold."""
+    IRAF's single HDU could not hold. `keep_type`: the pixels go to disk in
+    their own type, double included -- for a task that edits a file's pixels
+    as they are (imreplace) rather than computing new ones."""
     if uncertainty not in UNCERTAINTIES:
         advice.fail(f"--uncertainty '{uncertainty}' is not one harwood writes.",
                     "give VAR (the variance), ERR (its square root) or UNCERT "
@@ -234,18 +237,18 @@ def write(path: Path | str, image: Image, uncertainty: str = "VAR",
                     "give harwood (SCI, VAR and DQ) or iraf (one HDU, as IRAF reads).")
     path = Path(path)
     if format == "iraf":
-        return _write_iraf(path, image, overwrite)
+        return _write_iraf(path, image, overwrite, keep_type)
     if uncertainty == "UNCERT":
-        return [_write_ccddata(path, image, overwrite)], []
-    return [_write_sci(path, image, uncertainty, overwrite)], []
+        return [_write_ccddata(path, image, overwrite, keep_type)], []
+    return [_write_sci(path, image, uncertainty, overwrite, keep_type)], []
 
 
-def _stored(data) -> np.ndarray:
+def _stored(data, keep_type: bool = False) -> np.ndarray:
     """The pixels as written: double precision, harwood's working one, goes
     to disk as single, as IRAF writes real images; any other type -- an
     integer frame fixpix kept integer -- stays what it is."""
     data = np.asarray(data)
-    return data.astype(np.float32) if data.dtype == np.float64 else data
+    return data.astype(np.float32) if data.dtype == np.float64 and not keep_type else data
 
 
 def _extension(data, name, version, header=None):
@@ -257,7 +260,8 @@ def _extension(data, name, version, header=None):
     return hdu
 
 
-def _write_sci(path: Path, image: Image, uncertainty: str, overwrite: bool) -> Path:
+def _write_sci(path: Path, image: Image, uncertainty: str, overwrite: bool,
+               keep_type: bool = False) -> Path:
     from astropy.io import fits
 
     hdus = [fits.PrimaryHDU(header=image.primary.copy())]
@@ -267,7 +271,7 @@ def _write_sci(path: Path, image: Image, uncertainty: str, overwrite: bool) -> P
         # the inherited primary: without it, hselect x.fits[SCI] OBJECT is blank.
         if "OBJECT" in image.primary and "OBJECT" not in header:
             header["OBJECT"] = image.primary["OBJECT"]
-        hdus.append(_extension(_stored(plane.sci), "SCI", version, header))
+        hdus.append(_extension(_stored(plane.sci, keep_type), "SCI", version, header))
         if plane.var is not None:
             if uncertainty == "ERR":
                 hdus.append(_extension(np.sqrt(plane.var).astype(np.float32), "ERR",
@@ -282,14 +286,16 @@ def _write_sci(path: Path, image: Image, uncertainty: str, overwrite: bool) -> P
     return path
 
 
-def _write_ccddata(path: Path, image: Image, overwrite: bool) -> Path:
+def _write_ccddata(path: Path, image: Image, overwrite: bool,
+                   keep_type: bool = False) -> Path:
     """CCDData's layout, which astropy reads back with CCDData.read: data in
     the primary HDU, UNCERT as a standard deviation, MASK as good/bad -- and
     the DQ beside them, so harwood reads back every reason, not only 'bad'."""
     from astropy.io import fits
 
     plane = image.plane
-    hdus = [fits.PrimaryHDU(_stored(plane.sci), header=merged(image.primary, plane.header))]
+    hdus = [fits.PrimaryHDU(_stored(plane.sci, keep_type),
+                            header=merged(image.primary, plane.header))]
     if plane.var is not None:
         uncert = fits.ImageHDU(np.sqrt(plane.var).astype(np.float32), name="UNCERT")
         uncert.header["UTYPE"] = "StdDevUncertainty"
@@ -308,7 +314,8 @@ def mask_name(path: Path) -> Path:
     return path.with_name(f"{stem}.bpm.fits")
 
 
-def _write_iraf(path: Path, image: Image, overwrite: bool) -> tuple[list[Path], list[str]]:
+def _write_iraf(path: Path, image: Image, overwrite: bool,
+                keep_type: bool = False) -> tuple[list[Path], list[str]]:
     from astropy.io import fits
 
     if len(image.planes) != 1:
@@ -332,19 +339,22 @@ def _write_iraf(path: Path, image: Image, overwrite: bool) -> tuple[list[Path], 
         del header["BPM"]
     if plane.var is not None:
         lost.append("the variance")
-    fits.PrimaryHDU(_stored(plane.sci), header=header).writeto(path, overwrite=overwrite)
+    fits.PrimaryHDU(_stored(plane.sci, keep_type), header=header).writeto(
+        path, overwrite=overwrite)
     return written, lost
 
 
 def save(destination: Path | str, data, header, var=None, quality=None,
-         uncertainty: str = "VAR", format: str = "harwood") -> tuple[list[Path], list]:
+         uncertainty: str = "VAR", format: str = "harwood",
+         keep_type: bool = False) -> tuple[list[Path], list]:
     """What a task calls to write one image: the pixels and the header it
     worked with (one header, as images.read gives it), split back into the
     exposure's and the plane's, and written as the user asked. Returns the
     files and the notices to pass on -- what --format iraf left behind."""
     primary, plane_header = split(header)
     image = Image(primary, [Plane(np.asarray(data), var, quality, plane_header)])
-    written, lost = write(destination, image, uncertainty=uncertainty, format=format)
+    written, lost = write(destination, image, uncertainty=uncertainty, format=format,
+                          keep_type=keep_type)
     notes = []
     if lost:
         notes.append(advice.note(
