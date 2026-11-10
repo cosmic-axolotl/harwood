@@ -211,7 +211,9 @@ class AperturePanel(QtWidgets.QWidget):
 @on_main
 def run(session: apeditsession.ApeditSession, title: str = "apedit") -> str:
     """Open the panel, wait for q, and give back all that was said."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     panel = show(AperturePanel(session), title, size=(1000, 560))
     return panel.said

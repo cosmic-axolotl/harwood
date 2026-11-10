@@ -154,7 +154,9 @@ class CogPanel(QtWidgets.QWidget):
 @on_main
 def run(session: apsession.ApSession, title: str = "mkapfile") -> list[str]:
     """Open the panel, wait for q, and give back all that was said."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     panel = show(CogPanel(session), title, size=(980, 700))
     return panel.said

@@ -73,7 +73,9 @@ class GraphPanel(QtWidgets.QWidget):
 
 
 def run(graph, title: str) -> None:
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     show(GraphPanel(graph), title, size=(900, 560))
 
@@ -116,7 +118,9 @@ class MarkPanel(GraphPanel):
 
 def mark(graph, start: float):
     """Show the graph and give back the marks made on it, q last."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     panel = show(MarkPanel(graph, start), graph.title[0], size=(900, 560))
     return [*panel.events, (float("nan"), float("nan"), "q")]

@@ -145,7 +145,9 @@ class StandardPanel(QtWidgets.QWidget):
 @on_main
 def edit(editor) -> None:
     """Show the spectrum and its bands until q."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     spec = editor.spec
     show(StandardPanel(editor), f"standard · {spec.image}({spec.ap})", size=(1000, 600))

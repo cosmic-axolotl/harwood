@@ -221,7 +221,9 @@ class SpeciesPanel(QtWidgets.QWidget):
 def run(aperture, velocity: float = 0.0, tolerance: float = 1.0,
         name: str = "spectrum") -> None:
     """Open the panel and wait for `q`."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     show(SpeciesPanel(aperture, velocity, tolerance, name),
          f"lineid · {name}", size=(1180, 660))

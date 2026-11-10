@@ -211,7 +211,9 @@ class IdentifyPanel(QtWidgets.QWidget):
 @on_main
 def run(session: identifysession.IdentifySession, title: str = "identify") -> str:
     """Open the panel, wait for q and its answer, and give back all that was said."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     panel = show(IdentifyPanel(session), title, size=(1150, 780))
     return panel.said

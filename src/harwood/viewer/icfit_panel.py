@@ -273,7 +273,9 @@ def apply_command(spec: icfit.FitSpec, text: str) -> icfit.FitSpec:
 def run(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit",
         xlabel: str = "x", ylabel: str = "y", kind: str = "line", xrange=None) -> icfit.Fit:
     """Open the panel, wait for `q`, and hand back the fit that was accepted."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     panel = IcfitPanel(x, y, spec, title=title, xlabel=xlabel, ylabel=ylabel, kind=kind,
                        xrange=xrange)
@@ -288,7 +290,9 @@ def make(x, y, spec: icfit.FitSpec | None = None, title: str = "icfit", weights=
     The session, not the panel: a task running beside the window would hold the
     widget on its own thread, and a widget let go there is taken down off the
     window's thread, which crashes Qt."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     panel = IcfitPanel(x, y, spec, title=title, weights=weights)
     show(panel, title, size=(980, 620))

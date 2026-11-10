@@ -228,7 +228,9 @@ class FitPanel(QtWidgets.QWidget):
 @on_main
 def run(session: fitsession.FitSession, title: str = "fitparams") -> str:
     """Open the panel, wait for the last equation, and give back all that was said."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     panel = show(FitPanel(session), title, size=(1000, 760))
     return panel.said

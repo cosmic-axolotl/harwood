@@ -171,7 +171,9 @@ class CrGraphPanel(QtWidgets.QWidget):
 @on_main
 def run(session: crfind.Session, data=None, title: str = "cosmicrays") -> None:
     """Open the panel and wait for q."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     session.done = False
     show(CrGraphPanel(session, data), title, size=(980, 620))

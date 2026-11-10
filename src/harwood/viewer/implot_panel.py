@@ -216,7 +216,9 @@ class ImplotPanel(QtWidgets.QWidget):
 def run(data, name: str = "image", images=None, line=None, wcs="logical",
         step: int = 0) -> list[str]:
     """Open implot and wait for `q`; the lines it printed."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     panel = show(ImplotPanel(data, name, images=images, line=line, wcs=wcs, step=step),
                  f"implot · {name}", size=(1080, 640))

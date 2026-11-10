@@ -152,7 +152,9 @@ class SensfuncPanel(QtWidgets.QWidget):
 @on_main
 def edit(session: sf.Session) -> None:
     """Show the graphs until q."""
-    from .dock import show
+    from .dock import application, show
+
+    application()   # before the panel: a widget made with no QApplication aborts Qt
 
     show(SensfuncPanel(session), f"sensfunc · aperture {session.aperture}",
          size=(1000, 720))
