@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 112, partial: 2, planned: 241, replaced: 94, wontport: 161
+#   available: 113, partial: 2, planned: 240, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -363,7 +363,8 @@ tasks:
   imslice: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imstack: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   imstatistics: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: imstatistics}
-  imsum: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
+  imsum: {pkg: images.imutil, domain: arithmetic, status: available, milestone: later, harwood: imsum,
+    note: "t_imsum.x and imsum.gx ported: the calculation and output types by imsum_set's precedence, integer wrap and truncation, the fifteen-at-a-time sum kept in the output's type, imrej's sorting or pairs and amed3/amed5, hparams read by ctod and written by imputd -- identical to IRAF 2.18. No uncertainty, as IRAF's: imcombine adds the variance"}
   imtile: {pkg: images.imutil, domain: arithmetic, status: planned, milestone: later}
   mimstatistics: {pkg: proto, domain: arithmetic, status: available, milestone: mvp, harwood: mimstatistics,
     note: "IRAF's lines through masks, limits and clipping; output masks as .pl"}

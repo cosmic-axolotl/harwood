@@ -2193,3 +2193,195 @@ def _imreplace_unwritten(shape, params: ImReplaceParams):
             "written late. harwood does the same.",
             "replace band by band, with a section such as [*,*,2]")
     return None
+
+
+# ---------------------------------------------------------------------- imsum
+
+IMSWHY = {
+    "read": "Every image, which must all have the same shape. The first one's header "
+            "is the output's, as IRAF's NEW_COPY makes it.",
+    "types": "What the pixels are added in, and what the output is written as, decide "
+             "the result: an integer calculation wraps a sum too large for it and "
+             "truncates an average, and a real result written as an integer image is "
+             "truncated. By default the calculation is in the highest type of the "
+             "inputs (a short and an unsigned short together, int), and the output in "
+             "that.",
+    "reject": "The lowest and highest values of each pixel are left out before adding: "
+              "a number from 1 on, a fraction of the images below 1. The median keeps "
+              "the middle one -- of an even number, the upper of the two in the middle.",
+    "write": "IRAF's imsum keeps no uncertainty, and neither does this: imcombine adds "
+             "the variance planes of a harwood night.",
+}
+
+
+class ImSumParams(TaskParams):
+    input: list[str] = Field(
+        ..., description="Images to add. Globs, @lists, a,b,c and sections work.",
+        json_schema_extra={"positional": True},
+    )
+    output: str = Field(..., description="The output image, its extension written.",
+                        json_schema_extra={"positional": True})
+    title: str = Field("", description="Title (OBJECT) for the output. Empty keeps the "
+                                       "first image's.")
+    hparams: str = Field("", description="Header keywords to add up (or average) as "
+                                         "well, a,b,c with * and ? patterns; at most "
+                                         "ten, as in IRAF. Not with the median.")
+    pixtype: str = Field("", description="Output pixel type: ushort, short, int, long, "
+                                         "real or double, or its first letter. Empty is "
+                                         "the calculation's.")
+    calctype: str = Field("", description="Calculation type: short, int, long, real or "
+                                          "double, or its first letter. Empty is the "
+                                          "highest of the inputs'.")
+    option: Literal["sum", "average", "median"] = Field(
+        "sum", description="Add the pixels, average them, or take their median.")
+    low_reject: float = Field(0.0, ge=0.0, description="Low pixels to reject: a number, "
+                                                       "or a fraction of the images "
+                                                       "below 1.")
+    high_reject: float = Field(0.0, ge=0.0, description="High pixels to reject: a "
+                                                        "number, or a fraction of the "
+                                                        "images below 1.")
+    verbose: bool = Field(False, description="Print IRAF's log of the operation.")
+    format: Literal["harwood", "iraf"] = format_field()
+
+
+@register
+class ImSum(Task[ImSumParams]):
+    """IRAF's imsum, from images/imutil/src/t_imsum.x and imsum.gx: the sum, average
+    or median of images with the highest and lowest pixels rejected, in the
+    calculation and pixel types IRAF chooses, with the rejection, the median and
+    the fifteen-at-a-time sum as IRAF does them (core/imsum.py lists what
+    follows). Checked pixel for pixel against IRAF 2.18."""
+
+    name = "imsum"
+    package = "imutil"
+    description = "Sum, average or median of images, with high and low rejection."
+    Params = ImSumParams
+
+    def plan(self, params: ImSumParams) -> list[Step]:
+        rejected = (params.option == "median" or params.low_reject or params.high_reject)
+        steps = [Step("read", ", ".join(params.input), why=IMSWHY["read"]),
+                 Step("types", f"calculation {params.calctype or 'from the inputs'}, "
+                               f"output {params.pixtype or 'as the calculation'}",
+                      why=IMSWHY["types"])]
+        if rejected:
+            steps.append(Step("reject", "the median" if params.option == "median" else
+                              f"{params.low_reject:g} low, {params.high_reject:g} high",
+                              why=IMSWHY["reject"]))
+        steps.append(Step("write", params.output, why=IMSWHY["write"]))
+        return steps
+
+    def execute(self, params: ImSumParams) -> TaskResult:
+        import numpy as np
+        from astropy.io import fits
+
+        from ..core import images, imsum, mef, pixels
+
+        specs = images.expand(params.input)
+        if not specs:
+            advice.fail("No input images in list",
+                        f"'{' '.join(params.input)}' matches nothing: check the names, "
+                        "or run `harwood sections` on the template", FileNotFoundError)
+        try:
+            option = params.option
+            nlow, nhigh = imsum.rejections(option, len(specs), params.low_reject,
+                                           params.high_reject)
+            frames, kinds, header, uncertain = [], [], None, []
+            for spec in specs:
+                hdul, hdu = images.open_hdu(spec)
+                try:
+                    data = np.array(hdu.data)
+                    if header is None:
+                        header = images.inherited(hdul, hdu)
+                    index = hdul.index(hdu)
+                    if any(h.name in ("VAR", "ERR", "UNCERT") for h in hdul):
+                        uncertain.append(str(spec))
+                finally:
+                    hdul.close()
+                bitpix = int(fits.getheader(spec.path, index).get("BITPIX", 0))
+                if spec.section:
+                    data = data[pixels.parse_section(spec.section.strip("[]"), data.shape)]
+                frames.append(data)
+                scaled = bitpix > 0 and data.dtype.kind == "f"
+                kinds.append(imsum.pixel_type(data.dtype, scaled))
+            if len({frame.shape for frame in frames}) > 1:
+                raise imsum.ImsumError("Images have different dimensions or sizes")
+            calc, pix = imsum.types(kinds, params.calctype, params.pixtype)
+        except imsum.ImsumError as error:
+            fix = {"Unrecognized datatype": "give short, int, long, real or double for "
+                   "--calctype (and ushort too for --pixtype), or the first letter",
+                   "Images have different dimensions or sizes": "give images of one "
+                   "shape, or sections of one size",
+                   "Number of pixels rejected >= number of images": "reject fewer, so "
+                   "that at least one value of each pixel is left"}.get(str(error), "")
+            advice.fail(str(error), fix)
+
+        text = []
+        if params.verbose:
+            text = ["IMSUM:", "  Input images:", *(f"    {s}" for s in specs),
+                    f"  Output image: {params.output}",
+                    f"  Header parameters: {params.hparams}",
+                    f"  Output pixel datatype: {imsum.NAMES[pix]}",
+                    f"  Calculation type: {imsum.NAMES[calc]}",
+                    f"  Option: {option}",
+                    f"  Low rejection: {nlow}", f"  High rejection: {nhigh}"]
+        work = [imsum.read_as(frame, kind, calc) for frame, kind in zip(frames, kinds,
+                                                                        strict=True)]
+        result = imsum.combine(work, calc, pix, option, nlow, nhigh)
+
+        if params.title:
+            header["OBJECT"] = params.title
+        if params.hparams.strip() and option in ("sum", "average"):
+            _imsum_hparams(header, specs, params.hparams, option)
+        header.add_history(f"imsum: {option} of {len(specs)} images"
+                           + (f", {nlow} low and {nhigh} high rejected"
+                              if (nlow or nhigh) and option != "median" else ""))
+        files, notes = mef.save(params.output, result, header, None, None,
+                                format=params.format, keep_type=True)
+        warnings = list(notes)
+        if uncertain:
+            warnings.append(advice.note(
+                f"{len(uncertain)} of the inputs carry an uncertainty plane, which imsum "
+                "leaves behind, as IRAF's has nowhere to keep one.",
+                "use imcombine to add the frames with their variance"))
+        steps = self.plan(params)
+        steps[1].measured = {"calculation": imsum.NAMES[calc], "output": imsum.NAMES[pix]}
+        data = {"images": len(specs), "calculation": imsum.NAMES[calc],
+                "pixtype": imsum.NAMES[pix], "low rejected": nlow, "high rejected": nhigh}
+        if text:
+            data["text"] = text
+        return TaskResult(outputs=files, steps=steps, data=data, warnings=warnings,
+                          history=[f"imsum: {option} of {len(specs)} images"])
+
+
+def _imsum_hparams(header, specs, patterns: str, option: str) -> None:
+    """imsum_hparam: the first ten keywords of the output's header the patterns
+    match, summed over the images (averaged over all of them, rejection or not)
+    and written as imputd writes them."""
+    import fnmatch
+
+    from ..core import images, imsum
+
+    wanted = [p.strip().upper() for p in patterns.split(",") if p.strip()]
+    fields = []
+    for key in header:
+        if key in ("", "COMMENT", "HISTORY") or _STRUCTURAL.match(key):
+            continue
+        if any(fnmatch.fnmatchcase(key.upper(), p) for p in wanted) and key not in fields:
+            fields.append(key)
+        if len(fields) == 10:
+            break
+    totals = dict.fromkeys(fields, 0.0)
+    for spec in specs:
+        own = images.read_header(spec)
+        for key in fields:
+            if key not in own:
+                advice.fail(f"Image header parameter not found ({key} in {spec})",
+                            "give --hparams keywords every input has", KeyError)
+            try:
+                totals[key] += imsum.hparam_value(own.cards[key])
+            except imsum.ImsumError:
+                advice.fail(f"{key} in {spec} is not a number: {own[key]!r}",
+                            "give --hparams keywords with numeric values", ValueError)
+    for key, total in totals.items():
+        value = total / len(specs) if option == "average" else total
+        header[key] = float(imsum.hparam_format(value))
