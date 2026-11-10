@@ -43,6 +43,7 @@ _MODULES = (
     "harwood.tasks.tv",
     "harwood.tasks.proto",
     "harwood.tasks.imfilter",
+    "harwood.tasks.longslit",
     "harwood.tasks.modern",
     "harwood.tasks.timeseries",
 )

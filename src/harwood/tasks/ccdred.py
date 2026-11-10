@@ -791,7 +791,9 @@ def _finish(frame: _Frame, kind: str, steps: list[Step], params) -> None:
 
     from ..core import ccdsections
 
-    done = any(not step.skipped for step in steps)
+    # IRAF's COR flag: a correction applied. harwood's variance is not one, and a
+    # flat that needs nothing else is not processed: no minreplace, no new mean.
+    done = any(not step.skipped and step.action != "variance" for step in steps)
     if kind == "flat" and done:
         low = frame.data < params.minreplace
         region = getattr(frame.sections, "out_c1", None)
@@ -816,7 +818,8 @@ def _finish(frame: _Frame, kind: str, steps: list[Step], params) -> None:
         mean = np.float32(np.float32(total / np.float32(inner.shape[1]))
                           / np.float32(inner.shape[0]))
         frame.header["CCDMEAN"] = (_real_card(mean), "mean of the image after ccdproc")
-        frame.header["CCDMEANT"] = (int(time.time()), "when CCDMEAN was computed")
+        frame.header["CCDMEANT"] = (iraf_clock(time.time()),
+                                    "when CCDMEAN was computed, IRAF's clock")
     if kind == "zero" and params.readcor and "READCOR" not in frame.header:
         before = Task.statistics(frame.data)
         frame.data = ccdsections.readcor(frame.data, frame.header, params.readaxis == "line")
@@ -887,7 +890,8 @@ def _extra(frame, key, image, params, inst, sec, region, warnings) -> Step:
     data = frame.data
     before_stats = Task.statistics(data)
     if key == "illum":
-        if "CCDMEAN" in cal.header:
+        # set_illum: the CCDMEAN, computed again when missing or out of date.
+        if _ccdmean_valid(cal.header, cal.path):
             scale = _hdm_real(cal.header, "CCDMEAN")
         else:
             scale = np.float32(_real_card(ccdsections.mean_of(cal.data)))
@@ -961,6 +965,9 @@ def _calibration_frame(role, image, frame, params, inst, kind):
         data, mean = ccdsections.shortscan(base.data, head, nscan, floor, line_axis)
         head["NSCANROW"] = nscan
     head["CCDMEAN"] = (_real_card(mean), "mean of the image after scancor")
+    import time
+
+    head["CCDMEANT"] = (iraf_clock(time.time()), "when CCDMEAN was computed, IRAF's clock")
     _mark_as(head, "SCANCOR", "converted to a scan by harwood")
     mef.save(made, data, head, None, None, "VAR", "harwood")
     return made
@@ -1209,30 +1216,31 @@ def _calibrate(data, header, key, image, params, sec, region, inst=None, flat=No
                              f"{float(factor):.3f}")
     else:
         # IRAF: out = data * scale / flat, the scale being the flat's CCDMEAN --
-        # the mean, not the median, of the flat as ccdproc left it. A flat
-        # without CCDMEAN is one IRAF would process as a flat before using it,
-        # which replaces values below minreplace and then takes the mean; that
-        # is done here. (harwood used to normalise by the median: 0.11% off on
-        # the 1987 M92 flat, a constant 1.2 mmag in every magnitude.)
-        floor = np.float32(params.minreplace)
-        safe = np.where(calibration < floor, floor, calibration).astype(np.float32)
-        source = "its CCDMEAN" if "CCDMEAN" in cal_header else "its mean"
+        # the mean, not the median, of the flat as ccdproc left it -- or, when it
+        # has none or an out-of-date one, ccdmean's mean of the flat as it is.
+        # Nothing is raised to minreplace here: IRAF does that only when it
+        # processes a flat as a flat (_finish), never when it divides by one; a
+        # normalized flat (response's, a superflat) has half its pixels below 1.
+        # (harwood used to normalise by the median: 0.11% off on the 1987 M92
+        # flat, a constant 1.2 mmag in every magnitude.)
+        safe = calibration
+        source = "its CCDMEAN" if _ccdmean_valid(cal_header, cal.path) else "its mean"
         level = _flat_scale(cal, params)
-        if in_column and params.readaxis == "column":
-            # flatval = flatscale / flat[line]
-            out[region] = (data[region] * (level / safe).astype(np.float32)).astype(np.float32)
-        else:
-            out[region] = ((data[region] * level).astype(np.float32) / safe).astype(np.float32)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            if in_column and params.readaxis == "column":
+                # flatval = flatscale / flat[line]
+                out[region] = (data[region] * (level / safe).astype(np.float32)
+                               ).astype(np.float32)
+            else:
+                out[region] = ((data[region] * level).astype(np.float32) / safe
+                               ).astype(np.float32)
         normalised = safe.astype(float) / float(level)
         cal.normalised, cal.level = normalised, float(level)
-        cal.clamped = calibration < floor
+        cal.clamped = np.zeros(calibration.shape, dtype=bool)
         detail = f"divided by {name}, normalised to {source}"
         measured["flat level"] = round(float(level), 3)
         measured["response range"] = (f"{float(normalised.min()):.3f} to "
                                       f"{float(normalised.max()):.3f}")
-        replaced = int((calibration < floor).sum())
-        if replaced:
-            measured["clamped"] = f"{replaced} pixels below {params.minreplace}"
 
     _mark(header, flag)
     return out, Step(key, detail, why=WHY[key], measured=measured,
@@ -1247,12 +1255,57 @@ def _flat_scale(cal, params):
     from ..core import ccdsections
 
     cal = cal if isinstance(cal, _Frame) else _Frame.load(cal)
-    if "CCDMEAN" in cal.header:
+    if _ccdmean_valid(cal.header, cal.path):
         return _hdm_real(cal.header, "CCDMEAN")
-    floor = np.float32(params.minreplace)
-    safe = np.where(np.asarray(cal.data, np.float32) < floor, floor,
-                    np.asarray(cal.data, np.float32)).astype(np.float32)
-    return np.float32(_real_card(ccdsections.mean_of(safe)))
+    return np.float32(_real_card(ccdsections.mean_of(np.asarray(cal.data, np.float32))))
+
+
+def iraf_clock(unix_seconds: float) -> int:
+    """IRAF's clktime: seconds since 1980-01-01, local time."""
+    import time
+
+    local = time.localtime(unix_seconds)
+    return int(unix_seconds + local.tm_gmtoff) - 315532800
+
+
+def _iraf_mtime(header, path) -> int | None:
+    """IM_MTIME as IRAF's FITS kernel has it: IRAF-TLM, written in UTC at every
+    write; the file's own time when the card is not there."""
+    import calendar
+    import os
+
+    tlm = str(header.get("IRAF-TLM", "")).strip()
+    if tlm:
+        try:
+            when = calendar.timegm(time_struct(tlm))
+            return iraf_clock(when)
+        except ValueError:
+            pass
+    try:
+        return iraf_clock(os.stat(path).st_mtime)
+    except (OSError, TypeError):
+        return None
+
+
+def time_struct(text: str):
+    import time
+
+    return time.strptime(text[:19], "%Y-%m-%dT%H:%M:%S")
+
+
+def _ccdmean_valid(header, path) -> bool:
+    """ccdmean's test: a CCDMEAN, and a CCDMEANT -- if there is one -- no older than
+    the image itself. An image copied from another keeps the other's CCDMEANT, and
+    one written since is out of date: IRAF computes the mean again."""
+    if "CCDMEAN" not in header:
+        return False
+    if "CCDMEANT" not in header:
+        return True
+    mtime = _iraf_mtime(header, path)
+    try:
+        return mtime is None or int(header["CCDMEANT"]) >= mtime
+    except (TypeError, ValueError):
+        return True
 
 
 def _time(header, params, inst):

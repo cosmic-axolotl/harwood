@@ -357,6 +357,11 @@ def test_two_real_exposures_with_nothing_new_give_next_to_nothing(tmp_path, monk
     for tape, name in (("fm920001", "bias"), ("fm920003", "flat"), ("fm920004", "o1"),
                        ("fm920005", "o2")):
         shutil.copy(data / tape, f"{name}.fits")
+    # The tape's flat says it is an object. Processed as a flat, as it is, ccdproc raises
+    # its 25 pixels below 1 on the chip's last line to minreplace, as IRAF does a flat's;
+    # processed as an object they stay, and dividing by them -- IRAF's way, which harwood
+    # now follows -- leaves values down to -24000 there for the difference to find.
+    fits.setval("flat.fits", "IMAGETYP", value="flat")
     fit = dict(function="legendre", order=1, niterate=1, logfile="", gain=1.5, readnoise=5.0)
     run = get_task("ccdproc").run
     run(input=["bias.fits"], output="Zero.fits", overscan=True, trim=True, **fit)

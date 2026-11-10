@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 116, partial: 2, planned: 237, replaced: 94, wontport: 161
+#   available: 117, partial: 3, planned: 235, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -788,7 +788,8 @@ tasks:
   fitgauss5: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
     note: "pre-apextract legacy, superseded inside IRAF itself"}
   fluxcalib: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
-  illumination: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  illumination: {pkg: twodspec.longslit, domain: spec-2d, status: partial, milestone: later, harwood: illumination,
+    note: "illumination.x, ilsetbins.x and iminterp's msi ported: the bins as IRAF cuts and orders them, the profiles averaged in real, the per-bin ICFIT (window or cursor file), the normalization at nx/2 - 1, the interpolation grid and the interpolator fallbacks -- identical to IRAF 2.18. Missing: the bins graph's s key (needs the window); --bins or :bins in a cursor file instead"}
   modellist: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
     note: "pre-apextract legacy, superseded inside IRAF itself"}
   msextract: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
@@ -803,7 +804,8 @@ tasks:
     note: "pre-apextract legacy, superseded inside IRAF itself"}
   newimage: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
     note: "pre-apextract legacy, superseded inside IRAF itself"}
-  response: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  response: {pkg: twodspec.longslit, domain: spec-2d, status: available, milestone: later, harwood: response,
+    note: "response.x and lstools.x ported: the normalization spectrum averaged in real, the ICFIT fit (window or cursor file), the threshold, sections written as ls_immap writes them, CCDMEAN 1 with the input's CCDMEANT -- identical to IRAF 2.18"}
   transform: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
 
   # --- spec-1d (later, 36 tasks) --------------------------------
