@@ -5,3 +5,4 @@ peak: {images: [star.fits], line: 25}
 spec: {images: [spec.fits], line: 1, wcs: world}
 flat: {images: [flat.fits]}
 log: {images: [star.fits], line: 25}
+ms: {images: [ms.fits], line: 1, wcs: world}

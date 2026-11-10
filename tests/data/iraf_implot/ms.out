@@ -1,0 +1,9 @@
+pixel=[41,1], world=[6044.,3.] value=1020.
+pixel=[41,1], physical=[41,1], value=1020.
+pixel=[41,1] value=1020.
+pixel=[41,2], world=[6058.,7.] value=120.
+pixel=[41,1], world=[6044.,3.] value=1020.
+pixel=[41,2], world=[6058.,7.] value=120.
+pixel=[41,3], world=[6056.,8.] value=120.
+pixel=[41,2], physical=[41,2], value=120.
+pixel=[1,1], world=[6000.,3.] value=100.

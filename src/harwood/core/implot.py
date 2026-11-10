@@ -53,6 +53,8 @@ class Implot:
 
         self.images = list(images)
         self.read = reader or (lambda name: imageio.read(name))
+        self._files = reader is None
+        self.apertures: list | None = None
         self.index = 0
         self.wcs = wcs
         self.lineplot = True
@@ -78,7 +80,12 @@ class Implot:
     # ---------------------------------------------------------- the image
 
     def _open(self, name: str) -> None:
-        data, header = self.read(name)
+        loaded = _spectrum(name) if self._files else None
+        if loaded is not None:
+            data, header, self.apertures = loaded
+        else:
+            data, header = self.read(name)
+            self.apertures = None
         data = np.asarray(data, dtype=f32)
         if data.ndim == 0 or data.size == 0:
             raise ValueError("image has no pixels")
@@ -126,6 +133,8 @@ class Implot:
         h = self.header
         if self.wcs == "logical" or h is None:
             return pixels.astype(f32)
+        if self.apertures is not None:
+            return self._spectrum_coords(axis, pixels, other)
         ltm = float(h.get(f"LTM{axis}_{axis}", 1.0))
         ltv = float(h.get(f"LTV{axis}", 0.0))
         physical = (pixels - ltv) / ltm
@@ -138,6 +147,31 @@ class Implot:
         crpix = float(h.get(f"CRPIX{axis}", 0.0))
         cd = float(h.get(f"CD{axis}_{axis}", h.get(f"CDELT{axis}", 1.0)))
         return (crval + (pixels - crpix) * cd).astype(f32)
+
+    def _aperture(self, line: float):
+        """The aperture a line (or the middle of averaged lines) is, as the
+        multispec system takes axis 2 at the nearest line."""
+        index = max(1, min(len(self.apertures), _nint(line)))
+        return self.apertures[index - 1]
+
+    def _spectrum_coords(self, axis: int, pixels: np.ndarray, other: float) -> np.ndarray:
+        """A harwood spectrum's coordinates, IRAF's multispec ones: along a line,
+        the pixel (physical) or the aperture's wavelength (world); across, the
+        line (physical) or the aperture number (world). Without a wavelength
+        column, world is physical, as IRAF's is without a dispersion."""
+        if axis == 2:
+            if self.wcs == "physical":
+                return pixels.astype(f32)
+            numbers = [a.number for a in self.apertures]
+            index = np.clip(np.rint(pixels).astype(int), 1, len(numbers)) - 1
+            return np.asarray(numbers, dtype=f32)[index]
+        aperture = self._aperture(other)
+        column = aperture.pixel
+        if self.wcs == "world" and aperture.wavelength is not None:
+            column = aperture.wavelength
+        if column is None or len(column) < 2:
+            return pixels.astype(f32)
+        return _extend(np.asarray(column, dtype=float), pixels).astype(f32)
 
     # ------------------------------------------------------------ drawing
 
@@ -156,6 +190,13 @@ class Implot:
         """plt_wcs's label: what the axis is, or in world what the header says."""
         if self.wcs in ("logical", "physical"):
             return "Column (pixels)" if self.lineplot else "Line (pixels)"
+        if self.apertures is not None:
+            if not self.lineplot:
+                return ""
+            aperture = self._aperture(self.line + (self.navg - 1) / 2.0)
+            if aperture.wavelength is None:
+                return ""
+            return f"Wavelength ({aperture.units or 'Angstroms'})"
         attributes = _wat_attributes(self.header, 1 if self.lineplot else 2)
         label, units = attributes.get("label"), attributes.get("units")
         if label is None:
@@ -469,6 +510,41 @@ class Implot:
         else:
             self.status = [f"no command ':{name}' -- :l and :c plot lines and columns, "
                            ":a averages, :i opens an image; ? lists the keys"]
+
+
+def _spectrum(name: str):
+    """A harwood spectrum (a table per aperture) as the image IRAF would make of
+    it: one line per aperture, the flux along it, the primary header. None when
+    the file is not one, and it is read as an image."""
+    from . import spectrum
+
+    try:
+        if not spectrum.count(name):
+            return None
+    except (OSError, ValueError):
+        return None
+    from astropy.io import fits
+
+    apertures = spectrum.read(name)
+    rows = [np.asarray(a.flux if a.flux is not None else a.raw, dtype=f32)
+            for a in apertures]
+    width = max(len(row) for row in rows)
+    data = np.full((len(rows), width), np.nan, dtype=f32)
+    for i, row in enumerate(rows):
+        data[i, :len(row)] = row
+    with fits.open(name, memmap=False) as hdul:
+        header = hdul[0].header.copy()
+    return data, header, apertures
+
+
+def _extend(column: np.ndarray, pixels: np.ndarray) -> np.ndarray:
+    """A column read at the given pixels, and carried past its last pixel at the
+    step of its last two: an aperture shorter than the longest one."""
+    n = len(column)
+    step = column[-1] - column[-2]
+    return np.where(pixels <= n,
+                    np.interp(pixels, np.arange(1, n + 1), column),
+                    column[-1] + (pixels - n) * step)
 
 
 def _wat_attributes(header, axis: int) -> dict[str, str]:

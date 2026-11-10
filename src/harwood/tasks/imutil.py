@@ -812,7 +812,9 @@ class ImplotParams(TaskParams):
     )
     wcs: Literal["logical", "physical", "world"] = Field(
         "logical", description="Coordinates along the plot: pixels, physical pixels "
-                               "(through LTV/LTM), or world (CRVAL/CD).")
+                               "(through LTV/LTM), or world (CRVAL/CD). A harwood "
+                               "spectrum is a line per aperture: world is its "
+                               "wavelength, and across, the aperture number.")
     step: int = Field(0, ge=0, description="Lines or columns j and k move by. 0: a tenth "
                                            "of the image.")
     coords: str = Field(

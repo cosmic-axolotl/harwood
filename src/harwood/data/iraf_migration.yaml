@@ -611,7 +611,7 @@ tasks:
   imexamine: {pkg: images.tv, domain: display, status: available, milestone: mvp,
     note: "every key, IRAF's colon commands and imagecur for batch, held to IRAF's text, images and metacode; the rimexam surface fit (xorder) and the wcs and format of its positions are not here: positions are logical pixels and the window shows the WCS"}
   implot: {pkg: plot, domain: display, status: available, milestone: mvp, harwood: implot,
-    note: "t_implot.x ported: every key (l c a e j k m n o p r s space q) and colon command (:a :c :l :i :o :log :step :w :x :y), image lists, the right-axis mapping, the profile and statistics -- identical to IRAF 2.18 through a cursor file, which --coords also takes"}
+    note: "t_implot.x ported: every key (l c a e j k m n o p r s space q) and colon command (:a :c :l :i :o :log :step :w :x :y), image lists, the right-axis mapping, the profile and statistics -- identical to IRAF 2.18 through a cursor file, which --coords also takes; a harwood spectrum opens as IRAF opens a multispec (a line per aperture, world = its wavelength and aperture number)"}
   lumatch: {pkg: images.tv.iis, domain: display, status: wontport,
     note: "IIS display-server control: legacy hardware (S2); the native viewer replaces it (S8)"}
   monochrome: {pkg: images.tv.iis, domain: display, status: wontport,

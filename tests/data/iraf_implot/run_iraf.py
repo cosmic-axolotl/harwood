@@ -1,5 +1,5 @@
 """IRAF 2.18 drawing implot's plots: python3 run_iraf.py NAME, from a directory with
-the images of make_frames.py and this folder's NAME.cur (the cursor file) and
+the images of make_frames.py --iraf and this folder's NAME.cur (the cursor file) and
 NAME.2nd (the second positions a, e, p and s read from CL's gcur, not from the
 cursor file). Metacode into NAME.vdm, for ../iraf_photcal/decode_gki.py --over-lines;
 what it prints into NAME.out."""
