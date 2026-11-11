@@ -55,7 +55,7 @@ def test_help_and_lpar_have_different_jobs(run):
 
 def test_an_iraf_name_harwood_does_not_run_gets_an_answer_not_an_error(run):
     for name, expected in (("rfits", "not be ported"),
-                           ("splot", "after the MVP"),
+                           ("bplot", "after the MVP"),
                            ("tselect", "replaced")):
         result = run("help", name)
         assert expected in result.output, name
@@ -70,9 +70,9 @@ def test_references_finds_what_is_about_a_topic(run):
 
 
 def test_references_says_what_became_of_iraf_s_names(run):
-    result = run("references", "splot")
+    result = run("references", "bplot")
     assert result.exit_code == 0
-    assert "splot - planned in harwood" in result.output
+    assert "bplot - planned in harwood" in result.output
 
 
 def test_references_when_nothing_is_about_it(run):

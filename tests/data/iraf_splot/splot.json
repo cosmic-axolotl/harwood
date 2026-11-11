@@ -1,0 +1,2939 @@
+{
+"space": {
+"out": "x,y,z(x):   6450.000      1100.      1027.\nx,y,z(x):   6563.000      3000.      3503.\nx,y,z(x):   6399.000         0.      986.9\nx,y,z(x):   6900.000         5.      1200.\n",
+"err": "",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"m": {
+"out": "m again:avg:      1025.  rms:      14.71   snr:    69.67\nm again:Cannot determine SNR - move cursorm again:avg:      1094.  rms:      11.96   snr:    91.48\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"avg:      1025.  rms:      14.71   snr:    69.67",
+"avg:      1094.  rms:      11.96   snr:    91.48"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"e": {
+"out": "e again:center =  6564.527, eqw =  -19.9328, continuum =    1072.5 flux =   21377.1\ne again:center =  6708.688, eqw =   -2.3106, continuum =     1005. flux =   2121.58\ne again:Cannot get EQW - move cursor",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6564.527    1072.5   21377.1    -19.93",
+"  6708.688     1005.   2121.58    -2.311"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"e_noise": {
+"out": "e again:center =  6564.527, eqw =  -19.9328, continuum =    1072.5 flux =   21377.1\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6564.527    1072.5   21377.1    -19.93",
+"  ( 0.1182)           (   270.) (   0.25)"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"k": {
+"out": "k again:\n1: center =  6562.97, flux =   14148., eqw = -13.61, gfwhm =   5.24k again:\n1: center =  6562.97, flux =   18425., eqw = -17.73, lfwhm =  4.258k again:\n1: center =  6562.97, eqw = -15.58, gfwhm =  3.732, lfwhm =  2.054k again:\n1: center =  6700.03, flux =   -2372., eqw =  2.147, gfwhm =  6.362",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6562.966   1039.37    14148.    -13.61   2536.52      5.24        0.",
+"  6562.965  1039.369    18425.    -17.73   2754.63        0.     4.258",
+"  6562.971  1039.379   16197.1    -15.58   2599.98     3.732     2.054",
+"  6700.031  1105.016  -2372.18     2.147  -350.262     6.362        0."
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"k_errors": {
+"out": "k again:10 20 30 40 50 60 70 80 90 \n1: center =  6562.97, flux =   14148., eqw = -13.61, gfwhm =   5.24k again:10 20 30 40 50 60 70 80 90 \n1: center =  6562.97, flux =   14148., eqw = -13.61, gfwhm =   5.24",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6562.966   1039.37    14148.    -13.61   2536.52      5.24        0.",
+"  (0.00342) (       ) (  43.03) ( 0.0414) (  4.687) ( 0.0145) (     0.)",
+"  6562.966   1039.37    14148.    -13.61   2536.52      5.24        0.",
+"  (0.00342) (       ) (  43.03) ( 0.0414) (  4.687) ( 0.0145) (     0.)"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"d": {
+"out": "d again:Lines ('f'ile, 'g'aussian, 'l'orentzian, 'v'oigt, 't'ype, 'q'uit:\nFit positions (fixed, single, all, quit) Fit Gaussian widths (fixed, single, all, quit) Fit background (no, yes, quit) Fitting...Overplot (total, components, both, none) \n1: center =  6547.99, flux =    3491., eqw = -3.291, gfwhm =   4.63  (+,-,r,q):\n2: center =  6562.99, flux =   13845., eqw =   -13., gfwhm =  5.156  (+,-,r,q):\n3: center =  6583.53, flux =    4488., eqw = -4.189, gfwhm =  4.589  (+,-,r,q):\n2: center =  6562.99, flux =   13845., eqw =   -13., gfwhm =  5.156  (+,-,r,q):\nrms =    11.19  (+,-,r,q):\nFit positions (fixed, single, all, quit) Deblending done\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6547.986  1060.819   3491.41    -3.291   708.406      4.63        0.",
+"  6562.985  1065.232   13844.7      -13.    2522.3     5.156        0.",
+"  6583.527  1071.276   4487.68    -4.189   918.708     4.589        0."
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"d_again": {
+"out": "d again:Lines ('f'ile, 'g'aussian, 'l'orentzian, 'v'oigt, 't'ype, 'q'uit:\nFit positions (fixed, single, all, quit) Fit Gaussian widths (fixed, single, all, quit) Fit background (no, yes, quit) Fitting...Overplot (total, components, both, none) \n1: center =    6548., flux =    3977., eqw = -3.738, gfwhm =    6.5  (+,-,r,q):\nFit positions (fixed, single, all, quit) Fit Gaussian widths (fixed, single, all, quit) Fit background (no, yes, quit) Fitting...Overplot (total, components, both, none) \n1: center =  6548.03, flux =    3617., eqw = -3.399, gfwhm =  5.075  (+,-,r,q):\nFit positions (fixed, single, all, quit) Fit Gaussian widths (fixed, single, all, quit) Fit background (no, yes, quit) Fitting...Overplot (total, components, both, none) \n1: center =  6547.99, flux =    3491., eqw = -3.291, gfwhm =   4.63  (+,-,r,q):\nFit positions (fixed, single, all, quit) Deblending done\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6547.986  1060.846    3491.1    -3.291   708.373      4.63        0.",
+"  6562.986  1065.241   13844.6      -13.   2522.29     5.156        0.",
+"  6583.535  1071.261   4487.78    -4.189   918.724     4.589        0."
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"d_types": {
+"out": "d again:Lines ('f'ile, 'g'aussian, 'l'orentzian, 'v'oigt, 't'ype, 'q'uit:\nFit positions (fixed, single, all, quit) Fit Gaussian widths (fixed, single, all, quit) Fit Lorentzian widths (fixed, single, all, quit) Fit background (no, yes, quit) Fitting...Overplot (total, components, both, none) \n1: center =  6547.97, flux =    4743., eqw = -4.561, lfwhm =  3.765  (+,-,r,q):\n2: center =    6563., eqw = -13.25, gfwhm =  5.154, lfwhm = 9.3E-4  (+,-,r,q):\n3: center =  6583.52, flux =    4622., eqw = -4.372, gfwhm =  4.659  (+,-,r,q):\n2: center =    6563., eqw = -13.25, gfwhm =  5.154, lfwhm = 9.3E-4  (+,-,r,q):\nrms =    19.35  (+,-,r,q):\nFit positions (fixed, single, all, quit) Deblending done\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6547.974  1039.955    4743.3    -4.561   801.975        0.     3.765",
+"  6562.995  1047.195   13876.4    -13.25   2528.77     5.154  9.309E-4",
+"  6583.525  1057.089   4621.78    -4.372   931.873     4.659        0."
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"d_file": {
+"out": "d again:Lines ('f'ile, 'g'aussian, 'l'orentzian, 'v'oigt, 't'ype, 'q'uit:Lines ('f'ile, 'g'aussian, 'l'orentzian, 'v'oigt, 't'ype, 'q'uit:Lines ('f'ile, 'g'aussian, 'l'orentzian, 'v'oigt, 't'ype, 'q'uit:\nFit positions (fixed, single, all, quit) Fit Gaussian widths (fixed, single, all, quit) Fit background (no, yes, quit) Fitting...Overplot (total, components, both, none) \n1: center =  6547.98, flux =    3711., eqw = -3.524, gfwhm =  5.096  (+,-,r,q):\n2: center =  6562.98, flux =   13818., eqw = -13.06, gfwhm =  5.096  (+,-,r,q):\n3: center =  6700.03, flux =   -2337., eqw =  2.119, gfwhm =  6.272  (+,-,r,q):\n2: center =  6562.98, flux =   13818., eqw = -13.06, gfwhm =  5.096  (+,-,r,q):\nrms =    21.52  (+,-,r,q):\nFit positions (fixed, single, all, quit) Deblending done\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6547.983  1053.139   3710.77    -3.524   684.066     5.096        0.",
+"  6562.984  1058.013   13817.6    -13.06   2547.23     5.096        0.",
+"   6700.03   1102.54  -2336.74     2.119     -350.     6.272        0.",
+"  6583.577  1064.704   4761.67    -4.472   877.796     5.096        0."
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"d_errors": {
+"out": "d again:Lines ('f'ile, 'g'aussian, 'l'orentzian, 'v'oigt, 't'ype, 'q'uit:\nFit positions (fixed, single, all, quit) Fit Gaussian widths (fixed, single, all, quit) Fit background (no, yes, quit) Fitting...13 26 40 53 66 80 93 Overplot (total, components, both, none) \n1: center =  6547.99, flux =    3491., eqw = -3.291, gfwhm =   4.63  (+,-,r,q):\nFit positions (fixed, single, all, quit) Deblending done\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6547.986  1060.819   3491.41    -3.291   708.406      4.63        0.",
+"  ( 0.0332) ( 1.8274) (    37.) (0.04016) (  6.871) (0.04722) (     0.)",
+"  6562.985  1065.232   13844.7      -13.    2522.3     5.156        0.",
+"  (0.00586) ( 1.8293) (  34.84) (0.05423) (  6.552) (0.01833) (     0.)",
+"  6583.527  1071.276   4487.68    -4.189   918.708     4.589        0.",
+"  (0.01318) ( 1.8322) (  58.22) (0.06014) (  5.093) (0.05361) (     0.)"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"subtract": {
+"out": "d again:Lines ('f'ile, 'g'aussian, 'l'orentzian, 'v'oigt, 't'ype, 'q'uit:\nFit positions (fixed, single, all, quit) Fit Gaussian widths (fixed, single, all, quit) Fit background (no, yes, quit) Fitting...Overplot (total, components, both, none) \n1: center =  6547.99, flux =    3491., eqw = -3.291, gfwhm =   4.63  (+,-,r,q):\nFit positions (fixed, single, all, quit) Deblending done\n- again:x,y,z(x):   6563.000         0.      1070.\nx,y,z(x):   6583.500         0.      1070.\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6547.986  1060.819   3491.41    -3.291   708.406      4.63        0.",
+"  6562.985  1065.232   13844.7      -13.    2522.3     5.156        0.",
+"  6583.527  1071.276   4487.68    -4.189   918.708     4.589        0."
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"h": {
+"out": "Set cursor and type a, b, c, l, r, or k:center =  6562.958, eqw =    -13.39, gfwhm =     5.213\nSet cursor and type a, b, c, l, r, or k:center =  6562.958, eqw =    -13.61, gfwhm =     5.299\nSet cursor and type a, b, c, l, r, or k:Set cursor and type a, b, c, l, r, or k:center =  6562.958, eqw =   -25864., gfwhm =     6.846\nSet cursor and type a, b, c, l, r, or k:center =  6699.945, eqw =    0.8472, gfwhm =     4.327\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6562.958     1040.   13928.4    -13.39   2509.88     5.213        0.",
+"  6562.958     1040.    14156.    -13.61   2509.88     5.299        0.",
+"  6562.958        1.   25863.7   -25864.   3548.88     6.846        0.",
+"  6699.945      930.  -787.873    0.8472  -171.057     4.327        0."
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"h_level": {
+"out": "Set cursor and type a, b, c, l, r, or k:Set cursor and type a, b, c, l, r, or k:",
+"err": "Can't find left edge of line\nCan't find right edge of line\n",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"smooth": {
+"out": "x,y,z(x):   6563.000         0.      3270.\nx,y,z(x):   6563.000         0.      2825.\nx,y,z(x):   6400.000         0.      986.9\n",
+"err": "WARNING: Using a box size of 5",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+707.9830322,
+3345.0678711
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+771.8256836,
+2884.552002
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"functions": {
+"out": "q=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\n\nx,y,z(x):   6563.000         0.      3.544\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\nq=quit l,n=log10,e d,e=d,exp s=sqrt a=abs i=1/s p=+k m=*k  +,-,*,/=2spec ops\n\nx,y,z(x):   6563.000         0.    0.01075\nx,y,z(x):   6700.000         0.    0.02359\n",
+"err": "Warning: Unknown function\n",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+2.860322,
+3.5643687
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"2.9",
+"3",
+"3.1",
+"3.2",
+"3.3",
+"3.4",
+"3.5",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6901855,
+3585.3425293
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+1691.7254639,
+8963.3564453
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"2000",
+"3000",
+"4000",
+"5000",
+"6000",
+"7000",
+"8000",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+1591.7254639,
+8863.3564453
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"2000",
+"3000",
+"4000",
+"5000",
+"6000",
+"7000",
+"8000",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+40.8777809,
+94.5654526
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"50",
+"60",
+"70",
+"80",
+"90",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0103622,
+0.0239716
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+".0125",
+".015",
+".0175",
+".02",
+".0225",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0103622,
+0.0239716
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+".0125",
+".015",
+".0175",
+".02",
+".0225",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+-4.5566745,
+-3.7235031
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"-4.4",
+"-4.2",
+"-4",
+"-3.8",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0103622,
+0.0239716
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+".0125",
+".015",
+".0175",
+".02",
+".0225",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"fudge": {
+"out": "x,y,z(x):   6450.000         0.      5000.\nx,y,z(x):   6400.000         0.         0.\nx again:x,y,z(x):   6510.000         0.      1027.\nx again:x,y,z(x):   6610.000         0.       300.\n",
+"err": "",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"flux": {
+"out": "x,y,z(x):   6563.000         0.   2.439E14\nx,y,z(x):   6563.000         0.      3503.\nx,y,z(x):   6563.000         0.   5.032E-8\n",
+"err": "Warning: (>flam) spectrum not calibrated\nWarning: (>fnu) spectrum not calibrated\nWarning: (>fnu) spectrum not calibrated\n",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+44894773051392.0,
+249646081376256.0
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"5.00E13",
+"1.00E14",
+"1.50E14",
+"2.00E14",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0,
+1e-07
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"2.00E-8",
+"3.00E-8",
+"4.00E-8",
+"5.00E-8",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"pixels": {
+"out": "x,y,z(x):    130.400         0.      2898.\nm again:avg:      1653.  rms:      802.2   snr:     2.06\ne again:center =  133.8154, eqw =  -14.2568, continuum =     1070. flux =    15217.\nx,y,z(x):   6563.000         0.      3503.\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"avg:      1653.  rms:      802.2   snr:     2.06",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  133.8154     1070.    15217.    -14.26"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+-10.9699993,
+411.9700012,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"0",
+"100",
+"200",
+"300",
+"400",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Pixel",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"velocity": {
+"out": "x,y,z(x):      0.000         0.      3503.\nx,y,z(x):    500.000         0.      1058.\nx,y,z(x):   6583.000         0.      1869.\n",
+"err": "",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+-8212.5556641,
+15619.3193359,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"-5000",
+"0",
+"5000",
+"10000",
+"15000",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Velocity (km/s)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7119141,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"units": {
+"out": "x,y,z(x):    656.300         0.      3503.\ne again:center =   656.451, eqw =   -2.0141, continuum =     1070. flux =   2154.89\nx,y,z(x):      0.656         0.      3503.\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"   656.451     1070.   2154.89    -2.014"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+638.5037231,
+691.3712769,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"640",
+"650",
+"660",
+"670",
+"680",
+"690",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (nanometers)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+0.6385037,
+0.6913713,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+".64",
+".65",
+".66",
+".67",
+".68",
+".69",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (microns)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"colon": {
+"out": "m again:avg:      1025.  rms:      14.71   snr:    69.67\nLogging to splot.log disabledm again:avg:      1025.  rms:      14.71   snr:    69.67\nLogging to splot.log enablede again:center =  6564.527, eqw =  -19.9328, continuum =    1072.5 flux =   21377.1\nauto YES\nzero NO\nxydraw NO\nhist NO\nnosysid NO\nwreset YES\nflip NO\noverplot NO\nImage is not two dimensional\nUnrecognized or ambiguous command\u0007",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"avg:      1025.  rms:      14.71   snr:    69.67",
+"# a note on this",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6564.527    1072.5   21377.1    -19.93"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"slit": {
+"out": "x,y,z(x):   6563.000         0.      3554.\nm again:avg:      1072.  rms:      14.63   snr:    73.28\ne again:center =  6564.724, eqw =  -23.3589, continuum =    1072.5 flux =   25053.1\nx,y,z(x):   6563.000         0.      3497.\nx,y,z(x):   6563.000         0.      3476.\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [slit.fits[21,*]]: slit",
+"avg:      1072.  rms:      14.63   snr:    73.28",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6564.724    1072.5   25053.1    -23.36"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+726.4625854,
+3635.9523926
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[slit.fits[21,*]]: slit INDEF ap:21 beam:0"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+738.7780762,
+3577.2912598
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[slit.fits[22,*]]: slit INDEF ap:22 beam:0"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+726.4625854,
+3635.9523926
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[slit.fits[21,*]]: slit INDEF ap:21 beam:0"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+716.9727173,
+3556.0119629
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[slit.fits[20,*]]: slit INDEF ap:20 beam:0"
+]
+}
+]
+},
+"slit_nsum": {
+"out": "x,y,z(x):   6563.000         0.     17086.\nm again:avg:      5165.  rms:      53.39   snr:    96.75\nk again:\n1: center =  6560.31, flux =  292050., eqw = -282.2, gfwhm =  31.37x,y,z(x):   6563.000         0.     17086.\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [slit.fits[19:23,*]]: slit",
+"avg:      5165.  rms:      53.39   snr:    96.75",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6560.314  1034.825   292050.    -282.2   8746.68     31.37        0."
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+3556.7661133,
+17480.4785156
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"5000",
+"7500",
+"10000",
+"12500",
+"15000",
+"Wavelength (angstroms)",
+"[slit.fits[19:23,*]]: slit INDEF ap:21 beam:0"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+3556.7661133,
+17480.4785156
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"5000",
+"7500",
+"10000",
+"12500",
+"15000",
+"Wavelength (angstroms)",
+"[slit.fits[19:23,*]]: slit INDEF ap:21 beam:0"
+]
+}
+]
+},
+"ms": {
+"out": "x,y,z(x):   6563.000         0.      3508.\nk again:\n1: center =  6563.01, flux =   14151., eqw = -13.61, gfwhm =  5.186x,y,z(x):   6563.000         0.      2844.\nk again:\n1: center =  6562.98, flux =    9028., eqw = -8.686, gfwhm =  4.503x,y,z(x):   6563.000         0.      4179.\nx,y,z(x):   6801.000         0.      1387.\nk again:\n1: center =  6562.97, flux =   19643., eqw =  -18.9, gfwhm =  5.845e again:center =  6564.855, eqw =  -38.1242, continuum =    1072.5 flux =    40890.\nx,y,z(x):    200.000         0.      1296.\nx,y,z(x):   6563.000         0.      1214.\n",
+"err": "",
+"log": [
+"",
+"Nov 11  5:46 [ms.fits[*,1]]: first",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6563.013   1039.45   14150.6    -13.61   2563.58     5.186        0.",
+"",
+"Nov 11  5:46 [ms.fits[*,2]]: three apertures",
+"  6562.982  1039.397   9027.75    -8.686   1883.32     4.503        0.",
+"",
+"Nov 11  5:46 [ms.fits[*,3]]: third",
+"  6562.972   1039.38   19643.2     -18.9   3157.26     5.845        0.",
+"    center      cont      flux       eqw      core     gfwhm     lfwhm",
+"  6564.855    1072.5    40890.    -38.12"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+689.1405029,
+3589.5966797
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[ms.fits[*,1]]: first INDEF ap:1 beam:1"
+]
+},
+{
+"window": [
+6364.8339844,
+6900.7006836,
+550.1060791,
+2910.8190918
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"Wavelength (angstroms)",
+"[ms.fits[*,2]]: three apertures INDEF ap:2 beam:1"
+]
+},
+{
+"window": [
+6386.3295898,
+6915.2700195,
+816.8256226,
+4276.6225586
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"4000",
+"Wavelength (angstroms)",
+"[ms.fits[*,3]]: third INDEF ap:3 beam:1"
+]
+},
+{
+"window": [
+-10.9699993,
+411.9700012,
+816.8256226,
+4276.6225586
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"0",
+"100",
+"200",
+"300",
+"400",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"4000",
+"Pixel",
+"[ms.fits[*,3]]: third INDEF ap:3 beam:1"
+]
+},
+{
+"window": [
+-10.9699993,
+411.9700012,
+689.1405029,
+3589.5966797
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"0",
+"100",
+"200",
+"300",
+"400",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[ms.fits[*,1]]: first INDEF ap:1 beam:1"
+]
+}
+]
+},
+"next_image": {
+"out": "m again:avg:      1025.  rms:      14.71   snr:    69.67\nx,y,z(x):   6563.000         0.      2844.\nm again:avg:      820.9  rms:      13.37   snr:    61.40\nx,y,z(x):   6563.000         0.      2844.\n",
+"err": "Can't get missing\n",
+"log": [
+"",
+"Nov 11  5:46 [one.fits]: NGC 660 nucleus",
+"avg:      1025.  rms:      14.71   snr:    69.67",
+"",
+"Nov 11  5:46 [ms[*,2]]: three apertures",
+"avg:      820.9  rms:      13.37   snr:    61.40"
+],
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6364.8339844,
+6900.7006836,
+550.1060791,
+2910.8190918
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"Wavelength (angstroms)",
+"[ms[*,2]]: three apertures INDEF ap:2 beam:1"
+]
+}
+]
+},
+"zoom": {
+"out": "again:\nagain:\n",
+"err": "",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6500.0,
+6620.0,
+1016.6706543,
+3503.0217285
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6500",
+"6520",
+"6540",
+"6560",
+"6580",
+"6600",
+"6620",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6530.0,
+6590.0,
+1044.2115479,
+3503.0217285
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6530",
+"6540",
+"6550",
+"6560",
+"6570",
+"6580",
+"6590",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6479.0,
+6539.0,
+1009.9825439,
+1081.8399658
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6480",
+"6490",
+"6500",
+"6510",
+"6520",
+"6530",
+"1010",
+"1020",
+"1030",
+"1040",
+"1050",
+"1060",
+"1070",
+"1080",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6530.0,
+6590.0,
+1044.2115479,
+3503.0217285
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6530",
+"6540",
+"6550",
+"6560",
+"6570",
+"6580",
+"6590",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6581.0,
+6641.0,
+1057.3232422,
+1968.7576904
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6590",
+"6600",
+"6610",
+"6620",
+"6630",
+"6640",
+"1200",
+"1400",
+"1600",
+"1800",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"window": {
+"out": "window:again:window:window:window:",
+"err": "",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6500.0,
+6650.0,
+1000.0,
+3000.0
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6500",
+"6525",
+"6550",
+"6575",
+"6600",
+"6625",
+"6650",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+5988.53125,
+6517.2060547,
+976.3434448,
+1075.1027832
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6000",
+"6100",
+"6200",
+"6300",
+"6400",
+"6500",
+"980",
+"1000",
+"1020",
+"1040",
+"1060",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+5988.53125,
+6517.2060547,
+0.0,
+1075.1027832
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6000",
+"6100",
+"6200",
+"6300",
+"6400",
+"6500",
+"0",
+"200",
+"400",
+"600",
+"800",
+"1000",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"overplot": {
+"out": "again:\nOverplotting: ms(2)Overplotting: ms(3)",
+"err": "",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6500.0,
+6620.0,
+1016.6706543,
+3503.0217285
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6500",
+"6520",
+"6540",
+"6560",
+"6580",
+"6600",
+"6620",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6500.0,
+6620.0,
+1016.6706543,
+3503.0217285
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6500",
+"6520",
+"6540",
+"6560",
+"6580",
+"6600",
+"6620",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[ms[*,3]]: third INDEF ap:3 beam:1"
+]
+}
+]
+},
+"options": {
+"out": "",
+"err": "",
+"log": null,
+"frames": [
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6913.7124023,
+6385.0375977,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6900",
+"6800",
+"6700",
+"6600",
+"6500",
+"6400",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6913.7124023,
+6385.0375977,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6900",
+"6800",
+"6700",
+"6600",
+"6500",
+"6400",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6913.7124023,
+6385.0375977,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9412
+],
+"text": [
+"6900",
+"6800",
+"6700",
+"6600",
+"6500",
+"6400",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9412
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9412
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+0.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9412
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"0",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+},
+"limits": {
+"out": "x,y,z(x):   6563.000         0.      3503.\n",
+"err": "",
+"log": null,
+"frames": [
+{
+"window": [
+6500.0,
+6700.0,
+500.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6500",
+"6550",
+"6600",
+"6650",
+"6700",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6385.0375977,
+6913.7124023,
+676.6903076,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one.fits]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+},
+{
+"window": [
+6500.0,
+6700.0,
+500.0,
+3585.342041
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6500",
+"6550",
+"6600",
+"6650",
+"6700",
+"500",
+"1000",
+"1500",
+"2000",
+"2500",
+"3000",
+"3500",
+"Wavelength (angstroms)",
+"[one]: NGC 660 nucleus 900. ap:2 beam:1"
+]
+}
+]
+}
+}

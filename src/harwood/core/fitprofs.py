@@ -37,6 +37,8 @@ FIXED, SINGLE, INDEP = 1, 2, 3
 FITTYPES = ("fixed", "single", "all")
 BKG, POS, INT, GAU, LOR = 0, 1, 2, 3, 4
 NSUB = 3
+#: The chi-squared of the last dofit or dorefit, which splot's r shows.
+LAST_CHISQ = np.float32(0)
 EPSILONR = f32(1.192e-7)
 
 _T = np.array([.314240376, .947788391, 1.59768264, 2.27950708, 3.02063703, 3.8897249],
@@ -332,6 +334,7 @@ def _unpack(a, xp, yp, gp, lp, tp):
 def dofit(fit, x, y, s, dx, nsub, y1, dy, xp, yp, gp, lp, tp):
     """dofit: the background held then fitted, the positions fixed, together, each its
     own, and then each width its own. xp, yp, gp, lp change in place; (y1, dy)."""
+    global LAST_CHISQ
     a = _pack(dx, nsub, y1, dy, xp, yp, gp, lp, tp)
     np_ = len(tp)
     fit1 = [0, 0, fit[INT], 0, 0]
@@ -342,17 +345,18 @@ def dofit(fit, x, y, s, dx, nsub, y1, dy, xp, yp, gp, lp, tp):
         for j in range(FIXED, fit[POS] + 1):
             fit1[POS] = j
             if np_ > 1 or j != INDEP:
-                dofit1(fit1, x, y, s, a, np_)
+                LAST_CHISQ = dofit1(fit1, x, y, s, a, np_)
         if np_ > 1 and (fit[GAU] == INDEP or fit[LOR] == INDEP):
             fit1[GAU], fit1[LOR] = fit[GAU], fit[LOR]
-            dofit1(fit1, x, y, s, a, np_)
+            LAST_CHISQ = dofit1(fit1, x, y, s, a, np_)
     return _unpack(a, xp, yp, gp, lp, tp)
 
 
 def dorefit(fit, x, y, s, dx, nsub, y1, dy, xp, yp, gp, lp, tp):
     """dorefit: one dofit1 from a solution close to the answer."""
+    global LAST_CHISQ
     a = _pack(dx, nsub, y1, dy, xp, yp, gp, lp, tp)
-    dofit1(fit, x, y, s, a, len(tp))
+    LAST_CHISQ = dofit1(fit, x, y, s, a, len(tp))
     return _unpack(a, xp, yp, gp, lp, tp)
 
 

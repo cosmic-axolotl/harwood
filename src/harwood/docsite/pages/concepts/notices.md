@@ -46,6 +46,6 @@ and why. A typo gets the nearest names.
 
 ```example
 title: An IRAF name
-run: harwood help splot
+run: harwood help bplot
 fails: true
 ```
