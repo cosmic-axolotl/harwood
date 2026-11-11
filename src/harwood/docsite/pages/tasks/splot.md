@@ -37,15 +37,27 @@ status line; `:.snap file.png` saves the graph.
   (flux per wavelength and per frequency), `$` (pixels and back), `v` (velocity
   about the cursor and back), `:units`, `g` `#` `(` `)` (another image, line or
   aperture);
-* `:#` a comment in the log, `:log`, `:nolog`, `:show`, and the options.
+* `t` -- a continuum fitted with icfit (its window, or the keys that follow up
+  to its `q`) and the spectrum divided by it (`/`), less it (`-`), replaced by
+  it (`f`), cleaned of what it rejects (`c`), or left as it is (`n`);
+* `p` -- new linear coordinates from a start, an end or an interval; `u` and
+  then `d`, `z` or `l` -- a doppler shift, a zero point or a linear dispersion
+  from features marked and named;
+* `i` -- the spectrum written, a new image or over its own (asked first);
+* `y` -- a standard star's calibration fluxes boxed over the spectrum (the star
+  asked for, from `--caldir`; an unknown one lists the directory's stars);
+* `:#` a comment in the log, `:log`, `:nolog`, `:show`, `:label`, `:mabove`,
+  `:mbelow` (a label, or a tick and a label above or below the spectrum; `%.1f`
+  writes the cursor's x), `:nsum` and `:dispaxis` (a long slit summed or read
+  along the other axis), and the options.
 
 The measurements go to the terminal and to `--save-file` (splot.log), with the
 date and the spectrum's name when a measurement is the first of a spectrum and
 the column header when the key changes, as IRAF writes it.
 
-Not ported yet: the keys `p` and `u` (new dispersion coordinates), `i` (write
-the spectrum), `t` (the continuum fit), `y` (a standard star's fluxes), the
-labels and `:dispaxis` / `:nsum`. On 31 cursor files over an onedspec, a long
-slit with nsum 1 and 5 and a multispec with a chebyshev dispersion, what splot
-prints and what it logs are IRAF 2.18's character for character, and each
-graph's window, title and label are those of IRAF's metacode.
+Not ported: the help pages of `?` and `/` (the keys are listed under the graph).
+On 38 cursor files over an onedspec, a long slit with nsum 1 and 5 and a
+multispec with a chebyshev dispersion, what splot prints and what it logs are
+IRAF 2.18's character for character, each graph's window, title and label are
+those of IRAF's metacode, and the spectra `i` writes are IRAF's pixel for pixel
+with its dispersion (a log-linear multispec one to the 14th figure).

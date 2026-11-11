@@ -320,6 +320,7 @@ class Spec:
     coeff: str = ""
     function: list | None = None          #: wf_msp_coeff of the nonlinear terms
     state: list = field(default_factory=lambda: [0.0, 0.0])
+    text: str = ""                        #: the attribute as written
 
 
 def parse_spec(text: str) -> Spec:
@@ -337,6 +338,7 @@ def parse_spec(text: str) -> Spec:
 
     spec = Spec(ctoi(0), ctoi(1), ctoi(2), ctod(3), ctod(4), ctoi(5), ctod(6),
                 float(f32(ctod(7))), float(f32(ctod(8))), " ".join(words[9:]))
+    spec.text = text
     if spec.dtype == DCFUNC:
         spec.function = msp_coeff(spec.coeff, 0.5, spec.nw + 0.5)
         if spec.function is not None:
@@ -780,6 +782,9 @@ class Shdr:
     def set_system(self, system: str) -> None:
         """shdr_system: world or physical coordinates, the labels with them."""
         self.system = system
+        if self.smw.format == MS:
+            self.spec = self.smw.specs[_physical_line(self.smw, self.apindex)]
+            self.dc = self.spec.dtype
         if system == "physical":
             self.label, self.units = "Pixel", ""
             self.mwun = unitsmod.decode("")
@@ -1034,3 +1039,124 @@ def from_harwood(path, header=None) -> tuple[Smw, np.ndarray]:
     smw.units = units
     smw.label = "Wavelength" if units else ""
     return smw, data
+
+
+# --------------------------------------------------- changing the dispersion
+
+def gwattrs(smw: Smw, index: int):
+    """smw_gwattrs: (ap, beam, dtype, w1, dw, nw, z, aplow, aphigh, coeff) of a
+    spectrum, by its logical index."""
+    if smw.format == MS:
+        s = smw.specs[_physical_line(smw, index)]
+        w1, dw = s.w1, s.dw
+        dtype = s.dtype
+        if dtype == DCLOG:
+            if abs(w1) > 20 or abs(w1 + (s.nw - 1) * dw) > 20:
+                dtype = DCLINEAR
+            else:
+                a = 10.0 ** w1
+                dw = a * (10.0 ** ((s.nw - 1) * dw) - 1) / (s.nw - 1)
+                w1 = a
+        return s.ap, s.beam, dtype, w1, dw, s.nw, s.z, [s.aplow, None], \
+            [s.aphigh, None], s.coeff
+    if smw.format == ES:
+        k = index - 1
+        return smw.aps[k], smw.beams[k], smw.dtype, smw.w1, smw.dw, smw.nw, smw.z, \
+            list(smw.aplows[k]), list(smw.aphighs[k]), ""
+    lo, hi = nd_limits(smw, index) if smw.ldim > 1 else (1, 1)
+    return index, 0, smw.dtype, smw.w1, smw.dw, smw.nw, smw.z, [lo, 1], [hi, 1], ""
+
+
+def swattrs(smw: Smw, index: int, ap, beam, dtype, w1, dw, nw, z, aplow, aphigh,
+            coeff: str = "") -> None:
+    """smw_swattrs: a spectrum's dispersion set anew. An NDSPEC or EQUISPEC image
+    has one for all its spectra, its Wterm rewritten (reference pixel 1); a
+    MULTISPEC one has a specN for each."""
+    if smw.format in (ND, ES):
+        changed = smw.dtype is not None and (
+            not iraffmt_fp_equal(w1, smw.w1) or not iraffmt_fp_equal(dw, smw.dw)
+            or not iraffmt_fp_equal(z, smw.z))
+        if smw.format == ES and (dtype == DCFUNC or (changed and smw.nspec > 1)):
+            _esms(smw)
+            swattrs(smw, index, ap, beam, dtype, w1, dw, nw, z, aplow, aphigh, coeff)
+            return
+        if changed:
+            r, w, cd = (np.array(v, float) for v in smw.wterm)
+            j = smw.paxis[0] - 1
+            r[j] = 1.0
+            if dtype == DCLOG:
+                w[j] = math.log10(w1 / (1 + z))
+                cd[j, j] = math.log10((w1 + (nw - 1) * dw) / w1) / (nw - 1)
+            else:
+                w[j] = w1 / (1 + z)
+                cd[j, j] = dw / (1 + z)
+            smw.wterm = (r, w, cd)
+        smw.dtype, smw.nw, smw.w1, smw.dw, smw.z = dtype, nw, w1, dw, z
+        if smw.format == ES and index > 0:
+            k = index - 1
+            smw.aps[k], smw.beams[k] = ap, beam
+            smw.aplows[k] = tuple(aplow)
+            smw.aphighs[k] = tuple(aphigh)
+        return
+    line = _physical_line(smw, index)
+    a, b = w1, dw
+    if dtype == DCLOG:
+        a = math.log10(w1)
+        b = math.log10((w1 + (nw - 1) * dw) / w1) / (nw - 1)
+
+    def g14(v):
+        return iraffmt.printf(float(v), "g", 14, double=True)
+
+    lo = 0.0 if aplow[0] is None else float(aplow[0])
+    hi = 0.0 if aphigh[0] is None else float(aphigh[0])
+    text = (f"{ap} {beam} {dtype} {g14(a)} {g14(b)} {nw} {g14(z)} "
+            f"{iraffmt.printf(lo, 'f', 2)} {iraffmt.printf(hi, 'f', 2)}")
+    if coeff:
+        text += " " + coeff
+    # the attribute as it is written, and read back from what is written
+    spec = parse_spec(text)
+    smw.specs[line] = spec
+    if smw.aps:
+        smw.aps[index - 1] = ap
+
+
+def _esms(smw: Smw) -> None:
+    """smw_esms: an EQUISPEC image's spectra as MULTISPEC, each its own specN."""
+    dtype, w1, dw, nw, z = smw.dtype, smw.w1, smw.dw, smw.nw, smw.z
+    if dtype == DCLOG:
+        dw = math.log10((w1 + (nw - 1) * dw) / w1) / (nw - 1)
+        w1 = math.log10(w1)
+    ltm, ltv = smw.lterm
+    n = 2
+    if ltm.shape[0] == 1:
+        ltm = np.array([[ltm[0, 0], 0.0], [0.0, 1.0]])
+        ltv = np.array([ltv[0], 0.0])
+    smw.lterm = (ltm[:n, :n], ltv[:n])
+    smw.format = MS
+    smw.pdim = max(2, smw.pdim)
+    for k in range(1, smw.nspec + 1):
+        a, b, zz = (float(f"{v:.14g}") for v in (w1, dw, z))
+        lo = smw.aplows[k - 1][0] if smw.aplows else None
+        hi = smw.aphighs[k - 1][0] if smw.aphighs else None
+        smw.specs[_physical_line(smw, k)] = Spec(
+            smw.aps[k - 1], smw.beams[k - 1], dtype, a, b, nw, zz,
+            float(f"{(lo or 0.0):.2f}"), float(f"{(hi or 0.0):.2f}"))
+
+
+def world_to_physical(sh: Shdr, w: float) -> float:
+    """smw_sctran world -> physical of the dispersion axis, in double."""
+    smw = sh.smw
+    if smw.format == MS:
+        s = sh.spec
+        din = w * (s.z + 1)
+        if s.dtype == DCFUNC and s.function is not None:
+            return msp_evali(s.function, din, s.state)
+        if s.dtype == DCLOG:
+            din = math.log10(din)
+        return max(0.5, min(s.nw + 0.5, (din - s.w1) / s.dw + 1))
+    ltm, ltv = smw.lterm
+    r, wv, cd = smw.wterm
+    j = smw.paxis[0]
+    one = np.eye(len(ltv))
+    m, v = _compile(one, np.zeros(len(ltv)), r, wv, cd, j, True)[1]
+    return Linear(m, v, smw.dtype == DCLOG, inverse=True)(w)

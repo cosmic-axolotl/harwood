@@ -81,6 +81,11 @@ class SplotPanel(QtWidgets.QWidget):
         self._frames = -1
         self.error = None
         self.session = splot.Splot(params, _Answers(self))
+        from . import icfit_panel
+
+        # t's continuum fit opens icfit's own window, as IRAF's icg_fit takes over
+        # the graphics
+        self.session.icfit_window = icfit_panel.make
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -214,11 +219,23 @@ class SplotPanel(QtWidgets.QWidget):
             x, y = (float(v) for v in item[1])
             self.plot.plot([x], [y], pen=None, symbol="t1", symbolSize=12,
                            symbolBrush=None, symbolPen=solid)
+        elif kind == "box":
+            x1, y1, x2, y2 = (float(v) for v in item[1])
+            self.plot.plot([x1, x2, x2, x1, x1], [y1, y1, y2, y2, y1], pen=solid)
         elif kind in ("label", "mabove", "mbelow"):
-            x, y, text = item[1]
-            label = pg.TextItem(str(text).strip('"'), color=_c().ink)
+            x, y, text = item[1][:3]
+            anchor = {"label": (0.5, 0.5), "mabove": (0.5, 1.0), "mbelow": (0.5, 0.0)}
+            label = pg.TextItem(str(text), color=_c().ink, anchor=anchor[kind])
             label.setPos(float(x), float(y))
             self.plot.addItem(label)
+            if kind != "label":
+                box = self.plot.getViewBox()
+                (_, _), (y0, y1) = box.viewRange()
+                span = (y1 - y0) or 1.0
+                sign = 1 if kind == "mabove" else -1
+                self.plot.plot([float(x), float(x)],
+                               [float(y) + sign * 0.02 * span,
+                                float(y) + sign * 0.05 * span], pen=solid)
 
     # --------------------------------------------------------------- input
 

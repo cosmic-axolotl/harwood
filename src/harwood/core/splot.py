@@ -60,7 +60,11 @@ HELP = [("space", "cursor position and the spectrum there"), ("a a", "expand bet
         ("j", "fix a pixel to y"), ("x x", "connect two points"),
         ("l  n", "to f-lambda, f-nu"), ("$", "pixels / world"), ("v", "velocity"),
         ("o", "overplot the next"), ("g", "another image"), ("( )  #", "line, aperture"),
-        ("q", "quit, next image"), (":", "colon commands: units, log, # note, show")]
+        ("t", "fit the continuum: / - f c n, then icfit"), ("p", "new start, end, step"),
+        ("u", "coordinates from features: d z l"), ("i", "write the spectrum"),
+        ("y", "a standard star's fluxes"),
+        ("q", "quit, next image"),
+        (":", "units, log, # note, show, label, mabove, mbelow, nsum, dispaxis")]
 
 #: What each query parameter asks, as splot.par words it.
 PROMPTS = {"line": "Image line/aperture to plot", "band": "Image band to plot",
@@ -552,6 +556,7 @@ class Session:
     fitted: Fitted | None = None
     drawn: list = field(default_factory=list)
     asking: str = ""                #: the query parameter being asked, for a window
+    icfit_window: object = None     #: t's icfit in a window: (x, y, spec, title, w)
 
     def __post_init__(self) -> None:
         self.gasdev = fitprofs.Gasdev()
@@ -562,11 +567,20 @@ class Session:
         self.out += text
 
     def answer(self, name: str) -> str:
+        """A query parameter read; at the end of the answers its last value, as the
+        CL takes an empty reply (and none at all) to keep it."""
         self.asking = name
+        last = self.__dict__.setdefault("last_answers", {})
         try:
-            return next(self.answers)
+            value = next(self.answers)
         except StopIteration:
+            if name in last:
+                return last[name]
             raise EOFError(name) from None
+        if value == "" and name in last:
+            return last[name]
+        last[name] = value
+        return value
 
     def number(self, name: str):
         """A query parameter's number. One given with the task (line=21) is not asked
@@ -1310,8 +1324,11 @@ class Splot(Session):
                 self.say(said)
                 newgraph = bool(redraw)
             else:
+                self.reopened = False
                 newgraph = self.colon(cmd, wx, wy) or False
                 overplot = self.options["overplot"]
+                if self.reopened:
+                    newimage = True
         elif key in "az,.":
             self.auto_exp(key, wx)
         elif key == "b":
@@ -1479,6 +1496,14 @@ class Splot(Session):
             newgraph, overplot = True, False
         elif key in "pu":
             newgraph, overplot = self._usercoord(key, wx, wy, auto)
+        elif key == "i":
+            self.wrspect()
+        elif key == "t":
+            self.flatten()
+            self._flux_reset()
+            newgraph, overplot = auto, False
+        elif key == "y":
+            self.plot_std()
         elif key in ("/", "?"):
             pass
         elif key == "I":
@@ -1602,10 +1627,264 @@ class Splot(Session):
         self.gt.xlabel, self.gt.xunits = new.label, new.units
 
     def _usercoord(self, key, wx, wy, auto):
-        """p and u: new coordinates from a start and an end, or from marked features."""
-        self.err += ("p and u (new dispersion coordinates) are not ported yet; "
-                     "use dispcor, dopcor or specshift\n")
-        return False, False
+        """p and u: new dispersion coordinates -- from a start, an end or an
+        interval (p), or from features marked and named (u: d a doppler shift, z a
+        zero point, l a linear dispersion through two)."""
+        sh = self.sh
+        if not self.wave_scl:
+            sh.set_system("world")
+            self.wave_scl = True
+            self.gt.xlabel, self.gt.xunits = sh.un.label, sh.un.units
+        u2 = w2 = None
+        if key == "p":
+            keyu = "l"
+            w1 = float(sh.x[0])
+            u1 = self.number("wstart")
+            w2 = float(sh.x[sh.sn - 1])
+            u2 = self.number("wend")
+            if u1 is None:
+                u1 = u2 - (sh.sn - 1) * self.number("dw")
+            elif u2 is None:
+                u2 = u1 + (sh.sn - 1) * self.number("dw")
+        else:
+            self.say("Set cursor and select correction: d(oppler), z(eropoint), "
+                     "l(inear)\n")
+            r = self.read()
+            if r is None:
+                return False, False
+            keyu = r[3]
+            w1 = float(f32(r[0]))
+            u1 = self.number("wavelength")
+            if keyu == "l":
+                while True:
+                    self.say("Set cursor to second position:")
+                    r = self.read()
+                    if r is None:
+                        return False, False
+                    w2 = float(f32(r[0]))
+                    if not shdr.iraffmt_fp_equal(w1, w2):
+                        u2 = self.number("wavelength")
+                        break
+                    self.say("Cursor not moved: ")
+        usercoord(sh, keyu, w1, u1, w2, u2, self)
+        self.w0 = float(sh.x[0])
+        self.wpc = float(sh.x[1]) - self.w0
+        self.gt.setr("xmin", None)
+        self.gt.setr("xmax", None)
+        self.gt.xlabel, self.gt.xunits = sh.un.label, sh.un.units
+        return auto, False
+
+    def wrspect(self) -> None:
+        """sp_wrspect: the spectrum as it now is, into a new image or over its own."""
+        name = "".join(self.answer("new_image").split())
+        if not name:
+            return
+        sh = self.sh
+        overwrite = False
+        if _same_image(sh.image, name):
+            overwrite = self.boolean("overwrite")
+            if not overwrite:
+                return
+        try:
+            write_spectrum(sh, self.image, name, overwrite)
+        except FileExistsError as error:
+            self.err += f"Warning: {error}\n"
+            if self.boolean("overwrite"):
+                try:
+                    write_spectrum(sh, self.image, name, True)
+                except (OSError, ValueError) as again:
+                    self.err += f"Warning: {again}\n"
+        except (OSError, ValueError) as error:
+            self.err += f"Warning: {error}\n"
+
+    def flatten(self) -> None:
+        """flatten (t): a continuum fitted with ICFIT -- the keys that follow, up to
+        its q, or its window -- and the spectrum divided by it (/), less it (-),
+        replaced by it (f), cleaned of the points it rejects (c) or left (n); the
+        fit's parameters kept for the next t."""
+        from . import icfit, icfitbits, sfit
+
+        key = "?"
+        while True:
+            if key in ("/", "-", "f", "c", "n"):
+                sh = self.sh
+                x, y = sh.x.astype(f32), sh.y.astype(f32)
+                p = self.params
+                spec = icfit.FitSpec(function=p.get("function", "spline3"),
+                                     order=int(p.get("order", 1)), sample="*", naverage=1,
+                                     low_reject=float(p.get("low_reject", 2.0)),
+                                     high_reject=float(p.get("high_reject", 4.0)),
+                                     niterate=int(p.get("niterate", 10)),
+                                     grow=float(p.get("grow", 1.0)))
+                # ic_puti "key": the graph icfit opens on, the ratio for /, the
+                # residuals for -
+                session = self._icfit(x, y, spec, {"/": "k", "-": "j"}.get(key, "h"))
+                done = session.spec
+                wts = np.asarray(session.wts, f32)
+                ic = icfitbits.Ic(function=done.function, order=int(done.order),
+                                  sample=done.sample, naverage=int(done.naverage),
+                                  low_reject=float(done.low_reject),
+                                  high_reject=float(done.high_reject),
+                                  niterate=int(done.niterate), grow=float(done.grow))
+                curve = icfitbits.fit(ic, x, y, wts.copy())
+                from . import fit1d
+
+                z = fit1d.evaluate(curve, x)
+                if key == "/":
+                    sh.y = np.where(np.abs(z) < f32(1e-30), f32(1),
+                                    (y / np.where(z == 0, f32(1), z))).astype(f32)
+                elif key == "-":
+                    sh.y = (y - z).astype(f32)
+                elif key == "f":
+                    sh.y = z.astype(f32)
+                elif key == "c":
+                    yy = y.copy()
+                    sfit.clean(ic, curve, x, yy, wts.copy())
+                    sh.y = yy.astype(f32)
+                p.update(function=done.function, order=int(done.order),
+                         low_reject=float(done.low_reject),
+                         high_reject=float(done.high_reject),
+                         niterate=int(done.niterate), grow=float(done.grow))
+                break
+            if key == "q":
+                break
+            self.say("/=normalize, -=subtract, f=fit, c=clean, n=nop, q=quit")
+            r = self.read()
+            if r is None:
+                break
+            key = r[3]
+
+    def _icfit(self, x, y, spec, gkey: str = "h"):
+        """icg_fit: the window's icfit, or the keys that follow up to its q."""
+        from . import icfitsession
+
+        title = self.gt.title
+        if self.icfit_window is not None:
+            return self.icfit_window(x.astype(float), y.astype(float), spec, title,
+                                     np.ones(x.size))
+        label = self.gt.xlabel + (f" ({self.gt.xunits})" if self.gt.xunits else "")
+        session = icfitsession.IcfitSession(
+            x.astype(float), y.astype(float), spec, np.ones(x.size), title,
+            xlabel=label, gkey=gkey, xrange=(float(min(x[0], x[-1])),
+                                             float(max(x[0], x[-1]))))
+        while not session.done:
+            if session.newgraph:
+                graph = session.graph()
+                # icg_fit draws on splot's graphics: its frames are among splot's
+                self.graphs.append({"window": graph.window, "title": graph.title,
+                                    "xlabel": graph.xlabel, "curves": [], "icfit": True})
+            if session.state not in ("fit", "second"):
+                session.answer(self.answer("icfit"))
+                continue
+            r = self.read()
+            if r is None:
+                break
+            wx, wy, _, k, cmd = r
+            if k == ":":
+                session.key(":", rest=cmd)
+            else:
+                session.key(k, wx, wy)
+        self.say(session.stdout)
+        self.err += session.stderr
+        return session
+
+    def plot_std(self) -> None:
+        """plot_std (y): a standard star's calibration fluxes over the spectrum, a box
+        a band; in f-nu when the spectrum's mean is below 10^-19.5."""
+        from . import stdstar
+
+        sh = self.sh
+        total = f32(0)
+        for v in sh.y:
+            total = f32(total + v)
+        avg = f32(total / f32(sh.sn))
+        fnu = avg > 0 and math.log10(float(avg)) < -19.5
+        from . import flux
+
+        caldir = self.params.get("caldir", "")
+        tried = ""
+        while True:
+            # getcalib: the name lower case without blanks, + and -; a file not
+            # found lists standards.men and asks again, and the same one twice stops
+            star = self.answer("star_name").strip()
+            name = re.sub(r"[\s+\-]", "", star.lower())
+            wanted = f"{caldir}{name}.dat"
+            if flux.find_star(star, caldir) is not None:
+                break
+            if wanted == tried:
+                self.err += f"Warning: Cannot open file ({wanted})\n"
+                self.say("\n")
+                return
+            tried = wanted
+            try:
+                menu = flux.resolve(f"{caldir}standards.men")
+                self.err += menu.read_text(encoding="utf-8", errors="replace")
+            except (OSError, SystemExit, ValueError) as error:
+                self.err += f"Warning: {error}\n"
+                self.say("\n")
+                return
+        try:
+            cal = stdstar.read_calibration(caldir, star)
+        except (LookupError, ValueError, OSError) as error:
+            self.err += f"Warning: {error}\n"
+            self.say("\n")
+            return
+        fnuzero = f32(self.params.get("fnuzero", 3.68e-20))
+        w1, w2 = f32(sh.lw(1.0)), f32(sh.lw(float(sh.sn)))
+        _, _, wy1, wy2 = self.window
+        for wave, band, mag in zip(cal.waves, cal.dwaves, cal.mags, strict=True):
+            value = f32(fnuzero * f32(10.0 ** float(f32(f32(-0.4) * f32(mag)))))
+            if not fnu:
+                value = f32(f32(value * VLIGHT) / f32(f32(wave) * f32(wave)))
+            if w1 < wave < w2:
+                half = f32(f32(band) / f32(2))
+                dy = f32(f32(0.015) * f32(f32(wy2) - f32(wy1)))
+                self.drawn.append(("box", (f32(wave - half), f32(value - dy),
+                                           f32(wave + half), f32(value + dy))))
+        self.say("\n")
+
+    def _reopen(self, dispaxis=None, nsum=None) -> bool:
+        """:dispaxis and :nsum: the image's SMW made again (smw_daxis, smw_saxes) and
+        the spectrum read again from it."""
+        img = self.image
+        header = img.header.copy()
+        if dispaxis is not None:
+            header["DISPAXIS"] = dispaxis
+        img.smw = shdr.open_smw(header, tuple(reversed(img.data.shape)),
+                                int(self.params.get("dispaxis", 1)),
+                                tuple(nsum or img.smw.nsum))
+        self.sh, self.nline, self.nband, self.nap = self.getimage(
+            self.name, self.nline, self.nband, self.nap, self.wave_scl, self.units)
+        self.reopened = True
+        return True
+
+    def _label(self, word: str, wx, wy, rest: str) -> None:
+        """splabel: a label at the cursor, or a tick and a label above or below the
+        spectrum; outside the graph's x range, nothing."""
+        words = _words(rest)
+        label = words[0] if words else ""
+        fmt = words[1] if len(words) > 1 else ""
+        x1, x2, _, _ = self.window
+        if wx < min(x1, x2) or wx > max(x1, x2):
+            return
+        sh = self.sh
+        y = f32(wy)
+        if word != "label":
+            pix = max(2, min(sh.sn - 3, int(sh.wl(float(f32(wx))))))
+            values = sh.y[pix - 2:pix + 2]
+            y = f32(values.max() if word == "mabove" else values.min())
+        if label.startswith("%"):
+            m = re.match(r"%(-?\d*)(?:\.(\d+))?([fgeds])", label)
+            if m:
+                width = int(m.group(1)) if m.group(1) not in ("", "-") else None
+                decpl = int(m.group(2)) if m.group(2) else None
+                kind = "g" if m.group(3) in "ds" else m.group(3)
+                label = printf(f32(wx), kind, decpl, width) + label[m.end():]
+        self.drawn.append((word, (f32(wx), y, label, fmt)))
+
+    def boolean(self, name: str) -> bool:
+        text = self.answer(name).strip().lower()
+        return text in ("yes", "y", "true", "+")
 
     def colon(self, cmd: str, wx, wy) -> bool:
         """splot_colon."""
@@ -1627,12 +1906,39 @@ class Splot(Session):
         elif word == "#":
             self.ans_hdr(sh, False, "m")
             self._write([cmd])
-        elif word in ("dispaxis", "nsum"):
+        elif word == "dispaxis":
             if self.image.smw.format != shdr.ND:
-                self.say("Image is not two dimensional\n" if word == "dispaxis"
-                         else "Invalid image format\n")
-            else:
-                self.err += f":{word} is not ported yet\n"
+                self.say("Image is not two dimensional\n")
+                return False
+            words = rest.split()
+            if not words:
+                self.say(f"dispaxis {self.image.smw.paxis[0]}\n")
+                return False
+            value = int(words[0])
+            if value < 1:
+                self.say(f"Bad value for dispaxis ({value})\n")
+            elif value != self.image.smw.paxis[0]:
+                self.params["dispaxis"] = value
+                return self._reopen(dispaxis=value)
+        elif word == "nsum":
+            if self.image.smw.format != shdr.ND:
+                self.say("Invalid image format\n")
+                return False
+            words = rest.split()
+            nsum = self.image.smw.nsum
+            if not words:
+                self.say(f"nsum {nsum[0]} {nsum[1]}\n")
+                return False
+            a = int(words[0])
+            b = int(words[1]) if len(words) > 1 else None
+            if a != nsum[0] or (b is not None and b != nsum[1]):
+                # smw_daxis keeps the second summing factor it was given; one never
+                # given takes the first's
+                if b is not None:
+                    self.nsum2 = b
+                new = (a, getattr(self, "nsum2", None) or a)
+                self.params["nsum"] = new
+                return self._reopen(nsum=new)
         elif word == "units":
             try:
                 new = unitsmod.decode(rest.strip())
@@ -1667,10 +1973,219 @@ class Splot(Session):
             return self.options["auto"] if name in ("zero", "histogram", "nosysid") \
                 else False
         elif word in ("label", "mabove", "mbelow"):
-            self.drawn.append((word, (wx, wy, rest)))
+            self._label(word, wx, wy, rest)
         else:
             self.say("Unrecognized or ambiguous command\007")
         return False
+
+
+def _words(text: str) -> list[str]:
+    """gargwrd's words: a quoted string is one."""
+    return [a if a else b for a, b in re.findall(r'"([^"]*)"|(\S+)', text)]
+
+
+def write_spectrum(sh, image: Image, name: str, overwrite: bool) -> Path:
+    """wrspect: the image the spectrum came from, copied (or itself, overwritten),
+    with the spectrum's pixels in its place and its dispersion as the SMW now has
+    it; a new image in real."""
+    from astropy.io import fits
+
+    from . import spectrum
+
+    src = _path_of(image.name)
+    out = Path(name if name.endswith((".fits", ".fit")) else f"{name}.fits")
+    same = _same_image(image.name, name)
+    if out.exists() and not same and not overwrite:
+        raise FileExistsError(f"Cannot create image ({name}): it already exists")
+    if spectrum.count(src) > 0:
+        apertures = spectrum.read(src)
+        for ap in apertures:
+            if ap.number == sh.ap:
+                n = len(ap.flux)
+                flux = np.array(ap.flux, f32)
+                flux[sh.np1 - 1:sh.np2] = sh.y
+                ap.flux = flux
+                ap.wavelength = np.array([sh._world(float(i)) for i in range(1, n + 1)])
+        spectrum.write(out, apertures)
+        return out
+    smw = image.smw
+    data = np.array(image.data, np.float32)
+    shape = data.shape
+    while data.ndim < 3:
+        data = data[None]
+    i, j = max(1, sh.lindex[0]), max(1, sh.lindex[1])
+    if smw.format == shdr.ND:
+        la = smw.laxis[0]
+        if la == 1:
+            data[j - 1, i - 1, sh.np1 - 1:sh.np2] = sh.y
+        elif la == 2:
+            data[j - 1, sh.np1 - 1:sh.np2, i - 1] = sh.y
+        else:
+            data[sh.np1 - 1:sh.np2, j - 1, i - 1] = sh.y
+    else:
+        row = data[j - 1, i - 1]
+        row[sh.np1 - 1:sh.np2] = sh.y
+        row[:sh.np1 - 1] = sh.y[0]
+        row[sh.np2:] = sh.y[-1]
+    header = image.header.copy()
+    smw = _wrspect1(sh, smw, shape[-1])
+    _save_smw(smw, header)
+    if sh.ec == 0:
+        header["EX-FLAG"] = 0
+    else:
+        header.remove("EX-FLAG", ignore_missing=True)
+    if sh.fc == shdr.FCYES:
+        header["CA-FLAG"] = sh.fc
+    else:
+        header.remove("CA-FLAG", ignore_missing=True)
+    fits.PrimaryHDU(data.reshape(shape).astype(np.float32), header).writeto(
+        out, overwrite=True)
+    return out
+
+
+def _wrspect1(sh, smw1, length: int):
+    """wrspect1: the output's dispersion (a copy of the input's SMW) from the
+    spectrum's own coordinates at its first and last pixels, in double."""
+    import copy
+
+    smw = copy.deepcopy(smw1)
+    ltm, ltv = smw.lterm
+    j = smw.paxis[0] - 1 if smw.format != shdr.MS else 0
+    a, b = float(ltv[j]), float(ltm[j, j])
+    ap, beam, dtype, w1, dw, nw, z, aplow, aphigh, coeff = shdr.gwattrs(smw1, sh.apindex)
+    w1 = sh.lw(1.0)
+    wb = sh.lw(float(sh.sn))
+    if shdr._convertible(sh.un, sh.mwun):
+        w1, wb = (float(v) for v in unitsmod.convert([w1, wb], sh.un, sh.mwun))
+    p1 = (sh.np1 - a) / b
+    p2 = (sh.np2 - a) / b
+    p3 = (length - a) / b
+    nw = nint(min(max(p1, p3), max(p1, p2))) + sh.np1 - 1
+    if dtype == shdr.DCLOG:
+        if p1 != p2:
+            dw = (math.log10(wb * (1 + z)) - math.log10(w1 * (1 + z))) / (p2 - p1)
+        w1 = math.log10(w1 * (1 + z)) - (p1 - 1) * dw
+        w1 = 10.0 ** w1
+        dw = (w1 * 10.0 ** ((nw - 1) * dw) - w1) / (nw - 1)
+    else:
+        if p1 != p2:
+            dw = (wb - w1) / (p2 - p1) * (1 + z)
+        w1 = w1 * (1 + z) - (p1 - 1) * dw
+    shdr.swattrs(smw, sh.lindex[0], ap, beam, dtype, w1, dw, nw, z, aplow, aphigh, coeff)
+    return smw
+
+
+def _path_of(name: str) -> Path:
+    path = Path(section_of(name)[0])
+    if not path.exists() and Path(f"{path}.fits").exists():
+        path = Path(f"{path}.fits")
+    return path
+
+
+def _save_smw(smw, header) -> None:
+    """smw_saveim, for what usercoord changes: the dispersion axis's reference,
+    value and interval (NDSPEC, EQUISPEC) or the specN attributes (MULTISPEC)."""
+    if smw.format in (shdr.ND, shdr.ES):
+        r, w, cd = smw.wterm
+        ltm, ltv = smw.lterm
+        j = smw.paxis[0]
+        step = float(cd[j - 1, j - 1]) / float(ltm[j - 1, j - 1])
+        header[f"CRPIX{j}"] = float(ltm[j - 1, j - 1] * r[j - 1] + ltv[j - 1])
+        header[f"CRVAL{j}"] = float(w[j - 1])
+        header[f"CDELT{j}"] = step
+        header[f"CD{j}_{j}"] = step
+        if smw.dtype is not None and smw.dtype != shdr.DCNO:
+            header["DC-FLAG"] = smw.dtype
+        attrs = "wtype=linear"
+        if smw.label:
+            attrs += f" label={smw.label}"
+        if smw.units:
+            attrs += f" units={smw.units}"
+        header[f"WAT{j}_001"] = attrs
+        return
+    for key in [k for k in header if k.startswith("WAT2_")]:
+        header.remove(key)
+    text = "wtype=multispec"
+    for line in sorted(smw.specs):
+        text += f' spec{line} = "{smw.specs[line].text}"'
+    for k in range(0, len(text), 68):
+        header[f"WAT2_{k // 68 + 1:03d}"] = text[k:k + 68]
+
+
+def _same_image(a: str, b: str) -> bool:
+    """xt_imnameeq: the same image, with or without its extension."""
+    def root(name):
+        name = section_of(name)[0]
+        for suffix in (".fits", ".fit", ".imh"):
+            if name.endswith(suffix):
+                return name[: -len(suffix)]
+        return name
+    return root(a) == root(b)
+
+
+def usercoord(sh, key, w1, u1, w2, u2, session) -> None:
+    """usercoord: the spectrum's dispersion changed in its image's SMW, and the
+    coordinates taken again from it."""
+    smw = sh.smw
+    try:
+        wa = float(unitsmod.convert([w1], sh.un, sh.mwun)[0]) \
+            if shdr._convertible(sh.un, sh.mwun) else w1
+        ua = float(unitsmod.convert([u1], sh.un, sh.mwun)[0]) \
+            if shdr._convertible(sh.un, sh.mwun) else u1
+        ap, beam, dtype, w0, dw, nw, z, aplow, aphigh, coeff = shdr.gwattrs(
+            smw, sh.apindex)
+        if key == "d":
+            wa = wa * (1 + z)
+            if sh.mwun.kind == unitsmod.WAVE:
+                z = (wa - ua) / ua
+            elif sh.mwun.kind in (unitsmod.FREQ, unitsmod.ENERGY):
+                z = (ua - wa) / wa
+            else:
+                raise ValueError("Inappropriate coordinate units")
+        elif key == "z":
+            shift = ua - wa
+            w0 = w0 + shift
+            if dtype == shdr.DCFUNC:
+                coeff = _sshift(shift, coeff)
+        elif key == "l":
+            wb = float(unitsmod.convert([w2], sh.un, sh.mwun)[0]) \
+                if shdr._convertible(sh.un, sh.mwun) else w2
+            ub = float(unitsmod.convert([u2], sh.un, sh.mwun)[0]) \
+                if shdr._convertible(sh.un, sh.mwun) else u2
+            pa = shdr.world_to_physical(sh, wa)
+            pb = shdr.world_to_physical(sh, wb)
+            dw = (ub - ua) / (pb - pa)
+            w0 = ua - (pa - 1) * dw
+            dtype = 0
+            if not sh.units:
+                smw.label, smw.units = "Wavelength", "angstroms"
+        else:
+            raise ValueError("Unknown correction")
+        shdr.swattrs(smw, sh.apindex, ap, beam, dtype, w0, dw, nw, z, aplow, aphigh,
+                     coeff)
+        sh.dc = dtype
+        sh.set_system("world")
+        if sh.un.kind == 0:
+            sh.un = sh.mwun
+    except ValueError as error:
+        session.err += f"Warning: {error}\n"
+
+
+def _sshift(shift: float, coeff: str) -> str:
+    """sshift1: a shift added to each nonlinear function's zero point."""
+    words = coeff.split()
+    out = list(words)
+    i = 0
+    while i + 3 < len(words):
+        kind = round(float(words[i + 2]))
+        order = round(float(words[i + 3]))
+        out[i + 1] = repr(float(words[i + 1]) + shift)
+        size = {1: 6 + order, 2: 6 + order, 3: 9 + order, 4: 7 + order, 5: 4 + order,
+                6: 5 + order}.get(kind)
+        if size is None:
+            break
+        i += size
+    return " ".join(out)
 
 
 def _two(value) -> str:

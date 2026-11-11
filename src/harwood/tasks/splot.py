@@ -56,6 +56,12 @@ class SplotParams(TaskParams):
     high_reject: float = Field(4.0, ge=0, description="t: high rejection, in sigmas.")
     niterate: int = Field(10, ge=0, description="t: rejection iterations.")
     grow: float = Field(1.0, ge=0, description="t: rejection growing radius.")
+    markrej: bool = Field(True, description="t: mark the rejected points.")
+    caldir: str = Field("", description="y: the directory of the standard stars' "
+                                        "fluxes, onedstds$spec50cal/ for one of IRAF's. "
+                                        "Empty: every directory harwood ships.")
+    fnuzero: float = Field(3.68e-20, description="y: the flux of magnitude zero, "
+                                                 "per hertz.")
     dispaxis: Literal[1, 2, 3] = Field(1, description="A 2-D image's dispersion axis when "
                                                       "it has no DISPAXIS (onedspec's).")
     nsum: str = Field("1", description="Lines (and bands) summed for a 2-D image's "
@@ -71,7 +77,7 @@ class SplotParams(TaskParams):
 class Splot(Task[SplotParams]):
     """IRAF's splot, from noao/onedspec/splot: the spectrum opened as onedspec opens
     it and each key's measurement as IRAF computes it -- what it prints and what it
-    logs identical to IRAF 2.18's on 31 cursor files; the keys pressed in its window,
+    logs identical to IRAF 2.18's on 38 cursor files; the keys pressed in its window,
     or read from a cursor file (--gcommands)."""
 
     name = "splot"

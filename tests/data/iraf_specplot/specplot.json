@@ -1,0 +1,1583 @@
+{
+"default": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:00 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:00 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n\n         Image Name      Mean       DW0         Z   V(km/s)\n 1  ms.fits[*,1](1)  1138.682        0.        0.        0.\n 2  ms.fits[*,2](2)  904.7418        0.        0.        0.\n 3  ms.fits[*,3](3)   1365.81        0.        0.        0.\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"two_images": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:01 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 4      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"layout": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:01 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0.      1.   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.      1.   third\n 4      one.fits(2)   6400.    1.25      0.      1.   NGC 660 nucleus\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:01 11-Nov-2026\n\nStep = 3192.35\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267  233.94      1.   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063 -227.13      1.   third\n 4      one.fits(2)   6400.    1.25 0.21533      1.   NGC 660 nucleus\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:01 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 4      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:01 11-Nov-2026\n\nStep = 900.\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 4      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\nfraction 1.step 1408.379",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7668152,
+12288.7597656
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+401.9571838,
+13449.5566406
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 3192.35",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+608.255249,
+6366.6582031
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 900.",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+562.5010986,
+7937.550293
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 1408.379",
+"",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"no_autolayout": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:02 11-Nov-2026\n\nStep = 500.\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0.      1.   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.      1.   third\n 4      one.fits(2)   6400.    1.25      0.      1.   NGC 660 nucleus\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+639.0046387,
+5310.9277344
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 500.",
+"",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"offsets": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:02 11-Nov-2026\n\nStep = 3192.35\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267  233.94      1.   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063 -227.13      1.   third\n 4      one.fits(2)   6400.    1.25 0.21533      1.   NGC 660 nucleus\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+401.9571838,
+13449.5566406
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 3192.35",
+"",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"colon": {
+"out": "offset[2] 0.scale[2] 1.258572w0[1] 6300.wpc[1] 1.25xlpos[1] 0.5ylpos[1] 0.1Unknown command: labels\u0007Unknown command: labels index\u0007Unknown command: labels\u0007Unknown command: labels imname\u0007Unknown command: labels bogus\u0007ulabel[1]  hello thereptype[1] 1color[1] 3Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:03 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6300.    1.25      0.      2.   first\n 2  ms.fits[*,2](2)   6380.     1.3    100. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\nUnknown command: nonsense\u0007Spectrum 7 not defined",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+1315.211792,
+9344.5683594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6281.9912109,
+6918.3085938,
+1315.211792,
+9344.5683594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6300",
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6281.9912109,
+6918.3085938,
+1315.211792,
+9344.5683594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6300",
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6281.9912109,
+6918.3085938,
+1315.211792,
+9344.5683594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6300",
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6281.9912109,
+6918.3085938,
+1315.211792,
+9344.5683594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6300",
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"velocity": {
+"out": "velocity[2] 0.velocity[2] 500.0114redshift[2] 0.001669288redshift[2] 0.001669288Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:03 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2) 6390.65 1.26912      0. 1.25857   three apertures\n 3  ms.fits[*,3](3) 6465.31 1.26313      0.  0.8337   third\n\n         Image Name      Mean       DW0         Z   V(km/s)\n 1  ms.fits[*,1](1)  1138.682        0.        0.        0.\n 2  ms.fits[*,2](2)  904.7418        0. 0.0016693  500.0114\n 3  ms.fits[*,3](3)   1365.81        0.      0.01  2982.911\nvelocity[1] 0.redshift[1] 0.Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:03 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1) -7538.1 56.3481      0.      1.   first\n 2  ms.fits[*,2](2) -8475.7 57.2609      0. 1.25857   three apertures\n 3  ms.fits[*,3](3) -7477.2  56.364      0.  0.8337   third\n\n         Image Name      Mean       DW0         Z   V(km/s)\n 1  ms.fits[*,1](1)  1138.682        0.        0.        0.\n 2  ms.fits[*,2](2)  904.7418        0.        0.        0.\n 3  ms.fits[*,3](3)   1365.81        0.        0.        0.\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6375.3603516,
+6915.5893555,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6373.2905273,
+6986.6621094,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+-9180.3505859,
+15716.6357422,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"-5000",
+"0",
+"5000",
+"10000",
+"15000",
+"Velocity (km/s)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"units": {
+"out": "",
+"err": "ERROR: Error running IRAF task specplot\nIRAF task terminated abnormally\nERROR (1, \"Cannot convert between selected units\u0007\")\n\n",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759"
+]
+}
+],
+"log": null
+},
+"move": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:05 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 2  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 3      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\n 6  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:05 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 4      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\n 7  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:05 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 0  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 4      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\n 7  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:05 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 2  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 3      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\n 4  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"1   ",
+"2   ",
+"3   ",
+"4   "
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+271.9902649,
+18095.7480469
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"1   ",
+"2   ",
+"3   ",
+"6   "
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+187.4875488,
+20997.0097656
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"1   ",
+"3   ",
+"4   ",
+"7   "
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+-2713.7739258,
+21081.5117188
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"0   ",
+"3   ",
+"4   ",
+"7   "
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+440.9958191,
+12293.2255859
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"1   ",
+"2   ",
+"3   ",
+"4   "
+]
+}
+],
+"log": null
+},
+"delete": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:06 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 2  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 3      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:06 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 4      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:06 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n 2      one.fits(2)   6400.    1.25      0. 1.00019   NGC 660 nucleus\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"add": {
+"out": "Spectrum: Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:06 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2           one(2)   6400.    1.25      0.      1.   NGC 660 nucleus\n 3  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 4  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\nSpectrum: Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:06 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1     slit[1,*](1)   6400.    1.25      0.      1.   slit\n 2     slit[2,*](2)   6400.    1.25      0.      1.   slit\n 3     slit[3,*](3)   6400.    1.25      0.      1.   slit\n 4     slit[4,*](4)   6400.    1.25      0.      1.   slit\n 5     slit[5,*](5)   6400.    1.25      0.      1.   slit\n 6     slit[6,*](6)   6400.    1.25      0.      1.   slit\n 7     slit[7,*](7)   6400.    1.25      0.      1.   slit\n 8     slit[8,*](8)   6400.    1.25      0.      1.   slit\n 9     slit[9,*](9)   6400.    1.25      0.      1.   slit\n10   slit[10,*](10)   6400.    1.25      0.      1.   slit\n11   slit[11,*](11)   6400.    1.25      0.      1.   slit\n12   slit[12,*](12)   6400.    1.25      0.      1.   slit\n13   slit[13,*](13)   6400.    1.25      0.      1.   slit\n14   slit[14,*](14)   6400.    1.25      0.      1.   slit\n15   slit[15,*](15)   6400.    1.25      0.      1.   slit\n16   slit[16,*](16)   6400.    1.25      0.      1.   slit\n17   slit[17,*](17)   6400.    1.25      0.      1.   slit\n18   slit[18,*](18)   6400.    1.25      0.      1.   slit\n19   slit[19,*](19)   6400.    1.25      0.      1.   slit\n20   slit[20,*](20)   6400.    1.25      0.      1.   slit\n21   slit[21,*](21)   6400.    1.25      0.      1.   slit\n22   slit[22,*](22)   6400.    1.25      0.      1.   slit\n23   slit[23,*](23)   6400.    1.25      0.      1.   slit\n24   slit[24,*](24)   6400.    1.25      0.      1.   slit\n25   slit[25,*](25)   6400.    1.25      0.      1.   slit\n26   slit[26,*](26)   6400.    1.25      0.      1.   slit\n27   slit[27,*](27)   6400.    1.25      0.      1.   slit\n28   slit[28,*](28)   6400.    1.25      0.      1.   slit\n29   slit[29,*](29)   6400.    1.25      0.      1.   slit\n30   slit[30,*](30)   6400.    1.25      0.      1.   slit\n31   slit[31,*](31)   6400.    1.25      0.      1.   slit\n32   slit[32,*](32)   6400.    1.25      0.      1.   slit\n33   slit[33,*](33)   6400.    1.25      0.      1.   slit\n34   slit[34,*](34)   6400.    1.25      0.      1.   slit\n35   slit[35,*](35)   6400.    1.25      0.      1.   slit\n36   slit[36,*](36)   6400.    1.25      0.      1.   slit\n37   slit[37,*](37)   6400.    1.25      0.      1.   slit\n38   slit[38,*](38)   6400.    1.25      0.      1.   slit\n39   slit[39,*](39)   6400.    1.25      0.      1.   slit\n40   slit[40,*](40)   6400.    1.25      0.      1.   slit\n41   slit[41,*](41)   6400.    1.25      0.      1.   slit\n42  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n43           one(2)   6400.    1.25      0.      1.   NGC 660 nucleus\n44  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n45  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\nSpectrum: ",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+436.3433533,
+12268.9658203
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+-3800.425293,
+131243.1875
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"keys": {
+"out": "X coordinate (6563.): Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:07 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6402.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\nX coordinate (6600.): Mark another positionX coordinate (6700.): Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:07 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)  6421.9  1.1875      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\nSpectrum 1:  Mark position for label ('q' to cancel)Spectrum 1: Label = \nSpectrum 1:  Mark position for label ('q' to cancel)\nSpectrum 1:  Mark position for label ('q' to cancel)\n\u0007",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+-10.9699993,
+411.9700012,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"0",
+"100",
+"200",
+"300",
+"400",
+"Pixels",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+-10.9699993,
+411.9700012,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"0",
+"100",
+"200",
+"300",
+"400",
+"Pixels",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3774414,
+6916.3725586,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+"H alpha",
+"H alpha"
+]
+}
+],
+"log": null
+},
+"shift": {
+"out": "Shift spectrum 1: (q, r, s, t, x, y, z)Shift spectrum 1: (q, r, s, t, x, y, z)Shift spectrum 1: (q, r, s, t, x, y, z)Shift spectrum 1: (q, r, s, t, x, y, z)Shift spectrum 1: (q, r, s, t, x, y, z)Shift spectrum 1: (q, r, s, t, x, y, z)Shift spectrum 1: (q, r, s, t, x, y, z)\nCommunity IRAF V2.18.1 costamands@costa.mands Wed 19:20:07 11-Nov-2026\n\nStep = 2816.759\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1) 6484.84 1.26657    300. 1.13333   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6361.6938477,
+7008.5073242,
+935.7614746,
+9355.6201172
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"7000",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"window": {
+"out": "window:again:window:",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6500.0,
+6650.0,
+1000.0,
+5000.0
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6500",
+"6525",
+"6550",
+"6575",
+"6600",
+"6625",
+"6650",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6364.3911133,
+6915.9086914,
+435.7469177,
+12289.4433594
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"params": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:09 11-Nov-2026\n\nStep = 5489.764\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25    100.      2.   first\n 2  ms.fits[*,3](3)  6401.3 1.25063    100. 1.66741   third\n",
+"err": "",
+"frames": [
+{
+"window": [
+6384.9912109,
+6915.3085938,
+1315.010376,
+12884.8193359
+],
+"viewport": [
+0.1375,
+0.8625,
+0.147,
+0.9412
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"lambda",
+"counts",
+"My spectra",
+"first",
+"third"
+]
+}
+],
+"log": null
+},
+"log": {
+"out": "Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:09 11-Nov-2026\n\nStep = 0.6844528\n\n         Image Name      W0     WPC  Offset   Scale   Title\n 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first\n 2  ms.fits[*,2](2)   6380.   1.267      0. 1.03389   three apertures\n 3  ms.fits[*,3](3)  6401.3 1.25063      0. 0.97475   third\n\n         Image Name      Mean       DW0         Z   V(km/s)\n 1  ms.fits[*,1](1)  3.050643        0.        0.        0.\n 2  ms.fits[*,2](2)   2.95066        0.        0.        0.\n 3  ms.fits[*,3](3)  3.129681        0.        0.        0.\n",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+2.8268437,
+4.9588399
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 0.6844528",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"limits": {
+"out": "",
+"err": "",
+"frames": [
+{
+"window": [
+6450.0,
+6700.0,
+0.0,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6450",
+"6500",
+"6550",
+"6600",
+"6650",
+"6700",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+},
+{
+"window": [
+6450.0,
+6700.0,
+0.0,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6450",
+"6500",
+"6550",
+"6600",
+"6650",
+"6700",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"",
+"",
+""
+]
+}
+],
+"log": null
+},
+"ulabels": {
+"out": "ulabel[2] second",
+"err": "",
+"frames": [
+{
+"window": [
+6364.3911133,
+6915.9086914,
+520.8460693,
+9367.7050781
+],
+"viewport": [
+0.1125,
+0.8875,
+0.147,
+0.9118
+],
+"text": [
+"6400",
+"6500",
+"6600",
+"6700",
+"6800",
+"6900",
+"Wavelength (angstroms)",
+"Separation step = 2816.759",
+"first one",
+"second",
+""
+]
+}
+],
+"log": [
+"Community IRAF V2.18.1 costamands@costa.mands Wed 19:20:10 11-Nov-2026",
+"",
+"Step = 2816.759",
+"",
+"         Image Name      W0     WPC  Offset   Scale   Title",
+" 1  ms.fits[*,1](1)   6400.    1.25      0.      1.   first",
+" 2  ms.fits[*,2](2)   6380.   1.267      0. 1.25857   three apertures",
+" 3  ms.fits[*,3](3)  6401.3 1.25063      0.  0.8337   third",
+"",
+"         Image Name      Mean       DW0         Z   V(km/s)",
+" 1  ms.fits[*,1](1)  1138.682        0.        0.        0.",
+" 2  ms.fits[*,2](2)  904.7418        0.        0.        0.",
+" 3  ms.fits[*,3](3)   1365.81        0.        0.        0."
+]
+},
+"nospectra": {
+"out": "No spectra defined\u0007No spectra defined\u0007No spectra defined\u0007",
+"err": "",
+"frames": [
+{
+"window": [
+-0.03,
+1.03,
+-0.03,
+1.03
+],
+"viewport": [
+0.1125,
+0.8875,
+0.0882,
+0.9118
+],
+"text": [
+"0",
+".2",
+".4",
+".6",
+".8",
+"1",
+"Separation step = 0."
+]
+},
+{
+"window": [
+-0.03,
+1.03,
+-0.03,
+1.03
+],
+"viewport": [
+0.1125,
+0.8875,
+0.0882,
+0.9118
+],
+"text": [
+"0",
+".2",
+".4",
+".6",
+".8",
+"1",
+"Separation step = 0."
+]
+}
+],
+"log": null
+}
+}

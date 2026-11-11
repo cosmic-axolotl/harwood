@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 120, partial: 5, planned: 230, replaced: 94, wontport: 161
+#   available: 122, partial: 4, planned: 229, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -651,9 +651,10 @@ tasks:
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   showcap: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
-  specplot: {pkg: onedspec, domain: display, status: planned, milestone: later}
-  splot: {pkg: onedspec, domain: display, status: partial, milestone: later, harwood: splot,
-    note: "smw/shdr ported (onedspec, equispec, NDSPEC with nsum, multispec with linear, log and nonlinear dispersions, harwood's spectra) and the keys' measurements -- space, m, e, k with errors, d, -, h, s, f, j, x, l, n, $, v, :units, g # ( ), the colon commands, the log -- identical to IRAF 2.18 on 31 cursor files, each frame's window, title and label IRAF's metacode's; the window (keys over the graph, questions on its command line). Missing: p u i t y, labels drawn as IRAF draws them, :dispaxis/:nsum"}
+  specplot: {pkg: onedspec, domain: display, status: available, milestone: later, harwood: specplot,
+    note: "t_specplot.x: every aperture and band of each image, the automatic layout and its step, scale and offset from values, @files or keywords, the log transform, the labels and user labels, the keys a i d e f l p o s t u v w x y z and every colon command -- what it prints, the logfile and each frame's window identical to IRAF 2.18 on 19 cursor files; the window (keys over the graph, questions on its command line). Not ported: the help page of ?"}
+  splot: {pkg: onedspec, domain: display, status: available, milestone: later, harwood: splot,
+    note: "smw/shdr ported (onedspec, equispec, NDSPEC with nsum, multispec with linear, log and nonlinear dispersions, harwood's spectra) and the keys' measurements -- space, m, e, k with errors, d, -, h, s, f, j, x, l, n, $, v, :units, g # ( ), the colon commands, the log -- and p u i t y, the labels, :nsum and :dispaxis -- identical to IRAF 2.18 on 38 cursor files, each frame's window, title and label IRAF's metacode's, the spectra i writes IRAF's; the window (keys over the graph, questions on its command line, t in icfit's window). Not ported: the help pages of ? and /"}
   stdgraph: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   stdplot: {pkg: plot, domain: display, status: wontport,
