@@ -391,3 +391,391 @@ def _cursor_bins(cursor: str, given: str, npts: int, nbins: int, text: list) -> 
                         "set the bins with ':bins 1:200 400:600' in the cursor file, or "
                         "--bins")
     return current
+
+
+# ---------------------------------------------------------------- fitcoords
+
+FCWHY = {
+    "read": "The features identify and reidentify measured on the arc's lines or columns: "
+            "the pixel each lamp line fell on and its wavelength, from database/id<image>.",
+    "fit": "One surface through all of them, the wavelength as a function of the column "
+           "and the line: a low-order fit first, then the full orders with cross terms on "
+           "what it leaves, the two added (gsurfit, in double precision).",
+    "write": "Appended to database/fc<fitname>, the surface as gsurfit saves it: what "
+             "transform reads.",
+}
+
+
+class FitcoordsParams(TaskParams):
+    images: list[str] = Field(
+        ..., description="Arcs whose identify records are fitted, by name: arc or "
+                         "arc.fits.", json_schema_extra={"positional": True})
+    fitname: str = Field("", description="Name of the fit. Each image's fit is "
+                                         "<fitname><image>; with --combine, the one fit's.")
+    interactive: bool = Field(False, description="Fit by hand (IRAF's interactive=yes): "
+                                                 "not ported yet.")
+    combine: bool = Field(False, description="One fit of every image's features.")
+    database: Path = Field(Path("."), description="Reduction directory holding database/.")
+    deletions: str = Field("deletions.db", description="Points fitted with weight zero, "
+                                                       "'user position' a line. Empty: none.")
+    function: Literal["chebyshev", "legendre"] = Field("chebyshev",
+                                                       description="The surface's functions.")
+    xorder: int = Field(6, ge=2, description="Order of the surface in x (the columns).")
+    yorder: int = Field(6, ge=2, description="Order of the surface in y (the lines).")
+    logfiles: str = Field("STDOUT,logfile", description="Where the log goes: STDOUT is "
+                                                        "shown, a file is appended to.")
+
+
+def _sysid() -> str:
+    import getpass
+    import socket
+
+    from ..core import iraffmt
+    from ..core.provenance import _version
+
+    return (f"harwood {_version()} {getpass.getuser()}@{socket.gethostname()} "
+            f"{iraffmt.cnvtime()}")
+
+
+def _log(logfiles: str, lines: list[str], shown: list[str], workdir: Path = Path(".")):
+    """IRAF's logfiles: STDOUT shown, any other name appended to."""
+    for name in (n.strip() for n in logfiles.replace(" ", ",").split(",")):
+        if not name:
+            continue
+        if name in ("STDOUT", "STDERR"):
+            shown.extend(lines)
+            continue
+        with open(workdir / name, "a", encoding="utf-8") as out:
+            out.writelines(line + "\n" for line in lines)
+
+
+def _header_of(root: str):
+    """The frame a record names, as fc_getcoords maps it: header and shape."""
+    from astropy.io import fits
+
+    from ..core import fitcoords as fc
+
+    for candidate in (root, f"{root}.fits", f"{root}.fit", f"{root}.fz"):
+        if Path(candidate).is_file():
+            with fits.open(candidate, memmap=False) as hdul:
+                hdu = next((h for h in hdul if h.data is not None and h.data.ndim == 2),
+                           None)
+                if hdu is None:
+                    raise fc.FitcoordsError(f"{candidate}: not a 2-D image")
+                return hdu.header.copy(), hdu.data.shape
+    raise fc.FitcoordsError(f"Cannot open image ({root})")
+
+
+@register
+class Fitcoords(Task[FitcoordsParams]):
+    """IRAF's fitcoords, from noao/twodspec/longslit/lstrans: a surface fitted to the
+    wavelengths of the features identify and reidentify measured along a long slit,
+    written for transform. Checked against IRAF 2.18: the surface's coefficients to
+    the last digit, and the log."""
+
+    name = "fitcoords"
+    package = "longslit"
+    description = "Fit a surface to the wavelengths measured along a long-slit arc."
+    Params = FitcoordsParams
+
+    def plan(self, params: FitcoordsParams) -> list[Step]:
+        name = params.fitname if params.combine else f"{params.fitname}<image>"
+        return [Step("read", ", ".join(params.images), why=FCWHY["read"]),
+                Step("fit", f"{params.function}, orders {params.xorder} and "
+                            f"{params.yorder}", why=FCWHY["fit"]),
+                Step("write", f"database/fc{name}", why=FCWHY["write"])]
+
+    def execute(self, params: FitcoordsParams) -> TaskResult:
+        from ..core import fitcoords as fc
+
+        if params.interactive:
+            advice.fail("fitcoords by hand (IRAF's igsfit graph) is not ported yet",
+                        "run it with --no-interactive, and look at the fit's residuals "
+                        "in the log; delete points with --deletions")
+        fitname = params.fitname.strip()
+        if params.combine and not fitname:
+            advice.fail("Fit name not specified", "give --fitname for the combined fit")
+        names = [fc.strip_extension(str(spec).split("[")[0])
+                 for group in params.images for spec in group.split(",") if spec.strip()]
+        groups = [(fitname, names)] if params.combine else \
+            [(f"{fitname}{n}", [n]) for n in names]
+        dbdir = Path(params.database) / "database"
+        shown: list[str] = []
+        warnings: list[str] = []
+        written: list[Path] = []
+        rows = []
+        deletions = Path(params.deletions) if params.deletions.strip() else None
+        for name, images in groups:
+            _log(params.logfiles, fc.header_lines(_sysid(), name, "database", images),
+                 shown)
+            try:
+                coords = fc.get_coords(images, dbdir, _header_of)
+                fc.read_deletions(deletions, coords)
+                sf, said = fc.fit(coords, params.function, params.xorder, params.yorder)
+            except (fc.FitcoordsError, ValueError) as error:
+                if params.combine:
+                    advice.fail(str(error), "identify and reidentify the arc first: "
+                                "the features are read from database/id<image>")
+                warnings.append(advice.warn(f"{name}: {error}",
+                                            "identify and reidentify the arc first: the "
+                                            "features are read from database/id<image>"))
+                continue
+            for text in coords.warnings + said:
+                warnings.append(advice.warn(text, "check the database's records"))
+            _log(params.logfiles, fc.result_lines(coords, sf, params.function,
+                                                   params.xorder, params.yorder), shown)
+            path = fc.write_fc(dbdir, name, coords.axis, coords.units, sf)
+            if path not in written:
+                written.append(path)
+            pts = coords.points
+            used = pts[fc.W] > 0
+            rms = float(((pts[fc.R][used].astype(float) ** 2).mean()) ** 0.5) \
+                if used.any() else float("nan")
+            rows.append({"fit": name, "axis": coords.axis, "points": coords.n,
+                         "rms": round(rms, 6), "units": coords.units or ""})
+        data: dict = {"rows": rows}
+        if shown:
+            data["text"] = shown
+        return TaskResult(outputs=written, steps=self.plan(params), data=data,
+                          warnings=warnings, history=[f"fitcoords: {len(rows)} fit(s)"])
+
+
+# ---------------------------------------------------------------- transform
+
+TRWHY = {
+    "fits": "The surfaces fitcoords wrote, database/fc<fitname>: the wavelength (and, "
+            "with a fit of the other axis, the position along the slit) of every input "
+            "pixel.",
+    "grid": "The surfaces inverted on every tenth output pixel by Newton's method, and "
+            "interpolated bilinearly in between: where each output pixel falls on the "
+            "input.",
+    "resample": "The input interpolated there; with flux on, multiplied by the input area "
+                "the output pixel covers, so that counts are kept.",
+    "write": "A new image on straight lines of constant wavelength, with a linear world "
+             "system for onedspec.",
+}
+
+
+class TransformParams(TaskParams):
+    input: list[str] = Field(..., description="Images to transform.",
+                             json_schema_extra={"positional": True})
+    output: list[str] = Field(..., description="Output images, one each.",
+                              json_schema_extra={"positional": True})
+    fitnames: str = Field(..., description="Fits in database/fc<name>, comma separated: "
+                                           "one for the wavelength, and one for the slit "
+                                           "if there is one. Empty (''): each image's "
+                                           "own linear world system.",
+                          json_schema_extra={"positional": True})
+    database: Path = Field(Path("."), description="Reduction directory holding database/.")
+    minput: str = Field("", description="Masks of the inputs (above zero bad), one or one "
+                                        "each.")
+    moutput: str = Field("", description="Output masks, one each: 1 where the input was "
+                                         "bad or off the image.")
+    interptype: Literal["nearest", "linear", "poly3", "poly5", "spline3"] = Field(
+        "spline3", description="How the input is interpolated.")
+    x1: float | None = Field(None, description="First output x coordinate. Empty: from "
+                                               "the fits' range.")
+    x2: float | None = Field(None, description="Last output x coordinate.")
+    dx: float | None = Field(None, description="Output x interval; given, it sets nx.")
+    nx: int | None = Field(None, description="Output columns. Empty: the input's.")
+    xlog: bool = Field(False, description="Logarithmic x intervals.")
+    y1: float | None = Field(None, description="First output y coordinate.")
+    y2: float | None = Field(None, description="Last output y coordinate.")
+    dy: float | None = Field(None, description="Output y interval; given, it sets ny.")
+    ny: int | None = Field(None, description="Output lines. Empty: the input's.")
+    ylog: bool = Field(False, description="Logarithmic y intervals.")
+    flux: bool = Field(True, description="Conserve flux per pixel.")
+    blank: float | None = Field(None, description="Value of output pixels off the input. "
+                                                  "Empty: the input's edge, extended.")
+    logfiles: str = Field("STDOUT,logfile", description="Where the log goes: STDOUT is "
+                                                        "shown, a file is appended to.")
+    dispaxis: Literal[1, 2] | None = Field(
+        None, description="1 if the dispersion runs along the lines, 2 along the columns "
+                          "(IRAF's longslit.dispaxis). Left out, the DISPAXIS keyword.")
+
+
+def _mask_name(name: str) -> tuple[Path, str]:
+    """xt_maskname: a .pl file, or a FITS file holding the mask in a pl extension
+    -- what the BPM card then names."""
+    if name.endswith(".pl"):
+        return Path(name), name
+    path = Path(name if name.endswith((".fits", ".fit")) else f"{name}.fits")
+    return path, f"{path}[pl,type=mask]"
+
+
+def _write_mask(path: Path, mask, header) -> None:
+    """A mask as IRAF writes one into a FITS file: an empty primary and the pixels,
+    PLIO-compressed, in an extension named pl."""
+    import numpy as np
+    from astropy.io import fits
+
+    ext = fits.CompImageHDU(np.asarray(mask, np.int32), header=header,
+                            compression_type="PLIO_1", name="pl")
+    fits.HDUList([fits.PrimaryHDU(), ext]).writeto(path, overwrite=True)
+
+
+@register
+class Transform(Task[TransformParams]):
+    """IRAF's transform, from noao/twodspec/longslit/lstrans: a long-slit frame
+    resampled onto the coordinates of fitcoords' surfaces -- the lines of the lamp
+    straight, the wavelength linear. Checked pixel for pixel against IRAF 2.18."""
+
+    name = "transform"
+    package = "longslit"
+    description = "Resample a long-slit frame onto straight lines of constant wavelength."
+    Params = TransformParams
+
+    def plan(self, params: TransformParams) -> list[Step]:
+        return [Step("fits", params.fitnames, why=TRWHY["fits"]),
+                Step("grid", "every 10th output pixel", why=TRWHY["grid"]),
+                Step("resample", f"{params.interptype}"
+                     + (", flux conserved" if params.flux else ""), why=TRWHY["resample"]),
+                Step("write", ", ".join(params.output), why=TRWHY["write"])]
+
+    def execute(self, params: TransformParams) -> TaskResult:
+        import numpy as np
+
+        from ..core import fitcoords as fc
+        from ..core import images, imsum, iraffmt, longslit, mef, pixels, pixmask
+        from ..core import transform as tr
+
+        ins, given = [], []
+        for group in params.input:
+            for piece in images.split_list(group):
+                found = images.expand(piece)
+                ins += found
+                given += [piece] if len(found) == 1 else [str(s) for s in found]
+        outs = [p for g in params.output for p in images.split_list(g) if p.strip()]
+        if len(ins) != len(outs):
+            advice.fail("Number of input and output images differ",
+                        f"{len(ins)} inputs and {len(outs)} outputs: give one each")
+        minputs = images.split_list(params.minput) if params.minput.strip() else []
+        moutputs = images.split_list(params.moutput) if params.moutput.strip() else []
+        if len(minputs) > 1 and len(minputs) != len(ins):
+            advice.fail("Can't associate input masks with input images",
+                        "give one mask, or one for each input")
+        if moutputs and len(moutputs) != len(ins):
+            advice.fail("Number output masks differ from input",
+                        "give one output mask for each input")
+        names = [n.strip() for n in params.fitnames.split(",") if n.strip()]
+        usewcs = not names              # no fits: each image's own world system
+        dbdir = Path(params.database) / "database"
+        wanted = tr.Output(params.x1, params.x2, params.dx, params.nx, params.xlog,
+                           params.y1, params.y2, params.dy, params.ny, params.ylog)
+        setup = None
+        if not usewcs:
+            try:
+                fits_ = [fc.read_fc(dbdir, n) for n in names]
+                usf, vsf, un = tr.surfaces(fits_)
+                setup = tr.setup(usf, vsf, un, wanted, params.flux)
+            except (fc.FitcoordsError, tr.TransformError, ValueError) as error:
+                advice.fail(str(error), "run fitcoords first: transform reads "
+                                        "database/fc<fitname>")
+        shown, written, warnings, rows = [], [], [], []
+        listed = False                  # clgfil's list is read once, never rewound
+        minname = mname = moutname = ""
+        for k, (spec, target) in enumerate(zip(ins, outs, strict=True)):
+            if k < len(minputs):
+                minname = minputs[k]
+            if k < len(moutputs):
+                moutname = moutputs[k]
+            hdul, hdu = images.open_hdu(images.ImageSpec(spec.path, spec.extension))
+            try:
+                stored = np.array(hdu.data)
+                header = images.inherited(hdul, hdu)
+            finally:
+                hdul.close()
+            if spec.section:
+                stored = stored[pixels.parse_section(spec.section.strip("[]"),
+                                                     stored.shape)]
+            if stored.ndim != 2:
+                advice.fail(f"{spec} is not a 2-D image", "transform resamples long-slit "
+                                                          "frames")
+            data = imsum.convert(imsum.ieee_in(stored), np.float32)
+            if usewcs:
+                try:
+                    setup = tr.setup_wcs(tr.ImageWcs(header, data.shape[1],
+                                                     data.shape[0]), wanted, params.flux)
+                except (ValueError, np.linalg.LinAlgError) as error:
+                    advice.fail(f"{spec}: {error}", "the image's world system has to be "
+                                "linear and invertible to transform by it")
+            o = setup.output
+            mask = None
+            if minname:
+                mask = pixmask.read(minname, header, data.shape)
+                mname = minname
+            mpath = mcard = None
+            if moutname:
+                mpath, mcard = _mask_name(moutname)
+            lines = ["", _sysid(), f"  Transform {given[k]} to {target}."]
+            if mpath is not None:
+                lines.append(f"  Transform mask {mname} to {mcard}." if mask is not None
+                             else f"  Output mask is {mcard}.")
+            if params.flux:
+                lines.append("  Conserve flux per pixel.")
+            lines.append("  Transforming using image WCS." if usewcs else
+                         "  User coordinate transformations:")
+            # the names go to the first log of the first image only: IRAF reads the
+            # list to its end there and never goes back
+            for name in params.logfiles.replace(" ", ",").split(","):
+                if not name.strip():
+                    continue
+                these = list(lines)
+                if not listed and not usewcs:
+                    these += [f"    {n}" for n in names]
+                    listed = True
+                these.append(f"  Interpolation is {params.interptype}.")
+                these.append(f"  Out of bounds pixel value is {iraffmt.g(params.blank)}."
+                             if params.blank is not None else
+                             "  Using edge extension for out of bounds pixel values.")
+                these.append("  Output coordinate parameters are:")
+                these.append(_coords_line("x", o.x1, o.x2, o.dx, o.nx, o.xlog))
+                these.append(_coords_line("y", o.y1, o.y2, o.dy, o.ny, o.ylog))
+                _log(name, these, shown)
+            out, mout = tr.transform(data, setup, params.interptype, params.flux,
+                                     params.blank, mask, want_mask=mpath is not None)
+            laxis = None
+            if not usewcs:
+                try:
+                    laxis = longslit.dispersion_axis(header, params.dispaxis)
+                except longslit.LongslitError:
+                    advice.fail(f"{spec} has no DISPAXIS keyword", "give --dispaxis 2 "
+                                "(the dispersion along the columns) or 1 (along the "
+                                "lines), as IRAF's longslit.dispaxis, or add DISPAXIS "
+                                "with hedit")
+            for key in tr.OLD_WCS + (() if usewcs else tr.OLD_DISPERSION):
+                header.remove(key, ignore_missing=True, remove_all=True)
+            header.update(tr.wcs_cards(setup, laxis))
+            if mcard is not None:
+                header["BPM"] = mcard
+            header["IRAF-TLM"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+            path = Path(target if target.endswith((".fits", ".fit")) else f"{target}.fits")
+            stored_type = stored.dtype if stored.dtype.kind in "iuf" else np.float32
+            values = imsum.convert(out, stored_type)
+            files, notes = mef.save(path, values, header, None, None, keep_type=True)
+            warnings.extend(notes)
+            written += files
+            if mpath is not None:
+                mheader = header.copy()
+                for key in ("BPM", "DCLOG1", "DC-FLAG"):
+                    mheader.remove(key, ignore_missing=True)
+                _write_mask(mpath, imsum.convert(mout, np.int32).clip(0), mheader)
+                written.append(mpath)
+            rows.append({"input": str(spec), "output": str(path), "nx": o.nx, "ny": o.ny,
+                         "y1": round(o.y1, 6), "dy": round(o.dy, 8)})
+        data_out: dict = {"rows": rows}
+        if shown:
+            data_out["text"] = shown
+        return TaskResult(outputs=written, steps=self.plan(params), data=data_out,
+                          warnings=warnings, history=[f"transform: {len(rows)} image(s)"])
+
+
+def _coords_line(axis: str, a1, a2, d, n, log) -> str:
+    """'    x1 = %10.4g, x2 = %10.4g, dx = %10.4g, nx = %4d, xlog = %b'."""
+    from ..core import iraffmt
+
+    def g(v):
+        return f"{iraffmt.printf(float(v), 'g', 4, 10):>10s}"
+
+    return (f"    {axis}1 = {g(a1)}, {axis}2 = {g(a2)}, d{axis} = {g(d)}, "
+            f"n{axis} = {n:4d}, {axis}log = {'yes' if log else 'no'}")

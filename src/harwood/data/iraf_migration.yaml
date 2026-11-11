@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 117, partial: 3, planned: 235, replaced: 94, wontport: 161
+#   available: 120, partial: 4, planned: 231, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -376,12 +376,14 @@ tasks:
   sections: {pkg: images.imutil, domain: arithmetic, status: available, milestone: mvp, harwood: sections}
 
   # --- filtering (later, 21 tasks) ------------------------------
-  background: {pkg: imred.generic, domain: filtering, status: planned, milestone: later}
+  background: {pkg: imred.generic, domain: filtering, status: available, milestone: later, harwood: background,
+    note: "background.cl: fit1d with the difference -- identical to IRAF 2.18 pixel for pixel, the course's 7.2 frame included; by hand as the course runs it ('Fit line =', the icfit window or a cursor file)"}
   boxcar: {pkg: images.imfilter, domain: filtering, status: available, milestone: later, harwood: boxcar,
     note: "boxcar.x and aboxcar.x ported: the running sums in single precision, the box not made odd (an even side reaches further one way), the boundary extension and sections as IMIO reads them -- identical to IRAF 2.18"}
   colbias: {pkg: imred.bias, domain: filtering, status: planned, milestone: later}
   convolve: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
-  fit1d: {pkg: images.imfit, domain: filtering, status: planned, milestone: later}
+  fit1d: {pkg: images.imfit, domain: filtering, status: available, milestone: later, harwood: fit1d,
+    note: "fit1d.x ported with ic_fit as fit1d calls it (set up once, then cvrefit with the earlier factorization after a line without rejections, afresh after one with), fit, difference and ratio, masks, sections into new or existing images, in place; by hand from 'Fit line =' and the icfit window or a cursor file -- identical to IRAF 2.18 on 23 cases"}
   fmedian: {pkg: images.imfilter, domain: filtering, status: available, milestone: later, harwood: fmedian,
     note: "fmedian.x ported line for line: the digitizing of zmin..zmax onto hmin..hmax (DATAMIN/DATAMAX believed), the running histogram median, amed for the first pixel, unmap -- identical to IRAF 2.18"}
   fmode: {pkg: images.imfilter, domain: filtering, status: planned, milestone: later}
@@ -782,7 +784,8 @@ tasks:
   fceval: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
   findpeaks: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
     note: "pre-apextract legacy, superseded inside IRAF itself"}
-  fitcoords: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  fitcoords: {pkg: twodspec.longslit, domain: spec-2d, status: partial, milestone: later, harwood: fitcoords,
+    note: "fc_getcoords (physical to logical through LTV/LTM, IRAF's sort, INDEF and zero weights out), the deletion list, igs_solve1/2/3 in gsurfit double precision (core/gsurfit.py), fc_dbwrite with IRAF's %g, the log with its (xmax, xmin) corner -- every coefficient IRAF 2.18's to the last digit, on 12 cases and the course's 7.2 arc. Missing: fitting by hand in the igsfit graph (--interactive) and the plotfile's graph; --no-interactive gives the same surface"}
   fitfunction: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
     note: "pre-apextract legacy, superseded inside IRAF itself"}
   fitgauss5: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
@@ -806,7 +809,8 @@ tasks:
     note: "pre-apextract legacy, superseded inside IRAF itself"}
   response: {pkg: twodspec.longslit, domain: spec-2d, status: available, milestone: later, harwood: response,
     note: "response.x and lstools.x ported: the normalization spectrum averaged in real, the ICFIT fit (window or cursor file), the threshold, sections written as ls_immap writes them, CCDMEAN 1 with the input's CCDMEANT -- identical to IRAF 2.18"}
-  transform: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
+  transform: {pkg: twodspec.longslit, domain: spec-2d, status: available, milestone: later, harwood: transform,
+    note: "t_transform.x and trsetup.x ported in real: the Newton inversion on the coarse grid walked back and forth, the bilinear grids, tr_setoutput's defaults, the line buffer and the interpolators fitted on it, flux by the Jacobian, blank and edge extension, masks (a PLIO extension, as IRAF writes it), the header and the log (its list of fits only once); the image's own WCS when no fits are given, MWCS's single-precision transformation -- identical to IRAF 2.18 pixel for pixel on 33 cases and on the course's 7.2 frames"}
 
   # --- spec-1d (later, 36 tasks) --------------------------------
   aidpars: {pkg: onedspec, domain: spec-1d, status: replaced, note: "absorbed into the task's Pydantic parameter model"}
