@@ -5,16 +5,18 @@ nsum along DISPAXIS, an aperture of an IRAF multispec image with its linear,
 log-linear or nonlinear dispersion, or one of harwood's own spectrum files.
 
 ```console
-$ harwood splot ngc660_bg_sub.0002.fits --gcommands keys.txt
-$ harwood splot cuar_transform.fits --line 129 --nsum 10 --gcommands keys.txt
+$ harwood splot ngc660_bg_sub.0002.fits
+$ harwood splot cuar_transform.fits --line 129 --nsum 10
 $ harwood splot l0025.ms.fits --line 1 --gcommands keys.txt --answers answers.txt
 ```
 
-The keys are IRAF's, read from a cursor file (`--gcommands`), a line each,
-`x y 1 key` in the graph's coordinates -- `\040` is the space bar -- or
-`:command`. What the questions read (the box of `s`, the constant of `f`'s `m`
-and `p`, the next image of `g`, a line list's name) comes from `--answers`, a
-line each.
+The keys are IRAF's, pressed with the cursor over the graph in splot's window
+(they are listed below it), or read from a cursor file (`--gcommands`), a line
+each, `x y 1 key` in the graph's coordinates -- `\040` is the space bar -- or
+`:command`. A question (the box of `s`, the constant of `f`'s `m` and `p`, the
+next image of `g`, a line list's name) is asked on the window's command line, or
+read from `--answers`, a line each. What splot prints shows on the window's
+status line; `:.snap file.png` saves the graph.
 
 * space -- the cursor's x and y, and the spectrum's value at x;
 * `m` `m` -- mean, rms and signal to noise between two points;
@@ -41,9 +43,9 @@ The measurements go to the terminal and to `--save-file` (splot.log), with the
 date and the spectrum's name when a measurement is the first of a spectrum and
 the column header when the key changes, as IRAF writes it.
 
-Not ported yet: the window (the keys come from a cursor file), and the keys `p`
-and `u` (new dispersion coordinates), `i` (write the spectrum), `t` (the
-continuum fit), `y` (a standard star's fluxes), the labels and `:dispaxis` /
-`:nsum`. On 26 cursor files over an onedspec, a long slit with nsum 1 and 5 and a
-multispec with a chebyshev dispersion, what splot prints and what it logs are
-IRAF 2.18's character for character.
+Not ported yet: the keys `p` and `u` (new dispersion coordinates), `i` (write
+the spectrum), `t` (the continuum fit), `y` (a standard star's fluxes), the
+labels and `:dispaxis` / `:nsum`. On 31 cursor files over an onedspec, a long
+slit with nsum 1 and 5 and a multispec with a chebyshev dispersion, what splot
+prints and what it logs are IRAF 2.18's character for character, and each
+graph's window, title and label are those of IRAF's metacode.

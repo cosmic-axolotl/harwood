@@ -653,7 +653,7 @@ tasks:
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   specplot: {pkg: onedspec, domain: display, status: planned, milestone: later}
   splot: {pkg: onedspec, domain: display, status: partial, milestone: later, harwood: splot,
-    note: "smw/shdr ported (onedspec, equispec, NDSPEC with nsum, multispec with linear, log and nonlinear dispersions, harwood's spectra) and the keys' measurements -- space, m, e, k with errors, d, -, h, s, f, j, x, l, n, $, v, :units, g # ( ), the colon commands, the log -- identical to IRAF 2.18 on 26 cursor files. Missing: the window (keys from --gcommands), p u i t y, labels, :dispaxis/:nsum"}
+    note: "smw/shdr ported (onedspec, equispec, NDSPEC with nsum, multispec with linear, log and nonlinear dispersions, harwood's spectra) and the keys' measurements -- space, m, e, k with errors, d, -, h, s, f, j, x, l, n, $, v, :units, g # ( ), the colon commands, the log -- identical to IRAF 2.18 on 31 cursor files, each frame's window, title and label IRAF's metacode's; the window (keys over the graph, questions on its command line). Missing: p u i t y, labels drawn as IRAF draws them, :dispaxis/:nsum"}
   stdgraph: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   stdplot: {pkg: plot, domain: display, status: wontport,

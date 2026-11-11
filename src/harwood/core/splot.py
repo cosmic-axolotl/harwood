@@ -49,6 +49,28 @@ VLIGHT = f32(2.997925e18)
 OPTIONS = ("auto", "zero", "xydraw", "histogram", "nosysid", "wreset", "flip",
            "overplot")
 
+#: splot.key, the keys a panel lists.
+HELP = [("space", "cursor position and the spectrum there"), ("a a", "expand between"),
+        ("z", "zoom x by 2"), (",  .", "slide left, right"), ("c", "the whole spectrum"),
+        ("b", "base at zero, or not"), ("w", "window (gtools)"), ("r", "redraw"),
+        ("e e", "equivalent width, flux, centre"), ("k k", "fit a line (g l v)"),
+        ("d d", "deblend: g l v at the lines, q"), ("-  -", "subtract the fit"),
+        ("h", "width at half: a b c, or at y: l r k"), ("m m", "mean, rms, s/n"),
+        ("s", "smooth"), ("f", "functions: l n e d s a i p m + - * /"),
+        ("j", "fix a pixel to y"), ("x x", "connect two points"),
+        ("l  n", "to f-lambda, f-nu"), ("$", "pixels / world"), ("v", "velocity"),
+        ("o", "overplot the next"), ("g", "another image"), ("( )  #", "line, aperture"),
+        ("q", "quit, next image"), (":", "colon commands: units, log, # note, show")]
+
+#: What each query parameter asks, as splot.par words it.
+PROMPTS = {"line": "Image line/aperture to plot", "band": "Image band to plot",
+           "next_image": "Next image to plot", "new_image": "Image to create",
+           "overwrite": "Overwrite image?", "spec2": "Spectrum",
+           "constant": "Constant to be applied", "wavelength": "Dispersion coordinate:",
+           "linelist": "File", "wstart": "Starting wavelength",
+           "wend": "Ending wavelength", "dw": "Wavelength per pixel",
+           "boxsize": "Smoothing box size (odd number)"}
+
 
 def printf(value, fmt: str, decpl: int | None = None, width: int | None = None) -> str:
     """IRAF's %w.dg / %w.df of a real, right justified."""
@@ -98,7 +120,6 @@ class Image:
 def open_image(name: str, dispaxis: int, nsum: tuple[int, int]) -> Image:
     """immap and smw_openim: the file's first image (or harwood's spectra as
     multispec)."""
-    from astropy.io import fits
 
     from . import imsum, spectrum
 
@@ -108,12 +129,18 @@ def open_image(name: str, dispaxis: int, nsum: tuple[int, int]) -> Image:
     if spectrum.count(path) > 0:
         smw, data = shdr.from_harwood(path)
         return Image(name, smw.header, data, smw)
-    with fits.open(path, memmap=False) as hdul:
-        hdu = next((h for h in hdul if h.data is not None and h.is_image), None)
-        if hdu is None:
+    from . import images
+
+    hdul, hdu = images.open_hdu(images.ImageSpec(path, None))
+    try:
+        if hdu is None or hdu.data is None:
             raise shdr.ShdrError(f"Can't get image {name}")
-        header = hdu.header.copy()
+        # harwood's files keep DISPAXIS and the like in the primary header, which
+        # the image extension inherits
+        header = images.inherited(hdul, hdu)
         data = imsum.convert(imsum.ieee_in(np.asarray(hdu.data)), np.float32)
+    finally:
+        hdul.close()
     shape = tuple(reversed(data.shape))
     smw = shdr.open_smw(header, shape, dispaxis, nsum)
     return Image(name, header, data, smw)
@@ -524,6 +551,7 @@ class Session:
     key1: str = ""
     fitted: Fitted | None = None
     drawn: list = field(default_factory=list)
+    asking: str = ""                #: the query parameter being asked, for a window
 
     def __post_init__(self) -> None:
         self.gasdev = fitprofs.Gasdev()
@@ -534,6 +562,7 @@ class Session:
         self.out += text
 
     def answer(self, name: str) -> str:
+        self.asking = name
         try:
             return next(self.answers)
         except StopIteration:
@@ -1163,6 +1192,7 @@ class Splot(Session):
         sh = self.sh
         x, y = sh.x, sh.y
         if clear:
+            self.drawn = []             # gclear takes what was drawn over the graph
             gt = self.gt
             limits = [gt.xmin, gt.xmax, gt.ymin, gt.ymax]
             lo_x = min(v for v in limits[:2] if v is not None) if None not in limits[:2] \
@@ -1184,7 +1214,8 @@ class Splot(Session):
             self.window = gt.swind(x_span, y_span)
             label = gt.xlabel + (f" ({gt.xunits})" if gt.xunits else "")
             self.graphs.append({"window": self.window, "title": gt.title,
-                                "xlabel": label, "curves": []})
+                                "xlabel": label, "curves": [],
+                                "histogram": gt.type == 3})
         if self.graphs:
             self.graphs[-1]["curves"].append((x.copy(), y.copy()))
 

@@ -71,8 +71,8 @@ class SplotParams(TaskParams):
 class Splot(Task[SplotParams]):
     """IRAF's splot, from noao/onedspec/splot: the spectrum opened as onedspec opens
     it and each key's measurement as IRAF computes it -- what it prints and what it
-    logs identical to IRAF 2.18's on 26 cursor files. The window is not ported yet:
-    the keys come from --gcommands."""
+    logs identical to IRAF 2.18's on 31 cursor files; the keys pressed in its window,
+    or read from a cursor file (--gcommands)."""
 
     name = "splot"
     package = "onedspec"
@@ -87,23 +87,27 @@ class Splot(Task[SplotParams]):
     def execute(self, params: SplotParams) -> TaskResult:
         from ..core import splot
 
-        if not params.gcommands:
-            advice.fail("the splot window is not ported yet",
-                        "give the keys in a cursor file: --gcommands keys.txt, a line "
-                        "'x y 1 key' each (\\040 for the space bar)")
-        cursor = Path(params.gcommands)
-        if not cursor.is_file():
-            advice.fail(f"{cursor} does not exist", "give the cursor file's path",
-                        FileNotFoundError)
-        answers = []
-        if params.answers:
-            answers = Path(params.answers).read_text(encoding="utf-8").splitlines()
         nsum = [int(w) for w in params.nsum.split()] or [1]
         values = params.model_dump()
         values["nsum"] = (nsum[0], nsum[1] if len(nsum) > 1 else nsum[0])
-        session = splot.Splot(values, iter(answers))
-        session.run([str(i) for group in params.images for i in group.split(",")],
-                    splot.cursor_reads(cursor.read_text(encoding="utf-8")))
+        images = [str(i) for group in params.images for i in group.split(",")]
+        if not params.gcommands:
+            from ..viewer import splot_panel
+
+            panel = splot_panel.run(values, images)
+            session = panel.session
+            if panel.error is not None:
+                advice.fail(f"splot stopped: {panel.error}", "see the message above")
+        else:
+            cursor = Path(params.gcommands)
+            if not cursor.is_file():
+                advice.fail(f"{cursor} does not exist", "give the cursor file's path",
+                            FileNotFoundError)
+            answers = []
+            if params.answers:
+                answers = Path(params.answers).read_text(encoding="utf-8").splitlines()
+            session = splot.Splot(values, iter(answers))
+            session.run(images, splot.cursor_reads(cursor.read_text(encoding="utf-8")))
         written = []
         if session.log and params.save_file:
             with open(params.save_file, "a", encoding="utf-8") as fd:
