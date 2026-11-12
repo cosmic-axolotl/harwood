@@ -57,6 +57,15 @@ class GraphPanel(QtWidgets.QWidget):
             box = self.plot.getViewBox()
             box.sigRangeChanged.connect(self._draw_marks)
             box.sigResized.connect(self._draw_marks)
+        for x, y, text, color in getattr(graph, "texts", []):
+            item = pg.TextItem(text, color=_pen(color, 1, 1.0).color(), anchor=(0.5, 0.5))
+            item.setPos(float(graph.on_xaxis([x])[0]), float(graph.on_axis([y])[0]))
+            self.plot.addItem(item)
+        if getattr(graph, "lock_aspect", False):
+            self.plot.getViewBox().setAspectLocked(True)
+        if not getattr(graph, "frame", True):
+            for name in ("left", "bottom"):
+                self.plot.hideAxis(name)
         if graph.window is not None:
             self._set_window(graph)
         self._draw_marks()

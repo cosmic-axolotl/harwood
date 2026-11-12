@@ -175,3 +175,104 @@ class Graph(Task[GraphParams]):
                 "window": list(g.window), "xtran": plot.xtran, "ytran": plot.ytran}
         return TaskResult(data=data, steps=self.plan(params), warnings=warnings,
                           outputs=[where] if where else [])
+
+
+# ------------------------------------------------------------- contour
+
+CWHY = {
+    "grid": "The image reduced to about xres by yres points, by block averaging (or "
+            "subsampling), as IRAF's contour does; the aspect ratio kept with preserve.",
+    "levels": "NCAR's CLGEN: from the floor (the minimum) to the ceiling (the maximum) "
+              "by the interval, or a round step for about ncontours (16 by default); "
+              "every fourth level labelled.",
+    "draw": "The curves where the grid crosses each level, negative ones dashed; the "
+            "perimeter in the image's pixels, the title and the levels' line under it.",
+}
+
+
+class ContourParams(TaskParams):
+    image: str = Field(..., description="Image or image section.",
+                       json_schema_extra={"positional": True})
+    floor: float | None = Field(None, description="Lowest level (empty: the minimum).")
+    ceiling: float | None = Field(None, description="Highest level (empty: the maximum).")
+    zero: float = Field(0.0, description="Subtracted from the data and the levels.")
+    ncontours: int = Field(0, description="About how many levels (0: by the interval, "
+                                          "or 16).")
+    interval: float = Field(0.0, description="Level step (0: a round one).")
+    nhi: Literal[-1, 0, 1] = Field(-1, description="-1 nothing, 0 mark highs and lows, "
+                                                  "1 the value at points of the grid.")
+    dashpat: int = Field(528, description="Dash pattern of negative levels (bits).")
+    title: str = Field("imtitle", description="Title; imtitle: the image's name and "
+                                              "title.")
+    preserve: bool = Field(True, description="Keep the aspect ratio when reducing.")
+    label: bool = Field(True, description="Label the major levels.")
+    fill: bool = Field(False, description="Fill the window instead of square pixels.")
+    xres: int = Field(64, ge=0, description="Resolution in x (0: the image's).")
+    yres: int = Field(64, ge=0, description="Resolution in y (0: the image's).")
+    perimeter: bool = Field(True, description="Draw the labelled perimeter, the title "
+                                              "and the levels' line.")
+    subsample: bool = Field(False, description="Subsample instead of block average.")
+    device: str = Field("stdgraph", description="stdgraph: the window when there is a "
+                                                "screen, else an SVG; or a file.svg.")
+
+
+@register
+class Contour(Task[ContourParams]):
+    """IRAF's contour (pkg/plot/t_contour.x): the grid, the levels, their labels, the
+    high and low marks and the texts IRAF's (NCAR's CLGEN, REORD, ENCD, MINMAX); the
+    curves traced by marching squares on that grid, where IRAF's NCAR smooths them
+    with splines."""
+
+    name = "contour"
+    package = "plot"
+    description = "Contour map of an image."
+    Params = ContourParams
+
+    def plan(self, params: ContourParams) -> list[Step]:
+        return [Step("grid", f"{params.image}, {params.xres}x{params.yres}",
+                     why=CWHY["grid"]),
+                Step("levels", f"{params.ncontours or 'about 16'} levels"
+                     if not params.interval else f"every {params.interval:g}",
+                     why=CWHY["levels"]),
+                Step("draw", params.device, why=CWHY["draw"])]
+
+    def execute(self, params: ContourParams) -> TaskResult:
+        from ..core import contour as cmod
+        from ..core import graph as graphmod
+        from ..core import images
+        from .imutil import _plot
+
+        data, header = images.read(params.image)
+        imtitle = str(header.get("OBJECT", "")).strip() if header is not None else ""
+        try:
+            m = cmod.contour(data, params.image, params.title, imtitle, params.floor,
+                             params.ceiling, params.zero, params.ncontours,
+                             params.interval, params.nhi, params.dashpat, params.label,
+                             params.xres, params.yres, params.subsample, params.preserve,
+                             params.perimeter)
+        except cmod.ContourError as error:
+            advice.fail(f"contour: {error}", "give a floor and a ceiling the data cross")
+        g = graphmod.Graph([m.title, m.caption] if params.perimeter else [],
+                           "Column (pixels)" if params.perimeter else "",
+                           "Line (pixels)" if params.perimeter else "")
+        g.window = (1.0, float(m.ncols), 1.0, float(m.nlines))
+        g.lock_aspect = not params.fill
+        g.frame = params.perimeter
+        for lev in m.levels:
+            for curve in lev.curves:
+                g.line(curve[:, 0], curve[:, 1], 2 if lev.dashed else 1, 1)
+        for x, y, text in cmod.label_points(m):
+            g.text(x, y, text)
+        for x, y, kind, text in m.marks:
+            g.text(x, y, f"{kind}\n{text.strip()}" if kind else text.strip())
+        where = _plot(g, params.device, f"contour · {params.image}",
+                      images.parse(params.image).path.stem + ".contour.svg",
+                      task="contour")
+        text = [m.message.strip()] if m.message else []
+        data_out = {"levels": [{"value": lev.value, "major": lev.major,
+                                "label": lev.label.strip(), "curves": len(lev.curves)}
+                               for lev in m.levels],
+                    "floor": m.floor, "ceiling": m.ceiling, "interval": m.interval,
+                    "caption": m.caption, "text": text}
+        return TaskResult(data=data_out, steps=self.plan(params),
+                          outputs=[where] if where else [])

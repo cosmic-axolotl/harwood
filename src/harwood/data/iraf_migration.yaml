@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 124, partial: 4, planned: 227, replaced: 94, wontport: 161
+#   available: 124, partial: 5, planned: 226, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -602,7 +602,8 @@ tasks:
   bplot: {pkg: onedspec, domain: display, status: planned, milestone: later}
   calcomp: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
-  contour: {pkg: plot, domain: display, status: planned, milestone: later}
+  contour: {pkg: plot, domain: display, status: partial, milestone: later, harwood: contour,
+    note: "t_contour.x, plt_getdata and NCAR's CLGEN, REORD, ENCD and MINMAX ported: the grid (block average or subsample, its message), the levels, the labelled majors, the scaled labels, the highs and lows (nhi 0) and values (nhi 1), the title and the levels' line identical to IRAF 2.18's on 19 cases, and every point IRAF draws lies on harwood's levels. The curves are traced by marching squares, not by NCAR's CONREC and DASHSMTH splines (the faithful port of NCAR is queued); append (to overlay wcslab) is not yet"}
   crtpict: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   cv: {pkg: images.tv.iis, domain: display, status: wontport,

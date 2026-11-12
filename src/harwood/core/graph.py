@@ -112,6 +112,12 @@ class Graph:
         self.window: tuple[float, float, float, float] | None = None
         self.xtran = self.ytran = None      #: "linear", "log" or "elog", when set
         self.hint = ""
+        #: Texts at points of the data: (x, y, text, colour).
+        self.texts: list[tuple[float, float, str, int]] = []
+        #: One unit of x as long as one of y (an image's pixels).
+        self.lock_aspect = False
+        #: Draw the axes, their labels and the title (IRAF's perimeter).
+        self.frame = True
 
     def line(self, x, y, ltype: int = 1, color: int = 1) -> Graph:
         self.curves.append((np.asarray(x, float), np.asarray(y, float)))
@@ -122,6 +128,10 @@ class Graph:
              ysize: float | None = None, color: int = 1) -> Graph:
         self.marklist.append((float(x), float(y), kind, float(xsize),
                               float(xsize if ysize is None else ysize), color))
+        return self
+
+    def text(self, x: float, y: float, text: str, color: int = 1) -> Graph:
+        self.texts.append((float(x), float(y), str(text), color))
         return self
 
     def steps(self, edges, y) -> Graph:
@@ -224,9 +234,15 @@ class Graph:
     def svg(self) -> str:
         x1, x2, y1, y2 = self.axes_window()
         w, h = WIDTH - LEFT - RIGHT, HEIGHT - TOP - BOTTOM
+        left, top = LEFT, TOP
+        if self.lock_aspect and x2 != x1 and y2 != y1:
+            scale = min(w / abs(x2 - x1), h / abs(y2 - y1))
+            left += (w - scale * abs(x2 - x1)) / 2
+            top += (h - scale * abs(y2 - y1)) / 2
+            w, h = scale * abs(x2 - x1), scale * abs(y2 - y1)
 
         def px(x):
-            return LEFT + (self._axis_values(x, self.logx, self.xelog) - x1) / (x2 - x1) * w
+            return left + (self._axis_values(x, self.logx, self.xelog) - x1) / (x2 - x1) * w
 
         def py(y):
             y = np.asarray(y, float)
@@ -234,7 +250,7 @@ class Graph:
                 y = elog(y)
             elif self.logy:
                 y = np.log10(np.where(y > 0, y, 10.0 ** y1))
-            return TOP + h - (y - y1) / (y2 - y1) * h
+            return top + h - (y - y1) / (y2 - y1) * h
 
         out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" '
                f'width="{WIDTH}" height="{HEIGHT}" font-family="sans-serif" font-size="12">',
@@ -244,32 +260,32 @@ class Graph:
         for row, text in enumerate(self.title):
             out.append(f'<text class="ink" x="{WIDTH / 2}" y="{20 + 16 * row}" '
                        f'text-anchor="middle">{escape(text)}</text>')
-        out.append(f'<rect class="line" x="{LEFT}" y="{TOP}" width="{w}" height="{h}" '
+        out.append(f'<rect class="line" x="{left}" y="{top}" width="{w}" height="{h}" '
                    'fill="none"/>')
         xt = ([10.0 ** p for p in range(math.ceil(x1), math.floor(x2) + 1)]
               if self.logx and not self.xelog else ticks(*sorted((x1, x2))))
         for value in xt:
             x = float(px(value)) if not self.xelog else \
-                LEFT + (value - x1) / (x2 - x1) * w
-            out.append(f'<line class="line" x1="{x:.1f}" y1="{TOP + h}" x2="{x:.1f}" '
-                       f'y2="{TOP + h + 5}"/>')
-            out.append(f'<text class="ink" x="{x:.1f}" y="{TOP + h + 19}" '
+                left + (value - x1) / (x2 - x1) * w
+            out.append(f'<line class="line" x1="{x:.1f}" y1="{top + h}" x2="{x:.1f}" '
+                       f'y2="{top + h + 5}"/>')
+            out.append(f'<text class="ink" x="{x:.1f}" y="{top + h + 19}" '
                        f'text-anchor="middle">{_label(value)}</text>')
         yt = ([10.0 ** p for p in range(math.ceil(min(y1, y2)), math.floor(max(y1, y2)) + 1)]
               if self.logy and not self.elog else ticks(*sorted((y1, y2))))
         for value in yt:
-            y = float(py(value)) if not self.elog else TOP + h - (value - y1) / (y2 - y1) * h
-            out.append(f'<line class="line" x1="{LEFT - 5}" y1="{y:.1f}" x2="{LEFT}" '
+            y = float(py(value)) if not self.elog else top + h - (value - y1) / (y2 - y1) * h
+            out.append(f'<line class="line" x1="{left - 5}" y1="{y:.1f}" x2="{left}" '
                        f'y2="{y:.1f}"/>')
-            out.append(f'<text class="ink" x="{LEFT - 8}" y="{y + 4:.1f}" '
+            out.append(f'<text class="ink" x="{left - 8}" y="{y + 4:.1f}" '
                        f'text-anchor="end">{_label(value)}</text>')
         if self.xlabel:
-            out.append(f'<text class="ink" x="{LEFT + w / 2}" y="{HEIGHT - 12}" '
+            out.append(f'<text class="ink" x="{left + w / 2}" y="{HEIGHT - 12}" '
                        f'text-anchor="middle">{escape(self.xlabel)}</text>')
         if self.ylabel:
-            out.append(f'<text class="ink" transform="translate(16 {TOP + h / 2}) '
+            out.append(f'<text class="ink" transform="translate(16 {top + h / 2}) '
                        f'rotate(-90)" text-anchor="middle">{escape(self.ylabel)}</text>')
-        out.append(f'<clipPath id="plot"><rect x="{LEFT}" y="{TOP}" width="{w}" '
+        out.append(f'<clipPath id="plot"><rect x="{left}" y="{top}" width="{w}" '
                    f'height="{h}"/></clipPath><g clip-path="url(#plot)">')
         if self.marks is not None:
             for a, b in zip(px(self.marks[0]), py(self.marks[1]), strict=True):
@@ -290,6 +306,10 @@ class Graph:
                            f'cy="{float(py([y])[0]):.2f}" r="1.2" fill="{_color(color)}"/>')
         world_x = w / (x2 - x1) if x2 != x1 else 1.0
         world_y = h / (y2 - y1) if y2 != y1 else 1.0
+        for x, y, text, color in self.texts:
+            out.append(f'<text x="{float(px([x])[0]):.2f}" y="{float(py([y])[0]) + 4:.2f}" '
+                       f'fill="{_color(color)}" font-size="10" text-anchor="middle">'
+                       f'{escape(text)}</text>')
         for x, y, color in self._page_marks(px, py, world_x, world_y):
             for piece in _pieces(x, y):
                 points = " ".join(f"{a:.2f},{b:.2f}" for a, b in piece)
