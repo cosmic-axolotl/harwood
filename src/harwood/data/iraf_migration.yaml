@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 124, partial: 5, planned: 226, replaced: 94, wontport: 161
+#   available: 124, partial: 6, planned: 225, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -674,7 +674,8 @@ tasks:
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   stdplot: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
-  surface: {pkg: plot, domain: display, status: planned, milestone: later}
+  surface: {pkg: plot, domain: display, status: partial, milestone: later, harwood: surface,
+    note: "t_surface.x, surf_limits and NCAR's EZSRFC, SRFGK framing and TRN32S perspective ported, with srf_perimeter's labelled axes: the messages and the title IRAF 2.18's on 18 cases, and over 97% of the vertices IRAF draws within one unit of NCAR's frame of harwood's projected points. The hidden lines go by painting the cells back to front, where NCAR's SRFACE keeps a floating horizon (queued with the rest of NCAR); append is not yet"}
   tvmark: {pkg: images.tv, domain: display, status: available, milestone: mvp, harwood: tvmark,
     note: "IRAF's parameters, marks (point, circle, rectangle, plus, cross, none), numbers and labels; the cursor keys and colon commands, logfile/autolog, command files, a and d updating the list, deletions, and the snapshot as the frame's grey levels with the marks at their colour (or a PNG). Marks are harwood's own raster, IRAF's sizes"}
   velvect: {pkg: plot, domain: display, status: planned, milestone: later}

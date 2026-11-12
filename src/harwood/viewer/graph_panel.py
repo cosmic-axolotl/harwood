@@ -57,6 +57,19 @@ class GraphPanel(QtWidgets.QWidget):
             box = self.plot.getViewBox()
             box.sigRangeChanged.connect(self._draw_marks)
             box.sigResized.connect(self._draw_marks)
+        if getattr(graph, "polygons", None):
+            from PySide6 import QtGui
+
+            brush = pg.mkBrush(_c().ground)
+            pen = _pen(1, 1, 0.6)
+            for k, (x, y) in enumerate(graph.polygons):
+                poly = QtGui.QPolygonF([QtCore.QPointF(float(a), float(b))
+                                        for a, b in zip(x, y, strict=True)])
+                item = QtWidgets.QGraphicsPolygonItem(poly)
+                item.setBrush(brush)
+                item.setPen(pen)
+                item.setZValue(k)
+                self.plot.addItem(item)
         for x, y, text, color in getattr(graph, "texts", []):
             item = pg.TextItem(text, color=_pen(color, 1, 1.0).color(), anchor=(0.5, 0.5))
             item.setPos(float(graph.on_xaxis([x])[0]), float(graph.on_axis([y])[0]))

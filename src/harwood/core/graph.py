@@ -118,6 +118,9 @@ class Graph:
         self.lock_aspect = False
         #: Draw the axes, their labels and the title (IRAF's perimeter).
         self.frame = True
+        #: Closed polygons painted in this order, each filled with the page's ground
+        #: over what is behind it and outlined: a surface with its hidden lines gone.
+        self.polygons: list[tuple[np.ndarray, np.ndarray]] = []
 
     def line(self, x, y, ltype: int = 1, color: int = 1) -> Graph:
         self.curves.append((np.asarray(x, float), np.asarray(y, float)))
@@ -260,33 +263,39 @@ class Graph:
         for row, text in enumerate(self.title):
             out.append(f'<text class="ink" x="{WIDTH / 2}" y="{20 + 16 * row}" '
                        f'text-anchor="middle">{escape(text)}</text>')
-        out.append(f'<rect class="line" x="{left}" y="{top}" width="{w}" height="{h}" '
-                   'fill="none"/>')
-        xt = ([10.0 ** p for p in range(math.ceil(x1), math.floor(x2) + 1)]
-              if self.logx and not self.xelog else ticks(*sorted((x1, x2))))
-        for value in xt:
-            x = float(px(value)) if not self.xelog else \
-                left + (value - x1) / (x2 - x1) * w
-            out.append(f'<line class="line" x1="{x:.1f}" y1="{top + h}" x2="{x:.1f}" '
-                       f'y2="{top + h + 5}"/>')
-            out.append(f'<text class="ink" x="{x:.1f}" y="{top + h + 19}" '
-                       f'text-anchor="middle">{_label(value)}</text>')
-        yt = ([10.0 ** p for p in range(math.ceil(min(y1, y2)), math.floor(max(y1, y2)) + 1)]
-              if self.logy and not self.elog else ticks(*sorted((y1, y2))))
-        for value in yt:
-            y = float(py(value)) if not self.elog else top + h - (value - y1) / (y2 - y1) * h
-            out.append(f'<line class="line" x1="{left - 5}" y1="{y:.1f}" x2="{left}" '
-                       f'y2="{y:.1f}"/>')
-            out.append(f'<text class="ink" x="{left - 8}" y="{y + 4:.1f}" '
-                       f'text-anchor="end">{_label(value)}</text>')
-        if self.xlabel:
-            out.append(f'<text class="ink" x="{left + w / 2}" y="{HEIGHT - 12}" '
-                       f'text-anchor="middle">{escape(self.xlabel)}</text>')
-        if self.ylabel:
-            out.append(f'<text class="ink" transform="translate(16 {top + h / 2}) '
-                       f'rotate(-90)" text-anchor="middle">{escape(self.ylabel)}</text>')
-        out.append(f'<clipPath id="plot"><rect x="{left}" y="{top}" width="{w}" '
-                   f'height="{h}"/></clipPath><g clip-path="url(#plot)">')
+        if self.frame:
+            out.append(f'<rect class="line" x="{left}" y="{top}" width="{w}" height="{h}" '
+                       'fill="none"/>')
+            xt = ([10.0 ** p for p in range(math.ceil(x1), math.floor(x2) + 1)]
+                  if self.logx and not self.xelog else ticks(*sorted((x1, x2))))
+            for value in xt:
+                x = float(px(value)) if not self.xelog else \
+                    left + (value - x1) / (x2 - x1) * w
+                out.append(f'<line class="line" x1="{x:.1f}" y1="{top + h}" x2="{x:.1f}" '
+                           f'y2="{top + h + 5}"/>')
+                out.append(f'<text class="ink" x="{x:.1f}" y="{top + h + 19}" '
+                           f'text-anchor="middle">{_label(value)}</text>')
+            decades = range(math.ceil(min(y1, y2)), math.floor(max(y1, y2)) + 1)
+            yt = ([10.0 ** p for p in decades]
+                  if self.logy and not self.elog else ticks(*sorted((y1, y2))))
+            for value in yt:
+                y = (float(py(value)) if not self.elog
+                     else top + h - (value - y1) / (y2 - y1) * h)
+                out.append(f'<line class="line" x1="{left - 5}" y1="{y:.1f}" x2="{left}" '
+                           f'y2="{y:.1f}"/>')
+                out.append(f'<text class="ink" x="{left - 8}" y="{y + 4:.1f}" '
+                           f'text-anchor="end">{_label(value)}</text>')
+            if self.xlabel:
+                out.append(f'<text class="ink" x="{left + w / 2}" y="{HEIGHT - 12}" '
+                           f'text-anchor="middle">{escape(self.xlabel)}</text>')
+            if self.ylabel:
+                out.append(f'<text class="ink" transform="translate(16 {top + h / 2}) '
+                           f'rotate(-90)" text-anchor="middle">{escape(self.ylabel)}</text>')
+        if self.frame:
+            out.append(f'<clipPath id="plot"><rect x="{left}" y="{top}" width="{w}" '
+                       f'height="{h}"/></clipPath><g clip-path="url(#plot)">')
+        else:
+            out.append("<g>")
         if self.marks is not None:
             for a, b in zip(px(self.marks[0]), py(self.marks[1]), strict=True):
                 out.append(f'<path class="curve" d="M{a - 3:.1f} {b:.1f}h6'
@@ -306,6 +315,12 @@ class Graph:
                            f'cy="{float(py([y])[0]):.2f}" r="1.2" fill="{_color(color)}"/>')
         world_x = w / (x2 - x1) if x2 != x1 else 1.0
         world_y = h / (y2 - y1) if y2 != y1 else 1.0
+        if self.polygons:
+            for x, y in self.polygons:
+                points = " ".join(f"{a:.2f},{b:.2f}" for a, b in zip(px(x), py(y),
+                                                                    strict=True))
+                out.append(f'<polygon fill="var(--ground,#fff)" stroke="{_color(1)}" '
+                           f'stroke-width="0.6" points="{points}"/>')
         for x, y, text, color in self.texts:
             out.append(f'<text x="{float(px([x])[0]):.2f}" y="{float(py([y])[0]) + 4:.2f}" '
                        f'fill="{_color(color)}" font-size="10" text-anchor="middle">'

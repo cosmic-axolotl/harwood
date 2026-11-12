@@ -276,3 +276,92 @@ class Contour(Task[ContourParams]):
                     "caption": m.caption, "text": text}
         return TaskResult(data=data_out, steps=self.plan(params),
                           outputs=[where] if where else [])
+
+
+# ------------------------------------------------------------- surface
+
+SWHY = {
+    "grid": "The image reduced to about xres by yres points (block averaged or "
+            "subsampled), clipped to the floor and the ceiling.",
+    "view": "EZSRFC's: the grid twice as wide as the data's range is high, the eye ten "
+            "ranges away at angh (horizontal) and angv (vertical), TRN32S's perspective.",
+    "hidden": "The cells painted from the farthest to the nearest, each over what is "
+              "behind it, so that what a ridge hides is not drawn.",
+}
+
+
+class SurfaceParams(TaskParams):
+    image: str = Field(..., description="Image or image section.",
+                       json_schema_extra={"positional": True})
+    floor: float | None = Field(None, description="Lowest value plotted (empty: the "
+                                                  "minimum); lower values are raised to it.")
+    ceiling: float | None = Field(None, description="Highest value plotted (empty: the "
+                                                    "maximum).")
+    angh: float = Field(-33.0, description="Horizontal viewing angle, degrees.")
+    angv: float = Field(25.0, description="Vertical viewing angle, degrees.")
+    title: str = Field("imtitle", description="Title; imtitle: the image's name and "
+                                              "title.")
+    label: bool = Field(False, description="Label the axes along the base.")
+    preserve: bool = Field(True, description="Keep the aspect ratio when reducing.")
+    xres: int = Field(64, ge=0, description="Resolution in x (0: the image's).")
+    yres: int = Field(64, ge=0, description="Resolution in y (0: the image's).")
+    subsample: bool = Field(False, description="Subsample instead of block average.")
+    device: str = Field("stdgraph", description="stdgraph: the window when there is a "
+                                                "screen, else an SVG; or a file.svg.")
+
+
+@register
+class Surface(Task[SurfaceParams]):
+    """IRAF's surface (pkg/plot/t_surface.x): the grid, the limits and their messages,
+    and NCAR's geometry -- every point of the grid where IRAF puts it, 99% of IRAF's
+    vertices within one unit of NCAR's frame. The hidden lines go by painting the
+    cells back to front, where NCAR keeps a floating horizon."""
+
+    name = "surface"
+    package = "plot"
+    description = "Perspective view of an image as a surface."
+    Params = SurfaceParams
+
+    def plan(self, params: SurfaceParams) -> list[Step]:
+        return [Step("grid", f"{params.image}, {params.xres}x{params.yres}",
+                     why=SWHY["grid"]),
+                Step("view", f"angh {params.angh:g}, angv {params.angv:g}",
+                     why=SWHY["view"]),
+                Step("hidden", params.device, why=SWHY["hidden"])]
+
+    def execute(self, params: SurfaceParams) -> TaskResult:
+        from ..core import graph as graphmod
+        from ..core import images
+        from ..core import surface as smod
+        from .imutil import _plot
+
+        data, header = images.read(params.image)
+        imtitle = str(header.get("OBJECT", "")).strip() if header is not None else ""
+        try:
+            s = smod.surface(data, params.image, params.title, imtitle, params.floor,
+                             params.ceiling, params.angh, params.angv, params.xres,
+                             params.yres, params.subsample, params.preserve)
+        except smod.SurfaceError as error:
+            # IRAF prints it and draws nothing; it is not an error of the task
+            return TaskResult(data={"text": [str(error)]}, steps=self.plan(params),
+                              warnings=[advice.warn(str(error), "give a floor and a "
+                                                    "ceiling the data cross")])
+        g = graphmod.Graph([s.title])
+        g.frame = False
+        g.lock_aspect = True
+        # NCAR's frame over the whole viewport, or (label) over 0.1..0.9 of it
+        pad = 1023.0 / 8 if params.label else 0.0
+        g.window = (1.0 - pad, 1024.0 + pad, 1.0 - pad, 1024.0 + pad)
+        g.polygons = list(smod.polygons(s))
+        if params.label:
+            lines, texts = smod.perimeter(s)
+            for line in lines:
+                g.line(line[:, 0], line[:, 1])
+            for x, y, text in texts:
+                g.text(x, y, text)
+        where = _plot(g, params.device, f"surface · {params.image}",
+                      images.parse(params.image).path.stem + ".surface.svg",
+                      task="surface")
+        text = [line for line in s.message.splitlines() if line]
+        return TaskResult(data={"text": text, "grid": list(s.z.shape[::-1])},
+                          steps=self.plan(params), outputs=[where] if where else [])
