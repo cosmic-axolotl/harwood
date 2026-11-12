@@ -1159,3 +1159,113 @@ class Precess(Task[PrecessParams]):
                 lines.append(out)
         return TaskResult(data={"coordinates": len(lines)}, stdout=lines, warnings=warnings,
                           steps=self.plan(params))
+
+
+# ------------------------------------------------------------- rvcorrect
+
+RVWHY = {
+    "site": "The Earth's rotation depends on where the telescope is: latitude, "
+            "longitude and altitude, from IRAF's observatory table (or the image's "
+            "OBSERVAT card).",
+    "components": "IRAF's four components along the line of sight: the rotation "
+                  "(VDIURNAL), the Earth about the Earth-Moon barycentre (VLUNAR), "
+                  "that barycentre about the Sun (VANNUAL), and the Sun toward the "
+                  "solar apex (VSOLAR). VHELIO is the observed velocity plus the "
+                  "first three, VLSR plus all four.",
+    "precise": "astropy's correction to the solar system's barycentre beside them: "
+               "a modern ephemeris and the Earth's orientation, to about a cm/s, "
+               "where IRAF's theories are good to about 10 m/s.",
+}
+
+
+class RvcorrectParams(TaskParams):
+    files: str = Field("", description="Text files of observations, a line each: "
+                                       "year month day ut ra dec [epoch [vobs]].")
+    images: str = Field("", description="Images whose headers give the observation "
+                                        "(DATE-OBS, UT, RA, DEC, EPOCH, VOBS).")
+    header: bool = Field(True, description="Print the column headings.")
+    input: bool = Field(False, description="Print each observation before its line.")
+    imupdate: bool = Field(False, description="Write HJD, VHELIO, VLSR and VSUN into "
+                                              "the images.")
+    observatory: str = Field("kpno", description="Observatory (an image's OBSERVAT "
+                                                 "card wins).")
+    epoch: float | None = Field(None, description="Epoch of the coordinates given here "
+                                                  "(empty: of the date).")
+    vsun: float = Field(20.0, description="Solar velocity toward the apex, km/s.")
+    ra_vsun: float = Field(18.0, description="Apex right ascension, hours.")
+    dec_vsun: float = Field(30.0, description="Apex declination, degrees.")
+    epoch_vsun: float = Field(1900.0, description="Epoch of the apex coordinates.")
+    year: int | None = Field(None, description="Year of an observation given here.")
+    month: int | None = Field(None, ge=1, le=12, description="Month (1-12).")
+    day: int | None = Field(None, ge=1, le=31, description="Day.")
+    ut: float | None = Field(None, description="UT, hours.")
+    ra: float | None = Field(None, description="Right ascension, hours.")
+    dec: float | None = Field(None, description="Declination, degrees.")
+    vobs: float = Field(0.0, description="Observed radial velocity, km/s.")
+    precise: bool = Field(False, description="Also give astropy's barycentric "
+                                             "correction (harwood's own).")
+
+
+@register
+class Rvcorrect(Task[RvcorrectParams]):
+    """IRAF's rvcorrect (noao.astutil, t_rvcorrect.x): heliocentric and LSR radial
+    velocities from lists, images or the parameters -- the table, the warnings, and
+    the velocities written to the images IRAF 2.18's on 15 cases. --precise is
+    harwood's: astropy's barycentric correction beside IRAF's."""
+
+    name = "rvcorrect"
+    package = "astutil"
+    description = "Heliocentric and LSR corrections of radial velocities."
+    Params = RvcorrectParams
+
+    def plan(self, params: RvcorrectParams) -> list[Step]:
+        source = params.files or params.images or "the parameters"
+        steps = [Step("site", params.observatory, why=RVWHY["site"]),
+                 Step("components", source, why=RVWHY["components"])]
+        if params.precise:
+            steps.append(Step("precise", "astropy", why=RVWHY["precise"]))
+        return steps
+
+    def execute(self, params: RvcorrectParams) -> TaskResult:
+        from ..core import images as imgs
+        from ..core import observatory as obsmod
+        from ..core import rvcorrect as rvc
+
+        values = params.model_dump()
+        session = rvc.Rvcorrect(values)
+        written: list[Path] = []
+        rows: list[dict] = []
+        try:
+            if params.files:
+                session.files([f for f in params.files.split(",") if f.strip()])
+            elif params.images:
+                names = [str(s) for s in imgs.expand(params.images)]
+                updates = session.images(names)
+                for u in updates:
+                    imgs.set_keywords(u["image"], {k: u[k] for k in
+                                                   ("HJD", "VHELIO", "VLSR", "VSUN")})
+                    written.append(Path(imgs.parse(u["image"]).path))
+            else:
+                missing = [k for k in ("year", "month", "day", "ut", "ra", "dec")
+                           if values[k] is None]
+                if missing:
+                    advice.fail(f"rvcorrect needs {', '.join(missing)}",
+                                "give the observation, or --files / --images")
+                session.parameters()
+                hjd, vhelio, vlsr = session.last
+                rows.append({"hjd": hjd, "vhelio": vhelio, "vlsr": vlsr})
+                if params.precise:
+                    site = obsmod.find(params.observatory)
+                    bc = rvc.precise(params.ra, params.dec, params.epoch, params.year,
+                                     params.month, params.day, params.ut, site)
+                    session.out += (f"# astropy: barycentric correction {bc:.5f} km/s, "
+                                    f"vbary {params.vobs + bc:.5f}\n")
+                    rows[-1]["barycentric"] = bc
+        except ValueError as error:
+            advice.fail(f"rvcorrect stopped: {error}", "check the observatory's name")
+        warnings = [advice.warn(line.removeprefix("Warning: "),
+                                "check the file or the image's keywords")
+                    for line in session.err.splitlines() if line.strip()]
+        return TaskResult(outputs=written, steps=self.plan(params),
+                          data={"text": session.out.splitlines(), "rows": rows},
+                          warnings=warnings)

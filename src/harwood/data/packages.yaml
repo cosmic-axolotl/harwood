@@ -145,6 +145,9 @@ noao.nobsolete:
   brief: "Obsolete NOAO tasks."
   icon: "·"
 
+rvsao:
+  brief: "SAO's radial velocity package for IRAF (an external one): redshifts from emission lines."
+  icon: "·"
 plot:
   brief: "Plotting images and spectra: lines, columns, contours, surfaces."
   icon: "⌁"

@@ -1,0 +1,12 @@
+Parts of harwood (core/emsao.py, core/rvsao*.py and the line lists in
+src/harwood/data/rvsao) are translated from, or copied from, RVSAO 2.8.5, the
+radial velocity package for IRAF of the Smithsonian Astrophysical Observatory
+(Doug Mink, Michael Kurtz, Jessica Mink and others;
+http://tdc-www.harvard.edu/iraf/rvsao/). Its files carry this notice, which is
+kept here as it asks:
+
+# Copyright(c) 1991-2022 Smithsonian Astrophysical Observatory
+# You may do anything you like with this file except remove this copyright.
+# The Smithsonian Astrophysical Observatory makes no representations about
+# the suitability of this software for any purpose.  It is provided "as is"
+# without express or implied warranty.

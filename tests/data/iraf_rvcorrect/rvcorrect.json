@@ -1,0 +1,133 @@
+{
+"files": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2446418.64248   780.00   753.93   749.36     -0.010   -0.006  -26.053   -4.570\n2461101.44183     0.00    14.44     9.12      0.148   -0.008   14.303   -5.318\n2448057.50258   -13.20    -7.79    11.84      0.244    0.004    5.167   19.625\n2451544.50475    25.00    17.66    -0.39      0.392    0.008   -7.740  -18.049\n2455381.74772  -100.00   -97.47   -87.46      0.001   -0.005    2.536   10.005\n",
+"err": "",
+"params": {},
+"cards": {}
+},
+"files_input": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##YR MO DY    UT       RA       DEC       VOBS \n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n1985 12 19  3:21:00  1:37:41  13:08:44    780.0\n2446418.64248   780.00   753.93   749.36     -0.010   -0.006  -26.053   -4.570\n2026  3  1 22:30:00 12:00:00 -30:00:00      0.0\n2461101.44183     0.00    14.44     9.12      0.148   -0.008   14.303   -5.318\n1990  6 15  0:00:00 18:36:56  38:47:01    -13.2\n2448057.50258   -13.20    -7.79    11.84      0.244    0.004    5.167   19.625\n1999 12 31 23:59:59  5:35:17  -5:23:28     25.0\n2451544.50475    25.00    17.66    -0.39      0.392    0.008   -7.740  -18.049\n2010  7  4  6:00:00 23:54:00  89:30:00   -100.0\n2455381.74772  -100.00   -97.47   -87.46      0.001   -0.005    2.536   10.005\n",
+"err": "",
+"params": {},
+"cards": {}
+},
+"files_noheader": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n2446418.64248   780.00   753.93   749.36     -0.010   -0.006  -26.053   -4.570\n2461101.44183     0.00    14.44     9.12      0.148   -0.008   14.303   -5.318\n2448057.50258   -13.20    -7.79    11.84      0.244    0.004    5.167   19.625\n2451544.50475    25.00    17.66    -0.39      0.392    0.008   -7.740  -18.049\n2455381.74772  -100.00   -97.47   -87.46      0.001   -0.005    2.536   10.005\n2442471.99467     0.00   -10.92   -10.77      0.283   -0.003  -11.197    0.145\n2459115.25588    -5.20   -15.03    -2.85      0.286    0.008  -10.126   12.185\n",
+"err": "",
+"params": {},
+"cards": {}
+},
+"files_ctio": {
+"out": "# RVCORRECT: Observatory parameters for Cerro Tololo Interamerican Observatory\n#\tlatitude = -30.16527778\n#\tlongitude = 70.815\n#\taltitude = 2215.\n##YR MO DY    UT       RA       DEC       VOBS \n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n1985 12 19  3:21:00  1:37:41  13:08:44    780.0\n2446418.64248   780.00   753.68   749.11     -0.263   -0.006  -26.053   -4.570\n2026  3  1 22:30:00 12:00:00 -30:00:00      0.0\n2461101.44183     0.00    14.61     9.30      0.320   -0.008   14.303   -5.318\n1990  6 15  0:00:00 18:36:56  38:47:01    -13.2\n2448057.50258   -13.20    -7.72    11.91      0.313    0.004    5.167   19.625\n1999 12 31 23:59:59  5:35:17  -5:23:28     25.0\n2451544.50475    25.00    17.59    -0.45      0.327    0.008   -7.740  -18.049\n2010  7  4  6:00:00 23:54:00  89:30:00   -100.0\n2455381.74772  -100.00   -97.47   -87.46      0.001   -0.005    2.536   10.005\n",
+"err": "",
+"params": {},
+"cards": {}
+},
+"files_lasilla": {
+"out": "# RVCORRECT: Observatory parameters for European Southern Observatory: La Silla\n#\tlatitude = -29:15.4\n#\tlongitude = 70:43.8\n#\taltitude = 2347\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2442471.99467     0.00   -10.79   -10.65      0.406   -0.003  -11.197    0.145\n2459115.25588    -5.20   -15.26    -3.07      0.061    0.008  -10.126   12.185\n",
+"err": "",
+"params": {},
+"cards": {}
+},
+"files_vsun": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2446418.64248   780.00   753.93   749.45     -0.010   -0.006  -26.053   -4.483\n2461101.44183     0.00    14.44    11.27      0.148   -0.008   14.303   -3.171\n2448057.50258   -13.20    -7.79     7.22      0.244    0.004    5.167   15.002\n2451544.50475    25.00    17.66     3.38      0.392    0.008   -7.740  -14.282\n2455381.74772  -100.00   -97.47   -90.20      0.001   -0.005    2.536    7.273\n",
+"err": "",
+"params": {},
+"cards": {}
+},
+"files_missing": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2442471.99467     0.00   -10.92   -10.77      0.283   -0.003  -11.197    0.145\n2459115.25588    -5.20   -15.03    -2.85      0.286    0.008  -10.126   12.185\n",
+"err": "Warning: Cannot open file (nothere.txt)\n",
+"params": {},
+"cards": {}
+},
+"cl": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2446418.64248   780.00   753.93   749.36     -0.010   -0.006  -26.054   -4.570\n",
+"err": "",
+"params": {
+"hjd": "2446418.642481462",
+"vhelio": "753.9302321259606",
+"vlsr": "749.3602788250523"
+},
+"cards": {}
+},
+"cl_ctio": {
+"out": "# RVCORRECT: Observatory parameters for Cerro Tololo Interamerican Observatory\n#\tlatitude = -30.16527778\n#\tlongitude = 70.815\n#\taltitude = 2215.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2446418.64248   780.00   753.68   749.11     -0.263   -0.006  -26.054   -4.570\n",
+"err": "",
+"params": {
+"hjd": "2446418.642481462",
+"vhelio": "753.676591605887",
+"vlsr": "749.1066383049788"
+},
+"cards": {}
+},
+"cl_noepoch": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2446418.64244     0.00   -26.21   -30.68     -0.013   -0.006  -26.187   -4.477\n",
+"err": "",
+"params": {
+"hjd": "2446418.64243862",
+"vhelio": "-26.20638619642716",
+"vlsr": "-30.68306080267748"
+},
+"cards": {}
+},
+"cl_south": {
+"out": "# RVCORRECT: Observatory parameters for Laboratorio Nacional de Astrofisica - Brazil\n#\tlatitude = -22:32:04\n#\tlongitude = 45.5825\n#\taltitude = 1864\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2461356.56242   260.00   257.95   242.64      0.121   -0.000   -2.168  -15.313\n",
+"err": "",
+"params": {
+"hjd": "2461356.562415871",
+"vhelio": "257.9527225180297",
+"vlsr": "242.6400639042321"
+},
+"cards": {}
+},
+"images": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2446418.64248   780.00   753.93   749.36     -0.010   -0.006  -26.053   -4.570\n# RVCORRECT: Observatory parameters for Cerro Tololo Interamerican Observatory\n#\tlatitude = -30.16527778\n#\tlongitude = 70.815\n#\taltitude = 2215.\n2446418.64248     0.00   -26.32   -30.89     -0.263   -0.006  -26.053   -4.570\n# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n2453594.68263  -105.50  -101.01   -88.37      0.294   -0.010    4.210   12.640\n# RVCORRECT: Observatory parameters for European Southern Observatory: La Silla\n#\tlatitude = -29:15.4\n#\tlongitude = 70:43.8\n#\taltitude = 2347\n2453594.68263     0.00     4.26    16.90      0.060   -0.010    4.210   12.640\n",
+"err": "",
+"params": {},
+"cards": {}
+},
+"images_input": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##YR MO DY    UT       RA       DEC       VOBS \n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n1985 12 19  3:21:00  1:37:41  13:08:44    780.0\n2446418.64248   780.00   753.93   749.36     -0.010   -0.006  -26.053   -4.570\n2005  8 12  4:15:30 21:29:58  12:10:01   -105.5\n2453594.68263  -105.50  -101.01   -88.37      0.294   -0.010    4.210   12.640\n",
+"err": "",
+"params": {},
+"cards": {}
+},
+"images_update": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2446418.64248   780.00   753.93   749.36     -0.010   -0.006  -26.053   -4.570\n# RVCORRECT: Observatory parameters for Cerro Tololo Interamerican Observatory\n#\tlatitude = -30.16527778\n#\tlongitude = 70.815\n#\taltitude = 2215.\n2446418.64248     0.00   -26.32   -30.89     -0.263   -0.006  -26.053   -4.570\n# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n2453594.68263  -105.50  -101.01   -88.37      0.294   -0.010    4.210   12.640\n# RVCORRECT: Observatory parameters for European Southern Observatory: La Silla\n#\tlatitude = -29:15.4\n#\tlongitude = 70:43.8\n#\taltitude = 2347\n2453594.68263     0.00     4.26    16.90      0.060   -0.010    4.210   12.640\n",
+"err": "",
+"params": {},
+"cards": {
+"im1.fits": {
+"HJD": "HJD     =     2446418.64248164                                                  ",
+"VHELIO": "VHELIO  =     753.930801647438                                                  ",
+"VLSR": "VLSR    =      749.36039775597                                                  ",
+"VSUN": "VSUN    = '   20.    18.    30.  1900.'                                         "
+},
+"im2.fits": {
+"HJD": "HJD     =     2446418.64248164                                                  ",
+"VHELIO": "VHELIO  =    -26.3228417211123                                                  ",
+"VLSR": "VLSR    =    -30.8932456125799                                                  ",
+"VSUN": "VSUN    = '   20.    18.    30.  1900.'                                         "
+},
+"im3.fits": {
+"HJD": "HJD     =     2453594.68263341                                                  ",
+"VHELIO": "VHELIO  =     -101.00638249439                                                  ",
+"VLSR": "VLSR    =    -88.3667627169121                                                  ",
+"VSUN": "VSUN    = '   20.    18.    30.  1900.'                                         "
+},
+"im4.fits": {
+"HJD": "HJD     =     2453594.68263341                                                  ",
+"VHELIO": "VHELIO  =     4.25971113702682                                                  ",
+"VLSR": "VLSR    =     16.8993309145045                                                  ",
+"VSUN": "VSUN    = '   20.    18.    30.  1900.'                                         "
+}
+}
+},
+"images_noepoch": {
+"out": "# RVCORRECT: Observatory parameters for Kitt Peak National Observatory\n#\tlatitude = 31:57.8\n#\tlongitude = 111:36.0\n#\taltitude = 2120.\n##   HJD          VOBS   VHELIO     VLSR   VDIURNAL   VLUNAR  VANNUAL   VSOLAR\n2446418.64248   780.00   753.93   749.36     -0.010   -0.006  -26.053   -4.570\n",
+"err": "Warning: Image header parameter not found (EPOCH)\n",
+"params": {},
+"cards": {}
+}
+}

@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 123, partial: 4, planned: 228, replaced: 94, wontport: 161
+#   available: 124, partial: 4, planned: 227, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -42,6 +42,13 @@ meta:
 # reads `tasks:` to find out what they lose; they read this to find out what
 # they gain.
 added:
+  emsao: {pkg: rvsao, domain: radial-velocity, status: partial,
+    note: "RVSAO's emsao (Smithsonian Astrophysical Observatory; an IRAF external
+           package, not IRAF): the redshift from emission lines -- the continuum, the
+           search, the Gaussian fits and blends, the weighted mean, the barycentric
+           and heliocentric corrections from the header -- its log identical to RVSAO
+           2.8.5's on 44 cases. Not yet: the graph and its cursor, save_vel, the sky
+           spectrum, report modes other than 1."}
   lineid: {pkg: onedspec, domain: spec-1d, status: available,
     note: "names the atom, ion or molecule behind each feature of a calibrated
            spectrum, from a curated catalogue. IRAF has no task for this -- the
@@ -907,7 +914,8 @@ tasks:
   filtpars: {pkg: rv, domain: radial-velocity, status: replaced,
     note: "absorbed into the task's Pydantic parameter model"}
   fxcor: {pkg: rv, domain: radial-velocity, status: planned, milestone: later}
-  rvcorrect: {pkg: astutil, domain: radial-velocity, status: planned, milestone: later}
+  rvcorrect: {pkg: astutil, domain: radial-velocity, status: available, milestone: later, harwood: rvcorrect,
+    note: "t_rvcorrect.x ported with astvr, astvorbit, astvbary, astvrotate: from files, images (keywpars' names, OBSERVAT, imupdate) or the parameters -- the table, the observatory lines and the warnings IRAF 2.18's on 15 cases, the velocities it records to 5e-9 km/s (f2c's handling of SPP's real constants reproduced). --precise adds astropy's barycentric correction beside IRAF's"}
   rvidlines: {pkg: rv, domain: radial-velocity, status: planned, milestone: later}
   rvreidlines: {pkg: rv, domain: radial-velocity, status: planned, milestone: later}
 
