@@ -1,9 +1,10 @@
 """surface against IRAF 2.18's: what it says (surf_limits' four messages and the
 block average's), its title, and where every point of the grid lands -- NCAR's
-EZSRFC and TRN32S ported, nearly every vertex IRAF draws is within one unit of
-NCAR's 1..1024 frame of one of harwood's projected points (the few others are
-where a line disappears behind a ridge: NCAR's floating horizon, which harwood
-replaces by painting the cells back to front).
+EZSRFC and TRN32S ported, nearly every vertex IRAF draws (the mesh's and, with
+label yes, the axes' and their labels', which PWRZS strokes in the plane of the
+base) is within one unit of NCAR's 1..1024 frame of one of harwood's projected
+points. The few others are where a line disappears behind a ridge: NCAR's
+floating horizon, which harwood replaces by painting the cells back to front.
 
 tests/data/iraf_surface holds the cases (srf_cases.py, on iraf_contour's images)
 and what IRAF did (run.py, srf_collect.py -> surface.json).
@@ -76,7 +77,5 @@ def test_every_point_lands_where_iraf_puts_it(tmp_path, monkeypatch, case):
         axes = np.vstack(lines)
         axes_gki = (lo + (hi - lo) * (axes - 1) / 1023) * 32767
         dist = np.minimum(dist, cKDTree(axes_gki).query(pts)[0])
-        assert (dist < near).mean() > 0.80      # the labels are stroked, not points
-    else:
-        assert (dist < near).mean() > 0.97
-        assert np.median(dist) < 2.0
+    assert (dist < near).mean() > 0.97
+    assert np.median(dist) < 2.0

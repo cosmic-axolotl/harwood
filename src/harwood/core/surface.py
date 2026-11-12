@@ -189,6 +189,8 @@ def surface(data: np.ndarray, image: str, title_param: str = "imtitle",
     cells.sort(reverse=True)
     out = Surface(title, u, v, [(i, j) for _, i, j in cells], message + more)
     out.to_frame = to_frame
+    out.box = (float(x[0]), float(x[-1]), float(y[0]), float(y[-1]),
+               float(z.min()), float(z.max()))
     out.z = z
     out.ncols, out.nlines = data.shape[1], data.shape[0]
     out.angh, out.angv = float(angh), float(angv)
@@ -223,8 +225,8 @@ def perimeter(s: Surface):
         pts = [fr(a, b, flo) for a, b in zip(xs, ys, strict=True)]
         lines.append(np.asarray(pts, float))
 
-    def label(px, py, text):
-        texts.append((*fr(px, py, flo), text))
+    def label(px, py, text, path, up):
+        lines.extend(pwrzs(s, px, py, float(flo), text, CSIZE, path, up, 0))
 
     if angh >= 0:
         x_side, y_side = (y2p, x2p) if angv >= 0 else (y1p, x1p)
@@ -239,16 +241,109 @@ def perimeter(s: Surface):
     axis(xs, [x_side] * len(xs))
     for i in range(1, ncols + 1):
         lines.append(np.asarray([fr(xv[i], x_side, flo), fr(xv[i], x_side + sx * delta, flo)]))
-    label(xcen, x_side + sx * dl, "X-AXIS")
-    label(xmin, x_side + sx * dl, "1")
-    label(xv[ncols], x_side + sx * dl, wc2)
+    xpath = -1 if angh >= 0 else 1
+    xup = -2 * sx
+    label(xcen, x_side + sx * dl, "X-AXIS", xpath, xup)
+    label(xmin, x_side + sx * dl, "1", xpath, xup)
+    label(xv[ncols], x_side + sx * dl, wc2, xpath, xup)
     axis([y_side] * len(ys), ys)
     for j in range(1, nlines + 1):
         lines.append(np.asarray([fr(y_side, yv[j], flo), fr(y_side + sy * delta, yv[j], flo)]))
-    label(y_side + sy * dl, ycen, "Y-AXIS")
-    label(y_side + sy * dl, ymin, "1")
-    label(y_side + sy * dl, yv[nlines], wl2)
+    yup = -1 * sy
+    label(y_side + sy * dl, ycen, "Y-AXIS", 2, yup)
+    label(y_side + sy * dl, ymin, "1", 2, yup)
+    label(y_side + sy * dl, yv[nlines], wl2, 2, yup)
     return lines, texts
+
+
+CSIZE = 24                  # t_surface's character size for PWRZS
+DELCRT = NRU - NLU          # TRN32S's frame width, for a single picture
+
+
+def _font():
+    import json
+    from pathlib import Path as _P
+
+    path = _P(__file__).resolve().parent.parent / "data" / "ncar_pwrz_font.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+_FONT = None
+
+
+def pwrzs(s: Surface, x: float, y: float, z: float, text: str, isize: int, line: int,
+          itop: int, icnt: int) -> list[np.ndarray]:
+    """NCAR's PWRZS: characters of its own stroked font written in the space of the
+    surface -- along the axis `line` (1 x, 2 y, 3 z, negative backwards), their tops
+    toward `itop` -- each stroke through the surface's perspective. The polylines,
+    in the 10..1014 frame. NCAR also hides the strokes behind the surface when the
+    label is inside its box; srf_perimeter's labels never are."""
+    global _FONT
+    if _FONT is None:
+        _FONT = _font()
+    kx, ky, index = _FONT["kx"], _FONT["ky"], _FONT["index"]
+    nn = len(text)
+    if nn <= 0:
+        return []
+    q = f32(isize) / f32(6.0) if isize > 3 else f32({0: 1.3334, 1: 2.0, 2: 2.6667,
+                                                     3: 4.0}[isize])
+    ct, st = q, f32(0.0)
+    xxmin, xxmax, yymin, yymax, zzmin, zzmax = s.box
+    delmax = max(xxmax - xxmin, yymax - yymin, zzmax - zzmin)
+    factor = f32(delmax) / f32(DELCRT)
+    factx = math.copysign(float(factor), float(line))
+    facty = math.copysign(float(factor), float(itop))
+    lin, ito = max(1, min(3, abs(line))), max(1, min(3, abs(itop)))
+
+    def place(ix, iy):
+        fx, fy = float(x), float(y)
+        fz = float(z)
+        a, b = factx * float(ix), facty * float(iy)
+        if (lin, ito) == (1, 2):
+            fx, fy = fx + a, fy + b
+        elif (lin, ito) == (1, 3):
+            fx, fz = fx + a, fz + b
+        elif (lin, ito) == (2, 1):
+            fx, fy = fx + b, fy + a
+        elif (lin, ito) == (2, 3):
+            fy, fz = fy + a, fz + b
+        elif (lin, ito) == (3, 1):
+            fx, fz = fx + b, fz + a
+        else:
+            fy, fz = fy + b, fz + a
+        return s.to_frame(fx, fy, fz)
+
+    xc = f32(f32(0.0) - f32(2.0) * ct + f32(3.5) * st)
+    yc = f32(f32(0.0) - f32(2.0) * st - f32(3.5) * ct)
+    jcnt = max(-1, min(1, icnt)) + 2
+    fnnm1 = f32(nn - 1)
+    if jcnt == 2:
+        xc, yc = f32(xc - ct * fnnm1 * 3), f32(yc - st * fnnm1 * 3)
+    elif jcnt == 1:
+        xc, yc = f32(xc + ct * 2), f32(yc + st * 2)
+    else:
+        xc, yc = f32(xc - ct * 2 - ct * fnnm1 * 6), f32(yc - st * 2 - st * fnnm1 * 6)
+    out: list[list] = [[place(int(xc), int(yc))]]
+    for k in range(nn):
+        xb, yb = xc, yc
+        ip = 1
+        start = index.get(text[k], index[" "])
+        for ell in range(20):
+            nx, ny = kx[start - 1 + ell], ky[start - 1 + ell]
+            if nx == 7:
+                ip = 0
+                if ny == 7:
+                    break
+                continue
+            xc = f32(xb + f32(nx) * ct - f32(ny) * st)
+            yc = f32(yb + f32(nx) * st + f32(ny) * ct)
+            point = place(int(xc + f32(0.5)), int(yc + f32(0.5)))
+            if ip == 0:
+                out.append([point])
+                ip = 1
+            else:
+                out[-1].append(point)
+    return [np.asarray(stroke, float) for stroke in out if len(stroke) > 1]
 
 
 def polygons(s: Surface):

@@ -17,7 +17,9 @@ The view is NCAR's: the grid twice as wide as the data's range is high, the eye 
 such ranges away, `--angh` degrees around (the default -33) and `--angv` up (25),
 and TRN32S's perspective, the picture made square. `--label` draws the two axes
 along the base on the sides toward the eye, with their ticks, X-AXIS and Y-AXIS and
-the first and last column and line, as srf_perimeter does.
+the first and last column and line, as srf_perimeter does -- the labels written
+as NCAR's PWRZS writes them: in its own stroked letters, in the plane of the base,
+along each axis and in the same perspective as the surface.
 
 What is IRAF's: on 18 cases the messages and the title are IRAF 2.18's, and nearly
 every vertex IRAF draws is within one unit of NCAR's 1024-wide frame of a point

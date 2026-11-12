@@ -27,7 +27,8 @@ def test_the_mesh_is_drawn(run, tmp_path):
     result = run("surface", "gal.fits", "--label", "--device", "gal.svg")
     assert result.exit_code == 0, result.output
     svg = (tmp_path / "gal.svg").read_text(encoding="utf-8")
-    assert svg.count("<polygon") > 1000 and "X-AXIS" in svg
+    assert svg.count("<polygon") > 1000
+    assert svg.count("<polyline") > 50      # the axes, ticks and stroked labels
 
 
 def test_limits_that_leave_nothing_are_said(run, tmp_path):

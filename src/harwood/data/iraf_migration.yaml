@@ -675,7 +675,7 @@ tasks:
   stdplot: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   surface: {pkg: plot, domain: display, status: partial, milestone: later, harwood: surface,
-    note: "t_surface.x, surf_limits and NCAR's EZSRFC, SRFGK framing and TRN32S perspective ported, with srf_perimeter's labelled axes: the messages and the title IRAF 2.18's on 18 cases, and over 97% of the vertices IRAF draws within one unit of NCAR's frame of harwood's projected points. The hidden lines go by painting the cells back to front, where NCAR's SRFACE keeps a floating horizon (queued with the rest of NCAR); append is not yet"}
+    note: "t_surface.x, surf_limits and NCAR's EZSRFC, SRFGK framing and TRN32S perspective ported, with srf_perimeter's labelled axes and PWRZS's stroked labels in the plane of the base: the messages and the title IRAF 2.18's on 18 cases, and over 97% of the vertices IRAF draws within one unit of NCAR's frame of harwood's projected points. The hidden lines go by painting the cells back to front, where NCAR's SRFACE keeps a floating horizon (queued with the rest of NCAR); append is not yet"}
   tvmark: {pkg: images.tv, domain: display, status: available, milestone: mvp, harwood: tvmark,
     note: "IRAF's parameters, marks (point, circle, rectangle, plus, cross, none), numbers and labels; the cursor keys and colon commands, logfile/autolog, command files, a and d updating the list, deletions, and the snapshot as the frame's grey levels with the marks at their colour (or a PNG). Marks are harwood's own raster, IRAF's sizes"}
   velvect: {pkg: plot, domain: display, status: planned, milestone: later}
