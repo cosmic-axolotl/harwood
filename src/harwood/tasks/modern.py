@@ -1361,3 +1361,134 @@ def _dispersion(header, axis: int) -> float:
         if key in header:
             return float(header[key])
     return 0.0
+
+
+# ------------------------------------------------------------- zfind
+
+ZWHY = {
+    "model": "At each trial redshift, a polynomial continuum and a Gaussian at every "
+             "line of the list that falls in the spectrum, each with its own amplitude "
+             "(>= 0): every line counts at once, none has to be found first.",
+    "scan": "chi2 against z over the whole range, in steps of dv km/s; the best "
+            "minimum refined, with the line width, and its error where chi2 rises by 1.",
+    "confidence": "deltachi2, the next minimum's chi2 minus the best's: under 9 "
+                  "(Redrock's threshold) the redshift is flagged as doubtful.",
+}
+
+
+class ZfindParams(TaskParams):
+    spectra: list[str] = Field(..., description="Spectra (IRAF onedspec or multispec, "
+                                                "or harwood's).",
+                               json_schema_extra={"positional": True})
+    aperture: int = Field(0, description="Aperture of a multispec; 0: the first.")
+    zmin: float = Field(-0.005, description="Lowest redshift tried.")
+    zmax: float = Field(1.0, description="Highest redshift tried.")
+    dv: float = Field(30.0, gt=0, description="Grid step, km/s.")
+    npoly: int = Field(4, ge=1, description="Terms of the Legendre continuum.")
+    lines: str = Field("", description="Rest wavelengths to fit (a file: wavelength "
+                                       "[name] a line). Empty: RVSAO's emission list.")
+    templates: str = Field("", description="Template spectra (rest frame) to fit too, "
+                                           "for absorption lines; comma separated.")
+    separation: float = Field(1000.0, description="Km/s between distinct candidates.")
+    device: str = Field("", description="chi2(z) plotted: stdgraph (the window) or a "
+                                        "file.svg. Empty: no plot.")
+
+
+def _zspectrum(name: str, aperture: int):
+    """Wavelengths, flux and, for harwood's spectra, the error column."""
+    import numpy as np
+
+    from ..core import rvsao, spectrum
+
+    path = Path(name)
+    if path.exists() and spectrum.count(path) > 0:
+        aps = spectrum.read(path)
+        ap = next((a for a in aps if a.number == aperture), aps[0]) if aperture else aps[0]
+        if ap.wavelength is not None:
+            err = None if ap.error is None else np.asarray(ap.error, float)
+            return np.asarray(ap.wavelength, float), np.asarray(ap.flux, float), err
+    spec = rvsao.getspec(name, aperture, 0, rvsao.NONE)
+    w = np.array([spec.wcs.p2w(float(i)) for i in range(1, spec.data.size + 1)])
+    return w, spec.data.astype(float), None
+
+
+def _zlines(name: str):
+    from ..core import zfind
+    from ..core.rvsao import Scan
+
+    if not name:
+        return zfind.default_lines()
+    out = []
+    for line in Path(name).read_text(encoding="utf-8").splitlines():
+        s = Scan(line)
+        w = s.d()
+        if w is None:
+            continue
+        out.append((w, s.wrd() or f"{w:.2f}"))
+    return out
+
+
+@register
+class Zfind(Task[ZfindParams]):
+    """A redshift by scanning chi2 (as SDSS's spectro1d and DESI's Redrock do): all the
+    lines (or templates) fit at once at each trial z, the global minimum taken, its
+    error from chi2's curvature and its reliability from the next minimum. Held to
+    spectra of known redshift (and the pull of its error); on the course's NGC 660
+    nucleus it finds cz = 865 km/s where emsao's search takes [N II] for Halpha."""
+
+    name = "zfind"
+    package = "harwood"
+    description = "Redshift by a chi2 scan over all lines or templates at once."
+    Params = ZfindParams
+
+    def plan(self, params: ZfindParams) -> list[Step]:
+        return [Step("model", params.lines or "RVSAO's emission lines", why=ZWHY["model"]),
+                Step("scan", f"z {params.zmin:g} to {params.zmax:g}, {params.dv:g} km/s",
+                     why=ZWHY["scan"]),
+                Step("confidence", "deltachi2 >= 9", why=ZWHY["confidence"])]
+
+    def execute(self, params: ZfindParams) -> TaskResult:
+        from ..core import images, zfind
+
+        lines = _zlines(params.lines)
+        templates = []
+        for name in [t for t in params.templates.split(",") if t.strip()]:
+            w, f, _ = _zspectrum(name.strip(), 0)
+            templates.append((w, f))
+        rows, text, warnings = [], [], []
+        for name in [str(s) for s in images.expand(params.spectra)]:
+            wave, flux, err = _zspectrum(name, params.aperture)
+            r = zfind.zscan(wave, flux, err, lines, params.zmin, params.zmax, params.dv,
+                            npoly=params.npoly, templates=templates,
+                            separation=params.separation)
+            flag = "  DOUBTFUL" if r.doubtful else ""
+            text.append(f"{name}: z = {r.z:.6f} +- {r.z_err:.6f}  cz = {r.cz:.1f} +- "
+                        f"{r.cz_err:.1f} km/s  deltachi2 = {r.deltachi2:.1f}  "
+                        f"width {r.width:.0f} km/s{flag}")
+            for c in r.candidates[1:4]:
+                text.append(f"    next: z = {c.z:.6f}  cz = {zfind.C * c.z:.1f} km/s  "
+                            f"chi2 + {c.chi2 - r.chi2:.1f}")
+            if r.doubtful:
+                warnings.append(advice.warn(
+                    f"{name}: the redshift is doubtful (deltachi2 {r.deltachi2:.1f} < 9)",
+                    "more lines or a narrower --zmin/--zmax decide it; a single line "
+                    "cannot say which line it is"))
+            rows.append({"spectrum": name, "z": r.z, "z_err": r.z_err, "cz": r.cz,
+                         "cz_err": r.cz_err, "deltachi2": r.deltachi2,
+                         "doubtful": r.doubtful, "width": r.width,
+                         "candidates": [{"z": c.z, "chi2": c.chi2} for c in r.candidates],
+                         "lines": r.lines})
+            if params.device:
+                self._plot(r, name, params.device)
+        return TaskResult(data={"text": text, "spectra": rows}, steps=self.plan(params),
+                          warnings=warnings)
+
+    @staticmethod
+    def _plot(r, name: str, device: str) -> None:
+        from ..core import graph
+        from .imutil import _plot
+
+        g = graph.Graph([f"zfind: chi2(z) of {name}",
+                         f"z = {r.z:.6f}, deltachi2 = {r.deltachi2:.1f}"], "z", "chi2")
+        g.line(r.grid, r.chi2_grid)
+        _plot(g, device, f"zfind · {name}", Path(name).stem + ".zfind.svg", task="zfind")

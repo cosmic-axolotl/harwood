@@ -42,6 +42,12 @@ meta:
 # reads `tasks:` to find out what they lose; they read this to find out what
 # they gain.
 added:
+  zfind: {pkg: harwood, domain: radial-velocity, status: available,
+    note: "a redshift by a chi2 scan over z (SDSS's spectro1d, DESI's Redrock): every line of
+           the list (or a template) fit at once at each trial z, linear amplitudes over a
+           polynomial continuum, the global minimum, its error from chi2's curvature (pull
+           1.02 on spectra of known z) and deltachi2 to the next minimum. IRAF and RVSAO decide
+           from one line: emsao takes NGC 660's [N II] for Halpha (cz 1704), zfind gives 865."}
   emsao: {pkg: rvsao, domain: radial-velocity, status: partial,
     note: "RVSAO's emsao (Smithsonian Astrophysical Observatory; an IRAF external
            package, not IRAF): the redshift from emission lines -- the continuum, the
