@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 124, partial: 6, planned: 225, replaced: 94, wontport: 161
+#   available: 125, partial: 6, planned: 224, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -593,7 +593,9 @@ tasks:
   starfind: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
   wcsctran: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
   wcsedit: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
-  wcslab: {pkg: images.tv, domain: astrometry, status: planned, milestone: later}
+  wcslab: {pkg: images.tv, domain: astrometry, status: available, milestone: later,
+    harwood: wcslab,
+    note: "pkg/images/tv/wcslab ported, with the GIO it uses: every text and every line identical to IRAF 2.18's (to 2 GKI units) on 47 of 48 cases -- RA/Dec in every orientation, polar and near-polar, linear, other projections, no WCS, wcspars -- and wlpars' options, the 48th a rotated linear WCS that IRAF collapses (mw_v2tran's bug) and harwood draws; over the display's frame (imd), as a graph, or appended to the last graph (contour)"}
   wcsreset: {pkg: images.imcoords, domain: astrometry, status: planned, milestone: later}
 
   # --- display (core, 48 tasks) ---------------------------------
@@ -603,7 +605,7 @@ tasks:
   calcomp: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   contour: {pkg: plot, domain: display, status: partial, milestone: later, harwood: contour,
-    note: "t_contour.x, plt_getdata and NCAR's CLGEN, REORD, ENCD and MINMAX ported: the grid (block average or subsample, its message), the levels, the labelled majors, the scaled labels, the highs and lows (nhi 0) and values (nhi 1), the title and the levels' line identical to IRAF 2.18's on 19 cases, and every point IRAF draws lies on harwood's levels. The curves are traced by marching squares, not by NCAR's CONREC and DASHSMTH splines (the faithful port of NCAR is queued); append (to overlay wcslab) is not yet"}
+    note: "t_contour.x, plt_getdata and NCAR's CLGEN, REORD, ENCD and MINMAX ported: the grid (block average or subsample, its message), the levels, the labelled majors, the scaled labels, the highs and lows (nhi 0) and values (nhi 1), the title and the levels' line identical to IRAF 2.18's on 19 cases, and every point IRAF draws lies on harwood's levels. The curves are traced by marching squares, not by NCAR's CONREC and DASHSMTH splines (the faithful port of NCAR is queued); append is wcslab's: contour --no-perimeter, then wcslab --append"}
   crtpict: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   cv: {pkg: images.tv.iis, domain: display, status: wontport,

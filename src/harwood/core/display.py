@@ -24,7 +24,8 @@ BACKENDS = ("native", "headless", "ds9")
 class Marker:
     """Something drawn over the image, in 1-based (x, y). Shapes: circle,
     rectangle (radius is half the width), point, plus, cross, line (to x2,
-    y2), box and fill (outlined and filled rectangles), text (the label)."""
+    y2), path (through points), box and fill (outlined and filled rectangles),
+    text (the label)."""
 
     x: float
     y: float
@@ -36,6 +37,14 @@ class Marker:
     width: float = 1.0       #: a rectangle's height over its width
     x2: float | None = None  #: the far end of a line
     y2: float | None = None
+    #: shape "path": the polyline's points, (x, y) each; ltype its GIO line type
+    points: tuple | None = None
+    ltype: int = 1
+    #: shape "text": the baseline's angle (degrees counterclockwise), the anchor
+    #: (0 left/top .. 1 right/bottom); a size (non-zero) asks for a monospaced font
+    angle: float = 0.0
+    anchor: tuple[float, float] | None = None
+    size: float = 0.0
 
 
 @runtime_checkable

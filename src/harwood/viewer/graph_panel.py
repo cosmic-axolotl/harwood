@@ -74,6 +74,18 @@ class GraphPanel(QtWidgets.QWidget):
             item = pg.TextItem(text, color=_pen(color, 1, 1.0).color(), anchor=(0.5, 0.5))
             item.setPos(float(graph.on_xaxis([x])[0]), float(graph.on_axis([y])[0]))
             self.plot.addItem(item)
+        if getattr(graph, "labels", None):
+            from PySide6 import QtGui
+
+            for x, y, text, angle, ax, ay, _size, color in graph.labels:
+                if not text.strip():
+                    continue
+                item = pg.TextItem(text, color=_pen(color, 1, 1.0).color(), anchor=(ax, ay),
+                                   angle=angle)
+                font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
+                item.setFont(font)
+                item.setPos(float(x), float(y))
+                self.plot.addItem(item)
         if getattr(graph, "lock_aspect", False):
             self.plot.getViewBox().setAspectLocked(True)
         if not getattr(graph, "frame", True):

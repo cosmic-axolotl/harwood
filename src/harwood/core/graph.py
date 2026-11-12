@@ -121,6 +121,12 @@ class Graph:
         #: Closed polygons painted in this order, each filled with the page's ground
         #: over what is behind it and outlined: a surface with its hidden lines gone.
         self.polygons: list[tuple[np.ndarray, np.ndarray]] = []
+        #: GIO's texts, anywhere on the page (not clipped to the axes): (x, y, text,
+        #: angle of the baseline in degrees counterclockwise, anchor in x and y --
+        #: 0 left or top, 0.5 centre, 1 right or bottom --, height of a character
+        #: in y's units, colour). Monospaced, their spaces kept: wcslab's units line
+        #: sits over the number's.
+        self.labels: list[tuple[float, float, str, float, float, float, float, int]] = []
 
     def line(self, x, y, ltype: int = 1, color: int = 1) -> Graph:
         self.curves.append((np.asarray(x, float), np.asarray(y, float)))
@@ -135,6 +141,15 @@ class Graph:
 
     def text(self, x: float, y: float, text: str, color: int = 1) -> Graph:
         self.texts.append((float(x), float(y), str(text), color))
+        return self
+
+    def label(self, x: float, y: float, text: str, angle: float = 0.0,
+              anchor: tuple[float, float] = (0.5, 0.5), size: float = 0.0,
+              color: int = 1) -> Graph:
+        """A text on the page; size is a character's height in y's units (0: the
+        page's own small size)."""
+        self.labels.append((float(x), float(y), str(text), float(angle),
+                            float(anchor[0]), float(anchor[1]), float(size), color))
         return self
 
     def steps(self, edges, y) -> Graph:
@@ -330,7 +345,20 @@ class Graph:
                 points = " ".join(f"{a:.2f},{b:.2f}" for a, b in piece)
                 out.append(f'<polyline fill="none" stroke="{_color(color)}" '
                            f'stroke-width="1" points="{points}"/>')
-        out.append("</g></svg>")
+        out.append("</g>")
+        for x, y, text, angle, ax, ay, size, color in self.labels:
+            if not text.strip():
+                continue
+            anchor = "start" if ax < 0.25 else "end" if ax > 0.75 else "middle"
+            base = "hanging" if ay < 0.25 else "alphabetic" if ay > 0.75 else "central"
+            a, b = float(px([x])[0]), float(py([y])[0])
+            font = abs(size * h / (y2 - y1)) if size and y2 != y1 else 11.0
+            out.append(f'<text x="{a:.2f}" y="{b:.2f}" fill="{_color(color)}" '
+                       f'font-family="monospace" font-size="{font:.1f}" '
+                       f'text-anchor="{anchor}" dominant-baseline="{base}" '
+                       f'xml:space="preserve" transform="rotate({-angle:.2f} {a:.2f} '
+                       f'{b:.2f})">{escape(text)}</text>')
+        out.append("</svg>")
         return "\n".join(out)
 
     def _page_marks(self, px, py, world_x: float, world_y: float):
@@ -354,6 +382,40 @@ class Graph:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.svg() + "\n", encoding="utf-8")
         return path
+
+
+def _last_path() -> Path:
+    import os
+
+    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    return Path(base) / "harwood" / "stdgraph.pickle"
+
+
+def remember(graph: Graph) -> None:
+    """Keep the graph as stdgraph's last frame, for a task that appends to it
+    (wcslab --append over contour); a graph that cannot be kept is not."""
+    import pickle
+
+    try:
+        path = _last_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(pickle.dumps(graph))
+    except Exception:  # noqa: BLE001 -- the plot is made; only the memory of it fails
+        pass
+
+
+def last() -> Graph | None:
+    """stdgraph's last frame, as remember kept it."""
+    import pickle
+
+    path = _last_path()
+    if not path.exists():
+        return None
+    try:
+        graph = pickle.loads(path.read_bytes())
+    except Exception:  # noqa: BLE001 -- an old or broken file is no frame
+        return None
+    return graph if isinstance(graph, Graph) else None
 
 
 def _color(index: int) -> str:

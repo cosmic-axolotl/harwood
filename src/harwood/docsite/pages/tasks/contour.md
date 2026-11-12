@@ -28,4 +28,6 @@ the labels, the marks, the title and that line are IRAF 2.18's, and every point 
 IRAF's curves lies on harwood's levels. The curves themselves are traced straight
 between the grid's edges (marching squares), where IRAF's NCAR library smooths them
 with splines and writes the labels into the line; the faithful port of NCAR is in
-harwood's queue. Not yet: `--append`, to draw over another graph (as wcslab does).
+harwood's queue. `wcslab --append` draws a grid of RA and Dec over the map (with
+`--no-perimeter`, as the exercises do); contour's own `--append`, a map over another
+graph, is not yet.

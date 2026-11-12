@@ -1606,7 +1606,10 @@ def _plot(plot, device: str, title: str, name: str, task: str = "imhistogram"):
     """IRAF's stdgraph: the window when there is a screen to put one on,
     otherwise (or for a device ending in .svg) a file. Returns the file."""
     from ..core import display, output
+    from ..core.graph import Graph, remember
 
+    if isinstance(plot, Graph):
+        remember(plot)
     if device.endswith(".svg"):
         return plot.write(device)
     if device not in ("stdgraph", ""):

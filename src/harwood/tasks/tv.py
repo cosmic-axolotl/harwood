@@ -817,3 +817,274 @@ def _keys() -> list[str]:
     from ..core.examine import KEYS
 
     return list(KEYS)
+
+
+# ------------------------------------------------------------------- wcslab
+
+WLWHY = {
+    "grid": "The world system's ranges from twenty points of the edges, rounded to a "
+            "step from IRAF's tables (seconds of time and of arc for RA and Dec); the "
+            "lines of constant RA and Dec drawn in segments, a polar graph when the "
+            "pole is in the image and a near-polar one when it is close.",
+    "label": "Where each line crosses an edge: hms and dms, the one nearest the "
+             "corner in full; the title two character heights beyond the labels.",
+    "draw": "On the display over the image (imd), or a graph: alone, or added to "
+            "the last one drawn (append, over contour).",
+}
+
+Side = Literal["default", "left", "right", "bottom", "top"]
+LineType = Literal["solid", "dotted", "dashed", "dotdash"]
+
+
+class WcslabParams(TaskParams):
+    image: str = Field("", description="Image whose world coordinates label the grid; "
+                                       "empty: wcspars' own (--usewcs), over log_x1.."
+                                       "log_y2.", json_schema_extra={"positional": True})
+    frame: int = Field(1, ge=1, description="Display frame the image is in (imd).",
+                       json_schema_extra={"positional": True})
+    usewcs: bool = Field(False, description="Use the WCS given here (ctype1 ... cd2_2) "
+                                            "instead of the image's.")
+    ctype1: str = Field("linear", description="wcspars: axis 1 type (linear, ra--tan "
+                                              "...).")
+    ctype2: str = Field("linear", description="wcspars: axis 2 type (linear, dec--tan "
+                                              "...).")
+    crpix1: float = Field(0.0, description="wcspars: reference pixel, x.")
+    crpix2: float = Field(0.0, description="wcspars: reference pixel, y.")
+    crval1: float = Field(0.0, description="wcspars: world at the reference, axis 1.")
+    crval2: float = Field(0.0, description="wcspars: world at the reference, axis 2.")
+    cd1_1: float = Field(1.0, description="wcspars: CD matrix.")
+    cd1_2: float = Field(0.0, description="wcspars: CD matrix.")
+    cd2_1: float = Field(0.0, description="wcspars: CD matrix.")
+    cd2_2: float = Field(1.0, description="wcspars: CD matrix.")
+    log_x1: float = Field(0.0, description="wcspars: left pixel, with no image.")
+    log_x2: float = Field(1.0, description="wcspars: right pixel, with no image.")
+    log_y1: float = Field(0.0, description="wcspars: bottom pixel, with no image.")
+    log_y2: float = Field(1.0, description="wcspars: top pixel, with no image.")
+    major_grid: bool = Field(True, description="Major grid lines (else major ticks).")
+    minor_grid: bool = Field(False, description="Minor grid lines (else minor ticks).")
+    dolabel: bool = Field(True, description="Label the major lines or ticks.")
+    axis1_beg: str = Field("", description="First major axis 1 value (RA in hours, "
+                                           "h:m:s too); all three of beg, end and int, or "
+                                           "they are worked out.")
+    axis1_end: str = Field("", description="Last major axis 1 value.")
+    axis1_int: str = Field("", description="Axis 1 interval (RA in hours).")
+    axis2_beg: str = Field("", description="First major axis 2 value (Dec in degrees).")
+    axis2_end: str = Field("", description="Last major axis 2 value.")
+    axis2_int: str = Field("", description="Axis 2 interval.")
+    major_line: LineType = Field("solid", description="Major grid line type.")
+    major_tick: float = Field(0.03, ge=0, le=1, description="Major tick, a fraction of "
+                                                           "the viewport.")
+    axis1_minor: int = Field(5, ge=1, description="Minor intervals per major, axis 1.")
+    axis2_minor: int = Field(5, ge=1, description="Minor intervals per major, axis 2.")
+    minor_line: LineType = Field("dotted", description="Minor grid line type.")
+    minor_tick: float = Field(0.01, ge=0, le=1, description="Minor tick, a fraction of "
+                                                           "the viewport.")
+    tick_in: bool = Field(True, description="Ticks point into the graph.")
+    axis1_side: str = Field("default", description="Sides to label axis 1 on: left, "
+                                                   "right, bottom, top, or a list.")
+    axis2_side: str = Field("default", description="Sides to label axis 2 on.")
+    axis2_dir: str = Field("", description="Polar graph: the RA (hours) along which "
+                                           "the declinations are labelled.")
+    justify: Side = Field("default", description="Polar graph: the side the Dec labels "
+                                                 "are written towards.")
+    labout: bool = Field(True, description="Labels outside the axes.")
+    rotate: bool = Field(True, description="Labels follow their lines' angle.")
+    full_label: bool = Field(False, description="Every label in full (h m s, d m s).")
+    label_size: float = Field(1.0, gt=0, description="Label size.")
+    title: str = Field("imtitle", description="Title; imtitle: the image's name and "
+                                              "title.")
+    axis1_title: str = Field("", description="Axis 1 title.")
+    axis2_title: str = Field("", description="Axis 2 title.")
+    title_side: Literal["top", "bottom", "left", "right"] = Field(
+        "top", description="Side of the title.")
+    axis1_title_side: Side = Field("default", description="Side of axis 1's title.")
+    axis2_title_side: Side = Field("default", description="Side of axis 2's title.")
+    title_size: float = Field(1.0, gt=0, description="Title size.")
+    axis_title_size: float = Field(1.0, gt=0, description="Axis titles' size.")
+    graph_type: Literal["default", "normal", "polar", "near_polar"] = Field(
+        "default", description="Graph type; default decides from the pole's place.")
+    fill: bool = Field(True, description="Fill the viewport (else the image's shape).")
+    vl: float | None = Field(None, ge=0, le=1, description="Viewport left (NDC).")
+    vr: float | None = Field(None, ge=0, le=1, description="Viewport right.")
+    vb: float | None = Field(None, ge=0, le=1, description="Viewport bottom.")
+    vt: float | None = Field(None, ge=0, le=1, description="Viewport top.")
+    overplot: bool = Field(False, description="Draw over the last graph, on the "
+                                              "viewport given (stdgraph).")
+    append: bool = Field(False, description="Draw over the last graph, on its own "
+                                            "frame: wcslab after contour.")
+    device: str = Field("imd", description="imd: over the image on the display; "
+                                           "stdgraph: a graph (the window, or an SVG "
+                                           "without a screen); or a file.svg.")
+    wait: bool = Field(True, description="imd: keep the window open until it is "
+                                         "closed. --no-wait returns at once; inside "
+                                         "harwood gui it never waits.")
+
+
+@register
+class Wcslab(Task[WcslabParams]):
+    """IRAF's wcslab (images.tv, pkg/images/tv/wcslab): every text it writes -- the
+    hms and dms labels with their units, the titles -- in its place and every line
+    it draws -- the grid, the ticks, the pole's plus -- identical to IRAF 2.18's
+    (to two GKI units) on 47 cases: RA/Dec in every orientation, polar and near-
+    polar, linear and other systems, and wlpars' options."""
+
+    name = "wcslab"
+    package = "tv"
+    description = "Overlay a labelled world coordinate grid on an image or a graph."
+    Params = WcslabParams
+
+    def plan(self, params: WcslabParams) -> list[Step]:
+        where = ("the last graph" if params.append or params.overplot
+                 else f"frame {params.frame}" if params.device == "imd" else params.device)
+        return [Step("grid", params.image or "wcspars' WCS", why=WLWHY["grid"]),
+                Step("label", "labels" if params.dolabel else "no labels",
+                     why=WLWHY["label"]),
+                Step("draw", where, why=WLWHY["draw"])]
+
+    def execute(self, params: WcslabParams) -> TaskResult:
+        from ..core import display, iraffmt, wcslab
+        from ..core import graph as graphmod
+        from .imutil import _plot
+
+        p = params.model_dump()
+        if not params.image and not params.usewcs:
+            p["usewcs"] = True
+        notes = []
+        to_graph = params.device != "imd" or params.append or params.overplot
+        if not to_graph and display._autodetect() != "native":
+            to_graph = True
+            notes.append(advice.warn("there is no display window here: the grid is "
+                                     "drawn as a graph instead",
+                                     "run it where there is a screen to see it over "
+                                     "the image"))
+        viewport = None
+        last = None
+        if params.append or params.overplot:
+            last = graphmod.last()
+            if last is None:
+                advice.fail("there is no graph to draw over",
+                            "draw one first (contour wpix.fits --no-perimeter), or "
+                            "leave out --append")
+        try:
+            if params.append and last is not None:
+                shape = _shape_of(params, p)
+                viewport = wcslab.map_viewport(*shape, None, None, None, None, False)
+            elif params.device == "imd" and not params.overplot and params.image:
+                ny, nx = _image_shape(params.image)
+                (_, viewport) = wcslab.imd_viewport(nx, ny, vl=params.vl, vr=params.vr,
+                                                    vb=params.vb, vt=params.vt)
+                viewport = wcslab.map_viewport(1.0, float(nx), 1.0, float(ny), *viewport,
+                                               params.fill)
+            d, messages = wcslab.labelled(params.image, p, viewport)
+        except wcslab.WcslabError as error:
+            advice.fail(f"wcslab: {error}", "give a two-dimensional image")
+        outputs = []
+        if to_graph or not params.image:
+            g = last if last is not None else graphmod.Graph([])
+            if last is None:
+                # the page, out to what the labels and titles need beyond it
+                g.frame = False
+                xs = [0.0, 1.0] + [t.x for t in d.texts if t.text.strip()]
+                ys = [0.0, 1.0] + [t.y for t in d.texts if t.text.strip()]
+                pad = 0.04
+                x0, y0 = d.to_plot([min(xs) - pad, max(xs) + 2 * pad],
+                                   [min(ys) - pad, max(ys) + pad])
+                g.window = (float(x0[0]), float(x0[1]), float(y0[0]), float(y0[1]))
+            for s in d.strokes:
+                x, y = d.to_plot(s.x, s.y)
+                g.line(x, y, s.ltype, 1)
+            for t in d.texts:
+                x, y = d.to_plot([t.x], [t.y])
+                g.label(float(x[0]), float(y[0]), t.text, t.up - 90.0,
+                        (_ANCHOR_H[t.h], _ANCHOR_V[t.v]), d.char_height(t.size))
+            device = "stdgraph" if params.device == "imd" else params.device
+            where = _plot(g, device, f"wcslab · {params.image}",
+                          (Path(params.image.split("[")[0]).stem or "wcspars")
+                          + ".wcslab.svg", task="wcslab")
+            outputs = [where] if where else []
+        else:
+            outputs = _over_display(params, d)
+        system = d.system
+        axes = {}
+        for i, name in enumerate(("axis1", "axis2")):
+            beg, end, step = d.begin[i], d.end[i], d.interval[i]
+            if system == "ra_dec":
+                if i == 0:
+                    beg, end, step = beg / 15, end / 15, step / 15
+                axes[name] = {k: iraffmt.dtoc(v, 2, "h") for k, v in
+                              (("beg", beg), ("end", end), ("int", step))}
+            else:
+                axes[name] = {k: float(f"{v:.7g}") for k, v in
+                              (("beg", beg), ("end", end), ("int", step))}
+        data = {"system": system, "graph_type": d.graph_type, **axes,
+                "labels": sum(1 for t in d.texts if t.text.strip()) if params.dolabel else 0}
+        if messages:
+            data["text"] = messages
+        return TaskResult(data=data, steps=self.plan(params), outputs=outputs,
+                          warnings=notes + [advice.warn(m, "use solid, dotted, dashed "
+                                                                   "or dotdash")
+                                            for m in messages])
+
+
+_ANCHOR_H = {"c": 0.5, "l": 0.0, "r": 1.0}
+_ANCHOR_V = {"c": 0.5, "t": 0.0, "b": 1.0}
+
+
+def _image_shape(image: str):
+    from ..core import images
+
+    data, _ = images.read(image)
+    return data.shape
+
+
+def _shape_of(params, p):
+    if params.image:
+        ny, nx = _image_shape(params.image)
+        return 1.0, float(nx), 1.0, float(ny)
+    return p["log_x1"], p["log_x2"], p["log_y1"], p["log_y2"]
+
+
+def _over_display(params: WcslabParams, d) -> list[Path]:
+    """The drawing over the image in its frame: the image displayed first when the
+    frame does not hold it."""
+    import numpy as np
+
+    from ..core import display, images
+
+    screen = display.get(None)
+    held = getattr(getattr(screen, "window", None), "frames", {}).get(params.frame)
+    data, header = images.read(params.image)
+    if held is None or getattr(held, "data", None) is None or held.data.shape != data.shape:
+        defaults = DisplayParams(image=params.image)
+        z1, z2, table, _ = display_limits(defaults, data, header)
+        screen.show(data, header, frame=params.frame, name=params.image, window=(z1, z2))
+    marks = []
+    for s in d.strokes:
+        x, y = d.to_plot(s.x, s.y)
+        marks.append(display.Marker(float(x[0]), float(y[0]), shape="path",
+                                    points=tuple(zip(x.tolist(), y.tolist(), strict=True)),
+                                    ltype=s.ltype, colour="lime", tag="wcslab"))
+    for t in d.texts:
+        if not t.text.strip():
+            continue
+        x, y = d.to_plot([t.x], [t.y])
+        marks.append(display.Marker(float(x[0]), float(y[0]), shape="text", label=t.text,
+                                    angle=t.up - 90.0,
+                                    anchor=(_ANCHOR_H[t.h], _ANCHOR_V[t.v]),
+                                    size=t.size, colour="lime", tag="wcslab"))
+    screen.mark(marks, frame=params.frame)
+    view = getattr(getattr(screen, "window", None), "view", None)
+    if view is not None and d.texts:
+        # the labels are beyond the image's edges, as in IRAF's frame: show them
+        from ..core import pixels
+
+        xs, ys = d.to_plot([t.x for t in d.texts] + [d.viewport[0], d.viewport[1]],
+                           [t.y for t in d.texts] + [d.viewport[2], d.viewport[3]])
+        sx, sy = pixels.to_scene(xs, ys)
+        pad = 0.06 * max(float(np.ptp(sx)), float(np.ptp(sy)))
+        view.setRange(xRange=(float(sx.min()) - pad, float(sx.max()) + pad),
+                      yRange=(float(sy.min()) - pad, float(sy.max()) + pad), padding=0)
+    outputs = [screen.output] if hasattr(screen, "output") else []
+    if params.wait and hasattr(screen, "run") and getattr(screen, "owns", False):
+        screen.run()
+    return outputs

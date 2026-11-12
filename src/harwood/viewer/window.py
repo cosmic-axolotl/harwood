@@ -1149,9 +1149,30 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             pen = pg.mkPen(colour, width=1.4)
             r = marker.radius
             if marker.shape == "text":
-                text = pg.TextItem(marker.label, color=colour, anchor=(0, 1))
+                text = pg.TextItem(marker.label, color=colour,
+                                   anchor=marker.anchor or (0, 1), angle=marker.angle)
+                if marker.size:
+                    font = QtGui.QFontDatabase.systemFont(
+                        QtGui.QFontDatabase.SystemFont.FixedFont)
+                    text.setFont(font)
                 text.setPos(sx, sy)
                 text.setParentItem(self.overlay)
+                continue
+            if marker.shape == "path":
+                path = QtGui.QPainterPath()
+                points = [pixels.to_scene(px, py) for px, py in marker.points or ()]
+                if points:
+                    path.moveTo(float(points[0][0]), float(points[0][1]))
+                    for px, py in points[1:]:
+                        path.lineTo(float(px), float(py))
+                dashed = pg.mkPen(colour, width=1.0)
+                style = {2: QtCore.Qt.PenStyle.DashLine, 3: QtCore.Qt.PenStyle.DotLine,
+                         4: QtCore.Qt.PenStyle.DashDotLine}.get(marker.ltype)
+                if style is not None:
+                    dashed.setStyle(style)
+                item = QtWidgets.QGraphicsPathItem(path)
+                item.setPen(dashed)
+                item.setParentItem(self.overlay)
                 continue
             if marker.shape == "circle":
                 item = QtWidgets.QGraphicsEllipseItem(sx - r, sy - r, 2 * r, 2 * r)
