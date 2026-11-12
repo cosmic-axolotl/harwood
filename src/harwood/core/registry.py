@@ -47,6 +47,7 @@ _MODULES = (
     "harwood.tasks.imfit",
     "harwood.tasks.splot",
     "harwood.tasks.specplot",
+    "harwood.tasks.plot",
     "harwood.tasks.modern",
     "harwood.tasks.timeseries",
 )

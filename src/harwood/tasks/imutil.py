@@ -1602,7 +1602,7 @@ class ImHistogram(Task[ImHistogramParams]):
                           outputs=[where] if where else [])
 
 
-def _plot(plot, device: str, title: str, name: str):
+def _plot(plot, device: str, title: str, name: str, task: str = "imhistogram"):
     """IRAF's stdgraph: the window when there is a screen to put one on,
     otherwise (or for a device ending in .svg) a file. Returns the file."""
     from ..core import display, output
@@ -1618,7 +1618,7 @@ def _plot(plot, device: str, title: str, name: str):
 
         run(plot, title)
         return None
-    return plot.write(output.directory("imhistogram") / name)
+    return plot.write(output.directory(task) / name)
 
 
 # ------------------------------------------------------------------- imrename

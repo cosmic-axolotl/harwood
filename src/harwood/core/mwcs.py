@@ -112,6 +112,27 @@ def _world(header, logical: np.ndarray) -> np.ndarray:
     projected = [i for i, ctype in enumerate(types) if ctype.endswith("-TAN")]
     if any(re.search(r"-[A-Z0-9]{3}$", ctype) for ctype in types) and len(projected) != 2:
         return _celestial(header, logical)
+    matrix, inverse, shift = _compiled(header, n, projected)
+    moved = _vmul(_mmul(matrix, inverse), logical)
+    for axis in range(n):
+        if axis not in projected and _has_world(header, axis + 1, n):
+            out[axis] = moved[axis] + shift[axis]
+    if projected:
+        crval = np.array([_number(header, f"CRVAL{i + 1}", 0.0) for i in range(n)])
+        ira, idec = projected if not types[projected[0]].startswith("DE") else projected[::-1]
+        # mw_ltran, for the general case: from the translation, then term by term
+        full = _mmul(matrix, inverse)
+        plane = shift[:, None] + full[:, 0, None] * logical[0]
+        for j in range(1, n):
+            plane = plane + full[:, j, None] * logical[j]
+        out[ira], out[idec] = _tan(plane[ira], plane[idec], crval[ira], crval[idec])
+    return out
+
+
+def _compiled(header, n: int, projected=()) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """mw_sctran's logical to world system, in double: the Wterm's matrix in
+    physical pixels (CD times LTM), the inverse of LTM, and the translation; an
+    axis with a function (`projected`) without its +W."""
     cd = _matrix(header, n)
     crpix = np.array([_number(header, f"CRPIX{i + 1}", 0.0) for i in range(n)])
     crval = np.array([_number(header, f"CRVAL{i + 1}", 0.0) for i in range(n)])
@@ -122,7 +143,6 @@ def _world(header, logical: np.ndarray) -> np.ndarray:
     ltv = np.array([_number(header, f"LTV{i + 1}", 0.0) for i in range(n)])
     inverse = np.linalg.inv(ltm)
     matrix = _mmul(cd, ltm)
-    moved = _vmul(_mmul(matrix, inverse), logical)
     reference = _vmul(inverse, crpix - ltv)
     for i in range(n):
         card = header.cards[f"CRPIX{i + 1}"] if f"CRPIX{i + 1}" in header else None
@@ -135,18 +155,7 @@ def _world(header, logical: np.ndarray) -> np.ndarray:
     for axis in projected:
         shift[axis] = shift[axis] - crval[axis]
     shift = shift + _vmul(matrix, -_vmul(inverse, ltv))
-    for axis in range(n):
-        if axis not in projected and _has_world(header, axis + 1, n):
-            out[axis] = moved[axis] + shift[axis]
-    if projected:
-        ira, idec = projected if not types[projected[0]].startswith("DE") else projected[::-1]
-        # mw_ltran, for the general case: from the translation, then term by term
-        full = _mmul(matrix, inverse)
-        plane = shift[:, None] + full[:, 0, None] * logical[0]
-        for j in range(1, n):
-            plane = plane + full[:, j, None] * logical[j]
-        out[ira], out[idec] = _tan(plane[ira], plane[idec], crval[ira], crval[idec])
-    return out
+    return matrix, inverse, shift
 
 
 def _vmul(matrix, vector) -> np.ndarray:
