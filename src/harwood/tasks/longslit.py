@@ -412,8 +412,20 @@ class FitcoordsParams(TaskParams):
                          "arc.fits.", json_schema_extra={"positional": True})
     fitname: str = Field("", description="Name of the fit. Each image's fit is "
                                          "<fitname><image>; with --combine, the one fit's.")
-    interactive: bool = Field(False, description="Fit by hand (IRAF's interactive=yes): "
-                                                 "not ported yet.")
+    interactive: bool = Field(False, description="Fit by hand in the igsfit graph "
+                                                 "(IRAF's interactive=yes): delete points, "
+                                                 "change the orders, fit again.")
+    cursor: str = Field("", description="The graph's keys from a file instead of the "
+                                        "window, 'x y 1 key' or ':command' a line, read on "
+                                        "from fit to fit (IRAF's graphics cursor file). "
+                                        "Implies --interactive.")
+    answers: str = Field("", description="With --cursor: the answers to 'Fit <image> "
+                                         "interactively' (no, yes, NO, YES) and 'Write "
+                                         "coordinate map to the database' (yes, no), a "
+                                         "line each, in a file. Left out, each is yes.")
+    plotfile: str = Field("", description="The graph as each fit leaves it, in SVG: "
+                                          "<plotfile>, or <plotfile>_<fitname>.svg for "
+                                          "several fits. Empty: none.")
     combine: bool = Field(False, description="One fit of every image's features.")
     database: Path = Field(Path("."), description="Reduction directory holding database/.")
     deletions: str = Field("deletions.db", description="Points fitted with weight zero, "
@@ -480,64 +492,191 @@ class Fitcoords(Task[FitcoordsParams]):
 
     def plan(self, params: FitcoordsParams) -> list[Step]:
         name = params.fitname if params.combine else f"{params.fitname}<image>"
+        by_hand = " by hand" if params.interactive or params.cursor else ""
         return [Step("read", ", ".join(params.images), why=FCWHY["read"]),
                 Step("fit", f"{params.function}, orders {params.xorder} and "
-                            f"{params.yorder}", why=FCWHY["fit"]),
+                            f"{params.yorder}{by_hand}", why=FCWHY["fit"]),
                 Step("write", f"database/fc{name}", why=FCWHY["write"])]
 
     def execute(self, params: FitcoordsParams) -> TaskResult:
         from ..core import fitcoords as fc
+        from ..core import igsfit
 
-        if params.interactive:
-            advice.fail("fitcoords by hand (IRAF's igsfit graph) is not ported yet",
-                        "run it with --no-interactive, and look at the fit's residuals "
-                        "in the log; delete points with --deletions")
         fitname = params.fitname.strip()
         if params.combine and not fitname:
             advice.fail("Fit name not specified", "give --fitname for the combined fit")
         names = [fc.strip_extension(str(spec).split("[")[0])
                  for group in params.images for spec in group.split(",") if spec.strip()]
-        groups = [(fitname, names)] if params.combine else \
-            [(f"{fitname}{n}", [n]) for n in names]
+        groups = [(fitname, names, "Fit interactively")] if params.combine else \
+            [(f"{fitname}{n}", [n], f"Fit {n} interactively") for n in names]
         dbdir = Path(params.database) / "database"
-        shown: list[str] = []
-        warnings: list[str] = []
-        written: list[Path] = []
-        rows = []
-        deletions = Path(params.deletions) if params.deletions.strip() else None
-        for name, images in groups:
-            _log(params.logfiles, fc.header_lines(_sysid(), name, "database", images),
-                 shown)
+        run = _FitcoordsRun(params, len(groups))
+        common = igsfit.Common(params.function, params.xorder, params.yorder)
+        # t_fitcoords: asked before each fit while the answer is yes or no
+        state = "yes" if params.interactive or params.cursor else "NO"
+        for name, images, prompt in groups:
+            if state in ("yes", "no"):
+                state = run.answer(f"{prompt} ({state}): ", state)
+            by_hand = state in ("yes", "YES")
+            run.log(fc.header_lines(_sysid(), name, "database", images))
             try:
                 coords = fc.get_coords(images, dbdir, _header_of)
-                fc.read_deletions(deletions, coords)
-                sf, said = fc.fit(coords, params.function, params.xorder, params.yorder)
+                fc.read_deletions(run.deletions, coords)
+                session = igsfit.Session(coords, common, name)
             except (fc.FitcoordsError, ValueError) as error:
                 if params.combine:
                     advice.fail(str(error), "identify and reidentify the arc first: "
                                 "the features are read from database/id<image>")
-                warnings.append(advice.warn(f"{name}: {error}",
-                                            "identify and reidentify the arc first: the "
-                                            "features are read from database/id<image>"))
+                run.warnings.append(advice.warn(f"{name}: {error}",
+                                                "identify and reidentify the arc first: "
+                                                "the features are read from "
+                                                "database/id<image>"))
                 continue
-            for text in coords.warnings + said:
-                warnings.append(advice.warn(text, "check the database's records"))
-            _log(params.logfiles, fc.result_lines(coords, sf, params.function,
-                                                   params.xorder, params.yorder), shown)
-            path = fc.write_fc(dbdir, name, coords.axis, coords.units, sf)
-            if path not in written:
-                written.append(path)
+            if by_hand:
+                try:
+                    run.by_hand(session, name)
+                    if session.interrupted:
+                        raise fc.FitcoordsError("Interrupt")
+                except fc.FitcoordsError as error:
+                    run.said(session)
+                    advice.fail(str(error), "delete fewer points or lower the orders: a "
+                                "surface needs more points than coefficients")
+            run.said(session)
+            for text in coords.warnings:
+                run.warnings.append(advice.warn(text, "check the database's records"))
+            run.plot(session, name)
+            run.log(fc.result_lines(coords, session.sf, common.function, common.xorder,
+                                    common.yorder))
+            write = True
+            if by_hand:
+                write = run.write_answer()
+            if write:
+                path = fc.write_fc(dbdir, name, coords.axis, coords.units, session.sf)
+                if path not in run.written:
+                    run.written.append(path)
+            if by_hand and run.deletions is not None:
+                fc.write_deletions(run.deletions, coords)
+                if run.deletions not in run.written:
+                    run.written.append(run.deletions)
             pts = coords.points
             used = pts[fc.W] > 0
             rms = float(((pts[fc.R][used].astype(float) ** 2).mean()) ** 0.5) \
                 if used.any() else float("nan")
-            rows.append({"fit": name, "axis": coords.axis, "points": coords.n,
-                         "rms": round(rms, 6), "units": coords.units or ""})
-        data: dict = {"rows": rows}
-        if shown:
-            data["text"] = shown
-        return TaskResult(outputs=written, steps=self.plan(params), data=data,
-                          warnings=warnings, history=[f"fitcoords: {len(rows)} fit(s)"])
+            run.rows.append({"fit": name, "axis": coords.axis, "points": coords.n,
+                             "deleted": int((~used).sum()), "rms": round(rms, 6),
+                             "units": coords.units or "", "written": write})
+        stdout = "".join(run.stdout)
+        data: dict = {"rows": run.rows, "stdout": stdout, "errors": "".join(run.errors)}
+        if stdout:
+            data["text"] = stdout.replace("\a", "").splitlines()
+        return TaskResult(outputs=run.written, steps=self.plan(params), data=data,
+                          warnings=run.warnings,
+                          history=[f"fitcoords: {len(run.rows)} fit(s)"])
+
+
+class _FitcoordsRun:
+    """What fitcoords prints and reads across its fits: the standard output as IRAF's
+    (prompts with no new line), the answers from the file or the window, and the
+    cursor file read on from one fit to the next."""
+
+    def __init__(self, params: FitcoordsParams, nfits: int) -> None:
+        from ..core import igsfit
+
+        self.params = params
+        self.nfits = nfits
+        self.stdout: list[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+        self.written: list[Path] = []
+        self.rows: list[dict] = []
+        name = params.deletions.strip()
+        self.deletions = Path(name) if name else None
+        self.replies = None
+        if params.answers:
+            if not Path(params.answers).is_file():
+                advice.fail(f"answers file '{params.answers}' does not exist",
+                            "write one answer a line: yes or no", FileNotFoundError)
+            self.replies = iter(Path(params.answers).read_text(
+                encoding="utf-8").splitlines())
+        self.reads = None
+        if params.cursor:
+            if not Path(params.cursor).is_file():
+                advice.fail(f"cursor file '{params.cursor}' does not exist",
+                            "write one key a line, 'x y 1 key' or ':command', or use "
+                            "--interactive for the window", FileNotFoundError)
+            self.reads = igsfit.reads(Path(params.cursor).read_text(encoding="utf-8"))
+
+    def log(self, lines: list[str]) -> None:
+        shown: list[str] = []
+        _log(self.params.logfiles, lines, shown)
+        self.stdout.extend(line + "\n" for line in shown)
+
+    def _reply(self) -> str | None:
+        """getline of STDIN: the next line of the answers, or None at their end."""
+        return None if self.replies is None else next(self.replies, None)
+
+    def answer(self, prompt: str, current: str) -> str:
+        """xt_answer: no, yes, NO or YES by minimum match; anything else keeps it."""
+        from ..core.gtools import strdic
+
+        self.stdout.append(prompt)
+        if self.reads is not None:
+            word = self._reply()
+        elif self.nfits == 1:
+            word = "yes"
+        else:
+            from ..viewer.fitcoords_panel import ask_answer
+
+            word = ask_answer(prompt.split(" (")[0] + "?", current)
+        found = strdic(word.strip(), ("no", "yes", "NO", "YES")) if word else 0
+        return ("no", "yes", "NO", "YES")[found - 1] if found else current
+
+    def write_answer(self) -> bool:
+        """'Write coordinate map to the database (yes)? ', read by gargb."""
+        self.stdout.append("Write coordinate map to the database (yes)? ")
+        if self.reads is not None:
+            word = self._reply()
+        else:
+            from ..viewer.fitcoords_panel import ask_write
+
+            word = "yes" if ask_write() else "no"
+        if word is None:
+            return True
+        stripped = word.strip()
+        return True if not stripped or stripped[0] not in "YyNn" else stripped[0] in "Yy"
+
+    def by_hand(self, session, name: str) -> None:
+        from ..core import igsfit
+
+        session.graph()
+        if self.reads is not None:
+            igsfit.run_reads(session, self.reads)
+        else:
+            from ..viewer import fitcoords_panel
+
+            fitcoords_panel.run(session, title=f"fitcoords · {name}")
+
+    def said(self, session) -> None:
+        self.stdout.append(session.out)
+        session.out = ""
+        if session.err:
+            self.errors.append(session.err)
+            for line in session.err.splitlines():
+                self.warnings.append(advice.warn(line, "check the database's records"))
+            session.err = ""
+
+    def plot(self, session, name: str) -> None:
+        """The plot log: the graph as the fit leaves it, as SVG."""
+        target = self.params.plotfile.strip()
+        if not target:
+            return
+        from ..core import igsfit
+
+        path = Path(target) if self.nfits == 1 else \
+            Path(f"{Path(target).with_suffix('')}_{name}.svg")
+        igsfit.svg(session.final(), path)
+        if path not in self.written:
+            self.written.append(path)
 
 
 # ---------------------------------------------------------------- transform

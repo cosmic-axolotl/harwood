@@ -24,6 +24,16 @@ CASES = {
                  "icfit_panel.run(np.arange(10.0), np.arange(10.0) ** 2)",
     "icfit make": "from harwood.viewer import icfit_panel\n"
                   "icfit_panel.make(np.arange(10.0), np.arange(10.0) ** 2)",
+    "fitcoords": "from harwood.core import fitcoords as fc, igsfit\n"
+                 "from harwood.viewer import fitcoords_panel\n"
+                 "x, y = np.meshgrid(np.arange(1.0, 62, 10), np.arange(10.0, 300, 40))\n"
+                 "z = 6300 + y.ravel() * 1.17 + 0.01 * x.ravel()\n"
+                 "pts = np.zeros((7, z.size), np.float32)\n"
+                 "pts[fc.FEATURE] = np.repeat(np.arange(1, 9), 7)\n"
+                 "pts[fc.X], pts[fc.Y], pts[fc.Z], pts[fc.W] = x.ravel(), y.ravel(), z, 1\n"
+                 "coords = fc.Coords(2, 1.0, 61.0, 1.0, 301.0, pts, None)\n"
+                 "fitcoords_panel.run(igsfit.Session(coords, igsfit.Common('chebyshev', 2, 2),"
+                 " 'arc'))",
 }
 
 

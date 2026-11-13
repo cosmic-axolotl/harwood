@@ -22,7 +22,7 @@
 #
 # Counts: 610 distinct task names across 52 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 125, partial: 6, planned: 224, replaced: 94, wontport: 161
+#   available: 126, partial: 5, planned: 224, replaced: 94, wontport: 161
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -804,8 +804,8 @@ tasks:
   fceval: {pkg: twodspec.longslit, domain: spec-2d, status: planned, milestone: later}
   findpeaks: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
     note: "pre-apextract legacy, superseded inside IRAF itself"}
-  fitcoords: {pkg: twodspec.longslit, domain: spec-2d, status: partial, milestone: later, harwood: fitcoords,
-    note: "fc_getcoords (physical to logical through LTV/LTM, IRAF's sort, INDEF and zero weights out), the deletion list, igs_solve1/2/3 in gsurfit double precision (core/gsurfit.py), fc_dbwrite with IRAF's %g, the log with its (xmax, xmin) corner -- every coefficient IRAF 2.18's to the last digit, on 12 cases and the course's 7.2 arc. Missing: fitting by hand in the igsfit graph (--interactive) and the plotfile's graph; --no-interactive gives the same surface"}
+  fitcoords: {pkg: twodspec.longslit, domain: spec-2d, status: available, milestone: later, harwood: fitcoords,
+    note: "fc_getcoords (physical to logical through LTV/LTM, IRAF's sort, INDEF and zero weights out), the deletion list, igs_solve1/2/3 in gsurfit double precision (core/gsurfit.py), fc_dbwrite with IRAF's %g, the log with its (xmax, xmin) corner -- every coefficient IRAF 2.18's to the last digit, on 12 cases and the course's 7.2 arc. By hand, the igsfit graph (core/igsfit.py, viewer/fitcoords_panel.py): c d u f x y z n l p r w ? q, :show :corners :function :xorder :yorder and gtools' :/, the prompts and the database answer; --cursor/--answers as IRAF's cursor file and STDIN. 20 sessions and the 7.2 arc: text, fc, deletions, log and every graph's window and marks as IRAF's metacode. The plotfile is SVG, not metacode"}
   fitfunction: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
     note: "pre-apextract legacy, superseded inside IRAF itself"}
   fitgauss5: {pkg: twodspec.multispec, domain: spec-2d, status: wontport,
