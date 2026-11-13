@@ -41,6 +41,21 @@ def _own_directory(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _in_english(monkeypatch):
+    """The tests read harwood's words in English, whatever the language of the
+    machine running them (the default is the system's, core/i18n.py); the tests
+    of the translations set their own."""
+    monkeypatch.setenv("HARWOOD_LANG", "en")
+    try:
+        from harwood.core import i18n
+    except ImportError:
+        yield
+        return
+    yield
+    i18n.set_language(None)
+
+
+@pytest.fixture(autouse=True)
 def _own_interface_preferences(tmp_path_factory, monkeypatch):
     config = tmp_path_factory.mktemp("config")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))

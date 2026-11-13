@@ -29,6 +29,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from ..core.i18n import N_, tr
 from . import build
 
 console = Console()
@@ -89,18 +90,43 @@ class Harwood(click.Group):
 @click.group(cls=Harwood, invoke_without_command=True,
              context_settings={"help_option_names": ["-h", "--help"]})
 @click.option("--backend", help="Force a kernel backend: reference, numba or rust.")
+@click.option("--lang", type=click.Choice(["en", "pt", "es"]),
+              help="The language of the notices and explanations, for this command "
+                   "(en, pt, es). Saved for good with `harwood language`.")
 @click.version_option(package_name="harwood")
 @click.pass_context
-def app(ctx: click.Context, backend: str | None) -> None:
+def app(ctx: click.Context, backend: str | None, lang: str | None) -> None:
     """harwood -- astronomical reduction with the tasks you already know."""
     if backend:
-        import os
-
         os.environ["HARWOOD_BACKEND"] = backend
+    if lang:
+        os.environ["HARWOOD_LANG"] = lang
     if ctx.invoked_subcommand is None:
         from .session import start
 
         start()
+
+
+@app.command("language")
+@click.argument("choice", required=False, type=click.Choice(["en", "pt", "es", "system"]))
+def language_cmd(choice: str | None) -> None:
+    """The language harwood speaks in: English, Portuguese or Spanish (or the
+    system's). Saved with the window's preferences, so both follow it."""
+    from ..core import i18n
+
+    if choice is not None:
+        path = i18n.save_choice(choice)
+        console.print(i18n.trf("[green]ok[/green] language: {0}  (saved in {1})",
+                               i18n.NAMES.get(choice, i18n.tr("the system's")),
+                               escape(str(path))))
+    now = i18n.language()
+    saved = i18n.saved_choice()
+    console.print(i18n.trf("Now: {0}. Saved: {1}. The system's: {2}.",
+                           i18n.NAMES[now], i18n.NAMES.get(saved, i18n.tr("the system's")),
+                           i18n.NAMES[i18n.system_language()]))
+    if os.environ.get("HARWOOD_LANG"):
+        console.print("[dim]" + i18n.tr("HARWOOD_LANG is set, and wins over what is "
+                                        "saved.") + "[/dim]")
 
 
 # --------------------------------------------------------------- browsing
@@ -1141,8 +1167,10 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         fix = (getattr(error, "fix", "")
                or extras.hint(error) or extras.hint(error.__cause__ or error)
                or "")
+        from ..core.i18n import trf
+
         _print_advice([Advice(str(error), fix, "problem")],
-                      where=error_console, label=f"{name} stopped")
+                      where=error_console, label=trf("{0} stopped", name))
         if os.environ.get("HARWOOD_TRACEBACK"):
             console.print_exception()
         else:
@@ -1251,6 +1279,10 @@ def _is_bare_image(path: Path) -> bool:
         return handle.read(6) == b"SIMPLE"
 
 
+#: The words of the three levels, for the catalogues (core/i18n.py).
+_LEVELS = (N_("note"), N_("warning"), N_("problem"))
+
+
 def _print_advice(items: list[Any], where: Any = None, label: str = "") -> None:
     """Notices, each with what happened and what to do about it.
 
@@ -1263,21 +1295,23 @@ def _print_advice(items: list[Any], where: Any = None, label: str = "") -> None:
     from rich.markup import escape
 
     from ..core.advice import as_advice
+    from ..core.i18n import tr
 
     where = where or console
     width = max(46, min(where.width, 100))
     for item in items:
         advice = as_advice(item)
         colour = advice.colour
+        message, fix = tr(advice.message), tr(advice.fix)
 
         # The label occupies the first line, so it has to come out of that
         # line's budget or the text runs past the edge. textwrap is given an
         # indent of the same visible width, and the spaces are swapped for the
         # coloured label afterwards -- markup would otherwise be counted as
         # characters and every line would wrap short.
-        marker = f"{advice.symbol} {label or advice.level}"
+        marker = f"{advice.symbol} {label or tr(advice.level)}"
         head = "  " + marker + "  "
-        body = textwrap.wrap(advice.message, width,
+        body = textwrap.wrap(message, width,
                              initial_indent=" " * len(head),
                              subsequent_indent="     ") or [" " * len(head)]
         where.print(f"  [{colour}]{marker}[/{colour}]  "
@@ -1285,14 +1319,15 @@ def _print_advice(items: list[Any], where: Any = None, label: str = "") -> None:
         for line in body[1:]:
             where.print(escape(line))
 
-        if advice.fix:
-            lead = "     -> try: "
+        if fix:
+            word = tr("try:")
+            lead = f"     -> {word} "
             for index, line in enumerate(
-                    textwrap.wrap(advice.fix, width,
+                    textwrap.wrap(fix, width,
                                   initial_indent=" " * len(lead),
                                   subsequent_indent=" " * len(lead))):
                 if index == 0:
-                    where.print(f"     [{colour}]->[/{colour}] try: "
+                    where.print(f"     [{colour}]->[/{colour}] {word} "
                                 + escape(line[len(lead):]))
                 else:
                     where.print(escape(line))
@@ -1327,10 +1362,11 @@ def _print_steps(steps: list[Any], explain: bool) -> None:
 
         pad = "       "
         if step.why:
-            for line in textwrap.wrap(step.why, width=76):
-                console.print(f"[dim]{pad}{line}[/dim]")
+            for line in textwrap.wrap(tr(step.why), width=76):
+                console.print(f"[dim]{pad}{escape(line)}[/dim]")
         else:
-            console.print(f"[dim]{pad}(no explanation written for this step yet)[/dim]")
+            console.print(f"[dim]{pad}{tr('(no explanation written for this step yet)')}"
+                          "[/dim]")
 
         if step.measured:
             pairs = "   ".join(f"{key} [bold]{_show(value)}[/bold]"

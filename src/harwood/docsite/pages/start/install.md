@@ -44,3 +44,19 @@ loaded once so that each command starts at once. Tab completes, the arrows
 recall what was typed (here and in the window), and `;` and `&&` put
 several commands on a line. `exit` leaves it. See
 [the command line](page:app/command-line).
+
+## The language
+
+harwood speaks English, Portuguese and Spanish: the window, this
+documentation, the notices and the explanations. It starts in the system's
+language; change it in **View › 🌐 Language**, at the top of every page of
+this documentation, or in the terminal:
+
+```console
+$ harwood language en
+```
+
+The names of the tasks and of their parameters, the parameters'
+descriptions and what IRAF's own tasks print stay as in IRAF, in English,
+and so do the files harwood writes: a reduction reads the same whoever ran
+it.

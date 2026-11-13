@@ -29,6 +29,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..core import packages as tree_of
 from ..core.packages import Node, TaskEntry
+from . import lang
+from .lang import N_, tr
 from .theme import palette as _c
 
 #: Fields that name files to read: the button opens files (several, when the
@@ -200,10 +202,10 @@ class Field:
         else:
             line = QtWidgets.QLineEdit(self._text(value))
             if self.optional and value is None:
-                line.setPlaceholderText("INDEF (not set)" if self.inner in (int, float)
-                                        else "not set")
+                line.setPlaceholderText(tr("INDEF (not set)") if self.inner in (int, float)
+                                        else tr("not set"))
             if self.is_list:
-                line.setPlaceholderText("one, or several separated by commas, or @list")
+                line.setPlaceholderText(tr("one, or several separated by commas, or @list"))
             line.textChanged.connect(changed)
             self.editor = line
             kind = self._kind()
@@ -213,10 +215,10 @@ class Field:
                 layout.setContentsMargins(0, 0, 0, 0)
                 layout.addWidget(line, stretch=1)
                 self.browse = QtWidgets.QPushButton(
-                    {"open": "Choose...", "save": "Save as...",
-                     "folder": "Folder..."}[kind])
+                    tr({"open": N_("Choose..."), "save": N_("Save as..."),
+                        "folder": N_("Folder...")}[kind]))
                 self.browse.setToolTip(
-                    "Pick several with Ctrl or Shift." if self.is_list and kind == "open"
+                    tr("Pick several with Ctrl or Shift.") if self.is_list and kind == "open"
                     else "")
                 self.browse.clicked.connect(lambda: self._pick(kind))
                 layout.addWidget(self.browse)
@@ -357,7 +359,7 @@ class TaskBrowser(QtWidgets.QWidget):
 
         # The way back, always in the same place, always visible.
         top = QtWidgets.QHBoxLayout()
-        self.back_button = QtWidgets.QPushButton("◀  Back")
+        self.back_button = QtWidgets.QPushButton(tr("◀  Back"))
         self.back_button.setObjectName("back")
         self.back_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.back_button.clicked.connect(self.back)
@@ -401,7 +403,8 @@ class TaskBrowser(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         self.search = QtWidgets.QLineEdit()
-        self.search.setPlaceholderText("Find a task: daofind, combine, airmass...")
+        lang.bind(self.search, "setPlaceholderText",
+                  "Find a task: daofind, combine, airmass...")
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(lambda _: self._fill())
         self.search.returnPressed.connect(self._open_first)
@@ -425,8 +428,8 @@ class TaskBrowser(QtWidgets.QWidget):
         scroll.setWidget(self.cards_body)
         layout.addWidget(scroll, stretch=1)
 
-        self.missing_box = QtWidgets.QCheckBox(
-            "Also show IRAF tasks harwood does not have yet")
+        self.missing_box = lang.bind(QtWidgets.QCheckBox(), "setText",
+                                     "Also show IRAF tasks harwood does not have yet")
         self.missing_box.toggled.connect(self._toggle_missing)
         layout.addWidget(self.missing_box)
         return page
@@ -455,7 +458,7 @@ class TaskBrowser(QtWidgets.QWidget):
         layout.addWidget(scroll, stretch=1)
 
         # The command it all amounts to, kept up to date as the form changes.
-        label = QtWidgets.QLabel("The same, typed:")
+        label = lang.bind(QtWidgets.QLabel(), "setText", "The same, typed:")
         label.setObjectName("hint")
         layout.addWidget(label)
         row = QtWidgets.QHBoxLayout()
@@ -469,13 +472,14 @@ class TaskBrowser(QtWidgets.QWidget):
         self.command.setAccessibleName("equivalent command")
         layout.addWidget(self.command)
         row.addStretch(1)
-        copy = QtWidgets.QPushButton("Copy")
-        copy.setToolTip("Copy the command, to paste in a terminal or a script.")
+        copy = lang.bind(QtWidgets.QPushButton(), "setText", "Copy")
+        lang.bind(copy, "setToolTip", "Copy the command, to paste in a terminal or a script.")
         copy.clicked.connect(lambda: QtWidgets.QApplication.clipboard().setText(
             self.command.text()))
         row.addWidget(copy)
-        edit = QtWidgets.QPushButton("Edit as text")
-        edit.setToolTip("Put this command at the command line, to change it there.")
+        edit = lang.bind(QtWidgets.QPushButton(), "setText", "Edit as text")
+        lang.bind(edit, "setToolTip", "Put this command at the command line, to change it "
+                                      "there.")
         edit.clicked.connect(lambda: self.to_prompt.emit(self.command.text()))
         row.addWidget(edit)
         layout.addLayout(row)
@@ -485,20 +489,20 @@ class TaskBrowser(QtWidgets.QWidget):
         layout.addWidget(self.problems)
 
         buttons = QtWidgets.QHBoxLayout()
-        manual = QtWidgets.QPushButton("📖 Manual")
-        manual.setToolTip("This task's page of the documentation: what it does, "
-                          "every parameter, examples three ways. `help <task>` at "
-                          "the prompt prints the same manual.")
+        manual = lang.bind(QtWidgets.QPushButton(), "setText", "📖 Manual")
+        lang.bind(manual, "setToolTip", "This task's page of the documentation: what it "
+                                        "does, every parameter, examples three ways. `help "
+                                        "<task>` at the prompt prints the same manual.")
         manual.clicked.connect(lambda: self.manual.emit(self.task))
         buttons.addWidget(manual)
         buttons.addStretch(1)
-        self.plan_button = QtWidgets.QPushButton("☰  Plan")
+        self.plan_button = lang.bind(QtWidgets.QPushButton(), "setText", "☰  Plan")
         self.plan_button.setObjectName("plan")
-        self.plan_button.setToolTip("Show the steps it would take, with the real "
-                                    "values, and change nothing.")
+        lang.bind(self.plan_button, "setToolTip", "Show the steps it would take, with the "
+                                                  "real values, and change nothing.")
         self.plan_button.clicked.connect(lambda: self.run(plan=True))
         buttons.addWidget(self.plan_button)
-        self.run_button = QtWidgets.QPushButton("▶  Run")
+        self.run_button = lang.bind(QtWidgets.QPushButton(), "setText", "▶  Run")
         self.run_button.setObjectName("run")
         self.run_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.run_button.clicked.connect(lambda: self.run(plan=False))
@@ -512,6 +516,17 @@ class TaskBrowser(QtWidgets.QWidget):
         self.outcome.hide()
         layout.addWidget(self.outcome)
         return page
+
+    def retranslate(self) -> None:
+        """The language changed: the cards and the path again; an open form keeps what
+        was typed in it, and its brief follows."""
+        if self.task is None:
+            self._fill()
+        else:
+            from ..core.registry import get_class
+
+            self.form_brief.setText(tr(get_class(self.task).description or ""))
+        self._show_crumbs()
 
     def _restyle(self) -> None:
         from . import theme
@@ -555,7 +570,7 @@ class TaskBrowser(QtWidgets.QWidget):
     def _show_crumbs(self) -> None:
         if not hasattr(self, "_link"):
             return
-        parts = [("", "all")]
+        parts = [("", "all")]          # the tree's root, named as the docs name it
         if self.node.path:
             pieces = self.node.path.split(".")
             parts += [(".".join(pieces[: i + 1]), piece) for i, piece in enumerate(pieces)]
@@ -567,16 +582,16 @@ class TaskBrowser(QtWidgets.QWidget):
             links.append(f"<b>{html.escape(self.task)}</b>")
         self.crumbs.setText(" › ".join(links))
         if self.task is not None:
-            self.back_button.setText(f"◀  Back to {self.node.name}")
+            self.back_button.setText(lang.trf("◀  Back to {0}", self.node.name))
             self.back_button.setEnabled(True)
         elif self.node.parent_path is not None:
             parent = self.node.parent_path or "all"
-            self.back_button.setText(f"◀  Back to {parent.rsplit('.', 1)[-1]}")
+            self.back_button.setText(lang.trf("◀  Back to {0}", parent.rsplit(".", 1)[-1]))
             self.back_button.setEnabled(True)
         else:
-            self.back_button.setText("◀  Back")
+            self.back_button.setText(tr("◀  Back"))
             self.back_button.setEnabled(False)
-        self.back_button.setToolTip("Alt+Left, Esc, or Backspace outside a text field.")
+        self.back_button.setToolTip(tr("Alt+Left, Esc, or Backspace outside a text field."))
 
     def _toggle_missing(self, on: bool) -> None:
         self.show_missing = on
@@ -599,39 +614,42 @@ class TaskBrowser(QtWidgets.QWidget):
             return
         node = self.node
         self.title.setText(f"{node.icon}  {node.name}")
-        self.brief.setText(node.brief)
+        self.brief.setText(tr(node.brief))
         packages = [child for child in node.children if self._visible(child)]
         if packages:
-            self.cards.addWidget(_heading("Packages"))
+            self.cards.addWidget(_heading(tr("Packages")))
         for child in packages:
             have, total = child.available_count(), child.total_count()
-            card = Card(child.icon, child.name, child.brief,
-                        f"{have} of {total}" if self.show_missing else _plural(have, "task"),
-                        muted=have == 0)
-            card.setAccessibleDescription(f"package. {child.brief}")
+            card = Card(child.icon, child.name, tr(child.brief),
+                        lang.trf("{0} of {1}", have, total) if self.show_missing
+                        else _plural(have), muted=have == 0)
+            card.setAccessibleDescription(lang.trf("package. {0}", tr(child.brief)))
             card.clicked.connect(lambda _=False, p=child.path: self.go(p))
             self.cards.addWidget(card)
         tasks = [t for t in node.tasks if t.available or self.show_missing]
         if tasks:
-            self.cards.addWidget(_heading("Tasks"))
+            self.cards.addWidget(_heading(tr("Tasks")))
         for entry in tasks:
             self.cards.addWidget(self._task_card(entry))
         if not packages and not tasks:
-            empty = QtWidgets.QLabel("harwood has nothing here yet. Tick the box "
-                                     "below to see what IRAF has.")
+            empty = QtWidgets.QLabel(tr("harwood has nothing here yet. Tick the box "
+                                        "below to see what IRAF has."))
             empty.setWordWrap(True)
             empty.setObjectName("hint")
             self.cards.addWidget(empty)
         self.cards.addStretch(1)
 
     def _task_card(self, entry: TaskEntry, where: str = "") -> Card:
-        brief = entry.brief if entry.available else _missing_note(entry)
+        brief = tr(entry.brief) if entry.available else _missing_note(entry)
         if where:
             brief = f"{brief}  ({where.replace('.', ' › ')})"
         name = entry.name if entry.name == entry.iraf or not entry.iraf \
             else f"{entry.name}  (IRAF {entry.iraf})"
+        status = tr({"planned": N_("planned"), "partial": N_("partial"),
+                     "replaced": N_("replaced"), "wontport": N_("wontport")}.get(
+                         entry.status, entry.status))
         card = Card("▸" if entry.available else "·", name, brief,
-                    "" if entry.available else entry.status, muted=not entry.available)
+                    "" if entry.available else status, muted=not entry.available)
         if entry.available:
             card.clicked.connect(lambda _=False, n=entry.name: self.open_task(n))
         else:
@@ -639,7 +657,7 @@ class TaskBrowser(QtWidgets.QWidget):
         return card
 
     def _fill_search(self, query: str) -> None:
-        self.title.setText("Search")
+        self.title.setText(tr("Search"))
         found: list[tuple[TaskEntry, str]] = []
         seen = set()
 
@@ -647,7 +665,7 @@ class TaskBrowser(QtWidgets.QWidget):
             for entry in node.tasks:
                 if not (entry.available or self.show_missing):
                     continue
-                text = f"{entry.name} {entry.iraf} {entry.brief}".lower()
+                text = f"{entry.name} {entry.iraf} {entry.brief} {tr(entry.brief)}".lower()
                 if query in text and (entry.name, node.path) not in seen:
                     seen.add((entry.name, node.path))
                     found.append((entry, node.path))
@@ -660,8 +678,8 @@ class TaskBrowser(QtWidgets.QWidget):
         found.sort(key=lambda item: (not item[0].name.startswith(query),
                                      query not in item[0].name, not item[0].available,
                                      item[0].name))
-        self.brief.setText(f"{_plural(len(found), 'task')} found" + ("" if found else
-                           " -- try a shorter word, or tick the box below."))
+        self.brief.setText(lang.trf("{0} found", _plural(len(found))) + ("" if found else
+                           tr(" -- try a shorter word, or tick the box below.")))
         for entry, where in found[:60]:
             self.cards.addWidget(self._task_card(entry, where))
         self.cards.addStretch(1)
@@ -701,7 +719,7 @@ class TaskBrowser(QtWidgets.QWidget):
         _clear(self.form_layout)
         self.fields = []
         self.form_title.setText(f"▸  {name}")
-        self.form_brief.setText(cls.description or "")
+        self.form_brief.setText(tr(cls.description or ""))
         needed, rest = [], []
         for field_name, info in cls.Params.model_fields.items():
             entry = resolved.get(field_name)
@@ -714,18 +732,18 @@ class TaskBrowser(QtWidgets.QWidget):
                 if shown:
                     is_list = get_origin(_unwrap(info.annotation)[0]) is list
                     value = [shown] if is_list else shown
-                    origin = "the image on display"
+                    origin = tr("the image on display")
             field = Field(field_name, info, value, origin, self._changed)
             extra = info.json_schema_extra or {}
             (needed if info.is_required() or extra.get("positional") else rest).append(field)
             self.fields.append(field)
 
         if needed:
-            self.form_layout.addWidget(_heading("What it works on"))
+            self.form_layout.addWidget(_heading(tr("What it works on")))
             for field in needed:
                 self._add_field(self.form_layout, field)
         if rest:
-            more = QtWidgets.QPushButton(f"▸  More options ({len(rest)})")
+            more = QtWidgets.QPushButton(lang.trf("▸  More options ({0})", len(rest)))
             more.setObjectName("more")
             more.setCheckable(True)
             box = QtWidgets.QWidget()
@@ -740,7 +758,7 @@ class TaskBrowser(QtWidgets.QWidget):
 
             def toggle(on: bool, button=more, count=count, body=box) -> None:
                 body.setVisible(on)
-                button.setText(f"{'▾' if on else '▸'}  More options ({count})")
+                button.setText(("▾" if on else "▸") + lang.trf("  More options ({0})", count))
             more.toggled.connect(toggle)
             toggle(more.isChecked())
             self.form_layout.addWidget(more)
@@ -753,7 +771,7 @@ class TaskBrowser(QtWidgets.QWidget):
 
     def _add_field(self, layout: QtWidgets.QVBoxLayout, field: Field) -> None:
         if not isinstance(field.editor, QtWidgets.QCheckBox):
-            label = QtWidgets.QLabel(field.name + ("  (needed)" if field.required else ""))
+            label = QtWidgets.QLabel(field.name + (tr("  (needed)") if field.required else ""))
             label.setObjectName("param")
             label.setBuddy(field.editor)
             layout.addWidget(label)
@@ -787,7 +805,7 @@ class TaskBrowser(QtWidgets.QWidget):
             elif message is not None:
                 message.hide()
             if field.error == "needed":
-                problems.append(f"{field.name} is needed")
+                problems.append(lang.trf("{0} is needed", field.name))
             if given:
                 values[field.name] = value
         return values, problems
@@ -827,8 +845,9 @@ class TaskBrowser(QtWidgets.QWidget):
         return ok, printed
 
 
-def _plural(count: int, word: str) -> str:
-    return f"{count} {word}" + ("" if count == 1 else "s")
+def _plural(count: int) -> str:
+    """'1 task', '3 tasks', in the window's language."""
+    return lang.trf("{0} task" if count == 1 else "{0} tasks", count)
 
 
 def _heading(text: str) -> QtWidgets.QLabel:
@@ -838,10 +857,10 @@ def _heading(text: str) -> QtWidgets.QLabel:
 
 
 def _missing_note(entry: TaskEntry) -> str:
-    words = {"planned": "Not in harwood yet.", "partial": "Partly in harwood.",
-             "replaced": "Done another way in harwood.",
-             "wontport": "Not carried over."}
-    head = words.get(entry.status, "Not in harwood.")
+    words = {"planned": N_("Not in harwood yet."), "partial": N_("Partly in harwood."),
+             "replaced": N_("Done another way in harwood."),
+             "wontport": N_("Not carried over.")}
+    head = tr(words.get(entry.status, N_("Not in harwood.")))
     return f"{head} {entry.note}".strip()
 
 

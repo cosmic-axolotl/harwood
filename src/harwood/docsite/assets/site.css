@@ -56,7 +56,14 @@ code, pre { font-family: var(--mono); font-size: 0.9em; }
 .results .where { color: var(--muted); font-size: 0.85em; }
 .results .snip { display: block; color: var(--muted); font-size: 0.85em; }
 .results .none { padding: 0.5rem; color: var(--muted); }
-.look { display: flex; gap: 0.4rem; margin-left: auto; }
+/* the languages: the one shown is boxed and bold, never told by colour alone */
+.langs { display: flex; align-items: center; gap: 0.25rem; margin-left: auto;
+  font-size: 0.85rem; }
+.langs a { color: var(--ink); text-decoration: none; padding: 0.2rem 0.45rem;
+  border: 1px solid transparent; border-radius: 10px; }
+.langs a:hover, .langs a:focus { border-color: var(--line); }
+.langs a[aria-current=true] { border: 2px solid var(--accent); font-weight: 700; }
+.look { display: flex; gap: 0.4rem; margin-left: 0.6rem; }
 .look button, .menu { background: var(--ground); color: var(--ink); border: 1px solid var(--line);
   border-radius: 14px; padding: 0.3rem 0.7rem; font: inherit; font-size: 0.85rem; cursor: pointer; }
 .look button[aria-pressed=true] { border: 2px solid var(--accent); font-weight: 700; }

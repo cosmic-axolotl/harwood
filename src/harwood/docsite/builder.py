@@ -35,16 +35,54 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..core.i18n import LANGUAGES, N_, NAMES, tr, trf
 from . import examples as ex
 
 HERE = Path(__file__).resolve().parent
 PAGES = HERE / "pages"
+#: The written pages in another language, translations/<language>/<page>.md, each
+#: beginning with <!-- from: <the first 12 of the English page's sha256> -->.
+TRANSLATIONS = HERE / "translations"
 ASSETS = HERE / "assets"
 FONTS = HERE.parent / "data" / "fonts"
 
 #: Admonitions, with a symbol and a word each: never colour alone.
-CALLOUTS = {"note": ("●", "Note"), "tip": ("✦", "Tip"), "warning": ("▲", "Warning"),
-            "problem": ("✖", "Problem")}
+CALLOUTS = {"note": ("●", N_("Note")), "tip": ("✦", N_("Tip")),
+            "warning": ("▲", N_("Warning")), "problem": ("✖", N_("Problem"))}
+
+#: The language the site is being built in (build() sets it for each one).
+_LANG = "en"
+
+
+def _t(text: str) -> str:
+    """A text of the site's own, in the language being built."""
+    return tr(text, _LANG)
+
+
+def _tf(text: str, *values) -> str:
+    return trf(text, *values, code=_LANG)
+
+
+def source_stamp(name: str) -> str:
+    """What a translation of the written page `name` records it was made from."""
+    return hashlib.sha256((PAGES / name).read_bytes()).hexdigest()[:12]
+
+
+def translation(name: str, code: str) -> Path:
+    return TRANSLATIONS / code / name
+
+
+def _source(name: str) -> tuple[str, bool]:
+    """A written page's Markdown in the language being built, and whether it is
+    translated (if not, the English)."""
+    english = (PAGES / name).read_text(encoding="utf-8")
+    if _LANG == "en":
+        return english, True
+    path = translation(name, _LANG)
+    if not path.exists():
+        return english, False
+    text = path.read_text(encoding="utf-8")
+    return re.sub(r"\A<!--.*?-->\s*", "", text, flags=re.S), True
 
 
 class BuildError(Exception):
@@ -67,6 +105,7 @@ class Page:
     body: str = ""
     headings: list[tuple[int, str, str]] = field(default_factory=list)
     text: str = ""                      #: plain text, for the search
+    translated: bool = True             #: False: the English, said so on the page
 
 
 # ------------------------------------------------------------------ where
@@ -119,7 +158,7 @@ def _fingerprint() -> str:
     digest = hashlib.sha256()
     for root in (HERE.parent,):
         for path in sorted(root.rglob("*")):
-            if path.suffix in (".py", ".md", ".yaml", ".css", ".js") and \
+            if path.suffix in (".py", ".md", ".yaml", ".css", ".js", ".po") and \
                     "__pycache__" not in path.parts:
                 digest.update(str(path.relative_to(root)).encode())
                 digest.update(path.read_bytes())
@@ -144,7 +183,7 @@ class Site:
 
 
 def collect() -> Site:
-    """Every page, laid out but not rendered."""
+    """Every page, laid out but not rendered, in the language being built."""
     import yaml
 
     from ..core import packages
@@ -155,13 +194,13 @@ def collect() -> Site:
     for section in nav:
         members = []
         for name in section["pages"]:
-            path = PAGES / name
-            text = path.read_text(encoding="utf-8")
+            text, translated = _source(name)
             title = next((line[2:].strip() for line in text.splitlines()
-                          if line.startswith("# ")), path.stem)
+                          if line.startswith("# ")), Path(name).stem)
             members.append(site.add(Page(name.removesuffix(".md") + ".html", title,
-                                         section["section"], text)))
-        site.nav.append((section["section"], members))
+                                         _t(section["section"]), text,
+                                         translated=translated)))
+        site.nav.append((_t(section["section"]), members))
 
     root = packages.tree()
     tasks = list_tasks()
@@ -170,34 +209,55 @@ def collect() -> Site:
     def walk(node, trail):
         crumbs = trail + [(node.name, f"packages/{node.path or 'all'}.html")]
         page = site.add(Page(f"packages/{node.path or 'all'}.html",
-                             node.name if node.path else "All packages", "Tasks",
+                             node.name if node.path else _t("All packages"), _t("Tasks"),
                              kind="package", key=node.path, crumbs=trail))
         package_pages.append(page)
         for entry in node.tasks:
             if entry.available and entry.name in tasks and \
                     f"tasks/{entry.name}.html" not in site.by_url:
                 task_pages.append(site.add(Page(
-                    f"tasks/{entry.name}.html", entry.name, "Tasks", kind="task",
+                    f"tasks/{entry.name}.html", entry.name, _t("Tasks"), kind="task",
                     key=entry.name, crumbs=crumbs)))
         for child in node.children:
             walk(child, crumbs)
 
     walk(root, [])
-    site.nav.append(("Tasks", package_pages[:1] + task_pages))
+    site.nav.append((TASKS_NAV, package_pages[:1] + task_pages))
     return site
 
 
+#: The name the tasks' part of the contents goes by inside the builder.
+TASKS_NAV = "\0tasks"
+
+
+def language_root(code: str) -> str:
+    """Where a language's pages are, from the site's root: English at the root."""
+    return "" if code == "en" else f"{code}/"
+
+
 def build(out: Path | str | None = None) -> Path:
-    """Write the whole site into `out`. Returns the directory."""
+    """Write the whole site into `out`, in every language: English at the root,
+    the others in pt/ and es/, the assets shared. Returns the directory."""
+    global _LANG
     out = Path(out or location())
-    site = collect()
-    for page in site.pages:
-        try:
-            render(page, site)
-        except Exception as error:          # one bad page, said, not a traceback
-            site.problems.append(f"{page.url}: {type(error).__name__}: {error}")
-    if site.problems:
-        raise BuildError(site.problems)
+    sites = {}
+    problems = []
+    try:
+        for code in LANGUAGES:
+            _LANG = code
+            site = collect()
+            for page in site.pages:
+                try:
+                    render(page, site)
+                except Exception as error:          # one bad page, said, not a traceback
+                    site.problems.append(f"{language_root(code)}{page.url}: "
+                                         f"{type(error).__name__}: {error}")
+            problems += site.problems
+            sites[code] = site
+    finally:
+        _LANG = "en"
+    if problems:
+        raise BuildError(problems)
 
     if out.exists():
         shutil.rmtree(out)
@@ -207,16 +267,23 @@ def build(out: Path | str | None = None) -> Path:
     for font in FONTS.iterdir():
         shutil.copy(font, out / "assets" / "fonts" / font.name)
     (out / "assets" / "look.css").write_text(_look_css(), encoding="utf-8")
-    (out / "assets" / "search-index.js").write_text(
-        "window.HARWOOD_INDEX = " + json.dumps(
-            [{"t": p.title, "u": p.url, "s": p.section,
-              "h": [h[2] for h in p.headings], "x": p.text[:4000]} for p in site.pages],
-            ensure_ascii=False) + ";\n", encoding="utf-8")
-    order = [page for _, members in site.nav for page in members]
-    for page in site.pages:
-        target = out / page.url
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_layout(page, site, order), encoding="utf-8")
+    try:
+        for code, site in sites.items():
+            _LANG = code
+            home = out / language_root(code)
+            home.mkdir(parents=True, exist_ok=True)
+            (home / "search-index.js").write_text(
+                "window.HARWOOD_INDEX = " + json.dumps(
+                    [{"t": p.title, "u": p.url, "s": p.section,
+                      "h": [h[2] for h in p.headings], "x": p.text[:4000]}
+                     for p in site.pages], ensure_ascii=False) + ";\n", encoding="utf-8")
+            order = [page for _, members in site.nav for page in members]
+            for page in site.pages:
+                target = home / page.url
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(_layout(page, site, order), encoding="utf-8")
+    finally:
+        _LANG = "en"
     (out / ".source").write_text(_fingerprint(), encoding="utf-8")
     return out
 
@@ -228,12 +295,22 @@ def render(page: Page, site: Site) -> None:
     env: dict[str, Any] = {"page": page, "site": site, "ids": set()}
     if page.kind == "written":
         page.body = _md().render(page.source, env)
+        if not page.translated:
+            page.body = _untranslated() + page.body
     elif page.kind == "task":
         page.body = _task_body(page, site, env)
     else:
         page.body = _package_body(page, site, env)
     page.headings = env.get("headings", [])
     page.text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", page.body)))
+
+
+def _untranslated() -> str:
+    """Said at the top of a page shown in English for want of a translation."""
+    said = _t("This page has not been translated yet; it is shown in English.")
+    return (f'<div class="callout note" role="note" lang="{_LANG}"><p class="callout-title">'
+            f'<span aria-hidden="true">●</span> {html.escape(_t("Not translated yet"))}</p>'
+            f"<p>{html.escape(said)}</p></div>")
 
 
 def _md():
@@ -330,7 +407,7 @@ def _fence(self, tokens, idx, options, env):
         symbol, word = CALLOUTS[info]
         inner = _md().render(content, {**env, "ids": env["ids"]})
         return (f'<div class="callout {info}" role="note"><p class="callout-title">'
-                f'<span aria-hidden="true">{symbol}</span> {word}</p>{inner}</div>')
+                f'<span aria-hidden="true">{symbol}</span> {_t(word)}</p>{inner}</div>')
     if info == "generated":
         return _generated(content.strip(), env)
     return _code(content, info or "text")
@@ -348,7 +425,8 @@ def _code(code: str, language: str) -> str:
         lexer = get_lexer_by_name("text")
     body = highlight(code, lexer, HtmlFormatter(nowrap=True))
     return (f'<div class="code"><button class="copy" type="button" '
-            f'aria-label="Copy this">Copy</button><pre class="highlight lang-{language}">'
+            f'aria-label="{_t("Copy this")}">{_t("Copy")}</button>'
+            f'<pre class="highlight lang-{language}">'
             f"<code>{body}</code></pre></div>")
 
 
@@ -365,22 +443,24 @@ def _example(content: str, env: dict) -> str:
     number = len(site.examples)
     terminal = _code("\n".join(f"$ {line}" for line in example.lines), "console")
     if example.output:
-        terminal += ('<p class="prints">It prints, among the rest:</p>'
+        terminal += (f'<p class="prints">{_t("It prints, among the rest:")}</p>'
                      f'<pre class="output"><code>{html.escape(example.output)}</code></pre>')
     if python is None:
-        python_html = ("<p>Nothing to call from Python here: this is a command for "
-                       "reading, in the terminal or at the window's prompt.</p>")
+        python_html = ("<p>" + _t("Nothing to call from Python here: this is a command for "
+                                  "reading, in the terminal or at the window's prompt.")
+                       + "</p>")
     else:
         python_html = _code(python, "python")
     if clicks is None:
-        clicks_html = ("<p>Type it at the window's prompt (Command line, Ctrl+L): "
-                       "it is a command for reading, not a task with a form.</p>")
+        clicks_html = ("<p>" + _t("Type it at the window's prompt (Command line, Ctrl+L): "
+                                  "it is a command for reading, not a task with a form.")
+                       + "</p>")
     else:
         parts = []
         for line, steps in zip(example.lines, clicks, strict=True):
-            items = "".join(f"<li>{html.escape(step)}</li>" for step in steps)
-            head = (f'<p class="for">For <code>{html.escape(line)}</code>:</p>'
-                    if len(clicks) > 1 else "")
+            items = "".join(f"<li>{html.escape(_t(step))}</li>" for step in steps)
+            head = ('<p class="for">' + _tf("For {0}:", f"<code>{html.escape(line)}</code>")
+                    + "</p>" if len(clicks) > 1 else "")
             parts.append(f"{head}<ol>{items}</ol>")
         clicks_html = "".join(parts)
     start = _relative("start/sample.html", page.url)
@@ -389,8 +469,8 @@ def _example(content: str, env: dict) -> str:
         f'aria-controls="ex{number}-{way}-panel" '
         f'aria-selected="{str(way == "terminal").lower()}" '
         f'data-way="{way}" tabindex="{0 if way == "terminal" else -1}">{label}</button>'
-        for way, label in (("terminal", "Terminal"), ("python", "Python"),
-                           ("clicks", "Clicks")))
+        for way, label in (("terminal", _t("Terminal")), ("python", "Python"),
+                           ("clicks", _t("Clicks"))))
     panels = "".join(
         f'<div role="tabpanel" id="ex{number}-{way}-panel" aria-labelledby="ex{number}-{way}" '
         f'data-way="{way}"{"" if way == "terminal" else " hidden"}>{body}</div>'
@@ -400,17 +480,19 @@ def _example(content: str, env: dict) -> str:
     route = ex.path_to(example.after)
     there = ""
     if route:
-        there = ("<details class=\"there\"><summary>How to get there</summary>"
-                 "<p>From the sample night, as written:</p>"
+        there = (f"<details class=\"there\"><summary>{_t('How to get there')}</summary>"
+                 f"<p>{_t('From the sample night, as written:')}</p>"
                  + _code("\n".join(f"$ {line}" for line in route), "console") +
                  "</details>")
-    return (f'<section class="example" aria-label="Example{title}">'
-            f'<p class="example-title"><span aria-hidden="true">▶</span> Example{title}</p>'
-            f'<p class="example-start">Starts from {ex.STARTS[example.after]} '
-            f'(<a href="{start}">the sample night</a>).'
-            + (" It fails, on purpose: this is what failing looks like." if example.fails
-               else "") + f"</p>{there}"
-            f'<div class="tabs" role="tablist" aria-label="Ways to do it">{tabs}</div>'
+    word = _t("Example")
+    return (f'<section class="example" aria-label="{word}{title}">'
+            f'<p class="example-title"><span aria-hidden="true">▶</span> {word}{title}</p>'
+            '<p class="example-start">'
+            + _tf("Starts from {0} ({1}).", _t(ex.STARTS[example.after]),
+                  f'<a href="{start}">{_t("the sample night")}</a>')
+            + (" " + _t("It fails, on purpose: this is what failing looks like.")
+               if example.fails else "") + f"</p>{there}"
+            f'<div class="tabs" role="tablist" aria-label="{_t("Ways to do it")}">{tabs}</div>'
             f"{panels}</section>")
 
 
@@ -422,10 +504,12 @@ def _generated(what: str, env: dict) -> str:
     if what == "stages":
         parts = []
         for said, commands in ex.STAGES.values():
+            said = _t(said)
             parts.append(f"<li><b>{html.escape(said[0].upper() + said[1:])}</b>"
                          + (_code("\n".join(f"$ {c}" for c in commands), "console")
                             if commands
-                            else " -- what <code>harwood docs --sample</code> writes.")
+                            else " -- " + _tf("what {0} writes.",
+                                              "<code>harwood docs --sample</code>"))
                          + "</li>")
         return f'<ol class="stages">{"".join(parts)}</ol>'
 
@@ -448,89 +532,99 @@ def _task_body(page: Page, site: Site, env: dict) -> str:
     cls = get_class(page.key)
     md = _md()
     parts = [f"<h1>{html.escape(cls.name)}</h1>",
-             f'<p class="lead">{html.escape(cls.description)}</p>']
-    facts = [f"package {html.escape('.'.join(c[0] for c in page.crumbs[1:]) or 'all')}"]
+             f'<p class="lead">{html.escape(_t(cls.description))}</p>']
+    facts = [_tf("package {0}", html.escape(".".join(c[0] for c in page.crumbs[1:])
+                                             or "all"))]
     iraf = cls.iraf or cls.name
     if migration.lookup(iraf):
         facts.append(f"IRAF: {html.escape(iraf)}"
-                     + (" (the same name)" if iraf == cls.name else ""))
+                     + (" " + _t("(the same name)") if iraf == cls.name else ""))
     if cls.defaults:
-        facts.append("a preset: " + html.escape(", ".join(
+        facts.append(_t("a preset:") + " " + html.escape(", ".join(
             f"{k}={v}" for k, v in cls.defaults.items())))
     if cls.needs_window:
-        facts.append("works in the window")
+        facts.append(_t("works in the window"))
     parts.append('<p class="facts">' + "".join(f"<span>{f}</span>" for f in facts) + "</p>")
 
     manual = PAGES / "tasks" / f"{cls.name}.md"
     if manual.exists():
-        parts.append(md.render(manual.read_text(encoding="utf-8"), env))
+        text, translated = _source(f"tasks/{cls.name}.md")
+        if not translated:
+            parts.append(_untranslated())
+        parts.append(md.render(text, env))
     elif cls.__doc__ and cls.__doc__.strip():
         text = textwrap.dedent("\n".join(cls.__doc__.splitlines()[1:]))
         first = cls.__doc__.splitlines()[0].strip()
         parts.append(md.render(f"{first}\n\n{text}".strip(), env))
     else:
         parts.append(md.render(
-            "```note\nThis task has no long manual yet. Its parameters below are "
-            "complete -- each one says what it does -- and `harwood "
-            f"{cls.name} --plan` shows what a run would do, step by step, before "
-            "it does it.\n```", env))
+            "```note\n" + _tf("This task has no long manual yet. Its parameters below are "
+                              "complete -- each one says what it does -- and `harwood "
+                              "{0} --plan` shows what a run would do, step by step, "
+                              "before it does it.", cls.name) + "\n```", env))
 
     command = _task_command(cls.name)
     usage = " ".join(command.collect_usage_pieces(_context(command)))
-    env.setdefault("headings", []).append((2, "command-line", "Command line"))
+    link = _t("Link to this section")
+    env.setdefault("headings", []).append((2, "command-line", _t("Command line")))
     env["ids"].add("command-line")
-    parts.append('<h2 id="command-line">Command line<a class="anchor" '
-                 'href="#command-line" aria-label="Link to this section">#</a></h2>')
+    parts.append(f'<h2 id="command-line">{_t("Command line")}<a class="anchor" '
+                 f'href="#command-line" aria-label="{link}">#</a></h2>')
     parts.append(_code(f"harwood {cls.name} {usage}", "text"))
-    parts.append(md.render(
-        f"Every parameter below is also an option, `--name value`; "
-        f"`harwood help {cls.name}` prints this page's table in the terminal, and "
-        f"`harwood lpar {cls.name}` the values a run would actually use, and where "
-        "each came from.", env))
+    parts.append(md.render(_tf(
+        "Every parameter below is also an option, `--name value`; "
+        "`harwood help {0}` prints this page's table in the terminal, and "
+        "`harwood lpar {0}` the values a run would actually use, and where "
+        "each came from.", cls.name), env))
 
-    env["headings"].append((2, "parameters", "Parameters"))
+    env["headings"].append((2, "parameters", _t("Parameters")))
     env["ids"].add("parameters")
     rows = []
     for name, info in cls.Params.model_fields.items():
         required = info.is_required()
         positional = required or (info.json_schema_extra or {}).get("positional")
-        default = "required" if required else _show(info.get_default(
+        default = _t("required") if required else _show(info.get_default(
             call_default_factory=True))
-        how = "positional" if positional else f"--{name.replace('_', '-')}"
+        how = _t("positional") if positional else f"--{name.replace('_', '-')}"
         rows.append(
             f'<tr id="param-{name}"><th scope="row"><code>{html.escape(name)}</code></th>'
             f"<td>{html.escape(how)}</td><td><code>{html.escape(_typename(info.annotation))}"
             f"</code></td><td>{html.escape(str(default))}</td>"
             f"<td>{html.escape(info.description or '')}</td></tr>")
-    parts.append('<h2 id="parameters">Parameters<a class="anchor" href="#parameters" '
-                 'aria-label="Link to this section">#</a></h2>'
-                 '<div class="table"><table class="params"><thead><tr><th>parameter</th>'
-                 "<th>written</th><th>type</th><th>default</th><th>what it does</th></tr>"
-                 f"</thead><tbody>{''.join(rows)}</tbody></table></div>")
+    heads = "".join(f"<th>{_t(h)}</th>" for h in (
+        N_("parameter"), N_("written"), N_("type"), N_("default"), N_("what it does")))
+    parts.append(f'<h2 id="parameters">{_t("Parameters")}<a class="anchor" '
+                 f'href="#parameters" aria-label="{link}">#</a></h2>'
+                 + ("" if _LANG == "en" else '<p class="hint">' + _t(
+                     "The descriptions of the parameters are in English, as harwood "
+                     "keeps them everywhere.") + "</p>")
+                 + '<div class="table"><table class="params"><thead><tr>'
+                 f"{heads}</tr></thead><tbody>{''.join(rows)}</tbody></table></div>")
 
     entry = migration.lookup(iraf)
     if entry:
-        env["headings"].append((2, "in-iraf", "In IRAF"))
+        env["headings"].append((2, "in-iraf", _t("In IRAF")))
         env["ids"].add("in-iraf")
         note = " ".join(str(entry.get("note", "")).split())
         status = entry.get("status", "")
-        said = {"available": "harwood has it, complete.",
-                "partial": "harwood has it, with gaps named below.",
+        said = {"available": N_("harwood has it, complete."),
+                "partial": N_("harwood has it, with gaps named below."),
                 }.get(status, status)
-        parts.append('<h2 id="in-iraf">In IRAF<a class="anchor" href="#in-iraf" '
-                     'aria-label="Link to this section">#</a></h2>'
-                     f"<p>IRAF calls it <code>{html.escape(iraf)}</code>. {html.escape(said)}"
+        parts.append(f'<h2 id="in-iraf">{_t("In IRAF")}<a class="anchor" href="#in-iraf" '
+                     f'aria-label="{link}">#</a></h2>'
+                     "<p>" + _tf("IRAF calls it {0}.", f"<code>{html.escape(iraf)}</code>")
+                     + f" {html.escape(_t(said))}"
                      + (f" {html.escape(note)}" if note else "") + "</p>")
 
     siblings = [p for p in site.pages if p.kind == "task" and p.crumbs == page.crumbs
                 and p is not page]
     if siblings:
-        env["headings"].append((2, "same-package", "In the same package"))
+        env["headings"].append((2, "same-package", _t("In the same package")))
         env["ids"].add("same-package")
         links = "".join(f'<li><a href="{_relative(p.url, page.url)}">{p.title}</a></li>'
                         for p in siblings)
-        parts.append('<h2 id="same-package">In the same package<a class="anchor" '
-                     'href="#same-package" aria-label="Link to this section">#</a></h2>'
+        parts.append(f'<h2 id="same-package">{_t("In the same package")}<a class="anchor" '
+                     f'href="#same-package" aria-label="{link}">#</a></h2>'
                      f'<ul class="inline">{links}</ul>')
     return "".join(parts)
 
@@ -548,11 +642,11 @@ def _package_body(page: Page, site: Site, env: dict) -> str:
     from ..core import packages
 
     node = packages.find(page.key)
-    title = node.name if node.path else "All packages"
+    title = node.name if node.path else _t("All packages")
     parts = [f"<h1>{html.escape(title)}</h1>",
-             f'<p class="lead">{html.escape(node.brief)}</p>']
+             f'<p class="lead">{html.escape(_t(node.brief))}</p>']
     if node.children:
-        env.setdefault("headings", []).append((2, "packages", "Packages"))
+        env.setdefault("headings", []).append((2, "packages", _t("Packages")))
         cards = []
         for child in node.children:
             have, total = child.available_count(), child.total_count()
@@ -560,28 +654,32 @@ def _package_body(page: Page, site: Site, env: dict) -> str:
             cards.append(
                 f'<li{muted}><a href="{_relative(f"packages/{child.path}.html", page.url)}">'
                 f'<span class="icon" aria-hidden="true">{html.escape(child.icon)}</span>'
-                f"<b>{html.escape(child.name)}</b></a> <span class=\"count\">{have} of "
-                f"{total} task{'s' if total != 1 else ''} in harwood</span>"
-                f"<span class=\"brief\">{html.escape(child.brief)}</span></li>")
-        parts.append(f'<h2 id="packages">Packages</h2><ul class="cards">{"".join(cards)}</ul>')
+                f"<b>{html.escape(child.name)}</b></a> <span class=\"count\">"
+                + _tf("{0} of {1} task in harwood" if total == 1
+                      else "{0} of {1} tasks in harwood", have, total)
+                + f"</span><span class=\"brief\">{html.escape(_t(child.brief))}</span></li>")
+        parts.append(f'<h2 id="packages">{_t("Packages")}</h2>'
+                     f'<ul class="cards">{"".join(cards)}</ul>')
     here = [t for t in node.tasks if t.available]
     missing = [t for t in node.tasks if not t.available]
     if here:
-        env.setdefault("headings", []).append((2, "tasks", "Tasks"))
+        env.setdefault("headings", []).append((2, "tasks", _t("Tasks")))
         items = "".join(
             f'<li><a href="{_relative(f"tasks/{t.name}.html", page.url)}"><b>{t.name}</b>'
-            f"</a> <span class=\"brief\">{html.escape(t.brief)}</span></li>" for t in here)
-        parts.append(f'<h2 id="tasks">Tasks</h2><ul class="cards">{items}</ul>')
+            f"</a> <span class=\"brief\">{html.escape(_t(t.brief))}</span></li>"
+            for t in here)
+        parts.append(f'<h2 id="tasks">{_t("Tasks")}</h2><ul class="cards">{items}</ul>')
     if missing:
-        words = {"planned": "planned", "replaced": "replaced", "wontport": "not ported",
-                 "partial": "partial"}
+        words = {"planned": _t("planned"), "replaced": _t("replaced"),
+                 "wontport": _t("not ported"), "partial": _t("partial")}
         rows = "".join(
             f"<li><b>{html.escape(t.iraf)}</b> <span class=\"status\">"
             f"{words.get(t.status, t.status)}</span>"
             + (f' <span class="brief">{html.escape(t.note)}</span>' if t.note else "")
             + "</li>" for t in missing)
-        parts.append(f"<details><summary>IRAF tasks here that harwood does not have "
-                     f"({len(missing)})</summary><ul class=\"missing\">{rows}</ul></details>")
+        parts.append("<details><summary>"
+                     + _tf("IRAF tasks here that harwood does not have ({0})", len(missing))
+                     + f"</summary><ul class=\"missing\">{rows}</ul></details>")
     return "".join(parts)
 
 
@@ -589,8 +687,9 @@ def _migration_table(env: dict) -> str:
     from ..core import migration
     from ..core.registry import exists
 
-    words = {"available": "in harwood", "partial": "in harwood, with gaps",
-             "planned": "planned", "replaced": "replaced", "wontport": "not ported"}
+    words = {"available": _t("in harwood"), "partial": _t("in harwood, with gaps"),
+             "planned": _t("planned"), "replaced": _t("replaced"),
+             "wontport": _t("not ported")}
     rows = []
     for name, entry in sorted({**migration.tasks(), **migration.added()}.items()):
         target = entry.get("harwood", name)
@@ -602,11 +701,11 @@ def _migration_table(env: dict) -> str:
         rows.append(f'<tr data-status="{status}"><th scope="row">{html.escape(name)}</th>'
                     f"<td>{html.escape(package)}</td><td>{cell}</td>"
                     f"<td>{words.get(status, status)}</td><td>{html.escape(note)}</td></tr>")
-    return ('<p><label>Find a task: <input type="search" class="filter" '
+    return (f'<p><label>{_t("Find a task:")} <input type="search" class="filter" '
             'data-filter="migration" placeholder="imcombine, phot, splot..."></label></p>'
             '<div class="table"><table class="migration" id="migration"><thead><tr>'
-            "<th>IRAF</th><th>package</th><th>harwood</th><th>status</th><th>note</th>"
-            f"</tr></thead><tbody>{''.join(rows)}</tbody></table></div>")
+            f"<th>IRAF</th><th>{_t('package')}</th><th>harwood</th><th>{_t('status')}</th>"
+            f"<th>{_t('note')}</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>")
 
 
 def _task_index(env: dict) -> str:
@@ -614,7 +713,7 @@ def _task_index(env: dict) -> str:
 
     items = "".join(
         f'<li><a href="{_relative(f"tasks/{name}.html", env["page"].url)}"><b>{name}</b>'
-        f'</a> <span class="brief">{html.escape(cls.description)}</span></li>'
+        f'</a> <span class="brief">{html.escape(_t(cls.description))}</span></li>'
         for name, cls in sorted(list_tasks().items()))
     return f'<ul class="cards">{items}</ul>'
 
@@ -622,11 +721,32 @@ def _task_index(env: dict) -> str:
 # ------------------------------------------------------------------ layout
 
 
+def _languages(page: Page, root: str) -> str:
+    """The same page in each language: EN PT ES, the one shown marked."""
+    top = root + ("../" if _LANG != "en" else "")
+    links = []
+    for code in LANGUAGES:
+        href = f"{top}{language_root(code)}{page.url}"
+        current = ' aria-current="true"' if code == _LANG else ""
+        links.append(f'<a href="{href}" hreflang="{code}" lang="{code}" '
+                     f'title="{NAMES[code]}"{current}>{code.upper()}</a>')
+    return (f'<nav class="langs" aria-label="{_t("Language")} · Idioma">'
+            f'<span aria-hidden="true">🌐</span> {"".join(links)}</nav>')
+
+
+#: What the page's script says, in the page's language.
+_SCRIPT_WORDS = {"copy": N_("Copy"), "copied": N_("Copied ✓"),
+                 "nothing": N_("Nothing found for “{0}”.")}
+
+
 def _layout(page: Page, site: Site, order: list[Page]) -> str:
     root = _relative("index.html", page.url).removesuffix("index.html") or "./"
+    # the assets are the site's, shared by every language: above a translation
+    base = root + ("../" if _LANG != "en" else "")
+    words = json.dumps({k: _t(v) for k, v in _SCRIPT_WORDS.items()}, ensure_ascii=False)
     nav = []
     for section, members in site.nav:
-        if section == "Tasks":
+        if section == TASKS_NAV:
             nav.append(_tasks_nav(page, site))
             continue
         items = "".join(
@@ -639,70 +759,78 @@ def _layout(page: Page, site: Site, order: list[Page]) -> str:
         for level, slug, text in page.headings)
     crumbs = ""
     if page.crumbs:
-        crumbs = '<nav class="crumbs" aria-label="Where this is">' + " › ".join(
+        crumbs = f'<nav class="crumbs" aria-label="{_t("Where this is")}">' + " › ".join(
             f'<a href="{_relative(url, page.url)}">{html.escape(name)}</a>'
             for name, url in page.crumbs) + "</nav>"
     back = ""
     if page.crumbs:
         name, url = page.crumbs[-1]
-        back = (f'<p class="back"><a href="{_relative(url, page.url)}">◀ Back to '
-                f"{html.escape(name)}</a></p>")
-    contents = f"<p>On this page</p><ul>{toc}</ul>" if toc else ""
+        back = (f'<p class="back"><a href="{_relative(url, page.url)}">'
+                + _tf("◀ Back to {0}", html.escape(name)) + "</a></p>")
+    contents = f"<p>{_t('On this page')}</p><ul>{toc}</ul>" if toc else ""
     position = order.index(page) if page in order else -1
     pager = ""
     if position >= 0:
         before = order[position - 1] if position > 0 else None
         after = order[position + 1] if position + 1 < len(order) else None
-        pager = '<nav class="pager" aria-label="Next and previous">' + (
+        pager = f'<nav class="pager" aria-label="{_t("Next and previous")}">' + (
             f'<a class="prev" href="{_relative(before.url, page.url)}">← '
             f"{html.escape(before.title)}</a>" if before else "<span></span>") + (
             f'<a class="next" href="{_relative(after.url, page.url)}">'
             f"{html.escape(after.title)} →</a>" if after else "") + "</nav>"
     return f"""<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="{_LANG}" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(page.title)} · harwood</title>
-<link rel="stylesheet" href="{root}assets/look.css">
-<link rel="stylesheet" href="{root}assets/site.css">
-<script src="{root}assets/look.js"></script>
+<link rel="stylesheet" href="{base}assets/look.css">
+<link rel="stylesheet" href="{base}assets/site.css">
+<script src="{base}assets/look.js"></script>
+<script>window.HARWOOD_WORDS = {words};</script>
 </head>
 <body data-root="{root}">
-<a class="skip" href="#main">Skip to the page</a>
+<a class="skip" href="#main">{_t("Skip to the page")}</a>
 <header class="top">
-  <button class="menu" type="button" aria-label="Contents" aria-expanded="false">☰</button>
+  <button class="menu" type="button" aria-label="{_t("Contents")}"
+          aria-expanded="false">☰</button>
   <a class="brand" href="{root}index.html"><span aria-hidden="true">✦</span> harwood</a>
   <div class="search" role="search">
-    <input type="search" id="search" placeholder="Search the documentation  /"
-           aria-label="Search the documentation" autocomplete="off">
+    <input type="search" id="search" placeholder="{_t("Search the documentation")}  /"
+           aria-label="{_t("Search the documentation")}" autocomplete="off">
     <ul class="results" id="results" role="listbox" hidden></ul>
   </div>
-  <div class="look" role="group" aria-label="How the page looks">
+  {_languages(page, root)}
+  <div class="look" role="group" aria-label="{_t("How the page looks")}">
     <button type="button" data-look="theme"
-            aria-label="Light or dark">◐ <span>theme</span></button>
+            aria-label="{_t("Light or dark")}">◐ <span>{_t("theme")}</span></button>
     <button type="button" data-look="colorblind"
-            aria-pressed="false">◍ <span>colour-blind</span></button>
+            aria-pressed="false">◍ <span>{_t("colour-blind")}</span></button>
     <button type="button" data-look="dyslexia"
-            aria-pressed="false">Aa <span>dyslexia</span></button>
+            aria-pressed="false">Aa <span>{_t("dyslexia")}</span></button>
   </div>
 </header>
 <div class="layout">
-<nav class="side" aria-label="Contents">{"".join(nav)}</nav>
+<nav class="side" aria-label="{_t("Contents")}">{"".join(nav)}</nav>
 <main id="main" tabindex="-1">
 {crumbs}{back}
 <article>{page.body}</article>
 {pager}
-<footer class="foot">harwood documentation · the same pages in the window (Help ›
-Documentation, F1) and in a browser (<code>harwood docs --browser</code>).</footer>
+<footer class="foot">{_FOOT()}</footer>
 </main>
-<aside class="toc" aria-label="On this page">{contents}</aside>
+<aside class="toc" aria-label="{_t("On this page")}">{contents}</aside>
 </div>
-<script src="{root}assets/search-index.js"></script>
-<script src="{root}assets/site.js"></script>
+<script src="{root}search-index.js"></script>
+<script src="{base}assets/site.js"></script>
 </body>
 </html>
 """
+
+
+def _FOOT() -> str:  # noqa: N802 -- read as a piece of the page
+    return _tf("harwood documentation · the same pages in the window (Help › "
+               "Documentation, F1) and in a browser ({0}).",
+               "<code>harwood docs --browser</code>")
 
 
 def _tasks_nav(page: Page, site: Site) -> str:
@@ -731,8 +859,8 @@ def _tasks_nav(page: Page, site: Site) -> str:
 
     tree = "".join(branch(child) for child in root.children)
     everything = _relative("packages/all.html", page.url)
-    return (f'<p class="nav-section">Tasks</p><ul><li><a href="{everything}">All packages'
-            f"</a></li>{tree}</ul>")
+    return (f'<p class="nav-section">{_t("Tasks")}</p><ul><li><a href="{everything}">'
+            f'{_t("All packages")}</a></li>{tree}</ul>')
 
 
 def _look_css() -> str:

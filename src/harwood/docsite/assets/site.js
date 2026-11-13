@@ -4,6 +4,9 @@
 (function () {
   "use strict";
   var root = document.body.getAttribute("data-root") || "./";
+  // the page's own words, in its language (written into the page by the builder)
+  var words = window.HARWOOD_WORDS || {};
+  function say(key, fallback) { return words[key] || fallback; }
 
   function load(key, fallback) {
     try { var v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); }
@@ -48,8 +51,8 @@
       var text = button.parentNode.querySelector("pre").innerText
         .split("\n").map(function (line) { return line.replace(/^\$ /, ""); }).join("\n");
       var done = function () {
-        button.textContent = "Copied ✓";
-        setTimeout(function () { button.textContent = "Copy"; }, 1500);
+        button.textContent = say("copied", "Copied ✓");
+        setTimeout(function () { button.textContent = say("copy", "Copy"); }, 1500);
       };
       if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
       else done();
@@ -127,7 +130,7 @@
     if (!found.length) {
       var none = document.createElement("li");
       none.className = "none";
-      none.textContent = "Nothing found for “" + input.value + "”.";
+      none.textContent = say("nothing", "Nothing found for “{0}”.").replace("{0}", input.value);
       list.appendChild(none);
     }
     found.forEach(function (pair, n) {

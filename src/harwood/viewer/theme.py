@@ -123,6 +123,7 @@ class Preferences:
     scale: float = 1.0                  #: the person's own text size
     autoscale: bool = True              #: and the window's on top of it
     reduce_motion: bool = False
+    language: str = "system"            #: en, pt, es, or system (core/i18n.py)
 
     @classmethod
     def path(cls) -> Path:
@@ -147,6 +148,8 @@ class Preferences:
             self.theme = default.theme
         if self.dyslexia_font not in ("atkinson", "opendyslexic"):
             self.dyslexia_font = default.dyslexia_font
+        if self.language not in ("system", "en", "pt", "es"):
+            self.language = default.language
         try:
             self.scale = min(max(float(self.scale), SCALES[0]), SCALES[-1])
         except (TypeError, ValueError):

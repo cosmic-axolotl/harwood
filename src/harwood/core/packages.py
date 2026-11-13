@@ -98,7 +98,8 @@ def tree() -> Node:
     def node(path: str) -> Node:
         if path not in nodes:
             info = briefs.get(path, {})
-            nodes[path] = Node(path, info.get("brief", ""), info.get("icon", "·"))
+            nodes[path] = Node(path, " ".join(str(info.get("brief", "")).split()),
+                               info.get("icon", "·"))
             if path:
                 parent = node(path.rsplit(".", 1)[0] if "." in path else "")
                 parent.children.append(nodes[path])

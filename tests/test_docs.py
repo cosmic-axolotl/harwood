@@ -63,7 +63,7 @@ def test_every_link_inside_the_site_goes_somewhere(built):
 
 
 def test_the_search_knows_every_page(built, site):
-    index = (built / "assets" / "search-index.js").read_text(encoding="utf-8")
+    index = (built / "search-index.js").read_text(encoding="utf-8")
     for page in site.pages:
         assert f'"u": "{page.url}"' in index
 

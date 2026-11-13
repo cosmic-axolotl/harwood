@@ -42,7 +42,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..core import dq, examine, logfile, pixels, render
 from ..core.display import Marker
-from . import keyguide, theme
+from . import keyguide, lang, theme
+from .lang import N_, tr
 from .theme import palette as _c
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=False)
@@ -229,11 +230,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         set_window(self)
 
-        self.log("harwood viewer. Hover for coordinates; the Keys panel under the "
-                 "image lists what each key does (F2 hides it).")
-        self.log("Ctrl+ and Ctrl- resize the text, Ctrl+0 resets it. "
-                 "F11 full screen, Ctrl+M maximise, Ctrl+Shift+R puts the "
-                 "panels back where they started.")
+        self.log(tr("harwood viewer. Hover for coordinates; the Keys panel under the "
+                    "image lists what each key does (F2 hides it)."))
+        self.log(tr("Ctrl+ and Ctrl- resize the text, Ctrl+0 resets it. "
+                    "F11 full screen, Ctrl+M maximise, Ctrl+Shift+R puts the "
+                    "panels back where they started."))
 
     # ------------------------------------------- size, both kinds
 
@@ -379,29 +380,25 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         """File (export) and View (the look). Every choice also has words and
         a check mark, never colour alone."""
         bar = self.menuBar()
-        files = bar.addMenu("&File")
+        files = bar.addMenu(tr("&File"))
         for label, slot, shortcut in (
-            ("Export image...", self.export_image, "Ctrl+E"),
-            ("Export view (with marks)...", self.export_view, "Ctrl+Shift+E"),
-            ("Export plot...", self.export_plot, "Ctrl+Alt+E"),
+            (N_("Export image..."), self.export_image, "Ctrl+E"),
+            (N_("Export view (with marks)..."), self.export_view, "Ctrl+Shift+E"),
+            (N_("Export plot..."), self.export_plot, "Ctrl+Alt+E"),
         ):
-            action = files.addAction(label)
-            action.setShortcut(QtGui.QKeySequence(shortcut))
-            action.triggered.connect(slot)
+            lang.action(files, label, slot, shortcut)
         files.addSeparator()
-        action = files.addAction("Open text files...")
-        action.setShortcut(QtGui.QKeySequence("Ctrl+O"))
-        action.triggered.connect(self.choose_files)
+        lang.action(files, "Open text files...", self.choose_files, "Ctrl+O")
         files.addSeparator()
-        files.addAction("Close window", self.close)
+        lang.action(files, "Close window", self.close)
 
 
-        view = bar.addMenu("&View")
+        view = bar.addMenu(tr("&View"))
         self._theme_actions = {}
         group = QtGui.QActionGroup(self)
-        for name, label in (("dark", "Dark"), ("light", "Light"),
-                            ("system", "Follow the system")):
-            action = view.addAction(label)
+        for name, label in (("dark", N_("Dark")), ("light", N_("Light")),
+                            ("system", N_("Follow the system"))):
+            action = view.addAction(tr(label))
             action.setCheckable(True)
             action.triggered.connect(lambda _=False, n=name: self.set_look(theme=n))
             group.addAction(action)
@@ -409,20 +406,20 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         view.addSeparator()
         self._look_actions = {}
         for key, label, tip in (
-            ("colorblind", "Colour-blind safe colours",
-             "Okabe-Ito colours for data and warnings; colour is never the only sign"),
-            ("dyslexia", "Dyslexia-friendly text",
-             "Atkinson Hyperlegible, wider spacing, cream ground in the light theme"),
-            ("autoscale", "Text follows the window size",
-             "Text grows and shrinks with the window, on top of Ctrl+ and Ctrl-"),
-            ("reduce_motion", "Reduce motion", "No animations; blink steps slower"),
+            ("colorblind", N_("Colour-blind safe colours"),
+             N_("Okabe-Ito colours for data and warnings; colour is never the only sign")),
+            ("dyslexia", N_("Dyslexia-friendly text"),
+             N_("Atkinson Hyperlegible, wider spacing, cream ground in the light theme")),
+            ("autoscale", N_("Text follows the window size"),
+             N_("Text grows and shrinks with the window, on top of Ctrl+ and Ctrl-")),
+            ("reduce_motion", N_("Reduce motion"), N_("No animations; blink steps slower")),
         ):
-            action = view.addAction(label)
+            action = view.addAction(tr(label))
             action.setCheckable(True)
-            action.setToolTip(tip)
+            action.setToolTip(tr(tip))
             action.triggered.connect(lambda checked, k=key: self.set_look(**{k: checked}))
             self._look_actions[key] = action
-        fonts = view.addMenu("Dyslexia font")
+        fonts = view.addMenu(tr("Dyslexia font"))
         self._font_actions = {}
         group = QtGui.QActionGroup(self)
         for name, label in (("atkinson", "Atkinson Hyperlegible"),
@@ -433,45 +430,55 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             group.addAction(action)
             self._font_actions[name] = action
         view.addSeparator()
-        view.addAction("Larger text  (Ctrl+)", lambda: self.zoom_text(+1))
-        view.addAction("Smaller text  (Ctrl-)", lambda: self.zoom_text(-1))
-        view.addAction("Normal text  (Ctrl+0)", lambda: self.set_text_scale(1.0))
+        lang.action(view, "Larger text  (Ctrl+)", lambda: self.zoom_text(+1))
+        lang.action(view, "Smaller text  (Ctrl-)", lambda: self.zoom_text(-1))
+        lang.action(view, "Normal text  (Ctrl+0)", lambda: self.set_text_scale(1.0))
         view.addSeparator()
-        view.addAction("Where these choices are kept", self._show_preferences_file)
+        # Each language in its own words: whoever cannot read the one shown
+        # can still find theirs.
+        languages = view.addMenu("🌐 " + tr("Language") + " · Idioma")
+        self._language_actions = {}
+        group = QtGui.QActionGroup(self)
+        for code, label in (("system", tr("Follow the system")), *lang.NAMES.items()):
+            action = languages.addAction(label)
+            action.setCheckable(True)
+            action.triggered.connect(lambda _=False, c=code: self.set_language(c))
+            group.addAction(action)
+            self._language_actions[code] = action
+        view.addSeparator()
+        lang.action(view, "Where these choices are kept", self._show_preferences_file)
         self._sync_menus()
 
     def _build_panels_menu(self) -> None:
         """Every panel by name, so a closed one can always be brought back,
         and the way to put them all where they started."""
-        panels = self.menuBar().addMenu("&Panels")
+        panels = self.menuBar().addMenu(tr("&Panels"))
         for dock in self.findChildren(QtWidgets.QDockWidget):
             action = dock.toggleViewAction()
             if dock is getattr(self, "tasks_dock", None):
-                action.setText("Tasks (the package tree)")
+                action.setText(tr("Tasks (the package tree)"))
                 action.setShortcut(QtGui.QKeySequence("Ctrl+T"))
             if dock is getattr(self, "session_dock", None):
-                action.setText("Command line (the hw> prompt)")
+                action.setText(tr("Command line (the hw> prompt)"))
             if dock is getattr(self, "files_dock", None):
-                action.setText("Files (the text editor)")
+                action.setText(tr("Files (the text editor)"))
             if dock is getattr(self, "docs_dock", None):
-                action.setText("Documentation (F1)")
+                action.setText(tr("Documentation (F1)"))
             if dock is getattr(self, "keys_dock", None):
-                action.setText("Keys (what works on the image now)")
+                action.setText(tr("Keys (what works on the image now)"))
                 action.setShortcut(QtGui.QKeySequence("F2"))
             panels.addAction(action)
-        panels.addAction("Go to the prompt", self.go_to_prompt, QtGui.QKeySequence("Ctrl+L"))
+        lang.action(panels, "Go to the prompt", self.go_to_prompt, "Ctrl+L")
         panels.addSeparator()
-        panels.addAction("Put the panels back  (Ctrl+Shift+R)", self.reset_layout)
+        lang.action(panels, "Put the panels back  (Ctrl+Shift+R)", self.reset_layout)
 
         # Help last, where every application keeps it.
-        helping = self.menuBar().addMenu("&Help")
-        action = helping.addAction("Documentation")
-        action.setShortcut(QtGui.QKeySequence("F1"))
-        action.triggered.connect(lambda: self.show_docs("index.html"))
-        helping.addAction("Documentation in the browser",
-                          lambda: self.docs.open_in_browser())
-        helping.addAction("The sample night (try the examples)",
-                          lambda: self.show_docs("start/sample.html"))
+        helping = self.menuBar().addMenu(tr("&Help"))
+        lang.action(helping, "Documentation", lambda: self.show_docs("index.html"), "F1")
+        lang.action(helping, "Documentation in the browser",
+                    lambda: self.docs.open_in_browser())
+        lang.action(helping, "The sample night (try the examples)",
+                    lambda: self.show_docs("start/sample.html"))
 
     def _sync_menus(self) -> None:
         if not hasattr(self, "_theme_actions"):
@@ -483,6 +490,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             action.setChecked(bool(getattr(prefs, key)))
         for name, action in self._font_actions.items():
             action.setChecked(prefs.dyslexia_font == name)
+        for code, action in getattr(self, "_language_actions", {}).items():
+            action.setChecked(prefs.language == code)
 
     def set_look(self, **changes) -> None:
         """Change the look (theme, colorblind, dyslexia, ...) and say so."""
@@ -490,6 +499,24 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         words = ", ".join(f"{k} {'on' if v is True else 'off' if v is False else v}"
                           for k, v in changes.items())
         self.log(f"view: {words}  (saved in {theme.Preferences.path()})")
+
+    def set_language(self, choice: str) -> None:
+        """Speak another language: the menus made again, the bound texts set again,
+        the keys and the documentation in it."""
+        lang.switch(choice)
+        self.retranslate()
+        name = lang.NAMES.get(choice) or tr("the system's")
+        self.log(lang.trf("language: {0}  (saved in {1})", name, theme.Preferences.path()))
+
+    def retranslate(self) -> None:
+        self.menuBar().clear()
+        self._build_menus()
+        self._build_panels_menu()
+        self._refresh_keys()
+        if hasattr(self, "docs"):
+            self.docs.retranslate()
+        if hasattr(self, "browser") and hasattr(self.browser, "retranslate"):
+            self.browser.retranslate()
 
     def _show_preferences_file(self) -> None:
         path = theme.Preferences.path()
@@ -587,31 +614,33 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         bar.setMovable(False)
         self.addToolBar(bar)
 
-        self.frame_box = self._combo(bar, "frame", [], self._frame_changed, width=230)
-        self.scale_box = self._combo(bar, "scale", ["zscale", "minmax", "99.5%", FIXED],
+        self.frame_box = self._combo(bar, N_("frame"), [], self._frame_changed, width=230)
+        self.scale_box = self._combo(bar, N_("scale"), ["zscale", "minmax", "99.5%", FIXED],
                                      self._redraw)
-        self.stretch_box = self._combo(bar, "stretch", list(render.STRETCHES),
+        self.stretch_box = self._combo(bar, N_("stretch"), list(render.STRETCHES),
                                        self._redraw)
-        self.cmap_box = self._combo(bar, "colours", list(COLORMAPS), self._redraw)
+        self.cmap_box = self._combo(bar, N_("colours"), list(COLORMAPS), self._redraw)
 
         bar.addSeparator()
         for label, slot, tip in (
-            ("blink", self._toggle_blink, "Alternate between loaded frames"),
-            ("tile", self._tile, "Show every frame side by side"),
-            ("header", self._show_header, "Show this frame's FITS header"),
-            ("regions", self._clear_marks, "Clear the overlays on this frame"),
-            ("A-", lambda: self.zoom_text(-1), "Smaller text  (Ctrl-)"),
-            ("A+", lambda: self.zoom_text(+1), "Larger text  (Ctrl+)"),
-            ("reset", self.reset_layout,
-             "Put the panels back where they started  (Ctrl+Shift+R)"),
+            (N_("blink"), self._toggle_blink, N_("Alternate between loaded frames")),
+            (N_("tile"), self._tile, N_("Show every frame side by side")),
+            (N_("header"), self._show_header, N_("Show this frame's FITS header")),
+            (N_("regions"), self._clear_marks, N_("Clear the overlays on this frame")),
+            ("A-", lambda: self.zoom_text(-1), N_("Smaller text  (Ctrl-)")),
+            ("A+", lambda: self.zoom_text(+1), N_("Larger text  (Ctrl+)")),
+            (N_("reset"), self.reset_layout,
+             N_("Put the panels back where they started  (Ctrl+Shift+R)")),
         ):
-            action = QtGui.QAction(label, self)
-            action.setToolTip(tip)
+            action = lang.bind(QtGui.QAction(self), "setText", label)
+            lang.bind(action, "setToolTip", tip)
             action.triggered.connect(slot)
             bar.addAction(action)
 
     def _combo(self, bar, label, items, slot, width=110):
-        bar.addWidget(QtWidgets.QLabel(f" {label} "))
+        name = lang.bind(QtWidgets.QLabel(), "setText", label)
+        name.setContentsMargins(4, 0, 4, 0)
+        bar.addWidget(name)
         box = QtWidgets.QComboBox()
         box.addItems(items)
         box.setFixedWidth(width)
@@ -650,7 +679,8 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.views.setDocumentMode(True)
         self.views.setTabsClosable(True)
         self.views.setTabBarAutoHide(True)
-        self.views.addTab(self.graphics, "Image")
+        self.views.addTab(self.graphics, tr("Image"))
+        lang.bind(self.views, "setTabText", "Image", 0)
         bar = self.views.tabBar()
         for side in (QtWidgets.QTabBar.ButtonPosition.LeftSide,
                      QtWidgets.QTabBar.ButtonPosition.RightSide):
@@ -671,7 +701,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.browser = TaskBrowser(self.run_line, current_image=self._shown_file)
         self.browser.to_prompt.connect(self._to_prompt)
         self.browser.manual.connect(self._docs_for_task)
-        self.tasks_dock = QtWidgets.QDockWidget("Tasks")
+        self.tasks_dock = lang.bind(QtWidgets.QDockWidget(), "setWindowTitle", "Tasks")
         self.tasks_dock.setObjectName("tasks")
         self.tasks_dock.setWidget(self.browser)
         self.tasks_dock.setMinimumWidth(280)
@@ -696,7 +726,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.prompt.setFocus()
 
     def _build_examine(self) -> None:
-        dock = QtWidgets.QDockWidget("Examine")
+        dock = lang.bind(QtWidgets.QDockWidget(), "setWindowTitle", "Examine")
         dock.setObjectName("examine")
         body = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(body)
@@ -709,10 +739,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         for axis in ("left", "bottom"):
             self.plot.getAxis(axis).setPen(pg.mkPen(_c().line))
             self.plot.getAxis(axis).setTextPen(pg.mkPen(_c().muted))
-        self.plot.setTitle("nothing examined yet", color=_c().muted, size="10pt")
+        self.plot.setTitle(tr("nothing examined yet"), color=_c().muted, size="10pt")
         layout.addWidget(self.plot, stretch=1)
 
-        self.readout = QtWidgets.QLabel("press r over a star")
+        self.readout = lang.bind(QtWidgets.QLabel(), "setText", "press r over a star")
         self.readout.setObjectName("readout")
         self.readout.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.readout)
@@ -723,7 +753,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _build_keys(self) -> None:
         """The keys that work on the image now, always in view (F2)."""
-        dock = QtWidgets.QDockWidget("Keys")
+        dock = lang.bind(QtWidgets.QDockWidget(), "setWindowTitle", "Keys")
         dock.setObjectName("keys")
         self.key_guide = keyguide.KeyGuide()
         dock.setWidget(self.key_guide)
@@ -747,15 +777,15 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         frame = self.frames.get(self.current)
         if self._task_keys is not None:
             task, keys = self._task_keys
-            title = f"{task}: the keys at the cursor"
-            first = (f"{task} (lower case)", keys)
+            title = lang.trf("{0}: the keys at the cursor", task)
+            first = (lang.trf("{0} (lower case)", task), keys)
         elif frame is not None:
-            title = "imexamine: the keys at the cursor"
-            first = ("measure (lower case)",
+            title = lang.trf("{0}: the keys at the cursor", "imexamine")
+            first = (tr("measure (lower case)"),
                      {**examine.KEYS, "q": "end imexamine, when it runs as a task"})
         else:
-            title = "Display an image to measure it"
-            first = ("measure, once an image is shown", examine.KEYS)
+            title = tr("Display an image to measure it")
+            first = (tr("measure, once an image is shown"), examine.KEYS)
         legend = []
         if frame is not None and frame.quality is not None:
             bits = frame.quality.astype(np.int64)
@@ -763,10 +793,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 count = int(np.count_nonzero(bits & bit))
                 if count:
                     legend.append((getattr(_c(), DQ_COLOURS[bit]), name,
-                                   f"{count} px" + ("" if self.show_dq else ", hidden")))
+                                   f"{count} px" + ("" if self.show_dq else tr(", hidden"))))
         changed = title != self.key_guide.title
-        self.key_guide.show_keys(title, [first, ("the window (upper case)", keyguide.WINDOW),
-                                         ("the mouse", keyguide.MOUSE)], legend)
+        self.key_guide.show_keys(title, [first,
+                                         (tr("the window (upper case)"), keyguide.WINDOW),
+                                         (tr("the mouse"), keyguide.MOUSE)], legend)
         if changed and hasattr(self, "session_dock") and self.keys_dock.isVisible():
             # A new set of keys gets the height it needs; between changes the
             # strip keeps whatever height it was dragged to.
@@ -775,7 +806,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     def _build_params(self) -> None:
         """The parameter editor, section 5: it explains rather than just accepts."""
-        dock = QtWidgets.QDockWidget("Parameters · rimexam")
+        dock = lang.bind(QtWidgets.QDockWidget(), "setWindowTitle", "Parameters · rimexam")
         dock.setObjectName("parameters")
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
@@ -850,7 +881,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.views.setTabToolTip(index, title)
         self.views.setCurrentIndex(index)
         panel.setFocus()
-        self.log(f"  {title} opened; press q there when you are done")
+        self.log(lang.trf("  {0} opened; press q there when you are done", title))
 
     def finish_panel(self, panel) -> None:
         """The task has what it wanted from the panel. A graph stays as a tab
@@ -908,7 +939,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
         self.files = FileEditor(open_shortcut=False)    # Ctrl+O is the File menu's
         self.files.said.connect(self.log)
-        self.files_dock = QtWidgets.QDockWidget("Files")
+        self.files_dock = lang.bind(QtWidgets.QDockWidget(), "setWindowTitle", "Files")
         self.files_dock.setObjectName("files")
         self.files_dock.setWidget(self.files)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.files_dock)
@@ -920,7 +951,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         from .docs import DocsPanel
 
         self.docs = DocsPanel()
-        self.docs_dock = QtWidgets.QDockWidget("Documentation")
+        self.docs_dock = lang.bind(QtWidgets.QDockWidget(), "setWindowTitle", "Documentation")
         self.docs_dock.setObjectName("docs")
         self.docs_dock.setWidget(self.docs)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.docs_dock)
@@ -980,7 +1011,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         panel.deleteLater()
 
     def _build_session(self) -> None:
-        dock = QtWidgets.QDockWidget("Command line")
+        dock = lang.bind(QtWidgets.QDockWidget(), "setWindowTitle", "Command line")
         dock.setObjectName("session")
         body = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(body)
@@ -1009,23 +1040,23 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         from .prompt import CommandLine
 
         self.prompt = CommandLine()
-        self.prompt.setPlaceholderText("hw>  display obj.fits · imexamine · "
-                                       "ccdproc --plan · help phot")
+        lang.bind(self.prompt, "setPlaceholderText",
+                  "hw>  display obj.fits · imexamine · ccdproc --plan · help phot")
         self.prompt.returnPressed.connect(self._run_command)
         self.prompt.said.connect(lambda text: self.statusBar().showMessage(text, 4000))
         row = QtWidgets.QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.addWidget(self.prompt, stretch=1)
-        recall = QtWidgets.QPushButton("🕘 History")
+        recall = lang.bind(QtWidgets.QPushButton(), "setText", "🕘 History")
         recall.setObjectName("history")
-        recall.setToolTip("Search what was typed before, here and in the terminal "
-                          "(Ctrl+R at the prompt)")
+        lang.bind(recall, "setToolTip", "Search what was typed before, here and in the "
+                                        "terminal (Ctrl+R at the prompt)")
         recall.clicked.connect(self._search_history)
         row.addWidget(recall)
         layout.addLayout(row)
-        keys = QtWidgets.QLabel("Tab completes · ↑ ↓ walk the history, Ctrl+R searches "
-                                "it · ; runs the next command anyway, && only if this "
-                                "one worked")
+        keys = lang.bind(QtWidgets.QLabel(), "setText",
+                         "Tab completes · ↑ ↓ walk the history, Ctrl+R searches it · ; "
+                         "runs the next command anyway, && only if this one worked")
         keys.setObjectName("hint")
         keys.setWordWrap(True)
         keys.setContentsMargins(4, 2, 4, 2)

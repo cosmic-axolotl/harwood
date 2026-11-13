@@ -17,7 +17,8 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtWidgets
 
-from . import theme
+from . import lang, theme
+from .lang import N_, tr
 
 
 def available() -> bool:
@@ -59,15 +60,15 @@ class DocsPanel(QtWidgets.QWidget):
             self.view = QtWebEngineWidgets.QWebEngineView()
             self.view.urlChanged.connect(self._where)
         for label, tip, slot in (
-            ("◀", "Back", lambda: self.view and self.view.back()),
-            ("▶", "Forward", lambda: self.view and self.view.forward()),
-            ("⌂ Home", "The first page", lambda: self.show_page("index.html")),
-            ("Open in browser", "The same page in your web browser",
+            ("◀", N_("Back"), lambda: self.view and self.view.back()),
+            ("▶", N_("Forward"), lambda: self.view and self.view.forward()),
+            (N_("⌂ Home"), N_("The first page"), lambda: self.show_page("index.html")),
+            (N_("Open in browser"), N_("The same page in your web browser"),
              self.open_in_browser),
         ):
-            button = QtWidgets.QPushButton(label)
-            button.setToolTip(tip)
-            button.setAccessibleName(tip)
+            button = lang.bind(QtWidgets.QPushButton(), "setText", label)
+            lang.bind(button, "setToolTip", tip)
+            lang.bind(button, "setAccessibleName", tip)
             button.clicked.connect(slot)
             bar.addWidget(button)
         self.address = QtWidgets.QLabel("")
@@ -78,18 +79,26 @@ class DocsPanel(QtWidgets.QWidget):
         if self.view is not None:
             layout.addWidget(self.view, stretch=1)
         else:
-            missing = QtWidgets.QLabel(
-                "Showing the documentation here needs QtWebEngine: "
-                "pip install 'harwood[docs]'. Until then each page opens in your "
-                "browser -- the same pages.")
+            missing = lang.bind(QtWidgets.QLabel(), "setText",
+                                "Showing the documentation here needs QtWebEngine: "
+                                "pip install 'harwood[docs]'. Until then each page opens "
+                                "in your browser -- the same pages.")
             missing.setWordWrap(True)
             missing.setContentsMargins(12, 12, 12, 12)
             layout.addWidget(missing, stretch=1)
         self._page = "index.html"
         theme.on_change(self._restyle)
 
+    def home(self) -> Path:
+        """Where the pages in the window's language are."""
+        from ..core.i18n import language
+        from ..docsite.builder import language_root
+
+        return self.root / language_root(language()) if self.root else Path(".")
+
     def show_page(self, url: str = "index.html") -> None:
-        """Open a page of the site, by its path from the site's root."""
+        """Open a page of the site, by its path from the site's root, in the
+        window's language."""
         from ..docsite import ensure
 
         self.root = ensure()
@@ -98,7 +107,7 @@ class DocsPanel(QtWidgets.QWidget):
             self.open_in_browser()
             return
         page, _, anchor = self._page.partition("#")
-        address = QtCore.QUrl.fromLocalFile(str(self.root / page))
+        address = QtCore.QUrl.fromLocalFile(str(self.home() / page))
         address.setQuery(look_query())
         if anchor:
             address.setFragment(anchor)
@@ -107,7 +116,7 @@ class DocsPanel(QtWidgets.QWidget):
     def current_file(self) -> Path | None:
         if self.view is not None and self.view.url().isLocalFile():
             return Path(self.view.url().toLocalFile())
-        return (self.root / self._page.partition("#")[0]) if self.root else None
+        return (self.home() / self._page.partition("#")[0]) if self.root else None
 
     def open_in_browser(self) -> None:
         import webbrowser
@@ -115,8 +124,30 @@ class DocsPanel(QtWidgets.QWidget):
         from ..docsite import ensure
 
         self.root = self.root or ensure()
-        path = self.current_file() or self.root / "index.html"
+        path = self.current_file() or self.home() / "index.html"
         webbrowser.open(path.as_uri())
+
+    def retranslate(self) -> None:
+        """The window's language changed: the page shown, in it."""
+        if self.root is None:
+            return
+        current = self.current_file()
+        page = self._page
+        if current is not None:
+            from ..core.i18n import LANGUAGES
+
+            try:
+                relative = current.relative_to(self.root).as_posix()
+            except ValueError:
+                relative = page
+            first, _, rest = relative.partition("/")
+            page = rest if first in LANGUAGES and rest else relative
+            anchor = self.view.url().fragment() if self.view is not None else ""
+            page += f"#{anchor}" if anchor else ""
+        if self.view is not None and self.parent() is not None and self.isVisible():
+            self.show_page(page)
+        else:
+            self._page = page
 
     def _where(self, url: QtCore.QUrl) -> None:
         if self.root and url.isLocalFile():
@@ -148,7 +179,7 @@ def run(url: str = "index.html") -> int:
     app = application()
     theme.apply()
     panel = DocsPanel()
-    panel.setWindowTitle("harwood · documentation")
+    panel.setWindowTitle(tr("harwood · documentation"))
     panel.resize(1200, 860)
     panel.show()
     panel.show_page(url)

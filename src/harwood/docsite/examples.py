@@ -32,6 +32,8 @@ from typing import Any
 
 import yaml
 
+from ..core.i18n import N_
+
 #: Options every task has that are not parameters of the task.
 HARNESS = ("plan", "explain", "editpar", "workdir")
 
@@ -158,8 +160,9 @@ def clicks(lines: list[str]) -> list[list[str]] | None:
     for call in calls:
         where = packages.locate(call.task, root)
         path = ["all"] + (where[0].split(".") if where else [])
-        steps = [f"In Tasks, go to {' › '.join(path)} and press {call.task} "
-                 f"(or type {call.task} in the search box)."]
+        # in English, marked: the documentation says them in its language (N_)
+        steps = [N_(f"In Tasks, go to {' › '.join(path)} and press {call.task} "
+                    f"(or type {call.task} in the search box).")]
         fields = get_class(call.task).Params.model_fields
         required = [k for k in call.given if fields[k].is_required()
                     or (fields[k].json_schema_extra or {}).get("positional")]
@@ -167,10 +170,10 @@ def clicks(lines: list[str]) -> list[list[str]] | None:
         for key in required:
             steps.append(f"{key}: {_shown(call.given[key])}")
         if optional:
-            steps.append("Open More options, then " + "; ".join(
-                f"{key}: {_shown(call.given[key])}" for key in optional) + ".")
-        steps.append("Press Plan to see the steps." if call.plan
-                     else "Press Run (or Plan first, to see the steps).")
+            steps.append(N_("Open More options, then " + "; ".join(
+                f"{key}: {_shown(call.given[key])}" for key in optional) + "."))
+        steps.append(N_("Press Plan to see the steps.") if call.plan
+                     else N_("Press Run (or Plan first, to see the steps)."))
         out.append(steps)
     return out
 
@@ -192,18 +195,19 @@ def _shown(value: Any) -> str:
 #: start/first-night, step by step. Command lines, so that the page can say
 #: how to get there and the tests get there the same way.
 STAGES: dict[str, tuple[str, list[str]]] = {
-    "night": ("the sample night, as written", []),
-    "zero": ("the sample night with its bias combined (Zero.fits)", [
+    "night": (N_("the sample night, as written"), []),
+    "zero": (N_("the sample night with its bias combined (Zero.fits)"), [
         "harwood ccdproc @bias.lis --overscan --trim --output bias",
         "harwood zerocombine bias/bias00*.fits Zero.fits"]),
-    "flat": ("the sample night with its bias and flat combined (Zero.fits, FlatV.fits)", [
+    "flat": (N_("the sample night with its bias and flat combined (Zero.fits, "
+                "FlatV.fits)"), [
         "harwood ccdproc @flat.lis --overscan --trim --zerocor --zero Zero.fits "
         "--output flat",
         "harwood flatcombine flat/flat00*.fits Flat.fits"]),
-    "reduced": ("the sample night after its reduction (Zero.fits, FlatV.fits, red/)", [
+    "reduced": (N_("the sample night after its reduction (Zero.fits, FlatV.fits, red/)"), [
         "harwood ccdproc @obj.lis --overscan --trim --zerocor --flatcor --zero Zero.fits "
         "--flat FlatV.fits --output red"]),
-    "found": ("the reduced night with the stars of obj001 found (obj001.coo)", [
+    "found": (N_("the reduced night with the stars of obj001 found (obj001.coo)"), [
         "harwood daofind red/obj001.fits obj001.coo --fwhmpsf 3"]),
 }
 SETUPS = tuple(STAGES)

@@ -35,9 +35,12 @@ Pairs = Iterable[tuple[str, str]]
 
 def pairs(keys) -> list[tuple[str, str]]:
     """A key list as (key, what) pairs, from a dict or a list of pairs;
-    entries without a key (a panel's spacer) are left out."""
+    entries without a key (a panel's spacer) are left out. The descriptions in the
+    window's language; the keys are the keys."""
+    from .lang import tr
+
     items = keys.items() if isinstance(keys, dict) else keys
-    return [(str(key), str(what)) for key, what in items if key]
+    return [(str(key), tr(str(what))) for key, what in items if key]
 
 
 def brief(what: str) -> str:
