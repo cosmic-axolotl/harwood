@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import pixels
+from . import advice, pixels
 
 _SPEC = re.compile(
     r"^(?P<path>[^\[\]]+?)"
@@ -163,7 +163,9 @@ def expand(items: list[str] | str) -> list[ImageSpec]:
             if any(char in name for char in "*?[") and not Path(name).exists():
                 matches = sorted(globbing.glob(name))
                 if not matches:
-                    raise FileNotFoundError(f"no file matches '{name}'")
+                    advice.fail(f"no file matches '{name}'",
+                                "check the name and the pattern; 'harwood sections' "
+                                "shows what a template expands to", FileNotFoundError)
                 out.extend(parse(found + brackets) for found in matches)
             else:
                 out.append(parse(piece))

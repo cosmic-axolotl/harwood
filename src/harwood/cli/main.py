@@ -1136,7 +1136,8 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     _tell_inherited_project(name)
 
     if plan_only:
-        console.print(f"\n[bold]{name}[/bold] would do this and nothing else:\n")
+        console.print("\n" + tr("{0} would do this and nothing else:").replace(
+            "{0}", f"[bold]{name}[/bold]") + "\n")
         _print_steps(prepared.plan(), explain)
         if expected:
             console.print(f"\n[dim]It should take {timing.about(expected.seconds)}, "
@@ -1148,7 +1149,8 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
     try:
         finished = runner.execute(prepared, argv=sys.argv[1:], status=console.status(label))
     except KeyboardInterrupt:
-        error_console.print(f"[yellow]{name} interrupted.[/yellow]")
+        error_console.print("[yellow]" + tr("{0} interrupted.").replace("{0}", name)
+                            + "[/yellow]")
         raise SystemExit(130) from None
     except Exception as error:
         # A task failing is a normal event and deserves a sentence, not a
@@ -1174,7 +1176,7 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         if os.environ.get("HARWOOD_TRACEBACK"):
             console.print_exception()
         else:
-            error_console.print("[dim]HARWOOD_TRACEBACK=1 shows where.[/dim]")
+            error_console.print("[dim]" + tr("HARWOOD_TRACEBACK=1 shows where.") + "[/dim]")
         raise SystemExit(1) from None
     result, folder, written = finished.result, finished.folder, finished.written
 
@@ -1362,7 +1364,8 @@ def _print_steps(steps: list[Any], explain: bool) -> None:
 
         pad = "       "
         if step.why:
-            for line in textwrap.wrap(tr(step.why), width=76):
+            for line in textwrap.wrap(tr(step.why), width=max(40, min(76, console.width
+                                                                     - len(pad) - 1))):
                 console.print(f"[dim]{pad}{escape(line)}[/dim]")
         else:
             console.print(f"[dim]{pad}{tr('(no explanation written for this step yet)')}"

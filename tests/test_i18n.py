@@ -18,9 +18,6 @@ import pytest
 
 from harwood.core import i18n
 
-WINDOW = ("harwood/viewer/", "harwood/cli/", "harwood/docsite/",
-          "harwood/data/packages.yaml")
-
 
 @pytest.fixture
 def no_forcing(monkeypatch):
@@ -96,10 +93,20 @@ def test_a_translation_keeps_the_slots_of_its_english(code):
 
 
 @pytest.mark.parametrize("code", ["pt", "es"])
-def test_everything_the_window_and_the_documentation_s_frame_say_is_translated(code):
+def test_every_text_harwood_shows_is_translated(code):
+    """The window, the documentation's frame, every notice and its suggestion, every
+    explanation: a new text is translated when it is added. (IRAF's own error
+    messages are kept as IRAF words them -- their translation is the text itself.)"""
     missing = [e["msgid"] for e in i18n.read_po(i18n.CATALOGUES / f"{code}.po")
-               if not e.get("msgstr") and any(r.startswith(WINDOW) for r in e["refs"])]
+               if not e.get("msgstr")]
     assert missing == []
+
+
+def test_a_mould_of_little_fixed_text_does_not_catch_other_texts():
+    """'{0} and {1}' would turn any untranslated text with 'and' into half Portuguese."""
+    assert i18n.tr("this and that", "pt") == "this and that"
+    assert i18n.tr("a mask of 3 dimensions for an image of 2", "pt") == \
+        "uma máscara de 3 dimensões para uma imagem de 2"
 
 
 def test_the_terminal_says_its_notices_in_the_language(monkeypatch):
@@ -115,7 +122,7 @@ def test_the_terminal_says_its_notices_in_the_language(monkeypatch):
                                "prints, run it from the shell: harwood ... | grep ...")],
                        where=out)
     said = out.export_text()
-    assert "aviso" in said and "não encadeia" in said and "tente:" in said
+    assert "aviso" in said and "não encadeia" in said and "o que fazer:" in said
 
 
 def test_parameter_descriptions_stay_in_english(monkeypatch):

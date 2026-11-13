@@ -41,6 +41,8 @@ CATALOGUES = Path(__file__).resolve().parent.parent / "data" / "i18n"
 PACKAGE = Path(__file__).resolve().parent.parent
 
 _chosen: str | None = None      # set_language's, for this process
+#: The fewest letters a mould's fixed text needs to be used as one.
+MOULD_LETTERS = 10
 
 
 # ------------------------------------------------------------ the language
@@ -188,6 +190,10 @@ def catalogue(code: str) -> Catalogue:
         if not source or not target or "fuzzy" in entry["flags"]:
             continue
         if "python-brace-format" in entry["flags"] and re.search(r"\{\d+\}", source):
+            # a mould of little fixed text -- "{0} and {1}", "use {0}" -- would catch
+            # any text with those words in it, and translate half of it: left out
+            if len(re.sub(r"\{\d+\}|[^A-Za-z]", "", source)) < MOULD_LETTERS:
+                continue
             found.starts.setdefault(_lead(source), []).append(len(found.moulds))
             found.moulds.append((_mould(source), target))
         else:
