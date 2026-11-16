@@ -61,8 +61,9 @@ def _alim(values) -> tuple:
     return values.min(), values.max()
 
 
-def _xranges(sample: str, x, warnings: list[str]) -> list[list[int]]:
-    """rg_xranges, rg_order and rg_merge: index ranges, from 0 and inclusive."""
+def _xranges(sample: str, x, warnings: list[str], merge: bool = True) -> list[list[int]]:
+    """rg_xranges, rg_order and rg_merge: index ranges, from 0 and inclusive; or, not
+    merged, rg_xranges' alone, as they were written."""
     real = type(x[0])
     npts = x.size
     ranges: list[list[int]] = []
@@ -105,6 +106,8 @@ def _xranges(sample: str, x, warnings: list[str]) -> list[list[int]]:
                 j += 1
             if k <= j - 1:
                 ranges.append([k, j - 1])
+    if not merge:
+        return ranges
     ranges.sort(key=lambda r: r[0])
     merged: list[list[int]] = []
     for first, last in ranges:

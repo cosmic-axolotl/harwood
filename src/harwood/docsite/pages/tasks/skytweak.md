@@ -16,3 +16,8 @@ the same parameters, but the calibration -- the sky -- times the scale is subtra
 from each spectrum rather than divided into it, and there is no airmass or threshold.
 Its steps start smaller, `--dshift 0.1` and `--dscale 0.1`, sky lines being sharp. Held
 to IRAF 2.18's to the bit with telluric's sessions.
+
+By eye (`--interactive`, or `--cursor` and `--answers` without a window) it is
+telluric's graphs and keys too: three candidates to choose from with `x` and `y`, the
+sky below. The candidates of a spectrum in counts need `--offset` of their size -- a
+few hundred, not telluric's 1 -- or `:offset 200` in the window.

@@ -3002,8 +3002,17 @@ class _TweakParams(TaskParams):
     xcorr: bool = Field(True, description="Cross-correlate for the shift first.")
     tweakrms: bool = Field(True, description="Then find the shift and scale of least "
                                              "RMS.")
-    interactive: bool = Field(False, description="IRAF's interactive tweaking: not yet "
-                                                 "harwood's.")
+    interactive: bool = Field(False, description="Tweak each spectrum by eye, in the "
+                                                 "window (IRAF's interactive=yes): three "
+                                                 "candidates to choose from, by shift (x) "
+                                                 "or by scale (y).")
+    cursor: str = Field("", description="The graphs' keys from a file instead of the "
+                                        "window, 'x y wcs key' or ':command' a line, read "
+                                        "on from spectrum to spectrum (IRAF's graphics "
+                                        "cursor file). Implies --interactive.")
+    answers: str = Field("", description="With --cursor: the answers to 'Search "
+                                         "interactively?', one a line for each spectrum "
+                                         "asked (no, yes, NO, YES); yes without it.")
     sample: str = Field("*", description="Wavelength ranges the RMS and the correlation "
                                          "are over: 6850:6900,7000:7040.")
     lag: int = Field(10, ge=0, description="The cross-correlation's lag, in pixels.")
@@ -3051,11 +3060,8 @@ class _Tweak:
 
         from ..core import images, iraffmt, sarith, spectrum, telluric
 
-        if params.interactive:
-            advice.fail("interactive tweaking is not harwood's yet",
-                        "leave --interactive off: the shift and scale are found "
-                        "automatically, as IRAF's are without it.")
         f32 = np.float32
+        hand = _TweakHand(params, "telluric" if self.telluric else "skytweak")
         ins = [str(s) for s in images.expand(params.input)] or [params.input]
         outs = [o.strip() for o in images.split_list(params.output)] \
             if params.output.strip() else []
@@ -3068,7 +3074,8 @@ class _Tweak:
             telluric=self.telluric, shift=f32(params.shift), scale=f32(params.scale),
             dshift=f32(max(0.0, params.dshift)),
             dscale=f32(max(0.0, min(0.99, params.dscale))),
-            thresh=f32(getattr(params, "threshold", 0.0)), sample=params.sample)
+            thresh=f32(getattr(params, "threshold", 0.0)), sample=params.sample,
+            offset=f32(params.offset), box=max(1, params.smooth))
         buffer: list[str] = []
         written: list[Path] = []
         cache: dict = {}
@@ -3115,8 +3122,16 @@ class _Tweak:
                     if ap not in cache:
                         cache[ap] = _twk_cal(calname, ap, params, airmass, self.telluric)
                     cal, asi, am_cal = cache[ap]
-                    twk.cal, twk.asi, twk.am_cal = cal, asi, am_cal
-                    telluric.tweak(twk, params.xcorr, params.tweakrms, params.lag)
+                    twk.cal, twk.asi, twk.am_cal, twk.sh = cal, asi, am_cal, sh
+                    by_hand = None
+                    if hand.asks():
+                        say(f"{shown}{sh.section}: ")
+                        hand.ask(f"{shown}{sh.section}")
+                    if hand.yes():
+                        def by_hand(twk, aperture=aperture):
+                            hand.fit(twk, aperture, say)
+                    telluric.tweak(twk, params.xcorr, params.tweakrms, params.lag,
+                                   by_hand)
                     data, mean, nout = telluric.correct(twk)
                     made[line - 1].flux = data.astype(float)
                     if line == 1:
@@ -3144,6 +3159,77 @@ class _Tweak:
         if text and text[-1] == "":
             text.pop()
         return TaskResult(outputs=written, steps=self.plan(params), data={"text": text})
+
+
+class _TweakHand:
+    """The interactive side of tweak: xt_clanswer's four answers, asked before each
+    spectrum until NO or YES, and twk_fit -- from the cursor file, read on from one
+    spectrum to the next, or in the window."""
+
+    def __init__(self, params, name: str) -> None:
+        from ..core import igsfit
+
+        self.name = name
+        self.state = "yes" if params.interactive or params.cursor else "NO"
+        self.reads = self.replies = None
+        self.asked = 0
+        self.sessions: list = []
+        if params.cursor:
+            if not Path(params.cursor).is_file():
+                advice.fail(f"cursor file '{params.cursor}' does not exist",
+                            "write one key a line, 'x y 1 key' or ':command', or use "
+                            "--interactive for the window", FileNotFoundError)
+            self.reads = igsfit.reads(Path(params.cursor).read_text(encoding="utf-8"))
+        if params.answers:
+            if not Path(params.answers).is_file():
+                advice.fail(f"answers file '{params.answers}' does not exist",
+                            "write one answer a line: no, yes, NO or YES",
+                            FileNotFoundError)
+            self.replies = iter(Path(params.answers).read_text(
+                encoding="utf-8").splitlines())
+
+    def asks(self) -> bool:
+        return self.state in ("no", "yes")
+
+    def yes(self) -> bool:
+        return self.state in ("yes", "YES")
+
+    def ask(self, spectrum: str) -> None:
+        """clgwrd of `answer`: no, yes, NO or YES by minimum match; yes otherwise."""
+        from ..core.gtools import strdic
+
+        self.asked += 1
+        if self.reads is not None:
+            word = next(self.replies, None) if self.replies is not None else "yes"
+        elif self.asked == 1:
+            word = "yes"        # --interactive asked for the window
+        else:
+            from ..viewer.fitcoords_panel import ask_answer
+
+            word = ask_answer(f"Tweak {spectrum} by eye?", self.state, title=self.name)
+        found = strdic(word.strip(), ("no", "yes", "NO", "YES")) if word else 0
+        self.state = ("no", "yes", "NO", "YES")[found - 1] if found else "yes"
+
+    def fit(self, twk, aperture, say) -> None:
+        from ..core import telluric, units
+
+        label = unit = ""
+        if aperture.wavelength is not None:
+            un = units.decode(aperture.units or "angstroms")
+            label, unit = un.label, un.units
+        session = telluric.FitSession(twk, label, unit)
+        self.sessions.append(session)
+        if self.reads is not None:
+            telluric.run_reads(session, self.reads)
+        else:
+            from ..viewer import tweak_panel
+
+            tweak_panel.run(session, title=f"{self.name} · {twk.sh.image}"
+                                           f"{twk.sh.section}")
+        say(session.out)
+        if session.err:
+            say(("\n" if session.out and not session.out.endswith("\n") else "")
+                + session.err)
 
 
 def _twk_cal(calname: str, ap, params, airmass, telluric_: bool):

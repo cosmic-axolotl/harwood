@@ -1032,23 +1032,23 @@ msgstr "o espectro não tem escala de comprimento de onda."
 msgid "run dispcor on it first; a band is a range of wavelengths and there is no way to integrate over one without them."
 msgstr "rode o dispcor nele antes; uma banda é um intervalo de comprimentos de onda e não há como integrar nele sem eles."
 
-#: harwood/core/icfitbits.py:166
+#: harwood/core/icfitbits.py:169
 msgid "No data points for fit"
 msgstr "No data points for fit"
 
-#: harwood/core/icfitbits.py:166
+#: harwood/core/icfitbits.py:169
 msgid "the input has no points to fit."
 msgstr "a entrada não tem pontos para ajustar."
 
-#: harwood/core/icfitbits.py:177
+#: harwood/core/icfitbits.py:180
 msgid "No sample points for fit"
 msgstr "No sample points for fit"
 
-#: harwood/core/icfitbits.py:177
+#: harwood/core/icfitbits.py:180
 msgid "the sample ranges hold no points."
 msgstr "os intervalos de amostra não têm pontos."
 
-#: harwood/core/icfitbits.py:281
+#: harwood/core/icfitbits.py:284
 msgid "reject less, or fit a lower order."
 msgstr "rejeite menos, ou ajuste uma ordem menor."
 
@@ -1515,6 +1515,26 @@ msgstr "outtype ruim '{0}'"
 #: harwood/core/imexpr.py:428
 msgid "use ushort, short, int, long, real or double"
 msgstr "use ushort, short, int, long, real ou double"
+
+#: harwood/core/longslit.py:275
+msgid "a bin from here to the next key's position, added to those there are"
+msgstr "um bin daqui até a posição da próxima tecla, somado aos que já existem"
+
+#: harwood/core/longslit.py:275
+msgid "clear the bins: all the dispersion is one, until s marks others"
+msgstr "limpar os bins: toda a dispersão é um só, até s marcar outros"
+
+#: harwood/core/longslit.py:275
+msgid "done: the profiles of these bins are fitted next"
+msgstr "pronto: os perfis destes bins são ajustados em seguida"
+
+#: harwood/core/longslit.py:275
+msgid "interrupt the task"
+msgstr "interromper a tarefa"
+
+#: harwood/core/longslit.py:275
+msgid "bins [ranges], show, and /gtools"
+msgstr "bins [intervalos], show, e /gtools"
 
 #: harwood/core/mef.py:147
 #, python-brace-format
@@ -2363,13 +2383,49 @@ msgstr "'{0}' não é resposta para 'Edit bandpasses?'"
 msgid "answer one of {0}."
 msgstr "responda um de {0}."
 
-#: harwood/core/telluric.py:159
+#: harwood/core/telluric.py:169
 msgid "Calibration spectrum negative or zero (set threshold parameter)"
 msgstr "Calibration spectrum negative or zero (set threshold parameter)"
 
-#: harwood/core/telluric.py:159
+#: harwood/core/telluric.py:169
 msgid "give --threshold, the least value the calibration is taken to have."
 msgstr "dê --threshold, o menor valor que se considera que a calibração tem."
+
+#: harwood/core/telluric.py:397
+msgid "the three candidates by shift; over one of them, choose it"
+msgstr "os três candidatos por deslocamento; sobre um deles, escolhe-o"
+
+#: harwood/core/telluric.py:397
+msgid "the three candidates by scale; over one of them, choose it"
+msgstr "os três candidatos por escala; sobre um deles, escolhe-o"
+
+#: harwood/core/telluric.py:397
+msgid "the shift and scale of least RMS over the sample"
+msgstr "o deslocamento e a escala de menor RMS na amostra"
+
+#: harwood/core/telluric.py:397
+msgid "double the step of the candidates shown"
+msgstr "dobrar o passo dos candidatos mostrados"
+
+#: harwood/core/telluric.py:397
+msgid "a sample region from here to the next key: s adds it, n starts anew"
+msgstr "um intervalo de amostra daqui até a próxima tecla: s o acrescenta, n recomeça"
+
+#: harwood/core/telluric.py:397
+msgid "show or hide the calibration below"
+msgstr "mostrar ou esconder a calibração embaixo"
+
+#: harwood/core/telluric.py:397
+msgid "show or hide the spectrum below"
+msgstr "mostrar ou esconder o espectro embaixo"
+
+#: harwood/core/telluric.py:397
+msgid "quit: the middle candidate's shift and scale are taken"
+msgstr "sair: ficam o deslocamento e a escala do candidato do meio"
+
+#: harwood/core/telluric.py:397
+msgid "shift scale dshift dscale offset smooth sample, and /gtools"
+msgstr "shift scale dshift dscale offset smooth sample, e /gtools"
 
 #: harwood/core/tvmark.py:398
 #, python-brace-format
@@ -4699,7 +4755,7 @@ msgid "Input and output image lists do not match"
 msgstr "Input and output image lists do not match"
 
 #: harwood/tasks/imfit.py:94
-#: harwood/tasks/longslit.py:789
+#: harwood/tasks/longslit.py:869
 #, python-brace-format
 msgid "{0} inputs and {1} outputs: give one each"
 msgstr "{0} entradas e {1} saídas: dê uma de cada"
@@ -5240,40 +5296,40 @@ msgstr "Editar palavras-chave do cabeçalho, numa imagem ou numa noite inteira."
 msgid "Print image headers, or selected keywords."
 msgstr "Imprimir cabeçalhos de imagens, ou palavras-chave escolhidas."
 
-#: harwood/tasks/longslit.py:124
-#: harwood/tasks/longslit.py:831
+#: harwood/tasks/longslit.py:128
+#: harwood/tasks/longslit.py:911
 #, python-brace-format
 msgid "{0} is not a 2-D image"
 msgstr "{0} não é uma imagem 2-D"
 
-#: harwood/tasks/longslit.py:124
+#: harwood/tasks/longslit.py:128
 msgid "response and illumination calibrate long-slit frames"
 msgstr "response e illumination calibram quadros de fenda longa"
 
-#: harwood/tasks/longslit.py:138
+#: harwood/tasks/longslit.py:142
 msgid "an image list matches nothing"
 msgstr "uma lista de imagens não casa com nada"
 
-#: harwood/tasks/longslit.py:138
+#: harwood/tasks/longslit.py:142
 msgid "check the names"
 msgstr "confira os nomes"
 
-#: harwood/tasks/longslit.py:149
-#: harwood/tasks/longslit.py:881
+#: harwood/tasks/longslit.py:153
+#: harwood/tasks/longslit.py:961
 #, python-brace-format
 msgid "{0} has no DISPAXIS keyword"
 msgstr "{0} não tem a palavra-chave DISPAXIS"
 
-#: harwood/tasks/longslit.py:149
+#: harwood/tasks/longslit.py:153
 msgid "give --dispaxis 1 (dispersion along the lines) or 2 (along the columns), or add DISPAXIS with hedit"
 msgstr "dê --dispaxis 1 (dispersão ao longo das linhas) ou 2 (ao longo das colunas), ou acrescente DISPAXIS com o hedit"
 
-#: harwood/tasks/longslit.py:165
+#: harwood/tasks/longslit.py:169
 #, python-brace-format
 msgid "{0} existed: written where {1} is, the rest left as it was"
 msgstr "{0} existia: gravado onde {1} está, o resto ficou como estava"
 
-#: harwood/tasks/longslit.py:165
+#: harwood/tasks/longslit.py:169
 msgid "remove it first for a new image, ones outside the section"
 msgstr "tire-a antes para ter uma imagem nova, com uns fora da seção"
 
@@ -5301,164 +5357,180 @@ msgstr "O perfil de cada faixa ajustado, normalizado perto do meio da fenda, e i
 msgid "In real, a new image the size of the whole input, ones outside a section; an image that already exists is written only where the section is, as IRAF writes it."
 msgstr "Em real, uma imagem nova do tamanho da entrada inteira, com uns fora de uma seção; uma imagem que já existe só é gravada onde está a seção, como o IRAF grava."
 
-#: harwood/tasks/longslit.py:245
+#: harwood/tasks/longslit.py:258
 msgid "The response of a long-slit flat: the flat over a fit to its spectrum."
 msgstr "A resposta de um flat de fenda longa: o flat dividido por um ajuste ao espectro dele."
 
-#: harwood/tasks/longslit.py:266
-#: harwood/tasks/onedtools.py:3064
+#: harwood/tasks/longslit.py:280
+#: harwood/tasks/onedtools.py:3070
 msgid "Image lists do not match"
 msgstr "Image lists do not match"
 
-#: harwood/tasks/longslit.py:266
+#: harwood/tasks/longslit.py:280
 #, python-brace-format
 msgid "{0} calibration, {1} normalization and {2} response images: give one of each for each flat"
 msgstr "{0} imagens de calibração, {1} de normalização e {2} de resposta: dê uma de cada para cada flat"
 
-#: harwood/tasks/longslit.py:301
+#: harwood/tasks/longslit.py:315
 msgid "The illumination along the slit of a long-slit sky flat."
 msgstr "A iluminação ao longo da fenda de um flat de céu de fenda longa."
 
-#: harwood/tasks/longslit.py:321
+#: harwood/tasks/longslit.py:335
 msgid "The number of input and output images are not the same."
 msgstr "The number of input and output images are not the same."
 
-#: harwood/tasks/longslit.py:321
+#: harwood/tasks/longslit.py:335
 #, python-brace-format
 msgid "{0} images and {1} illuminations: give one each"
 msgstr "{0} imagens e {1} iluminações: dê uma de cada"
 
-#: harwood/tasks/longslit.py:336
+#: harwood/tasks/longslit.py:355
 msgid "give ranges along the dispersion, '1:200 400:600'"
 msgstr "dê intervalos ao longo da dispersão, '1:200 400:600'"
 
-#: harwood/tasks/longslit.py:339
-#: harwood/tasks/longslit.py:336
+#: harwood/tasks/longslit.py:358
+#: harwood/tasks/longslit.py:355
 msgid "Bad range string for parameter bins"
 msgstr "Bad range string for parameter bins"
 
-#: harwood/tasks/longslit.py:339
+#: harwood/tasks/longslit.py:358
 #, python-brace-format
 msgid "the bins are outside 1..{0}, the dispersion axis"
 msgstr "as faixas estão fora de 1..{0}, o eixo de dispersão"
 
-#: harwood/tasks/longslit.py:353
+#: harwood/tasks/longslit.py:364
+msgid "set the bins as ranges along the dispersion: ':bins 1:200 400:600', or s at each end"
+msgstr "defina os bins como intervalos ao longo da dispersão: ':bins 1:200 400:600', ou s em cada ponta"
+
+#: harwood/tasks/longslit.py:367
+msgid "No bins: none of the ranges is on the image"
+msgstr "Nenhum bin: nenhum dos intervalos está na imagem"
+
+#: harwood/tasks/longslit.py:367
+#, python-brace-format
+msgid "mark bins within 1..{0}, the dispersion axis"
+msgstr "marque bins dentro de 1..{0}, o eixo de dispersão"
+
+#: harwood/tasks/longslit.py:383
 msgid "use more bins, or a lower --interpolator"
 msgstr "use mais faixas, ou um --interpolator menor"
 
-#: harwood/tasks/longslit.py:390
-msgid "the s key needs the bins graph's window"
-msgstr "a tecla s precisa da janela do gráfico das faixas"
+#: harwood/tasks/longslit.py:400
+msgid "mark fewer bins, or give them with --bins"
+msgstr "marque menos bins, ou passe-os em --bins"
 
-#: harwood/tasks/longslit.py:390
-msgid "set the bins with ':bins 1:200 400:600' in the cursor file, or --bins"
-msgstr "defina as faixas com ':bins 1:200 400:600' no arquivo de cursor, ou --bins"
-
-#: harwood/tasks/longslit.py:398
-msgid "The features identify and reidentify measured on the arc's lines or columns: the pixel each lamp line fell on and its wavelength, from database/id<image>."
-msgstr "As feições que o identify e o reidentify mediram nas linhas ou colunas do arco: o pixel em que cada linha da lâmpada caiu e o comprimento de onda dela, de database/id<imagem>."
-
-#: harwood/tasks/longslit.py:398
-msgid "One surface through all of them, the wavelength as a function of the column and the line: a low-order fit first, then the full orders with cross terms on what it leaves, the two added (gsurfit, in double precision)."
-msgstr "Uma superfície por todas elas, o comprimento de onda como função da coluna e da linha: um ajuste de ordem baixa primeiro, depois as ordens completas com termos cruzados no que ele deixa, os dois somados (gsurfit, em dupla precisão)."
-
-#: harwood/tasks/longslit.py:398
-msgid "Appended to database/fc<fitname>, the surface as gsurfit saves it: what transform reads."
-msgstr "Acrescentado a database/fc<fitname>, a superfície como o gsurfit a guarda: o que o transform lê."
-
-#: harwood/tasks/longslit.py:490
-msgid "Fit a surface to the wavelengths measured along a long-slit arc."
-msgstr "Ajustar uma superfície aos comprimentos de onda medidos ao longo de um arco de fenda longa."
-
-#: harwood/tasks/longslit.py:507
-msgid "Fit name not specified"
-msgstr "Fit name not specified"
-
-#: harwood/tasks/longslit.py:507
-msgid "give --fitname for the combined fit"
-msgstr "dê --fitname para o ajuste combinado"
-
-#: harwood/tasks/longslit.py:528
-#: harwood/tasks/longslit.py:530
-msgid "identify and reidentify the arc first: the features are read from database/id<image>"
-msgstr "rode o identify e o reidentify no arco antes: as feições são lidas de database/id<imagem>"
-
-#: harwood/tasks/longslit.py:542
-msgid "delete fewer points or lower the orders: a surface needs more points than coefficients"
-msgstr "apague menos pontos ou baixe as ordens: uma superfície precisa de mais pontos que coeficientes"
-
-#: harwood/tasks/longslit.py:546
-#: harwood/tasks/longslit.py:665
-msgid "check the database's records"
-msgstr "confira os registros do database"
-
-#: harwood/tasks/longslit.py:597
-#: harwood/tasks/photcal.py:158
+#: harwood/tasks/longslit.py:419
+#: harwood/tasks/longslit.py:677
+#: harwood/tasks/onedtools.py:3185
 #, python-brace-format
 msgid "answers file '{0}' does not exist"
 msgstr "o arquivo de respostas '{0}' não existe"
 
-#: harwood/tasks/longslit.py:597
+#: harwood/tasks/longslit.py:419
+#: harwood/tasks/onedtools.py:3185
+msgid "write one answer a line: no, yes, NO or YES"
+msgstr "escreva uma resposta por linha: no, yes, NO ou YES"
+
+#: harwood/tasks/longslit.py:478
+msgid "The features identify and reidentify measured on the arc's lines or columns: the pixel each lamp line fell on and its wavelength, from database/id<image>."
+msgstr "As feições que o identify e o reidentify mediram nas linhas ou colunas do arco: o pixel em que cada linha da lâmpada caiu e o comprimento de onda dela, de database/id<imagem>."
+
+#: harwood/tasks/longslit.py:478
+msgid "One surface through all of them, the wavelength as a function of the column and the line: a low-order fit first, then the full orders with cross terms on what it leaves, the two added (gsurfit, in double precision)."
+msgstr "Uma superfície por todas elas, o comprimento de onda como função da coluna e da linha: um ajuste de ordem baixa primeiro, depois as ordens completas com termos cruzados no que ele deixa, os dois somados (gsurfit, em dupla precisão)."
+
+#: harwood/tasks/longslit.py:478
+msgid "Appended to database/fc<fitname>, the surface as gsurfit saves it: what transform reads."
+msgstr "Acrescentado a database/fc<fitname>, a superfície como o gsurfit a guarda: o que o transform lê."
+
+#: harwood/tasks/longslit.py:570
+msgid "Fit a surface to the wavelengths measured along a long-slit arc."
+msgstr "Ajustar uma superfície aos comprimentos de onda medidos ao longo de um arco de fenda longa."
+
+#: harwood/tasks/longslit.py:587
+msgid "Fit name not specified"
+msgstr "Fit name not specified"
+
+#: harwood/tasks/longslit.py:587
+msgid "give --fitname for the combined fit"
+msgstr "dê --fitname para o ajuste combinado"
+
+#: harwood/tasks/longslit.py:608
+#: harwood/tasks/longslit.py:610
+msgid "identify and reidentify the arc first: the features are read from database/id<image>"
+msgstr "rode o identify e o reidentify no arco antes: as feições são lidas de database/id<imagem>"
+
+#: harwood/tasks/longslit.py:622
+msgid "delete fewer points or lower the orders: a surface needs more points than coefficients"
+msgstr "apague menos pontos ou baixe as ordens: uma superfície precisa de mais pontos que coeficientes"
+
+#: harwood/tasks/longslit.py:626
+#: harwood/tasks/longslit.py:745
+msgid "check the database's records"
+msgstr "confira os registros do database"
+
+#: harwood/tasks/longslit.py:677
 msgid "write one answer a line: yes or no"
 msgstr "escreva uma resposta por linha: yes ou no"
 
-#: harwood/tasks/longslit.py:604
+#: harwood/tasks/longslit.py:684
+#: harwood/tasks/onedtools.py:3179
 msgid "write one key a line, 'x y 1 key' or ':command', or use --interactive for the window"
 msgstr "escreva uma tecla por linha, 'x y 1 tecla' ou ':comando', ou use --interactive para a janela"
 
-#: harwood/tasks/longslit.py:684
+#: harwood/tasks/longslit.py:764
 msgid "The surfaces fitcoords wrote, database/fc<fitname>: the wavelength (and, with a fit of the other axis, the position along the slit) of every input pixel."
 msgstr "As superfícies que o fitcoords gravou, database/fc<fitname>: o comprimento de onda (e, com um ajuste do outro eixo, a posição ao longo da fenda) de cada pixel de entrada."
 
-#: harwood/tasks/longslit.py:684
+#: harwood/tasks/longslit.py:764
 msgid "The surfaces inverted on every tenth output pixel by Newton's method, and interpolated bilinearly in between: where each output pixel falls on the input."
 msgstr "As superfícies invertidas a cada décimo pixel de saída pelo método de Newton, e interpoladas bilinearmente entre eles: onde cada pixel de saída cai na entrada."
 
-#: harwood/tasks/longslit.py:684
+#: harwood/tasks/longslit.py:764
 msgid "The input interpolated there; with flux on, multiplied by the input area the output pixel covers, so that counts are kept."
 msgstr "A entrada interpolada ali; com flux ligado, multiplicada pela área da entrada que o pixel de saída cobre, para que as contagens se conservem."
 
-#: harwood/tasks/longslit.py:684
+#: harwood/tasks/longslit.py:764
 msgid "A new image on straight lines of constant wavelength, with a linear world system for onedspec."
 msgstr "Uma imagem nova em linhas retas de comprimento de onda constante, com um sistema de coordenadas linear para o onedspec."
 
-#: harwood/tasks/longslit.py:764
+#: harwood/tasks/longslit.py:844
 msgid "Resample a long-slit frame onto straight lines of constant wavelength."
 msgstr "Reamostrar um quadro de fenda longa em linhas retas de comprimento de onda constante."
 
-#: harwood/tasks/longslit.py:789
+#: harwood/tasks/longslit.py:869
 msgid "Number of input and output images differ"
 msgstr "Number of input and output images differ"
 
-#: harwood/tasks/longslit.py:794
+#: harwood/tasks/longslit.py:874
 msgid "Can't associate input masks with input images"
 msgstr "Can't associate input masks with input images"
 
-#: harwood/tasks/longslit.py:794
+#: harwood/tasks/longslit.py:874
 msgid "give one mask, or one for each input"
 msgstr "dê uma máscara, ou uma para cada entrada"
 
-#: harwood/tasks/longslit.py:797
+#: harwood/tasks/longslit.py:877
 msgid "Number output masks differ from input"
 msgstr "Number output masks differ from input"
 
-#: harwood/tasks/longslit.py:797
+#: harwood/tasks/longslit.py:877
 msgid "give one output mask for each input"
 msgstr "dê uma máscara de saída para cada entrada"
 
-#: harwood/tasks/longslit.py:811
+#: harwood/tasks/longslit.py:891
 msgid "run fitcoords first: transform reads database/fc<fitname>"
 msgstr "rode o fitcoords antes: o transform lê database/fc<fitname>"
 
-#: harwood/tasks/longslit.py:831
+#: harwood/tasks/longslit.py:911
 msgid "transform resamples long-slit frames"
 msgstr "o transform reamostra quadros de fenda longa"
 
-#: harwood/tasks/longslit.py:839
+#: harwood/tasks/longslit.py:919
 msgid "the image's world system has to be linear and invertible to transform by it"
 msgstr "o sistema de coordenadas da imagem tem de ser linear e inversível para transformar por ele"
 
-#: harwood/tasks/longslit.py:881
+#: harwood/tasks/longslit.py:961
 msgid "give --dispaxis 2 (the dispersion along the columns) or 1 (along the lines), as IRAF's longslit.dispaxis, or add DISPAXIS with hedit"
 msgstr "dê --dispaxis 2 (a dispersão ao longo das colunas) ou 1 (ao longo das linhas), como o longslit.dispaxis do IRAF, ou acrescente DISPAXIS com o hedit"
 
@@ -6775,32 +6847,24 @@ msgstr "A calibração, elevada à escala vezes a razão das massas de ar (lei d
 msgid "The calibration, times the scale, is subtracted from the spectrum."
 msgstr "A calibração, vezes a escala, é subtraída do espectro."
 
-#: harwood/tasks/onedtools.py:3055
-msgid "interactive tweaking is not harwood's yet"
-msgstr "o ajuste interativo ainda não é do harwood"
-
-#: harwood/tasks/onedtools.py:3055
-msgid "leave --interactive off: the shift and scale are found automatically, as IRAF's are without it."
-msgstr "deixe --interactive desligado: o deslocamento e a escala são achados automaticamente, como os do IRAF sem ele."
-
-#: harwood/tasks/onedtools.py:3064
+#: harwood/tasks/onedtools.py:3070
 msgid "give one calibration for all, or one for each input."
 msgstr "dê uma calibração para todos, ou uma para cada entrada."
 
-#: harwood/tasks/onedtools.py:3085
+#: harwood/tasks/onedtools.py:3092
 #, python-brace-format
 msgid "{0} has no AIRMASS"
 msgstr "{0} não tem AIRMASS"
 
-#: harwood/tasks/onedtools.py:3085
+#: harwood/tasks/onedtools.py:3092
 msgid "give --airmass, or put AIRMASS in its header."
 msgstr "dê --airmass, ou ponha AIRMASS no cabeçalho dele."
 
-#: harwood/tasks/onedtools.py:3173
+#: harwood/tasks/onedtools.py:3259
 msgid "Divide out telluric bands with a calibration, shifted and scaled."
 msgstr "Dividir as bandas telúricas por uma calibração, deslocada e escalada."
 
-#: harwood/tasks/onedtools.py:3182
+#: harwood/tasks/onedtools.py:3268
 msgid "Subtract sky with a sky spectrum, shifted and scaled."
 msgstr "Subtrair o céu com um espectro de céu, deslocado e escalado."
 
@@ -8317,6 +8381,14 @@ msgstr "only 1 arg; {0}, line {1}: {2}"
 msgid "only 2 args; {0}, line {1}: {2}"
 msgstr "only 2 args; {0}, line {1}: {2}"
 
+#: harwood/viewer/bins_panel.py:20
+msgid ":bins 1:200 400:600   ·   :show   ·   s at each end of a bin, or type a colon command here"
+msgstr ":bins 1:200 400:600   ·   :show   ·   s em cada ponta de um bin, ou digite aqui um comando de dois-pontos"
+
+#: harwood/viewer/bins_panel.py:99
+msgid "now s (or any key) at the bin's other end"
+msgstr "agora s (ou qualquer tecla) na outra ponta do bin"
+
 #: harwood/viewer/browser.py:205
 msgid "INDEF (not set)"
 msgstr "INDEF (não definido)"
@@ -8664,6 +8736,26 @@ msgstr "listar as bandas"
 #: harwood/viewer/standard_panel.py:21
 msgid "done with this spectrum"
 msgstr "pronto com este espectro"
+
+#: harwood/viewer/tweak_panel.py:126
+msgid "calibration"
+msgstr "calibração"
+
+#: harwood/viewer/tweak_panel.py:127
+msgid "spectrum"
+msgstr "espectro"
+
+#: harwood/viewer/tweak_panel.py:143
+msgid "candidates by shift"
+msgstr "candidatos por deslocamento"
+
+#: harwood/viewer/tweak_panel.py:144
+msgid "candidates by scale"
+msgstr "candidatos por escala"
+
+#: harwood/viewer/tweak_panel.py:26
+msgid ":shift 0.5   ·   :scale 1.1   ·   :sample 6850:6900   ·   press a key over the graphs, or type a colon command here"
+msgstr ":shift 0.5   ·   :scale 1.1   ·   :sample 6850:6900   ·   aperte uma tecla sobre os gráficos, ou digite aqui um comando de dois-pontos"
 
 #: harwood/viewer/window.py:1043
 msgid "hw>  display obj.fits · imexamine · ccdproc --plan · help phot"

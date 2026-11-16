@@ -196,10 +196,10 @@ def _ask(title: str, text: str, choices, current: str, more: str = "") -> str:
 
 
 @on_main
-def ask_answer(question: str, current: str) -> str:
+def ask_answer(question: str, current: str, title: str = "fitcoords") -> str:
     """'Fit <image> interactively?', with IRAF's four answers as buttons."""
     yes, no = QtWidgets.QMessageBox.ButtonRole.YesRole, QtWidgets.QMessageBox.ButtonRole.NoRole
-    return _ask("fitcoords", question,
+    return _ask(title, question,
                 (("yes", "Yes", yes), ("no", "No", no), ("YES", "Yes to all", yes),
                  ("NO", "No to all", no)), current,
                 "No to all and Yes to all stop asking, as IRAF's NO and YES do.")

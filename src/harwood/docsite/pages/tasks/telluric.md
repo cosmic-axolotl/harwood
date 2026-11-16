@@ -37,11 +37,77 @@ spectrum is where the next one starts. The log gives the shift, the scale and th
 normalization, and warns of pixels beyond the calibration's last, which take its last
 value.
 
+By eye (`--interactive`) each spectrum opens in IRAF's graphs after the search: above,
+three candidates -- the spectrum corrected with the current shift and scale in the
+middle, and with a step less and a step more of one of them below and above, set apart
+by the offset; below, the calibration where the spectrum is. The keys are IRAF's, and
+act where the mouse is:
+
+| key | what it does |
+|-----|--------------|
+| `x` | the candidates by shift; over one of them, that one is taken |
+| `y` | the candidates by scale; over one of them, that one is taken |
+| `a` | the shift and scale of least RMS over the sample, from where they are |
+| `e` | double the step of the candidates shown |
+| `s` | a sample region from here to the next key: `s` adds it, `n` starts anew |
+| `c` `d` | show or hide the calibration, or the spectrum, below |
+| `r` | redraw |
+| `w` | gtools' window keys, on the graph the mouse is over; the two share their x axis |
+| `q` | done: the middle candidate's shift and scale are the spectrum's |
+| `:shift` `:scale` `:dshift` `:dscale` `:offset` `:smooth` `:sample` | show a value, or set it |
+
+Taking the middle candidate with the key of the graph shown halves its step, so the
+choice closes in: `y` on the better of three scales until the middle is the best, the
+same with `x` for the shift. The title says where things stand -- scale, shift, the step
+of the one shown, the offset and the RMS. Before each spectrum after the first the
+window asks whether to go on by eye; "No to all" leaves the rest to the search. Beside
+IRAF's graph, each candidate says its shift or scale at its right end and the sample is
+shaded.
+
+Without a window, `--cursor` reads the keys from a file in IRAF's cursor format
+(`x y wcs key` or `x y wcs :command`; wcs 1 the candidates, 2 the graph below), on from
+one spectrum to the next, and `--answers` the replies to "Search interactively?" (no,
+yes, NO, YES), a line for each spectrum asked:
+
+```console
+$ cat keys.cur
+6900 2.0 1 y
+6900 1.0 1 y
+0 0 1 :shift
+0 0 1 q
+0 0 1 q
+$ harwood telluric s c t --cursor keys.cur
+ok telluric in 0.70s
+s[*,1]: shift 0.7001734
+TELLURIC:
+  Output: c - spectrum s
+  Input: s[*,1] - star one
+  Calibration: t[*,1] - tell one
+  Tweak: shift = 0.70, scale = 1.185, normalization = 0.9715
+  WARNING: 1 pixels outside of calibration limits
+s[*,2]:   Input: s[*,2] - star two
+  Calibration: t[*,2] - tell two
+  Tweak: shift = 0.70, scale = 1.013, normalization = 0.9735
+  WARNING: 1 pixels outside of calibration limits
+  -> c.fits
+```
+
 IRAF 2.18's telluric and skytweak are held to the bit: twenty-seven sessions -- the
 shift and scale found by cross-correlation and the least RMS, each alone or given; the
 lag, the sample, the steps; the calibration's apertures by number, ignored or missing;
 thresholds, and a calibration that goes to zero; the airmass from the header or given;
 a calibration that covers part of the spectrum; in place; four bands; two inputs with
 one calibration or one each -- say the same, line for line, and leave the same pixels.
-IRAF's interactive tweaking, by eye with its keys, is not harwood's yet: `--interactive`
-says so.
+By eye, twenty-one more from cursor files: every key and colon command, the prompts and
+the bells, the answers, and each graph drawn -- its windows, title, curves and sample
+marks where IRAF's metacode has them.
+
+What IRAF does by eye that is worth knowing, kept: `w` over the candidates measures
+its steps (`u`, `d`, `y`, `z`...) on the lower graph's window when there is one, the
+last drawn; once the lower graph has been shown the candidates' x axis is never
+numbered again, even alone; with no step in the shift, `x` cannot be chosen (the code
+asks about the shift's step twice, never the scale's), and with no step in the scale
+`y` shows three alike; on an x axis run backwards the sample's ticks are not drawn.
+One thing is not kept: `:sample` with a text that is no range. IRAF means to refuse it
+and takes it -- no pixel is then in the sample, the RMS is INDEF, and the search finds
+nothing for that spectrum or the next. harwood warns and keeps the sample it had.
