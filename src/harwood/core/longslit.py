@@ -27,6 +27,8 @@ What follows from the code, kept:
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import numpy as np
 
 from . import icfitbits, msi
@@ -161,11 +163,28 @@ def ranges(text: str, rmin: int, rmax: int) -> list[tuple[int, int]]:
         r1, r2 = min(r1, r2), max(r1, r2)
         if r2 >= rmin and r1 <= rmax:
             found.append((max(rmin, r1), min(rmax, r2)))
+    return _order(found)
+
+
+def _order(found: list) -> list:
+    """rg_order: by their start, the exchange sort IRAF does."""
     for i in range(len(found) - 1):
         for j in range(i + 1, len(found)):
             if found[i][0] > found[j][0]:
                 found[i], found[j] = found[j], found[i]
     return found
+
+
+def cursor_ranges(text: str, npts: int) -> list[tuple[int, int]]:
+    """The bins as il_gsetbins leaves them: rg_xrangesr over the positions 1..npts --
+    not rg_ranges, which reads the parameter -- and rg_order. Reals are taken, a
+    range reaching outside is cut to the data, one wholly outside is dropped."""
+    x = np.arange(1, npts + 1, dtype=f32)
+    said: list[str] = []
+    found = [(a + 1, b + 1) for a, b in icfitbits._xranges(text, x, said, merge=False)]
+    if said:
+        raise LongslitError(said[0])
+    return _order(found)
 
 
 def default_bins(npts: int, nbins: int) -> str:
@@ -246,3 +265,149 @@ def expand(shape: tuple[int, int], slit_axis: int, x: np.ndarray, centres: np.nd
         for i in range(nlines):
             out[i] = msi.msivector(surface, np.full(ncols, x[i], f32), yout[:ncols])
     return out
+
+
+# ------------------------------------------------------- the bins, by hand
+
+BINS_HELP = "ilsetbins.key"
+SZ_BINS = 2048
+#: The keys, for the panel's guide.
+BINS_KEYS = [
+    ("s", "a bin from here to the next key's position, added to those there are"),
+    ("i", "clear the bins: all the dispersion is one, until s marks others"),
+    ("q", "done: the profiles of these bins are fitted next"),
+    ("I", "interrupt the task"),
+    (":", "bins [ranges], show, and /gtools"),
+]
+
+
+@dataclass
+class BinsFrame:
+    """What il_gbins draws: the window (x1 x2 y1 y2), the title's lines, the label,
+    the average spectrum, and the bins' marks -- (x1, x2, tick at x1, tick at x2) at
+    the heights y1 y2 y3 -- as they stand (`regions`) and every one drawn on this
+    frame, those since erased too (`drawn`)."""
+    window: tuple
+    title: list[str]
+    xlabel: str
+    x: np.ndarray
+    y: np.ndarray
+    regions: list[tuple]
+    heights: tuple
+    drawn: list[tuple] = field(default_factory=list)
+
+
+class BinsSession:
+    """il_gsetbins: the average spectrum along the dispersion with the bins marked,
+    and the keys that set them, one read at a time (`key`). What IRAF prints goes
+    to `out`, its error stream to `err`; each graph drawn is a BinsFrame. `done`
+    once q is read: `bins` is the string the bins are then read from."""
+
+    def __init__(self, x: np.ndarray, y: np.ndarray, bins: str, title: str,
+                 xlabel: str) -> None:
+        from .gtools import GTools
+
+        self.x, self.y = np.asarray(x, f32), np.asarray(y, f32)
+        self.bins = bins
+        self.title = title.split("\n")
+        self.xlabel = xlabel
+        self.gt = GTools()
+        self.out = ""
+        self.err = ""
+        self.frames: list[BinsFrame] = []
+        self.window = (0.0, 1.0, 0.0, 1.0)
+        self.newgraph = False       # gt_colon only ever sets it: once set, it stays
+        self.state = ""
+        self.first = 0.0
+        self.done = False
+        self.graph()
+
+    def _regions(self, bins: str) -> list[tuple]:
+        """rg_gxmarkr: nothing for a string with '*' in it."""
+        if "*" in bins:
+            return []
+        x1, x2 = f32(self.window[0]), f32(self.window[1])
+        found = []
+        for a, b in icfitbits._xranges(bins, self.x, [], merge=False):
+            xa, xb = self.x[a], self.x[b]
+            found.append((float(xa), float(xb), bool(xa > x1 and xa < x2),
+                          bool(xb > x1 and xb < x2)))
+        return found
+
+    def graph(self) -> BinsFrame:
+        """il_gbins: gascale, gt_swind, the line and the marks."""
+        from .gtools import span
+
+        self.window = self.gt.swind(span(self.x), span(self.y))
+        y1, y2 = f32(self.window[2]), f32(self.window[3])
+        dy = f32(y2 - y1)
+        h1 = f32(y1 + f32(dy / f32(100)))
+        h2 = f32(h1 + f32(dy / f32(20)))
+        regions = self._regions(self.bins)
+        frame = BinsFrame(self.window, list(self.title), self.xlabel, self.x, self.y,
+                          regions, (float(h1), float(h2), float(f32(f32(h1 + h2) / f32(2)))),
+                          list(regions))
+        self.frames.append(frame)
+        return frame
+
+    def _mark(self) -> None:
+        frame = self.frames[-1]
+        frame.regions = self._regions(self.bins)
+        frame.drawn.extend(frame.regions)
+
+    def colon(self, text: str) -> bool:
+        """il_colon: whether the bins are new."""
+        from .gtools import strdic
+
+        words = text.split(None, 1)
+        found = strdic(words[0], ("show", "bins")) if words else 0
+        rest = words[1].lstrip() if len(words) > 1 else ""
+        if found == 1 or (found == 2 and not rest):
+            self.out += f"bins = {self.bins}\n"
+        elif found == 2:
+            self.bins = rest[:SZ_BINS]
+            return True
+        return False
+
+    def key(self, key: str, wx: float = 0.0, wy: float = 0.0, rest: str = "") -> None:
+        """One read of il_gsetbins' cursor loop; `rest` a colon command's text."""
+        from .gtools import pagefile
+
+        state, self.state = self.state, ""
+        if key == "q":              # gt_gcur's end of file, in s's second read too
+            self.done = True
+            return
+        if state == "s":
+            new = f"{int(self.first)}:{int(f32(wx))} "
+            if len(new) + len(self.bins) > SZ_BINS:
+                self.err += "Warning: Too many bins.  New bin ignored.\n"
+            else:
+                self.bins += new
+                self._mark()
+        elif key == "?":
+            self.out += pagefile(BINS_HELP)
+        elif key == ":":
+            newbins = False
+            if rest.startswith("/"):
+                out, err, redraw = self.gt.colon(rest, self.window)
+                self.out += out
+                self.err += err
+                self.newgraph = self.newgraph or redraw
+            else:
+                newbins = self.colon(rest)
+            if self.newgraph:
+                self.graph()
+            elif newbins:
+                self._mark()
+        elif key == "i":
+            self.bins = "*"
+            self._mark()
+        elif key == "s":
+            if "*" in self.bins:
+                self.bins = ""
+            self.first, self.state = float(f32(wx)), "s"
+            self.out += "again:\n"
+        elif key == "I":
+            raise LongslitError("Interrupt")
+        else:
+            self.out += "\a\n"

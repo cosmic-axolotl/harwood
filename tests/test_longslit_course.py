@@ -65,6 +65,13 @@ def test_the_course_71_flat_illumination_and_ccdproc(tmp_path, monkeypatch):
                 cursor="bins.cur", **fit)
     assert _same("flat_response.fits", LAMP / "flat_response.fits")
     assert _same("flat_illum.fits", LAMP / "flat_illum.fits")
+    # the same bins marked on the bins' graph, as she did: i, then s at each end
+    marks = "".join(f"{x} 0 1 s\n" for x in (1, 222, 109, 220, 330, 440))
+    Path("marks.cur").write_text("0 0 1 i\n" + marks + "q\n" + "".join(
+        f":order {o}\nf\nq\n" for o in (8, 8, 6)), encoding="utf-8")
+    harwood.run("illumination", images=["flat_response.fits"],
+                illuminations=["marked.fits"], cursor="marks.cur", **fit)
+    assert _same("marked.fits", LAMP / "flat_illum.fits")
     frames = ("ngc660_1800", "ngc660_900", "cuar")
     harwood.run("ccdproc", input=[",".join(f"{f}_btp.fits" for f in frames)],
                 output=",".join(f"{f}_btpf.fits" for f in frames), overscan=False,

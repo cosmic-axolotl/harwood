@@ -101,6 +101,10 @@ class IlluminationParams(_Common):
     bins: str = Field("", description="Bins along the dispersion, as ranges: '1:200 "
                                       "400:600'. Empty: nbins equal ones.")
     nbins: int = Field(5, ge=1, description="Equal bins when --bins is empty.")
+    answers: str = Field("", description="With --cursor: the answers to 'Determine "
+                                         "illumination interactively for <image>' and "
+                                         "'... at bin <n>' (no, yes, NO, YES), one a "
+                                         "line; yes to each without it.")
     interpolator: Literal["nearest", "linear", "poly3", "poly5", "spline3"] = Field(
         "poly3", description="Between the bins. poly3 and spline3 need four bins and "
                              "poly5 six: with fewer, IRAF uses a lower one.")
@@ -193,6 +197,14 @@ def _keys(cursor: str) -> list[str]:
     return keys
 
 
+def _forget(cursor: str) -> None:
+    """A cursor file is read on from fit to fit within one run, not from run to run."""
+    from .onedtools import _SFT_CURSORS
+
+    _CURSORS.pop(cursor, None)
+    _SFT_CURSORS.pop(cursor, None)
+
+
 def _spec(params) -> dict:
     return {k: getattr(params, k) for k in ("function", "order", "sample", "naverage",
                                             "low_reject", "high_reject", "niterate",
@@ -221,11 +233,12 @@ def _by_hand(params, x, y, spec: dict, title: str, xlabel: str):
             np.asarray(session.fitted_wts, np.float32))
 
 
-def _fit(params, x, y, spec: dict, title: str, xlabel: str, text: list):
+def _fit(params, x, y, spec: dict, title: str, xlabel: str, text: list,
+         by_hand: bool | None = None):
     from ..core import longslit
 
     weights = None
-    if params.interactive or params.cursor:
+    if (params.interactive or params.cursor) if by_hand is None else by_hand:
         spec, weights = _by_hand(params, x, y, spec, title, xlabel)
     values, ic = longslit.fitted(x, y, spec, weights)
     text.extend(ic.messages)
@@ -259,6 +272,7 @@ class Response(Task[ResponseParams]):
     def execute(self, params: ResponseParams) -> TaskResult:
         from ..core import longslit
 
+        _forget(params.cursor)
         cals, norms = _lists(params.calibration, params.normalization)
         outs = [Path(name) for group in params.response for name in group.split(",")
                 if name.strip()]
@@ -321,30 +335,46 @@ class Illumination(Task[IlluminationParams]):
             advice.fail("The number of input and output images are not the same.",
                         f"{len(ims)} images and {len(outs)} illuminations: give one each")
         spec, text, written, warnings, rows = _spec(params), [], [], [], []
-        for im_spec, target in zip(ims, outs, strict=True):
+        hand = _IllumHand(params)
+        _forget(params.cursor)      # the file is read from its start, whatever ran before
+        # the names as they were typed, which is how IRAF says them
+        typed = [name.strip() for group in params.images for name in group.split(",")
+                 if name.strip()]
+        typed = typed if len(typed) == len(ims) else [str(spec) for spec in ims]
+        for im_spec, target, said in zip(ims, outs, typed, strict=True):
             image = _Image(im_spec)
+            prompt = f"Determine illumination interactively for {said}"
+            hand.state = answer = hand.answer(prompt, hand.state, len(rows) == 0)
             laxis = _laxis(image, params.dispaxis)
             slit = 2 if laxis == 1 else 1
             npts = image.data.shape[0] if slit == 1 else image.data.shape[1]
-            given = params.bins.strip()
-            if params.cursor:
-                given = _cursor_bins(params.cursor, given, npts, params.nbins, text)
+            given = params.bins.strip() or longslit.default_bins(npts, params.nbins)
             try:
-                bins = longslit.ranges(given or longslit.default_bins(npts, params.nbins),
-                                       1, npts)
+                bins = longslit.ranges(given, 1, npts)
             except longslit.LongslitError:
                 advice.fail("Bad range string for parameter bins",
                             "give ranges along the dispersion, '1:200 400:600'")
             if not bins:
                 advice.fail("Bad range string for parameter bins",
                             f"the bins are outside 1..{npts}, the dispersion axis")
+            if answer in ("yes", "YES"):
+                try:
+                    bins = hand.bins(image, slit, given, im_spec)
+                except longslit.LongslitError as error:
+                    advice.fail(str(error), "set the bins as ranges along the dispersion: "
+                                            "':bins 1:200 400:600', or s at each end")
+                if not bins:
+                    advice.fail("No bins: none of the ranges is on the image",
+                                f"mark bins within 1..{npts}, the dispersion axis")
             x, centres, profiles = longslit.binned(image.data, slit, bins)
             fits_ = []
             for number, profile in enumerate(profiles, start=1):
-                title = (f"Determine illumination interactively for {im_spec} at bin "
-                         f"{number}\n{str(image.header.get('OBJECT', '')).strip()}")
+                answer = hand.answer(f"{prompt} at bin {number}", answer, False)
+                title = (f"{prompt} at bin {number}\n"
+                         f"{str(image.header.get('OBJECT', '')).strip()}")
                 values, spec = _fit(params, x, profile, spec, title,
-                                    "Column" if slit == 1 else "Line", text)
+                                    "Column" if slit == 1 else "Line", text,
+                                    by_hand=answer in ("yes", "YES"))
                 fits_.append(values)
             try:
                 values = longslit.expand(image.data.shape, slit, x, centres,
@@ -360,37 +390,87 @@ class Illumination(Task[IlluminationParams]):
                          "interpolator": longslit.interpolator(params.interpolator,
                                                                len(bins))})
         data: dict = {"rows": rows}
+        said = "".join(hand.stdout)
+        if said.strip("\a\n "):
+            text = [*said.replace("\a", "").rstrip("\n").split("\n"), *text]
+            data["stdout"] = said
         if text:
             data["text"] = text
+        for line in "".join(hand.errors).splitlines():
+            warnings.append(advice.warn(line, "mark fewer bins, or give them with --bins"))
         return TaskResult(outputs=written, steps=self.plan(params), data=data,
                           warnings=warnings, history=[f"illumination: {len(rows)} image(s)"])
 
 
-def _cursor_bins(cursor: str, given: str, npts: int, nbins: int, text: list) -> str:
-    """il_gsetbins from the cursor file: the keys before the bins graph's q --
-    ':bins ranges' sets them, ':bins' and ':show' print them, i sets '*'."""
-    from ..core import longslit
+class _IllumHand:
+    """The interactive side of illumination: xt_answer's four answers -- before each
+    image, and before each bin until NO or YES -- and il_gsetbins, the bins' graph,
+    from the cursor file or in the window."""
 
-    current = given or longslit.default_bins(npts, nbins)
-    for line in _keys(cursor):
-        key = line.split(None, 3)[3].strip()
-        if key == "q":
-            break
-        if key == "i":
-            current = "*"
-        elif key.startswith(":"):
-            words = key[1:].split(None, 1)
-            name = words[0] if words else ""
-            rest = words[1].strip() if len(words) > 1 else ""
-            if name in ("show",) or (name == "bins" and not rest):
-                text.append(f"bins = {current}")
-            elif name == "bins":
-                current = rest
-        elif key == "s":
-            advice.fail("the s key needs the bins graph's window",
-                        "set the bins with ':bins 1:200 400:600' in the cursor file, or "
-                        "--bins")
-    return current
+    def __init__(self, params) -> None:
+        self.params = params
+        self.state = "yes" if params.interactive or params.cursor else "NO"
+        self.stdout: list[str] = []
+        self.errors: list[str] = []
+        self.sessions: list = []
+        self.replies = None
+        if params.answers:
+            if not Path(params.answers).is_file():
+                advice.fail(f"answers file '{params.answers}' does not exist",
+                            "write one answer a line: no, yes, NO or YES",
+                            FileNotFoundError)
+            self.replies = iter(Path(params.answers).read_text(
+                encoding="utf-8").splitlines())
+
+    def answer(self, prompt: str, current: str, first: bool) -> str:
+        """xt_answer: asked while the answer is no or yes; no, yes, NO or YES by
+        minimum match, anything else -- and the end of the answers -- keeps it."""
+        from ..core.gtools import strdic
+
+        if current not in ("no", "yes"):
+            return current
+        self.stdout.append(f"{prompt} ({current}): ")
+        if self.params.cursor:
+            word = next(self.replies, None) if self.replies is not None else None
+        elif first:
+            word = "yes"        # --interactive asked for the window
+        else:
+            from ..viewer.fitcoords_panel import ask_answer
+
+            word = ask_answer(prompt.replace("Determine illumination interactively for",
+                                             "Fit the illumination by hand for") + "?",
+                              current, title="illumination")
+        found = strdic(word.strip()[:4], ("no", "yes", "NO", "YES")) if word else 0
+        return ("no", "yes", "NO", "YES")[found - 1] if found else current
+
+    def bins(self, image, slit: int, given: str, im_spec) -> list:
+        """il_gsetbins: the average spectrum along the dispersion, the bins marked;
+        what the keys leave, read as rg_xranges reads it."""
+        from ..core import longslit
+
+        ny, nx = image.data.shape
+        x, y = longslit.aimavg(image.data, 2 if slit == 1 else 1, 1, nx, 1, ny)
+        title = f"Set illumination bins\n{str(image.header.get('OBJECT', '')).strip()}"
+        session = longslit.BinsSession(x, y, given, title,
+                                       "Line" if slit == 1 else "Column")
+        self.sessions.append(session)
+        if self.params.cursor:
+            for line in _keys(self.params.cursor):
+                words = line.split(None, 3)
+                key = words[3].strip()
+                if key.startswith(":"):
+                    session.key(":", rest=key[1:])
+                else:
+                    session.key(key[0], float(words[0]), float(words[1]))
+                if session.done:
+                    break
+        else:
+            from ..viewer import bins_panel
+
+            bins_panel.run(session, title=f"illumination · {im_spec}")
+        self.stdout.append(session.out)
+        self.errors.append(session.err)
+        return longslit.cursor_ranges(session.bins, x.size)
 
 
 # ---------------------------------------------------------------- fitcoords
