@@ -1,0 +1,399 @@
+{
+"defaults": {
+"task": "combine",
+"params": {},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"reject_minmax": {
+"task": "combine",
+"params": {
+"reject": "minmax"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = minmax, nlow = 1, nhigh = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = minmax, nlow = 1, nhigh = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"reject_sigclip": {
+"task": "combine",
+"params": {
+"reject": "sigclip"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"reject_avsigclip": {
+"task": "combine",
+"params": {
+"reject": "avsigclip"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = avsigclip, mclip = yes, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = avsigclip, mclip = yes, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"reject_pclip": {
+"task": "combine",
+"params": {
+"reject": "pclip"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = pclip, nkeep = 1\n  pclip = -1., lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = pclip, nkeep = 1\n  pclip = -1., lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"reject_ccdclip": {
+"task": "combine",
+"params": {
+"reject": "ccdclip",
+"rdnoise": "8.",
+"gain": "1."
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = ccdclip, mclip = yes, nkeep = 1\n  rdnoise = 8., gain = 1., snoise = 0., sigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = ccdclip, mclip = yes, nkeep = 1\n  rdnoise = 8., gain = 1., snoise = 0., sigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"reject_crreject": {
+"task": "combine",
+"params": {
+"reject": "crreject",
+"rdnoise": "8.",
+"gain": "1."
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = crreject, mclip = yes, nkeep = 1\n  rdnoise = 8., gain = 1., snoise = 0., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = crreject, mclip = yes, nkeep = 1\n  rdnoise = 8., gain = 1., snoise = 0., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"median": {
+"task": "combine",
+"params": {
+"combine": "median"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = median, scale = none, zero = none, weight = none\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = median, scale = none, zero = none, weight = none\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"median_sigclip": {
+"task": "combine",
+"params": {
+"combine": "median",
+"reject": "sigclip"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = median, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = median, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"scale_exposure": {
+"task": "combine",
+"params": {
+"scale": "exposure"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = exposure, zero = none, weight = none\n  blank = 0.\n                Images     Exp  Scale\n                f0.fits   10.0  1.257\n                f1.fits   12.0  1.048\n                f2.fits   10.0  1.257\n                f3.fits   15.0  0.838\n                f4.fits   10.0  1.257\n                f5.fits   20.0  0.629\n                f6.fits   11.0  1.143\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = exposure, zero = none, weight = none\n  blank = 0.\n                Images     Exp  Scale\n                f0.fits   10.0  1.257\n                f1.fits   12.0  1.048\n                f2.fits   10.0  1.257\n                f3.fits   15.0  0.838\n                f4.fits   10.0  1.257\n                f5.fits   20.0  0.629\n                f6.fits   11.0  1.143\n\n  Output image = out, ncombine = 7\n"
+},
+"scale_mean": {
+"task": "combine",
+"params": {
+"scale": "mean"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = mean, zero = none, weight = none\n  blank = 0.\n                Images     Exp    Mean  Scale\n                f0.fits   10.0  325.23  1.744\n                f1.fits   12.0  435.48  1.302\n                f2.fits   10.0  404.08  1.404\n                f3.fits   15.0  659.36  0.860\n                f4.fits   10.0  483.96  1.172\n                f5.fits   20.0  1041.8  0.544\n                f6.fits   11.0  620.49  0.914\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = mean, zero = none, weight = none\n  blank = 0.\n                Images     Exp    Mean  Scale\n                f0.fits   10.0  325.23  1.744\n                f1.fits   12.0  435.48  1.302\n                f2.fits   10.0  404.08  1.404\n                f3.fits   15.0  659.36  0.860\n                f4.fits   10.0  483.96  1.172\n                f5.fits   20.0  1041.8  0.544\n                f6.fits   11.0  620.49  0.914\n\n  Output image = out, ncombine = 7\n"
+},
+"scale_median": {
+"task": "combine",
+"params": {
+"scale": "median"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = median, zero = none, weight = none\n  blank = 0.\n                Images     Exp  Median  Scale\n                f0.fits   10.0  300.56  1.795\n                f1.fits   12.0  408.97  1.319\n                f2.fits   10.0  380.52  1.418\n                f3.fits   15.0  630.46  0.856\n                f4.fits   10.0  460.18  1.172\n                f5.fits   20.0  1000.5  0.539\n                f6.fits   11.0  594.64  0.907\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = median, zero = none, weight = none\n  blank = 0.\n                Images     Exp  Median  Scale\n                f0.fits   10.0  300.56  1.795\n                f1.fits   12.0  408.97  1.319\n                f2.fits   10.0  380.52  1.418\n                f3.fits   15.0  630.46  0.856\n                f4.fits   10.0  460.18  1.172\n                f5.fits   20.0  1000.5  0.539\n                f6.fits   11.0  594.64  0.907\n\n  Output image = out, ncombine = 7\n"
+},
+"zero_median": {
+"task": "combine",
+"params": {
+"zero": "median"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = median, weight = none\n  blank = 0.\n                Images     Exp  Median    Zero\n                f0.fits   10.0  300.56  238.84\n                f1.fits   12.0  408.97  130.43\n                f2.fits   10.0  380.52  158.88\n                f3.fits   15.0  630.46 -91.063\n                f4.fits   10.0  460.18  79.215\n                f5.fits   20.0  1000.5 -461.06\n                f6.fits   11.0  594.64 -55.237\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = median, weight = none\n  blank = 0.\n                Images     Exp  Median    Zero\n                f0.fits   10.0  300.56  238.84\n                f1.fits   12.0  408.97  130.43\n                f2.fits   10.0  380.52  158.88\n                f3.fits   15.0  630.46 -91.063\n                f4.fits   10.0  460.18  79.215\n                f5.fits   20.0  1000.5 -461.06\n                f6.fits   11.0  594.64 -55.237\n\n  Output image = out, ncombine = 7\n"
+},
+"weight_exposure": {
+"task": "combine",
+"params": {
+"weight": "exposure"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = exposure\n  blank = 0.\n                Images     Exp Weight\n                f0.fits   10.0  0.114\n                f1.fits   12.0  0.136\n                f2.fits   10.0  0.114\n                f3.fits   15.0  0.170\n                f4.fits   10.0  0.114\n                f5.fits   20.0  0.227\n                f6.fits   11.0  0.125\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = exposure\n  blank = 0.\n                Images     Exp Weight\n                f0.fits   10.0  0.114\n                f1.fits   12.0  0.136\n                f2.fits   10.0  0.114\n                f3.fits   15.0  0.170\n                f4.fits   10.0  0.114\n                f5.fits   20.0  0.227\n                f6.fits   11.0  0.125\n\n  Output image = out, ncombine = 7\n"
+},
+"weight_mean": {
+"task": "combine",
+"params": {
+"weight": "mean",
+"scale": "mean"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = mean, zero = none, weight = mean\n  blank = 0.\n                Images     Exp    Mean  Scale Weight\n                f0.fits   10.0  325.23  1.744  0.082\n                f1.fits   12.0  435.48  1.302  0.110\n                f2.fits   10.0  404.08  1.404  0.102\n                f3.fits   15.0  659.36  0.860  0.166\n                f4.fits   10.0  483.96  1.172  0.122\n                f5.fits   20.0  1041.8  0.544  0.262\n                f6.fits   11.0  620.49  0.914  0.156\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = mean, zero = none, weight = mean\n  blank = 0.\n                Images     Exp    Mean  Scale Weight\n                f0.fits   10.0  325.23  1.744  0.082\n                f1.fits   12.0  435.48  1.302  0.110\n                f2.fits   10.0  404.08  1.404  0.102\n                f3.fits   15.0  659.36  0.860  0.166\n                f4.fits   10.0  483.96  1.172  0.122\n                f5.fits   20.0  1041.8  0.544  0.262\n                f6.fits   11.0  620.49  0.914  0.156\n\n  Output image = out, ncombine = 7\n"
+},
+"grow1": {
+"task": "combine",
+"params": {
+"reject": "minmax",
+"grow": 1
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = minmax, nlow = 1, nhigh = 1\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = minmax, nlow = 1, nhigh = 1\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"grow2_sig": {
+"task": "combine",
+"params": {
+"reject": "sigclip",
+"lsigma": 2.0,
+"hsigma": 2.0,
+"grow": 2
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 1\n  lsigma = 2., hsigma = 2.\n  grow = 2\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 1\n  lsigma = 2., hsigma = 2.\n  grow = 2\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"grow1_keep": {
+"task": "combine",
+"params": {
+"reject": "minmax",
+"grow": 1,
+"nkeep": 4
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = minmax, nlow = 1, nhigh = 1\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = minmax, nlow = 1, nhigh = 1\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"grow_avsig": {
+"task": "combine",
+"params": {
+"reject": "avsigclip",
+"lsigma": 1.5,
+"hsigma": 1.5,
+"grow": 1
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = avsigclip, mclip = yes, nkeep = 1\n  lsigma = 1.5, hsigma = 1.5\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = avsigclip, mclip = yes, nkeep = 1\n  lsigma = 1.5, hsigma = 1.5\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"grow_ccd": {
+"task": "combine",
+"params": {
+"reject": "ccdclip",
+"rdnoise": "8.",
+"lsigma": 1.5,
+"hsigma": 1.5,
+"grow": 1,
+"nkeep": 3
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = ccdclip, mclip = yes, nkeep = 3\n  rdnoise = 8., gain = 1., snoise = 0., sigma = 1.5, hsigma = 1.5\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = ccdclip, mclip = yes, nkeep = 3\n  rdnoise = 8., gain = 1., snoise = 0., sigma = 1.5, hsigma = 1.5\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"grow_median": {
+"task": "combine",
+"params": {
+"combine": "median",
+"reject": "sigclip",
+"lsigma": 1.5,
+"hsigma": 1.5,
+"grow": 1
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = median, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 1\n  lsigma = 1.5, hsigma = 1.5\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = median, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 1\n  lsigma = 1.5, hsigma = 1.5\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"grow_pclip": {
+"task": "combine",
+"params": {
+"reject": "pclip",
+"grow": 1
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = pclip, nkeep = 1\n  pclip = -1., lsigma = 3., hsigma = 3.\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = pclip, nkeep = 1\n  pclip = -1., lsigma = 3., hsigma = 3.\n  grow = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"thresholds": {
+"task": "combine",
+"params": {
+"lthreshold": 50.0,
+"hthreshold": 600.0
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  lthreshold = 50., hthreshold = 600.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  lthreshold = 50., hthreshold = 600.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"blank": {
+"task": "combine",
+"params": {
+"lthreshold": 1000000.0,
+"blank": 7.5
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  lthreshold = 1000000.\n  blank = 7.5\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  lthreshold = 1000000.\n  blank = 7.5\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"nkeep": {
+"task": "combine",
+"params": {
+"reject": "sigclip",
+"lsigma": 1.0,
+"hsigma": 1.0,
+"nkeep": 5
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 5\n  lsigma = 1., hsigma = 1.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = yes, nkeep = 5\n  lsigma = 1., hsigma = 1.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"mclip_no": {
+"task": "combine",
+"params": {
+"reject": "sigclip",
+"mclip": "no"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = no, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = no, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"mclip_no_keep": {
+"task": "combine",
+"params": {
+"reject": "sigclip",
+"mclip": "no",
+"lsigma": 1.0,
+"hsigma": 1.0,
+"nkeep": 5
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = no, nkeep = 5\n  lsigma = 1., hsigma = 1.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = sigclip, mclip = no, nkeep = 5\n  lsigma = 1., hsigma = 1.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"mclip_no_ccd": {
+"task": "combine",
+"params": {
+"reject": "ccdclip",
+"mclip": "no",
+"rdnoise": "8.",
+"lsigma": 1.5,
+"hsigma": 1.5
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = ccdclip, mclip = no, nkeep = 1\n  rdnoise = 8., gain = 1., snoise = 0., sigma = 1.5, hsigma = 1.5\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = ccdclip, mclip = no, nkeep = 1\n  rdnoise = 8., gain = 1., snoise = 0., sigma = 1.5, hsigma = 1.5\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"mclip_no_cr": {
+"task": "combine",
+"params": {
+"reject": "crreject",
+"mclip": "no",
+"rdnoise": "8.",
+"nkeep": 6
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = crreject, mclip = no, nkeep = 6\n  rdnoise = 8., gain = 1., snoise = 0., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = crreject, mclip = no, nkeep = 6\n  rdnoise = 8., gain = 1., snoise = 0., hsigma = 3.\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"mclip_no_avs": {
+"task": "combine",
+"params": {
+"reject": "avsigclip",
+"mclip": "no",
+"lsigma": 1.5,
+"hsigma": 1.5
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = avsigclip, mclip = no, nkeep = 1\n  lsigma = 1.5, hsigma = 1.5\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = avsigclip, mclip = no, nkeep = 1\n  lsigma = 1.5, hsigma = 1.5\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"mclip_no_scale": {
+"task": "combine",
+"params": {
+"reject": "sigclip",
+"mclip": "no",
+"scale": "exposure"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = exposure, zero = none, weight = none\n  reject = sigclip, mclip = no, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp  Scale\n                f0.fits   10.0  1.257\n                f1.fits   12.0  1.048\n                f2.fits   10.0  1.257\n                f3.fits   15.0  0.838\n                f4.fits   10.0  1.257\n                f5.fits   20.0  0.629\n                f6.fits   11.0  1.143\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = exposure, zero = none, weight = none\n  reject = sigclip, mclip = no, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 0.\n                Images     Exp  Scale\n                f0.fits   10.0  1.257\n                f1.fits   12.0  1.048\n                f2.fits   10.0  1.257\n                f3.fits   15.0  0.838\n                f4.fits   10.0  1.257\n                f5.fits   20.0  0.629\n                f6.fits   11.0  1.143\n\n  Output image = out, ncombine = 7\n"
+},
+"section": {
+"task": "combine",
+"params": {},
+"images": "f0.fits[5:20,5:20],f1.fits[5:20,5:20],f2.fits[5:20,5:20]",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  blank = 0.\n                Images     Exp\n     f0.fits[5:20,5:20]   10.0\n     f1.fits[5:20,5:20]   12.0\n     f2.fits[5:20,5:20]   10.0\n\n  Output image = out, ncombine = 3\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  blank = 0.\n                Images     Exp\n     f0.fits[5:20,5:20]   10.0\n     f1.fits[5:20,5:20]   12.0\n     f2.fits[5:20,5:20]   10.0\n\n  Output image = out, ncombine = 3\n"
+},
+"preset_zerocombine": {
+"task": "zerocombine",
+"params": {
+"ccdtype": "",
+"process": "no"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = minmax, nlow = 0, nhigh = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = none, zero = none, weight = none\n  reject = minmax, nlow = 0, nhigh = 1\n  blank = 0.\n                Images     Exp\n                f0.fits   10.0\n                f1.fits   12.0\n                f2.fits   10.0\n                f3.fits   15.0\n                f4.fits   10.0\n                f5.fits   20.0\n                f6.fits   11.0\n\n  Output image = out, ncombine = 7\n"
+},
+"preset_darkcombine": {
+"task": "darkcombine",
+"params": {
+"ccdtype": "",
+"process": "no"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = exposure, zero = none, weight = none\n  reject = minmax, nlow = 0, nhigh = 1\n  blank = 0.\n                Images     Exp  Scale\n                f0.fits   10.0  1.257\n                f1.fits   12.0  1.048\n                f2.fits   10.0  1.257\n                f3.fits   15.0  0.838\n                f4.fits   10.0  1.257\n                f5.fits   20.0  0.629\n                f6.fits   11.0  1.143\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = exposure, zero = none, weight = none\n  reject = minmax, nlow = 0, nhigh = 1\n  blank = 0.\n                Images     Exp  Scale\n                f0.fits   10.0  1.257\n                f1.fits   12.0  1.048\n                f2.fits   10.0  1.257\n                f3.fits   15.0  0.838\n                f4.fits   10.0  1.257\n                f5.fits   20.0  0.629\n                f6.fits   11.0  1.143\n\n  Output image = out, ncombine = 7\n"
+},
+"preset_flatcombine": {
+"task": "flatcombine",
+"params": {
+"ccdtype": "",
+"subsets": "no",
+"process": "no"
+},
+"images": "@all.lis",
+"error": "",
+"logfile": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = mode, zero = none, weight = none\n  reject = avsigclip, mclip = yes, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 1.\n                Images     Exp    Mode  Scale\n                f0.fits   10.0  299.69  1.798\n                f1.fits   12.0  408.83  1.318\n                f2.fits   10.0  382.09  1.410\n                f3.fits   15.0  628.99  0.857\n                f4.fits   10.0  460.93  1.169\n                f5.fits   20.0  998.57  0.540\n                f6.fits   11.0   593.2  0.908\n\n  Output image = out, ncombine = 7\n",
+"printed": "\nNov 17 10:09: IMCOMBINE\n  combine = average, scale = mode, zero = none, weight = none\n  reject = avsigclip, mclip = yes, nkeep = 1\n  lsigma = 3., hsigma = 3.\n  blank = 1.\n                Images     Exp    Mode  Scale\n                f0.fits   10.0  299.69  1.798\n                f1.fits   12.0  408.83  1.318\n                f2.fits   10.0  382.09  1.410\n                f3.fits   15.0  628.99  0.857\n                f4.fits   10.0  460.93  1.169\n                f5.fits   20.0  998.57  0.540\n                f6.fits   11.0   593.2  0.908\n\n  Output image = out, ncombine = 7\n"
+}
+}

@@ -1,0 +1,46 @@
+"""The sessions of IRAF's ccdtest gabarito, each in a new IRAF (mkimage's seed is a
+static of the process): name -> (instrument, [(task, positional arguments, parameters)]).
+
+Each session's images are compared, their pixels and the header the tasks write."""
+
+DEMO = "ccddb$kpno/demo.dat"
+CASES = {
+    "make": ("", [("mkimage", ["a", "make", 100.0], dict(ndim=2, dims="20 15"))]),
+    "make-slope": ("", [("mkimage", ["a", "make", 100.0],
+                         dict(ndim=2, dims="20 15", slope=0.5))]),
+    "make-noise": ("", [("mkimage", ["a", "make", 100.0],
+                         dict(ndim=2, dims="20 15", sigma=5.0, seed=7))]),
+    "make-short": ("", [("mkimage", ["a", "make", 10.0],
+                         dict(ndim=2, dims="20 15", pixtype="short", slope=0.37,
+                              sigma=3.0))]),
+    "make-1d": ("", [("mkimage", ["a", "make", 3.0], dict(ndim=1, dims="30", slope=0.1))]),
+    "edit": ("", [("mkimage", ["a", "make", 100.0], dict(ndim=2, dims="20 15")),
+                  ("mkimage", ["a[3:10,2:5]", "add", 7.5], dict(slope=0.2)),
+                  ("mkimage", ["a[*,10:12]", "multiply", 2.0], dict()),
+                  ("mkimage", ["a[15:15,*]", "replace", -3.0], dict(sigma=2.0)),
+                  ("mkimage", ["a", "add", 1.0], dict(sigma=1.0))]),
+    "edit-1d": ("", [("mkimage", ["a", "make", 100.0], dict(ndim=2, dims="20 15")),
+                     ("mkimage", ["a[*,5:5]", "add", 1.0], dict(slope=0.3)),
+                     ("mkimage", ["a[7:7,*]", "add", 2.0], dict(slope=0.7)),
+                     ("mkimage", ["a[3:12,9]", "multiply", 1.5], dict(slope=0.01)),
+                     ("mkimage", ["a[*,1:1]", "replace", 9.0], dict(sigma=1.5))]),
+    "make-3d": ("", [("mkimage", ["a", "make", 10.0],
+                      dict(ndim=3, dims="6 4 3", slope=0.25)),
+                     ("mkimage", ["a", "add", 0.0], dict(sigma=1.0))]),
+    "seeds": ("", [("mkimage", ["a", "make", 0.0], dict(ndim=2, dims="20 15", sigma=4.0)),
+                   ("mkimage", ["b", "make", 0.0], dict(ndim=2, dims="20 15", sigma=4.0)),
+                   ("mkimage", ["c", "make", 0.0],
+                    dict(ndim=2, dims="20 15", sigma=4.0, seed=3))]),
+    "artobs": (DEMO, [("artobs", ["obj001", 60.0, "object"],
+                       dict(badpix="ccdtest$badpix.dat", filter="V"))]),
+    "artobs-zero": (DEMO, [("artobs", ["zero001", 0.0, "zero"], dict())]),
+    "artobs-flat": (DEMO, [("artobs", ["flat001", 1.0, "flat"],
+                            dict(filter="B", skyrate=2000.0))]),
+    "artobs-default": ("", [("artobs", ["obj002", 30.0, "object"],
+                             dict(seed=5, sigma=2.0))]),
+    "artobs-two": (DEMO, [("artobs", ["zero001", 0.0, "zero"], dict()),
+                          ("artobs", ["obj001", 60.0, "object"],
+                           dict(imdata="zero001", skyrate=1.5))]),
+    "subsection": (DEMO, [("artobs", ["obj001", 60.0, "object"], dict()),
+                          ("subsection", ["sub001", "obj001"], dict())]),
+}

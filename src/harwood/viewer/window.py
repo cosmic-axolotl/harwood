@@ -1617,7 +1617,14 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self._busy = ""
 
     def _run_line(self, line: str) -> tuple[bool, str]:
+        import re
+
         from ..cli import line as command_line
+
+        if re.fullmatch(r"!\s*cd(\s+[^;&|]+)?", line):
+            line = line[1:].strip()
+        if line.startswith("!"):
+            return self._run_shell(line, line[1:])
 
         try:
             steps = command_line.split(line)
@@ -1651,16 +1658,37 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             return True, "".join(printed)
         return ok, "".join(printed)
 
+    def _run_shell(self, shown: str, cmd: str, echo: str = "") -> tuple[bool, str]:
+        import os
+        import subprocess
+
+        if echo:
+            self.log(echo + shown)
+        else:
+            self.log(shown, prompt=True)
+        proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True,
+                              env={**os.environ, "PAGER": "cat"})
+        out = proc.stdout or ""
+        for text in out.splitlines():
+            self.log(text)
+        return proc.returncode == 0, out
+
     def _run_one(self, line: str, echo: str = "") -> tuple[bool, str]:
         """One command, shown in the session as typed (or after `echo`, when
         it is one of several on a line)."""
         import shlex
+
+        from ..cli import line as command_line
 
         line = line.strip()
         if line.startswith("harwood "):
             line = line[len("harwood "):].lstrip()
         if not line:
             return True, ""
+        if command_line.is_shell(line):
+            cmd = line[1:] if line.startswith("!") else line
+            return self._run_shell(line, cmd, echo=echo)
         if echo:
             self.log(echo + line)
         else:
@@ -1687,8 +1715,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self.log("  " + answer)
             return True, answer
 
+        clean_line, out_path, append = command_line.split_redirection(line)
         try:
-            arguments = shlex.split(line)
+            arguments = shlex.split(clean_line)
         except ValueError as error:
             self.log(f"  {error} -- unbalanced quotes?")
             return False, f"{error} -- unbalanced quotes?"
@@ -1698,6 +1727,10 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             ok = _invoke(arguments, stream)
         else:
             ok = self._beside(arguments, stream)
+        if out_path is not None and ok:
+            with open(out_path, "a" if append else "w", encoding="utf-8") as handle:
+                handle.write(stream.everything())
+            return ok, stream.everything()
         self._flush(stream, final=True)
         return ok, stream.everything()
 
@@ -1834,9 +1867,12 @@ class _Stream:
         self._all: list[str] = []
 
     def write(self, text: str) -> int:
+        from ..cli.line import strip_ansi
+
+        shown = strip_ansi(text)        # a console opened in a terminal still colours
         with self._lock:
-            self._pending += text
-            self._all.append(text)
+            self._pending += shown
+            self._all.append(shown)
         return len(text)
 
     def flush(self) -> None:

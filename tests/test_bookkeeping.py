@@ -133,9 +133,10 @@ def test_the_log_grows_a_line_at_a_time(night):
     get_task("ccdproc").run(input=["o1.fits"], output="out", overscan=True,
                             trim=True, logfile="run.log")
     text = (night / "run.log").read_text(encoding="utf-8")
-    assert "ccdproc  o1.fits" in text
-    assert "overscan" in text and "trim" in text
-    assert "finished" in text
+    # IRAF's ccdlog: the frame's name, the date, and the step, a line each
+    lines = text.splitlines()
+    assert lines[0].startswith("o1.fits: ") and "Trim data section is" in lines[0]
+    assert lines[1].startswith("o1.fits: ") and "Overscan section is" in lines[1]
 
 
 def test_a_second_run_appends_rather_than_replaces(night):
@@ -181,8 +182,8 @@ def test_the_log_records_which_flat_each_frame_got(night):
                             logfile="run.log")
 
     text = (night / "run.log").read_text(encoding="utf-8")
-    assert "FlatV.fits" in text
-    assert "ccdproc  o1.fits" in text
+    assert any(line.startswith("o1.fits: ") and "Flat field image is FlatV.fits" in line
+               for line in text.splitlines())
 
 
 def test_a_named_calibration_is_prepared_as_well(night):

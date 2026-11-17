@@ -1,0 +1,267 @@
+{
+"artobs": {
+"obj001.fits": {
+"bitpix": 16,
+"shape": [
+100,
+132
+],
+"sha": "4bc6cdf151b7d5d47fc1b91c9c85d2926f93bca776752127797044da394be2b7",
+"cards": {
+"INTEG": 60.0,
+"CCDTYPE": "object",
+"DATASEC": "[1:100,1:100]",
+"TRIMSEC": "[3:98,3:98]",
+"BIASSEC": "[103:130,*]",
+"FILTER": "V"
+}
+}
+},
+"artobs-default": {
+"obj002.fits": {
+"bitpix": 16,
+"shape": [
+100,
+132
+],
+"sha": "fad5131409e134e54a2b24fcc276d3feec610f4f26019bdf626dfa7b38982d8d",
+"cards": {
+"EXPTIME": 30.0,
+"IMAGETYP": "object",
+"DATASEC": "[1:100,1:100]",
+"TRIMSEC": "[3:98,3:98]",
+"BIASSEC": "[103:130,*]"
+}
+}
+},
+"artobs-flat": {
+"flat001.fits": {
+"bitpix": 16,
+"shape": [
+100,
+132
+],
+"sha": "9f7440587639073fda81594f10af619f2af790eef1478bbeb6b9e36eb07331ae",
+"cards": {
+"INTEG": 1.0,
+"CCDTYPE": "flat",
+"DATASEC": "[1:100,1:100]",
+"TRIMSEC": "[3:98,3:98]",
+"BIASSEC": "[103:130,*]",
+"FILTER": "B"
+}
+}
+},
+"artobs-two": {
+"obj001.fits": {
+"bitpix": 16,
+"shape": [
+100,
+132
+],
+"sha": "302d7d7572483b02a33ccee7a3c9b90cc5825a56a1b1d9f5ca2208f3f16d5ada",
+"cards": {
+"INTEG": 60.0,
+"CCDTYPE": "object",
+"DATASEC": "[1:100,1:100]",
+"TRIMSEC": "[3:98,3:98]",
+"BIASSEC": "[103:130,*]"
+}
+},
+"zero001.fits": {
+"bitpix": 16,
+"shape": [
+100,
+132
+],
+"sha": "4245ab9ddf5c1c3d0ae1aff32f55dfc1b657dba9e68ed12925db40cd6da7c1ae",
+"cards": {
+"INTEG": 0.0,
+"CCDTYPE": "zero",
+"DATASEC": "[1:100,1:100]",
+"TRIMSEC": "[3:98,3:98]",
+"BIASSEC": "[103:130,*]"
+}
+}
+},
+"artobs-zero": {
+"zero001.fits": {
+"bitpix": 16,
+"shape": [
+100,
+132
+],
+"sha": "4245ab9ddf5c1c3d0ae1aff32f55dfc1b657dba9e68ed12925db40cd6da7c1ae",
+"cards": {
+"INTEG": 0.0,
+"CCDTYPE": "zero",
+"DATASEC": "[1:100,1:100]",
+"TRIMSEC": "[3:98,3:98]",
+"BIASSEC": "[103:130,*]"
+}
+}
+},
+"edit": {
+"a.fits": {
+"bitpix": -32,
+"shape": [
+15,
+20
+],
+"sha": "31a624028ee953356c4d412150568b8adfe6dd494661e2d92ddf02e85de06930",
+"cards": {
+"DATAMIN": 0.0,
+"DATAMAX": 0.0
+}
+}
+},
+"edit-1d": {
+"a.fits": {
+"bitpix": -32,
+"shape": [
+15,
+20
+],
+"sha": "ed5390712685b5331b36354660ae1814468d3df42cd39979f816a35c4b4c3519",
+"cards": {
+"DATAMIN": 0.0,
+"DATAMAX": 0.0
+}
+}
+},
+"make": {
+"a.fits": {
+"bitpix": -32,
+"shape": [
+15,
+20
+],
+"sha": "a1586abb026ad52ca65f1471af537235bb1c7028055732196eda49779548a446",
+"cards": {}
+}
+},
+"make-1d": {
+"a.fits": {
+"bitpix": -32,
+"shape": [
+30
+],
+"sha": "1277b5da971b1a3501dd39f93c86f13bd6c08f8f15e4ed2c8a48a06b3f1e58cf",
+"cards": {}
+}
+},
+"make-3d": {
+"a.fits": {
+"bitpix": -32,
+"shape": [
+3,
+4,
+6
+],
+"sha": "4152e78845565b497ac34bfc3492f45766563661d7bf698a33834597e7eea7c8",
+"cards": {
+"NAXIS3": 3
+}
+}
+},
+"make-noise": {
+"a.fits": {
+"bitpix": -32,
+"shape": [
+15,
+20
+],
+"sha": "b7b997028ed70bc9575932eb6722cb786b0b485e8c49b7fd94560e5664c85b7f",
+"cards": {}
+}
+},
+"make-short": {
+"a.fits": {
+"bitpix": 16,
+"shape": [
+15,
+20
+],
+"sha": "3d3a94583f1d4cad28b48c86b22dc7f170506ee1205eab81878b691076b86865",
+"cards": {}
+}
+},
+"make-slope": {
+"a.fits": {
+"bitpix": -32,
+"shape": [
+15,
+20
+],
+"sha": "5fe63e3908ac7f54f57ef64286524e2c7c62a1a67cc3d71ec00e800b9695e308",
+"cards": {}
+}
+},
+"seeds": {
+"a.fits": {
+"bitpix": -32,
+"shape": [
+15,
+20
+],
+"sha": "10b0036d0d2910194ccad9cb97321153a2930a14864f349611c5ffcfa61a5578",
+"cards": {}
+},
+"b.fits": {
+"bitpix": -32,
+"shape": [
+15,
+20
+],
+"sha": "ec4c23865c329058858d9481036c8d6e283f415b39c7f9fe1f8068c69dc8ced3",
+"cards": {}
+},
+"c.fits": {
+"bitpix": -32,
+"shape": [
+15,
+20
+],
+"sha": "9ada1dc517949c8330a83dc7cf853646b2b23d7e6fa5548905929654841907b0",
+"cards": {}
+}
+},
+"subsection": {
+"obj001.fits": {
+"bitpix": 16,
+"shape": [
+100,
+132
+],
+"sha": "f333406e8d109a7c2fa17acf37ca63446f7e939b468460cde61e3fd6d901d995",
+"cards": {
+"INTEG": 60.0,
+"CCDTYPE": "object",
+"DATASEC": "[1:100,1:100]",
+"TRIMSEC": "[3:98,3:98]",
+"BIASSEC": "[103:130,*]"
+}
+},
+"sub001.fits": {
+"bitpix": 16,
+"shape": [
+50,
+82
+],
+"sha": "5b308d89aa8924faaae448a4ebd1d0e3586dc4c1864f44b8b5e47b6d1f2df51f",
+"cards": {
+"INTEG": 60.0,
+"CCDTYPE": "object",
+"DATASEC": "[1:50,1:50]",
+"BIASSEC": "[51:82,1:50]",
+"WCSDIM": 2,
+"LTM1_1": 1.0,
+"LTM2_2": 1.0,
+"WAT0_001": "system=physical",
+"WAT1_001": "wtype=linear",
+"WAT2_001": "wtype=linear",
+"CCDSEC": "[26:75,26:75]"
+}
+}
+}
+}

@@ -29,3 +29,6 @@ combines everything into the one name.
 Where every value at a pixel is rejected, 1 is written (`blank=1`), so
 dividing by the flat leaves that pixel as it was rather than dividing by
 zero.
+
+It writes ccdred's IMCOMBINE log to `logfile`, and with `--verbose` on the terminal, as
+[zerocombine](task:zerocombine) does; `--process` runs ccdproc over the inputs first.

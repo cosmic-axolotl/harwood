@@ -106,7 +106,7 @@ class ImHeader(Task[ImHeaderParams]):
     def execute(self, params: ImHeaderParams) -> TaskResult:
         from ..core import images
 
-        rows = []
+        rows, lines = [], []
         for spec in images.expand(params.input):
             hdul, hdu = images.open_hdu(spec)
             try:
@@ -114,7 +114,10 @@ class ImHeader(Task[ImHeaderParams]):
                 if params.keywords:
                     row = {key: header.get(key) for key in params.keywords}
                 elif params.longheader:
+                    # IRAF's imheader l+: the image's line, then a card a line --
+                    # never a table, whose columns a header has far too many of
                     row = dict(header.items())
+                    lines.extend(_long_header(str(spec), hdu, header))
                 else:
                     shape = "x".join(str(n) for n in reversed(hdu.data.shape)) \
                         if getattr(hdu, "data", None) is not None else "no pixels"
@@ -129,7 +132,36 @@ class ImHeader(Task[ImHeaderParams]):
             finally:
                 hdul.close()
             rows.append({"image": str(spec), **row})
+        if params.longheader and not params.keywords:
+            return TaskResult(data={"rows": rows, "images": len(rows)}, stdout=lines)
         return TaskResult(data={"rows": rows, "images": len(rows)})
+
+
+#: IRAF's names of the pixel types, by BITPIX.
+PIXTYPES = {8: "short", 16: "short", 32: "int", -32: "real", -64: "double"}
+#: What IRAF's FITS kernel keeps for itself: the shape and type are in the first line.
+STRUCTURE = re.compile(r"^(SIMPLE|BITPIX|NAXIS\d*|XTENSION|END)$")
+
+
+def _long_header(name: str, hdu, header) -> list[str]:
+    """imheader l+ as IRAF prints it: name[NX,NY][type]: title, and the cards as they
+    are written, trailing blanks dropped. IRAF's lines about its own storage (line
+    storage mode, the pixel file) are left out: they describe .imh images."""
+    shape = getattr(hdu, "shape", None) or ()
+    bitpix = hdu.header.get("BITPIX", -32)
+    pixtype = PIXTYPES.get(bitpix, "real")
+    if bitpix == 16 and hdu.header.get("BZERO") == 32768 and hdu.header.get(
+            "BSCALE", 1) == 1:
+        pixtype = "ushort"
+    dims = ",".join(str(n) for n in reversed(shape))
+    title = str(header.get("OBJECT", "")).strip()
+    out = [f"{name}[{dims}][{pixtype}]: {title}" if dims else f"{name}[{pixtype}]: {title}"]
+    for card in header.cards:
+        key = card.keyword
+        if STRUCTURE.match(key):
+            continue
+        out.append(card.image.rstrip())
+    return out
 
 
 class HSelectParams(TaskParams):

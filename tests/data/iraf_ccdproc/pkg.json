@@ -1,0 +1,792 @@
+{
+"type-obj-real": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"type-obj-short": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"type-obj-ushort": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"type-obj-int": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"type-obj-long": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"type-obj-double": {
+"images": {
+"obj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "cbb40e10fe7cef96f370205bad3b641f07c9ca3ade78853d6c4ad0bf85c24228"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"type-obj-none": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"type-sobj-real": {
+"images": {
+"sobj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "5a7b9603a932e4225232d0424ded8ea933c6d507915b453541ffe7c8615fa6e3"
+}
+},
+"new": [],
+"said": "",
+"logfile": "sobj.fits: Trim data section is [1:52,1:37]\nsobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-sobj-short": {
+"images": {
+"sobj.fits": {
+"bitpix": 16,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "3a9f2c4c108b9c1a59d8a255cdcef186f518b6e844779e25c16014ffff06978f"
+}
+},
+"new": [],
+"said": "",
+"logfile": "sobj.fits: Trim data section is [1:52,1:37]\nsobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-sobj-ushort": {
+"images": {
+"sobj.fits": {
+"bitpix": 16,
+"bzero": 32768.0,
+"shape": [
+37,
+52
+],
+"sha": "51b9a4b795d4bb0883f38145ba699c645bb222d226afcc322161506df00b4199"
+}
+},
+"new": [],
+"said": "",
+"logfile": "sobj.fits: Trim data section is [1:52,1:37]\nsobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-sobj-int": {
+"images": {
+"sobj.fits": {
+"bitpix": 32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "88ea91442a96f79088e082558fa2e57f5b84f89821e2ebe56d69a9e258a9e317"
+}
+},
+"new": [],
+"said": "",
+"logfile": "sobj.fits: Trim data section is [1:52,1:37]\nsobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-sobj-long": {
+"images": {
+"sobj.fits": {
+"bitpix": 32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "88ea91442a96f79088e082558fa2e57f5b84f89821e2ebe56d69a9e258a9e317"
+}
+},
+"new": [],
+"said": "",
+"logfile": "sobj.fits: Trim data section is [1:52,1:37]\nsobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-sobj-double": {
+"images": {
+"sobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "sobj.fits: Trim data section is [1:52,1:37]\nsobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-sobj-none": {
+"images": {
+"sobj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "5a7b9603a932e4225232d0424ded8ea933c6d507915b453541ffe7c8615fa6e3"
+}
+},
+"new": [],
+"said": "",
+"logfile": "sobj.fits: Trim data section is [1:52,1:37]\nsobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-uobj-real": {
+"images": {
+"uobj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "5a7b9603a932e4225232d0424ded8ea933c6d507915b453541ffe7c8615fa6e3"
+}
+},
+"new": [],
+"said": "",
+"logfile": "uobj.fits: Trim data section is [1:52,1:37]\nuobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-uobj-short": {
+"images": {
+"uobj.fits": {
+"bitpix": 16,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "3a9f2c4c108b9c1a59d8a255cdcef186f518b6e844779e25c16014ffff06978f"
+}
+},
+"new": [],
+"said": "",
+"logfile": "uobj.fits: Trim data section is [1:52,1:37]\nuobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-uobj-ushort": {
+"images": {
+"uobj.fits": {
+"bitpix": 16,
+"bzero": 32768.0,
+"shape": [
+37,
+52
+],
+"sha": "51b9a4b795d4bb0883f38145ba699c645bb222d226afcc322161506df00b4199"
+}
+},
+"new": [],
+"said": "",
+"logfile": "uobj.fits: Trim data section is [1:52,1:37]\nuobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-uobj-int": {
+"images": {
+"uobj.fits": {
+"bitpix": 32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "88ea91442a96f79088e082558fa2e57f5b84f89821e2ebe56d69a9e258a9e317"
+}
+},
+"new": [],
+"said": "",
+"logfile": "uobj.fits: Trim data section is [1:52,1:37]\nuobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-uobj-long": {
+"images": {
+"uobj.fits": {
+"bitpix": 32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "88ea91442a96f79088e082558fa2e57f5b84f89821e2ebe56d69a9e258a9e317"
+}
+},
+"new": [],
+"said": "",
+"logfile": "uobj.fits: Trim data section is [1:52,1:37]\nuobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-uobj-double": {
+"images": {
+"uobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "uobj.fits: Trim data section is [1:52,1:37]\nuobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-uobj-none": {
+"images": {
+"uobj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "5a7b9603a932e4225232d0424ded8ea933c6d507915b453541ffe7c8615fa6e3"
+}
+},
+"new": [],
+"said": "",
+"logfile": "uobj.fits: Trim data section is [1:52,1:37]\nuobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-iobj-real": {
+"images": {
+"iobj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "5a7b9603a932e4225232d0424ded8ea933c6d507915b453541ffe7c8615fa6e3"
+}
+},
+"new": [],
+"said": "",
+"logfile": "iobj.fits: Trim data section is [1:52,1:37]\niobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-iobj-short": {
+"images": {
+"iobj.fits": {
+"bitpix": 32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "88ea91442a96f79088e082558fa2e57f5b84f89821e2ebe56d69a9e258a9e317"
+}
+},
+"new": [],
+"said": "",
+"logfile": "iobj.fits: Trim data section is [1:52,1:37]\niobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-iobj-ushort": {
+"images": {
+"iobj.fits": {
+"bitpix": 32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "88ea91442a96f79088e082558fa2e57f5b84f89821e2ebe56d69a9e258a9e317"
+}
+},
+"new": [],
+"said": "",
+"logfile": "iobj.fits: Trim data section is [1:52,1:37]\niobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-iobj-int": {
+"images": {
+"iobj.fits": {
+"bitpix": 32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "88ea91442a96f79088e082558fa2e57f5b84f89821e2ebe56d69a9e258a9e317"
+}
+},
+"new": [],
+"said": "",
+"logfile": "iobj.fits: Trim data section is [1:52,1:37]\niobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-iobj-long": {
+"images": {
+"iobj.fits": {
+"bitpix": 32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "88ea91442a96f79088e082558fa2e57f5b84f89821e2ebe56d69a9e258a9e317"
+}
+},
+"new": [],
+"said": "",
+"logfile": "iobj.fits: Trim data section is [1:52,1:37]\niobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-iobj-double": {
+"images": {
+"iobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "iobj.fits: Trim data section is [1:52,1:37]\niobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-iobj-none": {
+"images": {
+"iobj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "5a7b9603a932e4225232d0424ded8ea933c6d507915b453541ffe7c8615fa6e3"
+}
+},
+"new": [],
+"said": "",
+"logfile": "iobj.fits: Trim data section is [1:52,1:37]\niobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-dobj-real": {
+"images": {
+"dobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "dobj.fits: Trim data section is [1:52,1:37]\ndobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-dobj-short": {
+"images": {
+"dobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "dobj.fits: Trim data section is [1:52,1:37]\ndobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-dobj-ushort": {
+"images": {
+"dobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "dobj.fits: Trim data section is [1:52,1:37]\ndobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-dobj-int": {
+"images": {
+"dobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "dobj.fits: Trim data section is [1:52,1:37]\ndobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-dobj-long": {
+"images": {
+"dobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "dobj.fits: Trim data section is [1:52,1:37]\ndobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-dobj-double": {
+"images": {
+"dobj.fits": {
+"bitpix": -64,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "b5be5bb970bc2a9522825ad83779cb2bd6481a9e329d9e2e1ddce8f9b98a51ac"
+}
+},
+"new": [],
+"said": "",
+"logfile": "dobj.fits: Trim data section is [1:52,1:37]\ndobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"type-dobj-none": {
+"images": {
+"dobj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "5a7b9603a932e4225232d0424ded8ea933c6d507915b453541ffe7c8615fa6e3"
+}
+},
+"new": [],
+"said": "",
+"logfile": "dobj.fits: Trim data section is [1:52,1:37]\ndobj.fits: Overscan section is [53:60,1:40] with mean=308.7771\n",
+"error": ""
+},
+"backup-prefix": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [
+"B1obj.fits"
+],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"backup-free": {
+"images": {
+"comp.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "7c306231932053ff2c7be52be83b605129868d1f19111425fde078c3b020478f"
+}
+},
+"new": [
+"Bcomp.fits"
+],
+"said": "",
+"logfile": "comp.fits: Trim data section is [1:52,1:37]\ncomp.fits: Overscan section is [53:60,1:40] with mean=308.9193\n",
+"error": ""
+},
+"backup-dir": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [
+"bak/obj.fits"
+],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"backup-none": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "2490b780b0665818f8fe534638c91da643221041d6fa3d74ee5f0de71ac8d254"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"fix-text": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "da14ea0ec45eb58871b434c71c0c4e71317d9b6933ee04a5b8c03635c96a4654"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Bad pixel file is badpix.dat\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7744\n",
+"error": ""
+},
+"fix-text-only": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+40,
+60
+],
+"sha": "c4d40163f0cc248b216ff16b35b04878143b550b9120a39901341776d5bf1d72"
+}
+},
+"new": [],
+"said": "",
+"logfile": "obj.fits: Bad pixel file is badpix.dat\n",
+"error": ""
+},
+"hand": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "dbc86444848a8aaccd443bec6aed84412337bcd6ce68029998c39811d82a2a07"
+},
+"comp.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "a93ed4f5f9bf07124b8e5034c901786d9b3fc1470f9e05b91fbee47c168f6cfc"
+},
+"other.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "4e5280d579b3ec2d872585b56029cb2834d35fadf36485b002285c13ed80a910"
+}
+},
+"new": [],
+"said": "Fit overscan vector for obj.fits interactively (yes): Fit overscan vector for comp.fits interactively (yes): Fit overscan vector for other.fits interactively (no): ",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7743\ncomp.fits: Trim data section is [1:52,1:37]\ncomp.fits: Overscan section is [53:60,1:40] with mean=308.9193\nother.fits: Trim data section is [1:52,1:37]\nother.fits: Overscan section is [53:60,1:40] with mean=308.7463\n",
+"error": ""
+},
+"hand-no": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "bf26ecc00fec93ada04359b9d177803a65a298f323b179fbbd8645f9e03a188d"
+},
+"comp.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "46c8a3cbc3ccb3ecbf87b1863fdb79847eedd8447fda3ffbad2763153e818113"
+},
+"other.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "fc39224489acddb98796607a0806c748442f11be2e8b8d86cd7d0900fa5ea8fa"
+}
+},
+"new": [],
+"said": "Fit overscan vector for obj.fits interactively (yes): Fit overscan vector for comp.fits interactively (yes): ",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7743\ncomp.fits: Trim data section is [1:52,1:37]\ncomp.fits: Overscan section is [53:60,1:40] with mean=308.9193\nother.fits: Trim data section is [1:52,1:37]\nother.fits: Overscan section is [53:60,1:40] with mean=308.7463\n",
+"error": ""
+},
+"hand-delete": {
+"images": {
+"obj.fits": {
+"bitpix": -32,
+"bzero": null,
+"shape": [
+37,
+52
+],
+"sha": "ceba5fb38d20463ff8a8d5364da348395d34247a14f35dd86c3e02be6aff9888"
+}
+},
+"new": [],
+"said": "Fit overscan vector for obj.fits interactively (yes): ",
+"logfile": "obj.fits: Trim data section is [1:52,1:37]\nobj.fits: Overscan section is [53:60,1:40] with mean=308.7902\n",
+"error": ""
+}
+}

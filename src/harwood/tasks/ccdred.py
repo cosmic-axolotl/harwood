@@ -27,11 +27,10 @@ never made up.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ..core import advice
 from ..core.registry import register
@@ -45,7 +44,98 @@ from ..core.task import (
     uncertainty_field,
 )
 
-#: Keyword written once a step has been applied, so it is never applied twice.
+#: The run in progress: its instrument (whose translation names the marks), and
+#: where its log goes. Set by ccdproc for the frames it processes.
+_RUN = __import__("contextvars").ContextVar("ccdproc_run", default=None)
+
+#: IRAF's names of the processing flags (ccdred's), which the translation maps to
+#: header keywords: FRINGCOR, or the camera format's fr-flag.
+FLAGS = {"fixpix": "fixpix", "overscan": "overscan", "trim": "trim", "zerocor": "zerocor",
+         "darkcor": "darkcor", "flatcor": "flatcor", "illumcor": "illumcor",
+         "fringecor": "fringcor", "readcor": "readcor", "scancor": "scancor",
+         "ccdproc": "ccdproc"}
+#: The order IRAF logs a frame's steps in: set_trim, set_fixpix, set_overscan, set_zero,
+#: set_dark, set_flat, set_illum, set_fringe.
+LOG_ORDER = ("trim", "fixpix", "overscan", "zerocor", "darkcor", "flatcor", "illumcor",
+             "fringecor")
+
+
+class _Run:
+    """ccdlog's two places -- the terminal (verbose, on the error stream as IRAF's) and
+    the logfile -- and the instrument the marks are read and written through."""
+
+    def __init__(self, inst, verbose: bool = False, logfile: str = "") -> None:
+        self.inst = inst
+        self.verbose = verbose
+        self.logfile = (logfile or "").strip()
+        #: scans made of a calibration, logged when first used: name -> (source, lines)
+        self.scans: dict = {}
+        #: the frame being processed, as IRAF names it
+        self.current = ""
+        #: xt_answer's four answers: asked while no or yes
+        self.state = "NO"
+        self.first = True
+        self.replies = None
+        self.window = False
+        #: the overscan fit as the last fit by hand left it
+        self.spec = None
+        #: what IRAF prints on the standard output (the prompts), and the plots written
+        self.said: list[str] = []
+        self.plots: list = []
+
+    def ask(self, prompt: str) -> str:
+        """xt_answer: no, yes, NO or YES by minimum match; anything else, or the end of
+        the answers, keeps the answer there was."""
+        from ..core.gtools import strdic
+
+        if self.state not in ("no", "yes"):
+            return self.state
+        self.said.append(f"{prompt} ({self.state}): ")
+        if self.replies is not None:
+            word = next(self.replies, None)
+        elif self.first or not self.window:
+            word = "yes"        # --interactive asked for the window
+        else:
+            from ..viewer.fitcoords_panel import ask_answer
+
+            word = ask_answer(prompt.replace("Fit overscan vector for",
+                                             "Fit the overscan of") + " by hand?",
+                              self.state, title="ccdproc")
+        self.first = False
+        found = strdic(word.strip()[:4], ("no", "yes", "NO", "YES")) if word else 0
+        if found:
+            self.state = ("no", "yes", "NO", "YES")[found - 1]
+        return self.state
+
+    def log(self, image: str, texts) -> None:
+        import sys
+
+        lines = [f"{image}: {text}" for text in texts]
+        if not lines:
+            return
+        if self.verbose:
+            sys.stderr.write("".join(line + "\n" for line in lines))
+            sys.stderr.flush()
+        if self.logfile:
+            with open(self.logfile, "a", encoding="utf-8") as handle:
+                handle.write("".join(line + "\n" for line in lines))
+
+
+def _instrument():
+    from ..core import instrument
+
+    run = _RUN.get()
+    return run.inst if run is not None else instrument.Instrument()
+
+
+def _stamp(text: str) -> str:
+    """timelog: the date as cnvdate writes it, then the text."""
+    from ..core import iraffmt
+
+    return f"{iraffmt.cnvdate()} {text}"
+
+
+#: What harwood said a step was, before it said what IRAF does. Kept for ccdlist.
 MARKS = {
     "overscan": ("OVERSCAN", "overscan corrected by harwood"),
     "trim": ("TRIM", "trimmed by harwood"),
@@ -192,11 +282,60 @@ class CcdProcParams(TaskParams):
         "EXPTIME", description="Header keyword holding the exposure time."
     )
     logfile: str = Field(
-        "harwood.log",
-        description="Plain text log of what was done to each frame, appended as "
-                    "the run goes so you can watch it in another window. Empty "
-                    "keeps none; the JSON log and the headers are kept regardless.",
+        "logfile",
+        description="IRAF's text log (ccdred's logfile): a line for each step done to "
+                    "each frame -- 'obj001.fits: Nov 17 10:02 Trim data section is "
+                    "[3:98,3:98]' -- appended as the run goes. Empty keeps none; "
+                    "harwood.log.jsonl and the headers are kept regardless.",
     )
+    verbose: bool = Field(
+        False, description="Print those lines on the terminal too, as they happen "
+                           "(ccdred's verbose).")
+    ssfile: str = Field("subsets", description="The subsets file: what each subset (the "
+                                               "filter) is called in file names "
+                                               "(ccdred's ssfile).")
+    pixeltype: str = Field(
+        "real real", description="The output's pixel type and the calculation's (ccdred's "
+                                 "pixeltype): real, or the input's own -- short, ushort, "
+                                 "int, long -- kept when the first word asks for it, or "
+                                 "double. A higher precision than the input's, never "
+                                 "lower, as IRAF does.")
+    backup: str = Field(
+        "", description="With --inplace: the original kept under this prefix -- 'B' "
+                        "makes Bobj001.fits, 'orig/' keeps it in orig/ -- rather than "
+                        "deleted (ccdred's backup).")
+    plotfile: str = Field(
+        "", description="The overscan fits' graphs, as SVG: <plotfile>_<image>.svg for "
+                        "each frame (ccdred's plotfile, IRAF's metacode).")
+    fixfile: str = Field(
+        "", description="IRAF's name for the bad pixel file of --fixpix: a mask (.pl, "
+                        ".fits) or a text file of 'c1 c2 l1 l2' (or 'c l') regions.")
+    graphics: str = Field(
+        "stdgraph", description="Where the overscan is fitted by hand: stdgraph, the "
+                                "window (ccdred's graphics).")
+    cursor: str = Field(
+        "", description="The overscan fits' keys from a file instead of the window, 'x y "
+                        "1 key' or ':command' a line, each fit up to its q (ccdred's "
+                        "cursor). Implies --interactive.")
+    answers: str = Field(
+        "", description="With --cursor: the answers to 'Fit overscan vector for <image> "
+                        "interactively' (no, yes, NO, YES), one a line; yes without it.")
+
+    @model_validator(mode="after")
+    def _pixeltype(self) -> CcdProcParams:
+        words = self.pixeltype.split()
+        if words and words[0][:1] not in "suilrd":
+            raise ValueError(f"pixeltype '{self.pixeltype}': Unknown pixel type -- the "
+                             "first word is short, ushort, int, long, real or double")
+        if len(words) > 1 and words[1][:1] not in "rs":
+            raise ValueError(f"pixeltype '{self.pixeltype}': Invalid calculation datatype "
+                             "-- the second word is real or short")
+        if len(words) > 1 and words[1][:1] == "s":
+            raise ValueError(
+                f"pixeltype '{self.pixeltype}': harwood calculates in real. IRAF's short "
+                "calculation truncates every step to an integer, a saving of time that "
+                "costs precision; give 'real real', or just the output's type")
+        return self
     minreplace: float = Field(
         1.0, description="When a flat is processed, values below this are raised to "
                          "it, so dividing by the flat never divides by noise -- as "
@@ -236,6 +375,13 @@ class CcdProc(Task[CcdProcParams]):
 
         specs = images.expand(params.input)
         survey = _survey(specs, params)
+        token = _RUN.set(_Run(survey["instrument"]))
+        try:
+            return self._plan(params, specs, survey)
+        finally:
+            _RUN.reset(token)
+
+    def _plan(self, params, specs, survey) -> list[Step]:
         targets = survey["targets"]
         header = _peek(targets[0] if targets else specs[0])
 
@@ -271,10 +417,10 @@ class CcdProc(Task[CcdProcParams]):
 
         def add(flag: str, action: str, detail: str, why: str) -> None:
             if _already(header, flag):
-                keyword = MARKS[flag][0]
+                keyword = _instrument().keyword(FLAGS[flag])
                 steps.append(Step(action, skipped=True,
                                   reason=f"{keyword} is already in the header "
-                                         f"({header[keyword]})"))
+                                         f"({header.get(keyword)})"))
             else:
                 steps.append(Step(action, detail, why=why))
 
@@ -325,12 +471,40 @@ class CcdProc(Task[CcdProcParams]):
         return steps
 
     def execute(self, params: CcdProcParams) -> TaskResult:
-        from ..core import images, logfile, mef, provenance, subsets
+        from ..core import images
 
         specs = images.expand(params.input)
         survey = _survey(specs, params)
+        run = _Run(survey["instrument"], params.verbose, params.logfile)
+        run.state = "yes" if params.interactive or params.cursor else "NO"
+        run.window = not params.cursor
+        if params.cursor:
+            from .longslit import _forget
+
+            _forget(params.cursor)      # read from its start, whatever ran before
+            if not Path(params.cursor).is_file():
+                advice.fail(f"cursor file '{params.cursor}' does not exist",
+                            "write one key a line, 'x y 1 key' or ':command', each fit up "
+                            "to its q; or use --interactive for the window",
+                            FileNotFoundError)
+        if params.answers:
+            if not Path(params.answers).is_file():
+                advice.fail(f"answers file '{params.answers}' does not exist",
+                            "write one answer a line: no, yes, NO or YES", FileNotFoundError)
+            run.replies = iter(Path(params.answers).read_text(encoding="utf-8").splitlines())
+        elif params.cursor:
+            run.replies = iter(())      # nothing to answer with: yes stays yes
+        token = _RUN.set(run)
+        try:
+            return self._execute(params, specs, survey)
+        finally:
+            _RUN.reset(token)
+
+    def _execute(self, params, specs, survey) -> TaskResult:
+        from ..core import images, mef, provenance, subsets
+
         targets = survey["targets"]
-        subsets.record(sorted(set(survey["subsets"].values())))
+        subsets.record(sorted(set(survey["subsets"].values())), file=params.ssfile)
         if not targets:
             raise RuntimeError(
                 f"none of the {len(specs)} images is of type '{params.ccdtype}'. "
@@ -361,6 +535,7 @@ class CcdProc(Task[CcdProcParams]):
         no_gain = []
         for spec, destination in zip(targets, destinations, strict=True):
             frame = _Frame.load(spec)
+            _RUN.get().current = str(spec)
             header = frame.header
             steps: list[Step] = []
             calibration = _calibration_for(header, survey, params)
@@ -378,11 +553,13 @@ class CcdProc(Task[CcdProcParams]):
 
             lines = [f"ccdproc: {step.render()}" for step in steps if not step.skipped]
             provenance.stamp_header(header, lines)
-            logfile.write(params.logfile, "ccdproc", str(spec),
-                          [step.render() for step in steps])
+            _log_frame(str(spec), str(destination), steps)
             destination.parent.mkdir(parents=True, exist_ok=True)
+            data, keep = _output_type(data, spec, params.pixeltype)
+            if params.inplace and params.backup.strip():
+                outputs.append(_backup(str(spec), Path(spec.path), params.backup.strip()))
             written, notes = mef.save(destination, data, header, frame.var, frame.dq,
-                                      params.uncertainty, params.format)
+                                      params.uncertainty, params.format, keep_type=keep)
             outputs.append(destination)
             outputs.extend(written[1:])
             if notes and not any("--format iraf" in str(w) for w in warnings):
@@ -393,9 +570,6 @@ class CcdProc(Task[CcdProcParams]):
         skipped = sum(1 for step in all_steps if step.skipped)
         all_steps = prepared.pop("_steps", []) + all_steps
         warnings.extend(prepared.pop("_warnings", []))
-        logfile.note(params.logfile,
-                     f"ccdproc finished: {len(outputs)} image(s), "
-                     f"{skipped} step(s) already done")
         if no_gain:
             warnings.append(advice.warn(
                 f"no gain for {len(no_gain)} of {len(outputs)} image(s) "
@@ -412,10 +586,90 @@ class CcdProc(Task[CcdProcParams]):
                 "give --output next time so the raw frames survive. To get "
                 "them back now you would have to copy them from the archive "
                 "again."))
+        data = {"images": len(targets), "steps_skipped": skipped,
+                "instrument": survey["instrument"].name}
+        said = "".join(_RUN.get().said)
+        if said.strip("\a\n "):
+            data["stdout"] = said
+        outputs.extend(_RUN.get().plots)
         return TaskResult(outputs=outputs, history=history, steps=all_steps,
-                          warnings=warnings,
-                          data={"images": len(targets), "steps_skipped": skipped,
-                                "instrument": survey["instrument"].name})
+                          warnings=warnings, data=data)
+
+
+#: IRAF's pixel types as numpy's.
+_PIXTYPES = {"short": "int16", "ushort": "uint16", "int": "int32", "long": "int32",
+             "real": "float32", "double": "float64"}
+
+
+def _input_type(spec) -> str:
+    """The input's IRAF pixel type, from its BITPIX (and BZERO, for ushort)."""
+    from ..core import images
+
+    header = images.read_header(spec)
+    bitpix = int(header.get("BITPIX", -32))
+    if bitpix == 16 and header.get("BZERO") == 32768 and header.get("BSCALE", 1) == 1:
+        return "ushort"
+    return {8: "short", 16: "short", 32: "int", -32: "real", -64: "double"}.get(bitpix,
+                                                                             "real")
+
+
+def _output_type(data, spec, pixeltype: str):
+    """set_output: the output's type from the pixeltype's first word and the input's
+    type -- higher precision, never lower: 's' turns ushort to short, 'u' short to
+    ushort, 'i' either to int, 'l' those and int to long, 'r' all but double to real,
+    'd' all to double; with no word, real. The pixels, converted as IMIO converts a
+    real (truncated toward zero), and whether to keep their type on disk."""
+    import numpy as np
+
+    words = pixeltype.split()
+    out = "real"
+    if words:
+        given = _input_type(spec)
+        out = given
+        first = words[0][0]
+        if first == "s" and given == "ushort":
+            out = "short"
+        elif first == "u" and given == "short":
+            out = "ushort"
+        elif first == "i" and given in ("short", "ushort"):
+            out = "int"
+        elif first == "l" and given in ("short", "ushort", "int"):
+            out = "long"
+        elif first == "r" and given != "double":
+            out = "real"
+        elif first == "d":
+            out = "double"
+    dtype = np.dtype(_PIXTYPES[out])
+    if dtype.kind == "f":
+        return np.asarray(data, dtype), out == "double"
+    whole = np.trunc(np.asarray(data, np.float64))
+    return whole.astype(np.int64).astype(dtype), True
+
+
+def _backup(name: str, path: Path, prefix: str) -> Path:
+    """ccddelete: the original renamed to the prefix and its name -- with 1, 2, ...
+    after the prefix while that is taken -- before the output takes its place."""
+    def taken(text: str) -> bool:
+        candidate = Path(text)
+        return candidate.exists() or (not candidate.suffix and
+                                      candidate.with_suffix(".fits").exists())
+
+    i = 0
+    while True:
+        backup = f"{prefix}{name}" if i == 0 else f"{prefix}{i}{name}"
+        i += 1
+        if not taken(backup):
+            break
+    target = Path(backup)
+    if not target.suffix and path.suffix:
+        target = target.with_suffix(path.suffix)
+    if not target.parent.is_dir():
+        advice.fail(f"Can't delete or make backup of original image {name}: "
+                    f"{target.parent} is not a directory",
+                    "make the directory the backup prefix names, or give a prefix such as "
+                    "B for Bobj001.fits")
+    path.rename(target)
+    return target
 
 
 #: What each step does to the data, and why that is the right thing. Shown by
@@ -544,13 +798,20 @@ def _prepare_calibrations(survey, params) -> dict:
         if str(path) in done:
             continue
         frame = _Frame.load(path)
+        if _RUN.get() is not None:
+            _RUN.get().current = str(path)
         calibration = {"zero": done.get(str(survey["zero"]), survey["zero"]),
                        "dark": done.get(str(survey["dark"]), survey["dark"]),
                        "flat": None, "illum": None, "fringe": None}
         steps = _process(frame, params, survey["instrument"], calibration, kind=kind,
                          warnings=done["_warnings"])
         _finish(frame, kind, steps, params)
+        # what IRAF logs of it, when it processes it on the way: under its own name,
+        # just before the first frame that uses it says so
+        frame.steps = list(steps)
+        frame.name = str(path)
         for step in steps:
+            step.log_key = step.action
             if not step.skipped:
                 step.action = f"{kind} {Path(path).name}: {step.action}"
         done["_steps"].extend(steps)
@@ -626,7 +887,7 @@ def _process(frame: _Frame, params, inst, calibration: dict,
     steps: list[Step] = []
     header = frame.header
     allowed = set(only) & set(BY_TYPE.get(kind, ALL_STEPS))
-    raw = not any(MARKS[flag][0] in header for flag in MARKS)
+    raw = not any(_already(header, flag) for flag in MARKS)
     if params.saturation is not None:
         if raw:
             saturated = frame.data >= params.saturation
@@ -676,8 +937,9 @@ def _process(frame: _Frame, params, inst, calibration: dict,
         data = data.copy()
     region = (slice(sec.out_l1 - 1, sec.out_l2), slice(sec.out_c1 - 1, sec.out_c2))
 
-    if "fixpix" in allowed and params.fixpix and params.bpm is not None:
-        fixed, fix_step, bad = _fixpix(source, data, params.bpm, header, sec, region)
+    badfile = params.bpm if params.bpm is not None else (params.fixfile.strip() or None)
+    if "fixpix" in allowed and params.fixpix and badfile is not None:
+        fixed, fix_step, bad = _fixpix(source, data, badfile, header, sec, region)
         if not fix_step.skipped:
             data = fixed
             frame.dq[region][bad] |= dq.BAD_PIXEL
@@ -695,14 +957,15 @@ def _process(frame: _Frame, params, inst, calibration: dict,
             steps.append(Step("trim", skipped=True, reason="TRIM already in the header"))
         else:
             lost = shape[0] * shape[1] - data.size
-            _mark(header, "trim")
+            iraf = _mark(header, "trim", f"Trim data section is [{sec.trim_c1}:{sec.trim_c2},"
+                                         f"{sec.trim_l1}:{sec.trim_l2}]")
             changed = True
-            steps.append(Step(
+            steps.append(_said(iraf, Step(
                 "trim", f"{trimsec} -> {data.shape[1]}x{data.shape[0]}", why=WHY["trim"],
                 measured={"kept": f"{data.shape[1]}x{data.shape[0]}",
                           "dropped": f"{lost} pixels, "
                                      f"{100 * lost / (shape[0] * shape[1]):.1f}%"},
-                before=Task.statistics(source), after=Task.statistics(data)))
+                before=Task.statistics(source), after=Task.statistics(data))))
 
     frame.data = data
     frame.sections = sec
@@ -719,8 +982,7 @@ def _process(frame: _Frame, params, inst, calibration: dict,
     # counts the electrons each pixel collected, dark current and all.
     if frame.var is None:
         gain, readnoise = _noise(header, params, inst)
-        offset_off = any(key in header for key in (MARKS["overscan"][0],
-                                                   MARKS["zerocor"][0]))
+        offset_off = _already(header, "overscan") or _already(header, "zerocor")
         if gain is not None and offset_off:
             photons = 0.0 if kind == "zero" else np.maximum(frame.data, 0.0) / gain
             noise = (readnoise / gain) ** 2
@@ -820,18 +1082,23 @@ def _finish(frame: _Frame, kind: str, steps: list[Step], params) -> None:
         frame.header["CCDMEAN"] = (_real_card(mean), "mean of the image after ccdproc")
         frame.header["CCDMEANT"] = (iraf_clock(time.time()),
                                     "when CCDMEAN was computed, IRAF's clock")
-    if kind == "zero" and params.readcor and "READCOR" not in frame.header:
+    if done:
+        # set_header: the line that says the frame went through ccdproc
+        _mark_as(frame.header, "CCDPROC", "CCD processing done")
+    if kind == "zero" and params.readcor and not _already(frame.header, "readcor"):
         before = Task.statistics(frame.data)
         frame.data = ccdsections.readcor(frame.data, frame.header, params.readaxis == "line")
-        _mark_as(frame.header, "READCOR", "converted to readout format by harwood")
+        iraf = _mark_as(frame.header, "READCOR", "Converted to readout format")
         quality, variance = frame.dq, frame.var
         frame.dq = _one_d(quality, params.readaxis == "line", "or")
         frame.var = None if variance is None else _one_d(variance / max(
             quality.shape[0 if params.readaxis == "line" else 1], 1),
             params.readaxis == "line", "mean")
-        steps.append(Step("readcor", f"to {frame.data.shape[1]}x{frame.data.shape[0]}",
-                          why=WHY["readcor"], before=before,
-                          after=Task.statistics(frame.data)))
+        step = _said(iraf, Step("readcor", f"to {frame.data.shape[1]}x{frame.data.shape[0]}",
+                                why=WHY["readcor"], before=before,
+                                after=Task.statistics(frame.data)))
+        step.after_output = True        # readcor logs under the output's name
+        steps.append(step)
 
 
 def _one_d(plane, line_axis: bool, how: str):
@@ -843,10 +1110,11 @@ def _one_d(plane, line_axis: bool, how: str):
     return plane.mean(axis=axis, keepdims=True)
 
 
-def _mark_as(header, keyword: str, comment: str) -> None:
-    from datetime import datetime
-
-    header[keyword] = (datetime.now(UTC).isoformat(timespec="seconds"), comment)
+def _mark_as(header, keyword: str, text: str) -> str:
+    """A processing flag by IRAF's name, its line stamped as timelog does."""
+    line = _stamp(text)
+    header[_instrument().keyword(keyword.lower())] = line[:68]
+    return line
 
 
 def _real_card(value) -> float:
@@ -872,7 +1140,8 @@ def _extra(frame, key, image, params, inst, sec, region, warnings) -> Step:
     flag = {"illum": "illumcor", "fringe": "fringecor"}[key]
     header = frame.header
     if _already(header, flag):
-        return Step(key, skipped=True, reason=f"{MARKS[flag][0]} already in the header")
+        return Step(key, skipped=True, reason=f"{_instrument().keyword(FLAGS[flag])} "
+                                              "already in the header")
     if image is None:
         raise ValueError(f"{flag} was asked for but no --{key} image was given")
     cal = image if isinstance(image, _Frame) else _Frame.load(image)
@@ -911,10 +1180,13 @@ def _extra(frame, key, image, params, inst, sec, region, warnings) -> Step:
             frame.var[region] = frame.var[region] + float(scale) ** 2 * cal.var[cut]
         detail = f"subtracted {Path(str(image)).name} with scale {float(scale):g}"
     frame.dq[region] |= cal.dq[cut].astype(dq.DTYPE)
-    _mark(header, flag)
-    return Step(key, detail, why=WHY[key], measured={"image": Path(str(image)).name,
-                                                     "scale": f"{float(scale):g}"},
-                before=before_stats, after=Task.statistics(data))
+    given = str(cal.path if isinstance(image, _Frame) else image)
+    what = "Illumination image" if key == "illum" else "Fringe image"
+    iraf = _mark(header, flag, f"{what} is {given} with scale={_g(scale)}")
+    return _said(iraf, Step(key, detail, why=WHY[key],
+                            measured={"image": Path(str(image)).name,
+                                      "scale": f"{float(scale):g}"},
+                            before=before_stats, after=Task.statistics(data)))
 
 
 def _hdm_real(header, key: str, fallback: str = ""):
@@ -961,14 +1233,21 @@ def _calibration_frame(role, image, frame, params, inst, kind):
     floor = params.minreplace if role == "flat" else None
     if nscan is None:
         data, mean = ccdsections.longscan(base.data, head, line_axis)
+        text = f"Converted to longscan from {image if not isinstance(image, _Frame) else path}"
     else:
         data, mean = ccdsections.shortscan(base.data, head, nscan, floor, line_axis)
         head["NSCANROW"] = nscan
+        text = (f"Converted to shortscan from "
+                f"{image if not isinstance(image, _Frame) else path} with nscan={nscan}")
     head["CCDMEAN"] = (_real_card(mean), "mean of the image after scancor")
     import time
 
     head["CCDMEANT"] = (iraf_clock(time.time()), "when CCDMEAN was computed, IRAF's clock")
-    _mark_as(head, "SCANCOR", "converted to a scan by harwood")
+    iraf = _mark_as(head, "SCANCOR", text)
+    run = _RUN.get()
+    if run is not None:
+        # ccdlog (out): under the new image's name, when the frame comes to use it
+        run.scans[str(made)] = (base if isinstance(image, _Frame) else None, [iraf])
     mef.save(made, data, head, None, None, "VAR", "harwood")
     return made
 
@@ -1044,15 +1323,76 @@ def _peek(spec):
 
 
 def _already(header, flag: str) -> bool:
-    keyword = MARKS[flag][0]
-    return keyword in header
+    """ccdflag: done when the flag's keyword says other than its default."""
+    return _instrument().flag(header, FLAGS.get(flag, flag))
 
 
-def _mark(header, flag: str) -> None:
-    keyword, comment = MARKS[flag]
-    from datetime import datetime
+def _ordered(steps) -> list[str]:
+    """A frame's lines in the order IRAF's set_* procedures log them."""
+    names = {"zero": "zerocor", "dark": "darkcor", "flat": "flatcor", "illum": "illumcor",
+             "fringe": "fringecor"}
 
-    header[keyword] = (datetime.now(UTC).isoformat(timespec="seconds"), comment)
+    def rank(step):
+        action = getattr(step, "log_key", step.action)
+        action = names.get(action, action)
+        return LOG_ORDER.index(action) if action in LOG_ORDER else len(LOG_ORDER)
+
+    said = [step for step in steps if getattr(step, "iraf", "") and
+            not getattr(step, "after_output", False)]
+    return [step.iraf for step in sorted(said, key=rank)]
+
+
+def _log_frame(image: str, output: str, steps) -> None:
+    """ccdlog for one frame: its lines under its name, in IRAF's order. A calibration
+    processed on the way is logged just before the line that names it, under its own
+    name, as IRAF processes it there; and the scan made of it after it. What is done to
+    the output (readcor) comes last, under the output's name."""
+    run = _RUN.get()
+    if run is None:
+        return
+    said = [step for step in steps if getattr(step, "iraf", "")]
+    for line in _ordered(steps):
+        step = next(s for s in said if s.iraf == line)
+        _log_calibration(run, getattr(step, "calibration", None))
+        scan = run.scans.pop(getattr(step, "given", None), None)
+        if scan is not None:
+            source, lines = scan
+            _log_calibration(run, source)
+            run.log(getattr(step, "given", ""), lines)
+        run.log(image, [line])
+    after = [s.iraf for s in said if getattr(s, "after_output", False)]
+    run.log(output, after)
+
+
+def _log_calibration(run, cal) -> None:
+    """A calibration prepared in memory, logged once, at its first use."""
+    if cal is None or getattr(cal, "logged", False) or not hasattr(cal, "steps"):
+        return
+    cal.logged = True
+    _log_frame(cal.name, cal.name, cal.steps)
+
+
+def _said(line: str, step: Step) -> Step:
+    """The step, with the line IRAF logs and writes for it."""
+    step.iraf = line
+    return step
+
+
+def _g(value) -> str:
+    """%g of a real, as IRAF's printf writes it."""
+    from ..core import iraffmt
+
+    return iraffmt.g(float(value))
+
+
+def _mark(header, flag: str, text: str = "") -> str:
+    """hdmpstr of a processing flag: the step's line as IRAF writes it -- the date and
+    what was done -- in the keyword the translation names for it. The line, to log."""
+    line = _stamp(text or MARKS.get(flag, (flag.upper(), flag))[1])
+    # a card's value holds 68 characters, and IRAF's FITS kernel cuts it there; the
+    # log has the whole line
+    header[_instrument().keyword(FLAGS.get(flag, flag))] = line[:68]
+    return line
 
 
 def _fixpix(raw, data, bpm_path, header, sec, region):
@@ -1065,7 +1405,14 @@ def _fixpix(raw, data, bpm_path, header, sec, region):
 
     if _already(header, "fixpix"):
         return data, Step("fixpix", skipped=True, reason="FIXPIX already in the header"), None
-    mask, _ = images.read(bpm_path)
+    found = _iraf_file(str(bpm_path))
+    if Path(found).suffix.lower() in (".fits", ".fit", ".fts", ".pl", ".imh"):
+        mask, _ = images.read(found)
+    else:
+        # a text file of regions, as xt_pmmap reads one (ccdtest's badpix.dat)
+        from ..core import pixmask
+
+        mask = pixmask.read(found, header, raw.shape)
     if mask.shape == raw.shape:
         mask = mask[sec.in_l1 - 1:sec.in_l2, sec.in_c1 - 1:sec.in_c2]
     else:
@@ -1081,14 +1428,14 @@ def _fixpix(raw, data, bpm_path, header, sec, region):
     inner, summary = fixpix.fix(data[region], mask)
     out = data.copy()
     out[region] = np.asarray(inner, np.float32)
-    _mark(header, "fixpix")
-    return out, Step(
+    iraf = _mark(header, "fixpix", f"Bad pixel file is {bpm_path}")
+    return out, _said(iraf, Step(
         "fixpix", f"{int(bad.sum())} pixels replaced", why=WHY["fixpix"],
         measured={"replaced": f"{int(bad.sum())} pixels, "
                               f"{100 * bad.mean():.3f}%",
                   "along lines": summary["along lines"],
                   "along columns": summary["along columns"]},
-        before=Task.statistics(data), after=Task.statistics(out)), bad
+        before=Task.statistics(data), after=Task.statistics(out))), bad
 
 
 def _overscan(data, header, params, sec, section):
@@ -1117,43 +1464,59 @@ def _overscan(data, header, params, sec, section):
                              "readaxis column.")
         strip = data[sec.in_l1 - 1:sec.in_l2, sec.bias_c1 - 1:sec.bias_c2]
         level = ccdsections.find_overscan(strip, params.function)
-        _mark(header, "overscan")
-        return level[:, None], Step(
+        iraf = _mark(header, "overscan", f"Overscan section is [{sec.bias_c1}:{sec.bias_c2},"
+                                         f"{sec.bias_l1}:{sec.bias_l2}] with function="
+                                         f"{params.function}")
+        return level[:, None], _said(iraf, Step(
             "overscan", f"{params.function} over {section}", why=WHY["overscan"],
             measured={"level": round(float(level.mean()), 2),
-                      "drift": f"{float(level.min()):.2f} to {float(level.max()):.2f}"})
+                      "drift": f"{float(level.min()):.2f} to {float(level.max()):.2f}"}))
 
     x, values = ccdsections.overscan_vector(data, sec, line_axis)
-    spec = icfit.FitSpec(
+    run = _RUN.get()
+    # what a fit by hand left is where the next frame's starts: IRAF puts it back in
+    # ccdproc's parameters (clput)
+    spec = run.spec if run is not None and run.spec is not None else icfit.FitSpec(
         function=params.function, order=params.order, sample=params.sample,
         naverage=params.naverage, niterate=params.niterate,
         low_reject=params.low_reject, high_reject=params.high_reject,
         grow=params.grow,
     )
+    image = run.current if run is not None else ""
+    where = f"[{sec.bias_c1}:{sec.bias_c2},{sec.bias_l1}:{sec.bias_l2}]"
+    title = f"Overscan vector for {image} from section {where}"
     deleted = 0
     level = None
-    if params.interactive:
-        from ..viewer.icfit_panel import run as run_icfit
-
-        result = run_icfit(x.astype(float), values.astype(float), spec,
-                           title=f"ccdproc · overscan {section}",
-                           xlabel="pixel", ylabel="overscan level (ADU)")
+    weights = np.ones(x.size, np.float32)
+    answer = run.ask(f"Fit overscan vector for {image} interactively") if run is not None \
+        else ("yes" if params.interactive or params.cursor else "NO")
+    if answer in ("yes", "YES"):
+        result = _overscan_by_hand(x, values, spec, params, title)
         spec = result.spec
         deleted = int(result.deleted.sum())
         if result.model is None:
             raise ValueError(f"the overscan fit failed: {result.message}")
         if deleted:
-            level = np.asarray(result(x.astype(float)), np.float32)
+            # what icg_fit leaves: the points deleted by hand at weight zero, the fit
+            # made again in real over the rest (ic_fit), as for the frames after
+            weights = np.where(result.deleted, 0, 1).astype(np.float32)
+        if run is not None:
+            run.spec = spec
+    if params.plotfile.strip():
+        _overscan_plot(x, values, spec, weights, title, params.plotfile.strip(), image)
     ic = icfitbits.Ic(function=spec.function, order=spec.order, sample=spec.sample,
                       naverage=spec.naverage, niterate=spec.niterate,
                       low_reject=spec.low_reject, high_reject=spec.high_reject, grow=spec.grow)
-    weights = np.ones(x.size, np.float32)
     if level is None:
         curve = icfitbits.fit(ic, x, values, weights)
         level = np.asarray(curve.vector_at(x), np.float32)
     rms = float(np.sqrt(np.mean((values.astype(float) - level.astype(float)) ** 2)))
     nrejected = int(getattr(ic, "nreject", 0) or 0)
-    _mark(header, "overscan")
+    # the mean IRAF logs: asumr of the fitted vector over its points, in real
+    mean = np.float32(ccdsections.asum(level) / np.float32(level.size))
+    iraf = _mark(header, "overscan", f"Overscan section is [{sec.bias_c1}:{sec.bias_c2},"
+                                     f"{sec.bias_l1}:{sec.bias_l2}] with mean="
+                                     f"{_g(mean)}")
     detail = (f"{spec.function} order {spec.order} over {section}, "
               f"mean level {float(level.mean()):.2f}, rms {rms:.2f}")
     if spec.sample != "*":
@@ -1162,12 +1525,76 @@ def _overscan(data, header, params, sec, section):
         detail += f", {deleted} points deleted by hand"
     if nrejected:
         detail += f", {nrejected} points rejected"
-    return (level[:, None] if line_axis else level[None, :]), Step(
+    return (level[:, None] if line_axis else level[None, :]), _said(iraf, Step(
         "overscan", detail, why=WHY["overscan"],
         measured={"level": round(float(level.mean()), 2),
                   "drift": f"{float(level.min()):.2f} to {float(level.max()):.2f}",
                   "fit rms": round(rms, 3),
-                  "rejected": f"{nrejected} of {x.size}"})
+                  "rejected": f"{nrejected} of {x.size}"}))
+
+
+#: IRAF's logical directories for files the instrument files name, and where harwood
+#: keeps their copies.
+_IRAF_DIRS = {"ccdtest": Path(__file__).resolve().parent.parent / "data" / "iraf" /
+              "ccdtest"}
+
+
+def _iraf_file(name: str) -> str:
+    """A file named the IRAF way, 'ccdtest$badpix.dat', as a path harwood can open."""
+    prefix, sep, rest = name.partition("$")
+    if sep and prefix in _IRAF_DIRS:
+        return str(_IRAF_DIRS[prefix] / rest)
+    return name
+
+
+def _overscan_by_hand(x, values, spec, params, title):
+    """icg_fit of the overscan vector: from the cursor file, each fit up to its q, or in
+    the window (graphics stdgraph)."""
+    import numpy as np
+
+    from ..core import icfitsession
+
+    if params.cursor:
+        from .longslit import _keys
+
+        session = icfitsession.IcfitSession(x.astype(float), values.astype(float), spec,
+                                            np.ones(x.size), title, xlabel="Pixel",
+                                            ylabel="Overscan")
+        session.run_commands("\n".join(_keys(params.cursor)))
+        run = _RUN.get()
+        if run is not None:
+            run.said.append(session.stdout)
+        return session.result()
+    device = params.graphics.strip()
+    if device not in ("", "stdgraph"):
+        advice.fail(f"graphics '{device}': harwood fits the overscan by hand in its "
+                    "window, stdgraph",
+                    "give --graphics stdgraph, or --cursor with a file of keys to fit "
+                    "without the window")
+    from ..viewer.icfit_panel import run as run_icfit
+
+    return run_icfit(x.astype(float), values.astype(float), spec, title=title,
+                     xlabel="Pixel", ylabel="Overscan")
+
+
+def _overscan_plot(x, values, spec, weights, title, plotfile, image) -> None:
+    """ccdred's plotfile: the overscan vector and its fit, as setoverscan graphs it --
+    the window from 1 to the number of points, as IRAF sets it -- one SVG a frame."""
+    import numpy as np
+
+    from ..core import icfitsession
+
+    session = icfitsession.IcfitSession(x.astype(float), values.astype(float), spec,
+                                        np.asarray(weights, float), title, xlabel="Pixel",
+                                        ylabel="Overscan")
+    session.gt.setr("xmin", 1.0)
+    session.gt.setr("xmax", float(x.size))
+    base = plotfile[:-4] if plotfile.lower().endswith(".svg") else plotfile
+    target = Path(f"{base}_{Path(image).stem or 'overscan'}.svg")
+    icfitsession.svg(session.graph(), target)
+    run = _RUN.get()
+    if run is not None:
+        run.plots.append(target)
 
 
 def _calibrate(data, header, key, image, params, sec, region, inst=None, flat=None):
@@ -1180,7 +1607,8 @@ def _calibrate(data, header, key, image, params, sec, region, inst=None, flat=No
     flag = {"zero": "zerocor", "dark": "darkcor", "flat": "flatcor"}[key]
     if _already(header, flag):
         return data, Step(key, skipped=True,
-                          reason=f"{MARKS[flag][0]} already in the header"), None
+                          reason=f"{_instrument().keyword(FLAGS[flag])} already in "
+                                 "the header"), None
     if image is None:
         raise ValueError(f"{flag} was asked for but no --{key} image was given")
 
@@ -1204,6 +1632,7 @@ def _calibrate(data, header, key, image, params, sec, region, inst=None, flat=No
         if dark_time <= 0:
             raise ValueError(f"the dark {name} has a time of {float(dark_time):g}.")
         factor = np.float32(frame_time / dark_time)
+        darkscale = factor          # DARKSCALE: what set_dark logs, whatever proc1 uses
         if in_line and params.readaxis == "line":
             # proc1's own: a dark of one line is scaled by the flat's scale, or by a
             # zero left in the structure with no flat.
@@ -1242,9 +1671,19 @@ def _calibrate(data, header, key, image, params, sec, region, inst=None, flat=No
         measured["response range"] = (f"{float(normalised.min()):.3f} to "
                                       f"{float(normalised.max()):.3f}")
 
-    _mark(header, flag)
-    return out, Step(key, detail, why=WHY[key], measured=measured,
-                     before=Task.statistics(data), after=Task.statistics(out)), cal
+    given = str(image.path if isinstance(image, _Frame) else image)
+    if key == "zero":
+        text = f"Zero level correction image is {given}"
+    elif key == "dark":
+        text = f"Dark count correction image is {given} with scale={_g(darkscale)}"
+    else:
+        text = f"Flat field image is {given} with scale={_g(level)}"
+    iraf = _mark(header, flag, text)
+    step = _said(iraf, Step(key, detail, why=WHY[key], measured=measured,
+                            before=Task.statistics(data), after=Task.statistics(out)))
+    step.calibration = cal if isinstance(image, _Frame) else None
+    step.given = given
+    return out, step, cal
 
 
 def _flat_scale(cal, params):
@@ -1413,7 +1852,7 @@ class SetInstrument(Task[SetInstrumentParams]):
             warnings.append(advice.note(
                 f"{len(skipped)} of the instrument's settings have no harwood "
                 "counterpart and were not applied; the table says why",
-                "nothing, usually: they are IRAF's package and display settings"))
+                "nothing to do for the reduction: the table says what each was for"))
         return TaskResult(
             outputs=[project],
             data=data, warnings=warnings,
@@ -1423,23 +1862,30 @@ class SetInstrument(Task[SetInstrumentParams]):
 
 
 #: ccdred's own tasks under harwood's names.
-_TASKS = {"combine": "imcombine"}
-#: ccdred package settings harwood keeps elsewhere, and where.
-_PACKAGE = {
-    "pixeltype": "harwood computes in double and writes the input's type",
-    "verbose": "harwood always reports what it did",
-    "logfile": "harwood.log.jsonl is the log",
-    "plotfile": "plots are saved from the window",
-    "backup": "harwood writes new files and keeps the input",
-    "ssfile": "subsets are read from the instrument translation",
-    "graphics": "the window is harwood's own",
-    "cursor": "the cursor is the window's",
+_TASKS: dict[str, str] = {}
+
+#: ccdred's package parameters (ccdred.par), as IRAF sets them by default, and which
+#: of harwood's ccdred tasks read each -- through `params.ccdred` in harwood.yaml, as
+#: IRAF's tasks read them through the package (")_.").
+PACKAGE = {
+    "pixeltype": ("real real", "ccdproc: the output's and the calculation's types"),
+    "verbose": (False, "ccdproc and the combines: the log on the terminal too"),
+    "logfile": ("logfile", "ccdproc and the combines: the text log"),
+    "plotfile": ("", "ccdproc: the overscan fits' graphs"),
+    "backup": ("", "ccdproc in place: what is kept of the original"),
+    "ssfile": ("subsets", "ccdproc, the combines, ccdlist, ccdgroups: the subsets file"),
+    "graphics": ("stdgraph", "ccdproc: where the overscan is fitted by hand"),
+    "cursor": ("", "ccdproc: the overscan fits' keys from a file"),
 }
+#: IRAF's tasks that the instrument files set and that are not ccdred's: ccdtest's,
+#: which make the demonstration's artificial frames.
+_ELSEWHERE = {"artobs": "ccdtest", "subsection": "ccdtest", "mkimage": "ccdtest"}
 
 
 def _apply_settings(found, document) -> tuple[list[dict], list[dict]]:
-    """Each 'task.param = value' of the .cl file into the project's params,
-    when harwood has that task and parameter and the value is one it takes."""
+    """Each 'task.param = value' of the .cl file into the project's params, when
+    harwood has that task and parameter and the value is one it takes; ccdred's own
+    into params.ccdred, which its tasks read as IRAF's read the package's."""
     from pydantic import TypeAdapter, ValidationError
 
     from ..core.registry import exists, get_class
@@ -1452,12 +1898,22 @@ def _apply_settings(found, document) -> tuple[list[dict], list[dict]]:
             continue
         row = {"setting": f"{task}.{parameter}", "value": text}
         if task == "ccdred":
-            skipped.append({**row, "applied": "no -- " + _PACKAGE.get(
-                parameter, "a package setting harwood does not have")})
+            if parameter not in PACKAGE:
+                skipped.append({**row, "applied": "no -- ccdred has no such parameter"})
+                continue
+            default, used = PACKAGE[parameter]
+            value = _cl_value(text) if isinstance(default, bool) else text
+            if isinstance(default, bool) and not isinstance(value, bool):
+                skipped.append({**row, "applied": "no -- not yes or no"})
+                continue
+            params.setdefault("ccdred", {})[parameter] = value
+            applied.append({**row, "applied": f"yes -- ccdred package; {used}"})
             continue
         target = _TASKS.get(task, task)
         if not exists(target):
-            skipped.append({**row, "applied": f"no -- harwood has no {task}"})
+            where = _ELSEWHERE.get(task)
+            skipped.append({**row, "applied": f"no -- harwood has no {task}"
+                            + (f" ({where})" if where else "")})
             continue
         field = get_class(target).Params.model_fields.get(parameter)
         if field is None:
@@ -1470,6 +1926,11 @@ def _apply_settings(found, document) -> tuple[list[dict], list[dict]]:
             applied.append({**row, "applied": "yes -- read from the header, "
                                               "harwood's default"})
             continue
+        if text == "" and _takes_none(field):
+            # IRAF's empty string: no file -- harwood's None, its default.
+            params.get(target, {}).pop(parameter, None)
+            applied.append({**row, "applied": f"yes -- {target}: none"})
+            continue
         value = _cl_value(text)
         try:
             value = TypeAdapter(field.annotation).validate_python(value)
@@ -1477,9 +1938,20 @@ def _apply_settings(found, document) -> tuple[list[dict], list[dict]]:
             skipped.append({**row, "applied": f"no -- not a value {target} --{parameter} "
                                               "takes (a header keyword, in IRAF)"})
             continue
+        if isinstance(value, Path):
+            value = str(value)        # the project file holds text
         params.setdefault(target, {})[parameter] = value
         applied.append({**row, "applied": f"yes -- {target}"})
+    for section in list(params):
+        if params[section] == {}:
+            del params[section]
     return applied, skipped
+
+
+def _takes_none(field) -> bool:
+    import typing
+
+    return field.default is None or type(None) in typing.get_args(field.annotation)
 
 
 def _cl_value(text: str):
@@ -1516,6 +1988,8 @@ class CcdListParams(TaskParams):
     instrument: str | None = Field(
         None, description="Translation to use. Taken from the project file when not given."
     )
+    ssfile: str = Field("subsets", description="The subsets file the short names come "
+                                               "from (ccdred's ssfile).")
 
 
 @register
@@ -1561,17 +2035,17 @@ class CcdList(Task[CcdListParams]):
             subset = inst.subset(header)
             seen.append(subset)
             row = {"image": str(spec), "type": kind,
-                   "subset": subset_file.name_for(subset, create=False) or "-",
+                   "subset": subset_file.name_for(subset, create=False,
+                                                  file=params.ssfile) or "-",
                    "raw subset": subset or "-", "shape": shape,
                    "exptime": inst.value(header, "exptime", "-"),
                    "object": header.get("OBJECT", "")}
             if params.long:
-                done = [name for name, (keyword, _) in MARKS.items()
-                        if keyword in header]
+                done = [name for name in MARKS if inst.flag(header, FLAGS[name])]
                 row["done"] = ", ".join(done) if done else "-"
             rows.append(row)
 
-        known = subset_file.record(sorted(set(seen)))
+        known = subset_file.record(sorted(set(seen)), file=params.ssfile)
         for row in rows:
             raw = row["raw subset"]
             row["subset"] = known.get(raw, row["subset"]) if raw != "-" else "-"
@@ -1651,6 +2125,10 @@ class CcdGroupsParams(TaskParams):
                          "dark, flat, illum, fringe, other, comp, none, unknown.")
     instrument: str | None = Field(
         None, description="Translation to use. Taken from the project file when not given.")
+    ssfile: str = Field("subsets", description="The subsets file, for group=subset "
+                                               "(ccdred's ssfile).")
+    verbose: bool = Field(False, description="Print 'image --> group file' for each "
+                                             "image (ccdred's verbose).")
 
 
 @register
@@ -1721,7 +2199,7 @@ class CcdGroups(Task[CcdGroupsParams]):
                 elif params.group == "ccdtype":
                     suffix = _ccdtype_name(inst, header)
                 else:
-                    suffix = subset_file.name_for(inst.subset(header))
+                    suffix = subset_file.name_for(inst.subset(header), file=params.ssfile)
             except (KeyError, ValueError) as error:
                 warnings.append(advice.warn(
                     f"{name}: {error} -- not grouped",
@@ -1739,8 +2217,105 @@ class CcdGroups(Task[CcdGroupsParams]):
             assignments.append((name, str(target)))
         rows = [{"image": image, "group": target} for image, target in assignments]
         outputs = sorted({Path(target) for _, target in assignments})
-        return TaskResult(outputs=outputs, data={"rows": rows}, warnings=warnings,
+        data: dict = {"rows": rows}
+        if params.verbose:
+            said = "".join(f"{image} --> {target}\n" for image, target in assignments)
+            data = {"text": said.rstrip("\n").split("\n"), "stdout": said, **data}
+        return TaskResult(outputs=outputs, data=data, warnings=warnings,
                           steps=self.plan(params))
+
+
+# ----------------------------------------------------------------- ccdhedit
+
+class CcdHeditParams(TaskParams):
+    images: list[str] = Field(..., description="CCD images to edit. Globs and @lists.",
+                              json_schema_extra={"positional": True})
+    parameter: str = Field(..., description="ccdred's name of the parameter -- imagetyp, "
+                                            "subset, exptime, datasec... -- which the "
+                                            "instrument's translation turns into the "
+                                            "keyword.",
+                           json_schema_extra={"positional": True})
+    value: str = Field(..., description="The value; empty deletes the keyword. For "
+                                        "imagetyp, ccdred's type (zero, flat...), written "
+                                        "as the instrument's headers say it.",
+                       json_schema_extra={"positional": True})
+    type: Literal["string", "real", "integer"] = Field(
+        "string", description="How the value is written.")
+    instrument: str | None = Field(
+        None, description="Translation to use. Taken from the project file when not given.")
+
+
+def ccdhedit(images_: list[str], parameter: str, value: str, kind: str = "string",
+             instrument: str | None = None) -> list[Path]:
+    """t_ccdhedit: each image's keyword for a ccdred parameter, through the translation
+    (hdrmap): set as a string, a real or an integer, or deleted when the value is empty.
+    An imagetyp is put the image's way, by the translation read backwards (hdmparm)."""
+    from astropy.io import fits
+
+    from ..core import ccdinstsession, iraffmt
+    from ..core import images as imagelib
+    from ..core import params as store
+
+    name = instrument
+    if not name:
+        document, _ = store.load_project(None)
+        name = str(document.get("instrument") or "")
+    table = ccdinstsession.Map()
+    table.open(name, lambda text: None)
+    text = value.strip()
+    if parameter == "imagetyp":
+        # hdmparm: the symbol whose translation is this name
+        for symbol, translated, _ in table.table or []:
+            if translated == text:
+                text = symbol
+                break
+    keyword = table.name(parameter).upper()
+    if text and kind == "real":
+        number = iraffmt.ctod(text)
+        if number is None:
+            advice.fail("Parameter value is not a number", f"give a number for {parameter}")
+        written = float(__import__("numpy").float32(number))
+    elif text and kind == "integer":
+        number = iraffmt.ctod(text)
+        if number is None:
+            advice.fail("Parameter value is not a number", f"give a number for {parameter}")
+        written = int(number)
+    else:
+        written = text
+    done = []
+    for spec in imagelib.expand(images_):
+        path = Path(spec.path)
+        with fits.open(path, mode="update") as hdul:
+            header = hdul[0].header
+            if not text:
+                if keyword in header:
+                    del header[keyword]
+            else:
+                header[keyword] = written
+        done.append(path)
+    return done
+
+
+@register
+class CcdHedit(Task[CcdHeditParams]):
+    """IRAF's ccdhedit: hedit through the instrument's translation."""
+
+    name = "ccdhedit"
+    package = "ccdred"
+    description = "Edit CCD image headers through the instrument's translation."
+    Params = CcdHeditParams
+
+    def plan(self, params: CcdHeditParams) -> list[Step]:
+        action = f"{params.parameter} = {params.value!r} ({params.type})" if \
+            params.value.strip() else f"delete {params.parameter}"
+        return [Step("edit", action,
+                     why="ccdred's name, not the keyword: the translation says which "
+                         "keyword and, for an image type, how this instrument writes it.")]
+
+    def execute(self, params: CcdHeditParams) -> TaskResult:
+        done = ccdhedit(params.images, params.parameter, params.value, params.type,
+                        params.instrument)
+        return TaskResult(outputs=done, steps=self.plan(params))
 
 
 # -------------------------------------------------------------- badpiximage

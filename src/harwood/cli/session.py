@@ -82,12 +82,25 @@ class _Leave(Exception):
 
 def _run(line: str) -> bool:
     """One command; True when it worked."""
+    import contextlib
+    import os
+    import subprocess
+
     import click
 
     from .main import SESSION, app
 
+    line = line.strip()
     if line in ("exit", "quit", "bye", "logout"):
         raise _Leave
+    if _BANG_CD.fullmatch(line):
+        line = line[1:].strip()
+    if command_line.is_shell(line):
+        cmd = line[1:] if line.startswith("!") else line
+        proc = subprocess.run(cmd, shell=True, env={**os.environ, "PAGER": "cat"})
+        return proc.returncode == 0
+
+    line, out_path, append = command_line.split_redirection(line)
     try:
         args = shlex.split(line)
     except ValueError as error:
@@ -100,7 +113,13 @@ def _run(line: str) -> bool:
             return True
 
     try:
-        app.main(args=args, prog_name="harwood", standalone_mode=False, obj=SESSION)
+        if out_path is not None:
+            mode = "a" if append else "w"
+            with open(out_path, mode, encoding="utf-8") as handle, \
+                    contextlib.redirect_stdout(command_line.Plain(handle)):
+                app.main(args=args, prog_name="harwood", standalone_mode=False, obj=SESSION)
+        else:
+            app.main(args=args, prog_name="harwood", standalone_mode=False, obj=SESSION)
     except click.ClickException as error:
         error.show()
         return False

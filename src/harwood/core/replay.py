@@ -49,6 +49,15 @@ def command(task: str, model: type, values: dict[str, Any],
     declares them; everything else becomes an option, and only when it differs
     from the model's own default. Booleans become `--flag` or `--no-flag`.
     """
+    from . import params as store
+    from .registry import exists, get_class
+
+    preset = get_class(task).defaults if exists(task) else {}
+    try:
+        from_project, _ = store.project_params(task)
+    except Exception:
+        from_project = {}
+
     positional: list[str] = []
     options: list[str] = []
     variadic_taken = False
@@ -77,7 +86,9 @@ def command(task: str, model: type, values: dict[str, Any],
             continue
 
         default = field.get_default(call_default_factory=True)
-        if _same(value, default):
+        if (_same(value, default)
+                and (name not in preset or _same(value, preset[name]))
+                and (name not in from_project or _same(value, from_project[name]))):
             continue
 
         if isinstance(value, bool):

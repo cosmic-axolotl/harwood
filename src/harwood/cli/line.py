@@ -22,6 +22,7 @@ here knows about Qt; the window and the terminal session both use it.
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -289,3 +290,91 @@ def _words(text: str) -> tuple[list[tuple[int, str]], bool]:
         words.append((start, "".join(value)))
         end = i
     return words, bool(text) and end < len(text)
+
+
+#: Standard shell commands people type at hw> alongside harwood tasks.
+SHELL_COMMANDS = {
+    "ls", "cat", "less", "more", "head", "tail", "wc", "grep", "egrep", "fgrep",
+    "sed", "awk", "printf", "echo", "cp", "mv", "rm", "mkdir", "rmdir", "touch",
+    "chmod", "tar", "gzip", "gunzip", "bash", "sh", "df", "du", "date", "which",
+    "find", "sort", "uniq", "cut", "tr", "paste", "diff", "cmp", "for",
+}
+
+
+def is_shell(command: str) -> bool:
+    """Whether `command` is a shell command (`!cmd`, or a shell utility)."""
+    text = command.strip()
+    if text.startswith("!"):
+        return True
+    words, _ = _words(text)
+    return bool(words) and words[0][1] in SHELL_COMMANDS
+
+
+def split_redirection(command: str) -> tuple[str, str | None, bool]:
+    """Strip an unquoted trailing `> file` or `>> file` from a harwood command.
+    Returns `(command, path, append)`."""
+    quote: str | None = None
+    found: tuple[int, int, bool] | None = None
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        if quote:
+            if ch == "\\" and quote == '"' and i + 1 < len(command):
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch == "\\" and i + 1 < len(command):
+            i += 2
+            continue
+        if ch in "'\"":
+            quote = ch
+            i += 1
+            continue
+        if command.startswith(">>", i):
+            found = (i, i + 2, True)
+            i += 2
+            continue
+        if ch == ">":
+            found = (i, i + 1, False)
+        i += 1
+    if found is None:
+        return command, None, False
+    pos, after, append = found
+    rest, _ = _words(command[after:])
+    if len(rest) != 1:
+        return command, None, False
+    return command[:pos].rstrip(), rest[0][1], append
+
+
+
+#: A terminal's control sequences: CSI (colours, styles), OSC (rich's links), and the
+#: two-character escapes.
+_ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")
+
+
+def strip_ansi(text: str) -> str:
+    """The text without a terminal's colours: for where the console's output goes that
+    is not a terminal -- the window's session, a file it is redirected to. The console
+    decides once, at start, that it writes to a terminal; opened from one, it goes on
+    colouring what is no longer going there."""
+    return _ANSI.sub("", text)
+
+
+class Plain:
+    """A file the console writes to, as plain text."""
+
+    def __init__(self, handle) -> None:
+        self.handle = handle
+
+    def write(self, text: str) -> int:
+        self.handle.write(strip_ansi(text))
+        return len(text)
+
+    def flush(self) -> None:
+        self.handle.flush()
+
+    def isatty(self) -> bool:
+        return False

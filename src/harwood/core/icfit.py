@@ -251,15 +251,6 @@ def _build(x: np.ndarray, y: np.ndarray, spec: FitSpec, weights=None,
     # Splines: `order` is the number of polynomial pieces, as in IRAF, laid
     # evenly over the range the caller evaluates -- not over whatever points
     # survived rejection, which would move the knots every iteration.
-    try:
-        from scipy.interpolate import LSQUnivariateSpline
-    except ImportError as error:
-        raise ValueError(
-            f"'{spec.function}' needs scipy, which is part of harwood[phot]. "
-            "Run: pip install harwood[phot] -- or use legendre or chebyshev, "
-            "which need nothing extra."
-        ) from error
-
     degree = 1 if function == "spline1" else 3
     sort = np.argsort(x)
     xs, ys, ws = x[sort], y[sort], weights[sort]
@@ -272,11 +263,32 @@ def _build(x: np.ndarray, y: np.ndarray, spec: FitSpec, weights=None,
             f"{len(xs)} are left."
         )
     try:
+        from scipy.interpolate import LSQUnivariateSpline
+    except ImportError:
+        return _CurfitSpline(function, pieces, low, high, xs, ys, ws)
+    try:
         return LSQUnivariateSpline(xs, ys, knots, w=np.sqrt(ws), bbox=[low, high],
                                    k=degree, ext="const")
     except ValueError:
         # Some piece has no points in it. curfit solves what it can and says so.
         return _SingularSpline(function, pieces, low, high, xs, ys, ws)
+
+
+class _CurfitSpline:
+    """dcurfit's spline when scipy is not installed: pure numpy, double precision."""
+
+    def __init__(self, function, pieces, low, high, x, y, w) -> None:
+        from .curfit import SINGULAR, DoubleCurve
+
+        self.curve = DoubleCurve(function, pieces, low, high)
+        self.curve.accumulate(np.asarray(x, dtype=float),
+                              np.asarray(y, dtype=float),
+                              np.asarray(w, dtype=float))
+        self.singular = self.curve.solve() == SINGULAR
+
+    def __call__(self, x) -> np.ndarray:
+        x = np.atleast_1d(np.asarray(x, dtype=float))
+        return np.asarray(self.curve.vector_at(x), dtype=float)
 
 
 class _SingularSpline:

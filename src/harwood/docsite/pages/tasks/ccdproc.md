@@ -113,8 +113,40 @@ Without `--output`, into a directory of its own under `output/` with the
 frames keeping their names; with a directory, there; with one image, to
 that name; with `%old%new%`, side by side. `--inplace` corrects the inputs
 themselves, as IRAF does by default -- the marks make that safe to repeat,
-but the originals are gone. A plain text line per frame per step goes to
-`harwood.log` (`--logfile`), to watch in another window.
+but the originals are gone -- unless `--backup` keeps them, as ccdred's backup does:
+`B` renames obj001.fits to Bobj001.fits (B1obj001.fits when that is taken), and
+`orig/` moves it into orig/.
+
+## The log, and ccdred's package parameters
+
+Each step done to a frame writes its line in the header, as IRAF's does -- `TRIM =
+'Nov 17 10:02 Trim data section is [1:52,1:37]'`, `OVERSCAN`, `ZEROCOR`, `FLATCOR` ...
+and `CCDPROC = 'Nov 17 10:02 CCD processing done'` -- and the same line, under the
+frame's name, goes to the text log, `logfile` unless `--logfile` names another (empty
+keeps none). With `--verbose` the lines are printed as they happen. A calibration
+processed on the way is logged where IRAF processes it, just before the line that names
+it; a scan made of one (scancor) when it is first used.
+
+```example
+title: The log, on the terminal too
+run: harwood ccdproc obj001.fits --output obj001r.fits --overscan --trim --verbose
+output: |
+  Trim data section is [1:100,1:100]
+```
+
+These are ccdred's package parameters, which IRAF's tasks read from the package and
+harwood's from `params.ccdred` in harwood.yaml, where `harwood setinstrument` puts an
+instrument's: `logfile`, `verbose`, `pixeltype` (the output's type: real, or the input's
+own -- short, ushort, int, long -- kept by its first word, or double; IRAF's short
+calculation is not harwood's), `backup`, `plotfile` (the overscan fits, as SVG, one for
+each frame), `ssfile` (the subsets file), `graphics` and `cursor`. With `--cursor` the
+overscan is fitted from a file of keys, each fit up to its `q`, and `--answers` gives
+the replies to "Fit overscan vector for <image> interactively" (no, yes, NO, YES); in
+the window, a dialog asks them. What a fit by hand leaves is where the next frame's
+starts, as IRAF writes it back into ccdproc's parameters. `--fixfile` is IRAF's name for
+the bad pixel file, a mask or a text file of regions. All of it, the log's lines
+included, is held to IRAF 2.18's on 58 sessions, and on 44 more for the package's
+parameters.
 
 ## The uncertainty, and what each pixel is worth
 

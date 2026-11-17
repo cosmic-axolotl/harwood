@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 
 import numpy as np
 
@@ -122,6 +123,26 @@ class Graph:
     mark: str = "plus"              #: the mark of the points, when kind is mark
     size: tuple[float, float] = (2.0, 2.0)
     logs: tuple[bool, bool] = (False, False)    #: which of the screen's axes are elog
+
+
+def svg(graph: Graph, path) -> Path:
+    """A graph icg_graph drew, written as SVG: the data, the fit dashed, crosses on the
+    deleted, diamonds on the rejected, the sample's bars -- a task's plot file."""
+    from .graph import Graph as Page
+
+    page = Page([*graph.params, *([graph.title] if graph.title else [])], graph.xlabel,
+                graph.ylabel)
+    page.window = tuple(graph.window)
+    if graph.kept[0].size:
+        page.line(*graph.kept)
+    if graph.fit[0].size:
+        page.line(*graph.fit, ltype=2)
+    for kind, (xs, ys) in (("cross", graph.deleted), ("diamond", graph.rejected)):
+        for x, y in zip(xs, ys, strict=True):
+            page.mark(x, y, kind, 2.0, 2.0)
+    for x1, y1, x2, y2 in graph.sample:
+        page.line([x1, x2], [y1, y2])
+    return page.write(Path(path))
 
 
 class IcfitSession:

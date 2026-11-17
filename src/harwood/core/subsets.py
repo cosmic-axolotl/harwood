@@ -43,13 +43,16 @@ HEADER = """\
 """
 
 
-def path_for(workdir: Path | str = ".") -> Path:
-    return Path(workdir) / FILE
+def path_for(workdir: Path | str = ".", file: str = FILE) -> Path:
+    """The subsets file: `file` (ccdred's ssfile, 'subsets' unless set) in the
+    reduction directory, or where a path puts it."""
+    path = Path(file or FILE)
+    return path if path.is_absolute() else Path(workdir) / path
 
 
-def read(workdir: Path | str = ".") -> dict[str, str]:
+def read(workdir: Path | str = ".", file: str = FILE) -> dict[str, str]:
     """The subsets known to this reduction: header value -> short name."""
-    path = path_for(workdir)
+    path = path_for(workdir, file)
     if not path.is_file():
         return {}
 
@@ -92,11 +95,12 @@ def identifier(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9.]", "_", name)
 
 
-def name_for(subset: str, workdir: Path | str = ".", create: bool = True) -> str:
+def name_for(subset: str, workdir: Path | str = ".", create: bool = True,
+             file: str = FILE) -> str:
     """The short name for one subset, adding it to the file if it is new."""
     if not subset:
         return ""
-    known = read(workdir)
+    known = read(workdir, file)
     if subset in known:
         return identifier(known[subset])
     if not create:
@@ -104,13 +108,14 @@ def name_for(subset: str, workdir: Path | str = ".", create: bool = True) -> str
 
     name = suggest(subset, set(known.values()))
     known[subset] = name
-    write(known, workdir)
+    write(known, workdir, file)
     return identifier(name)
 
 
-def write(known: dict[str, str], workdir: Path | str = ".") -> Path:
+def write(known: dict[str, str], workdir: Path | str = ".", file: str = FILE) -> Path:
     """Write the subsets file, keeping it readable and in a stable order."""
-    path = path_for(workdir)
+    path = path_for(workdir, file)
+    path.parent.mkdir(parents=True, exist_ok=True)
     lines = [HEADER.rstrip("\n"), "", f"# {'subset':<20}name"]
     for subset, name in sorted(known.items()):
         quoted = shlex.quote(subset)
@@ -119,15 +124,16 @@ def write(known: dict[str, str], workdir: Path | str = ".") -> Path:
     return path
 
 
-def record(subsets: list[str], workdir: Path | str = ".") -> dict[str, str]:
+def record(subsets: list[str], workdir: Path | str = ".", file: str = FILE
+           ) -> dict[str, str]:
     """Make sure every subset given has a name, and return the whole mapping,
     with the names as they go into file names."""
-    known = read(workdir)
+    known = read(workdir, file)
     added = False
     for subset in subsets:
         if subset and subset not in known:
             known[subset] = suggest(subset, set(known.values()))
             added = True
     if added:
-        write(known, workdir)
+        write(known, workdir, file)
     return {subset: identifier(name) for subset, name in known.items()}

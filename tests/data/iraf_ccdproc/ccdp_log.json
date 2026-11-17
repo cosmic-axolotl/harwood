@@ -1,0 +1,1545 @@
+{
+"ov": {
+"logfile": [
+"obj.fits: Overscan section is [53:60,1:40] with mean=309.0694"
+],
+"verbose": [
+"obj.fits: Overscan section is [53:60,1:40] with mean=309.0694"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=309.0694",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-part": {
+"logfile": [
+"obj.fits: Overscan section is [53:60,5:30] with mean=309.0694"
+],
+"verbose": [
+"obj.fits: Overscan section is [53:60,5:30] with mean=309.0694"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,5:30] with mean=309.0694",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-trim": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-short": {
+"logfile": [
+"obj.fits: Trim data section is [3:52,4:30]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.3955"
+],
+"verbose": [
+"obj.fits: Trim data section is [3:52,4:30]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.3955"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.3955",
+"TRIM": "Trim data section is [3:52,4:30]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-o3": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7743"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7743"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7743",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-cheb": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7743"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7743"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7743",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-spl3": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7743"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7743"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7743",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-spl1": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7743"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7743"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7743",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-avg": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.796"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.796"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.796",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-med": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.8652"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.8652"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.8652",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-samp": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.8481"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.8481"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.8481",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-grow": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.5992"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.5992"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.5992",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-mean": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with function=mean"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with function=mean"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with function=mean",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-median": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with function=median"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with function=median"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with function=median",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-minmax": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with function=minmax"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with function=minmax"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with function=minmax",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-col": {
+"logfile": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2246"
+],
+"verbose": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2246"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [1:60,36:40] with mean=311.2246",
+"TRIM": "Trim data section is [1:60,1:35]",
+"CCDPROC": "CCD processing done"
+}
+},
+"ov-col-o3": {
+"logfile": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2245"
+],
+"verbose": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2245"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [1:60,36:40] with mean=311.2245",
+"TRIM": "Trim data section is [1:60,1:35]",
+"CCDPROC": "CCD processing done"
+}
+},
+"trim": {
+"logfile": [
+"obj.fits: Trim data section is [5:50,3:35]"
+],
+"verbose": [
+"obj.fits: Trim data section is [5:50,3:35]"
+],
+"flags": {
+"TRIM": "Trim data section is [5:50,3:35]",
+"CCDPROC": "CCD processing done"
+}
+},
+"zero": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"CCDPROC": "CCD processing done"
+}
+},
+"dark": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41."
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41."
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"CCDPROC": "CCD processing done"
+}
+},
+"flat": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"obj.fits: Flat field image is flat.fits with scale=8019.935"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"obj.fits: Flat field image is flat.fits with scale=8019.935"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"FLATCOR": "Flat field image is flat.fits with scale=8019.935",
+"CCDPROC": "CCD processing done"
+}
+},
+"full": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"full-norm": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"obj.fits: Flat field image is flat.fits with scale=9001.16"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"obj.fits: Flat field image is flat.fits with scale=9001.16"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"FLATCOR": "Flat field image is flat.fits with scale=9001.16",
+"CCDPROC": "CCD processing done"
+}
+},
+"comp": {
+"logfile": [
+"comp.fits: Trim data section is [1:52,1:37]",
+"comp.fits: Overscan section is [53:60,1:40] with mean=308.9193",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"comp.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"comp.fits: Dark count correction image is dark.fits with scale=14.33333",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"comp.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"comp.fits: Trim data section is [1:52,1:37]",
+"comp.fits: Overscan section is [53:60,1:40] with mean=308.9193",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"comp.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"comp.fits: Dark count correction image is dark.fits with scale=14.33333",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"comp.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.9193",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=14.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"other": {
+"logfile": [
+"other.fits: Trim data section is [1:52,1:37]",
+"other.fits: Overscan section is [53:60,1:40] with mean=308.7462",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"other.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"other.fits: Dark count correction image is dark.fits with scale=14.33333",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"other.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"other.fits: Trim data section is [1:52,1:37]",
+"other.fits: Overscan section is [53:60,1:40] with mean=308.7462",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"other.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"other.fits: Dark count correction image is dark.fits with scale=14.33333",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"other.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7462",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=14.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"notype": {
+"logfile": [
+"notype.fits: Trim data section is [1:52,1:37]",
+"notype.fits: Overscan section is [53:60,1:40] with mean=308.9276",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"notype.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"notype.fits: Dark count correction image is dark.fits with scale=14.33333",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"notype.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"notype.fits: Trim data section is [1:52,1:37]",
+"notype.fits: Overscan section is [53:60,1:40] with mean=308.9276",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"notype.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"notype.fits: Dark count correction image is dark.fits with scale=14.33333",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"notype.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.9276",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=14.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"t-zero": {
+"logfile": [
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081"
+],
+"verbose": [
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.9081",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"t-dark": {
+"logfile": [
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"dark.fits: Zero level correction image is zero.fits"
+],
+"verbose": [
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"dark.fits: Zero level correction image is zero.fits"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.836",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"CCDPROC": "CCD processing done"
+}
+},
+"t-flat": {
+"logfile": [
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"flat.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333"
+],
+"verbose": [
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"flat.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.6693",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=4.3",
+"CCDPROC": "CCD processing done"
+}
+},
+"t-flat-min": {
+"logfile": [
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"flat.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333"
+],
+"verbose": [
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"flat.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.6693",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=4.3",
+"CCDPROC": "CCD processing done"
+}
+},
+"t-illum": {
+"logfile": [
+"illumraw.fits: Trim data section is [1:52,1:37]",
+"illumraw.fits: Overscan section is [53:60,1:40] with mean=308.8145",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"illumraw.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"illumraw.fits: Dark count correction image is dark.fits with scale=7.666667",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"illumraw.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"illumraw.fits: Trim data section is [1:52,1:37]",
+"illumraw.fits: Overscan section is [53:60,1:40] with mean=308.8145",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"illumraw.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"illumraw.fits: Dark count correction image is dark.fits with scale=7.666667",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"illumraw.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.8145",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=7.6",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"t-fringe": {
+"logfile": [
+"fringeraw.fits: Trim data section is [1:52,1:37]",
+"fringeraw.fits: Overscan section is [53:60,1:40] with mean=308.6862",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"fringeraw.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"fringeraw.fits: Dark count correction image is dark.fits with scale=21.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"fringeraw.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"fringeraw.fits: Trim data section is [1:52,1:37]",
+"fringeraw.fits: Overscan section is [53:60,1:40] with mean=308.6862",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"fringeraw.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"fringeraw.fits: Dark count correction image is dark.fits with scale=21.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"fringeraw.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.6862",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=21.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"illum": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Illumination image is illum.fits with scale=1.034"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Illumination image is illum.fits with scale=1.034"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"ILLUMCOR": "Illumination image is illum.fits with scale=1.034",
+"CCDPROC": "CCD processing done"
+}
+},
+"illum-mean": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Illumination image is illummean.fits with scale=1.5"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Illumination image is illummean.fits with scale=1.5"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"ILLUMCOR": "Illumination image is illummean.fits with scale=1.5",
+"CCDPROC": "CCD processing done"
+}
+},
+"illum-noflag": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"Warning: MKILLUM flag missing from illumination image"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"fringe": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Fringe image is fringe.fits with scale=2."
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Fringe image is fringe.fits with scale=2."
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"FRINGCOR": "Fringe image is fringe.fits with scale=2.",
+"CCDPROC": "CCD processing done"
+}
+},
+"fringe-scl": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Fringe image is fringescl.fits with scale=1.6"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Fringe image is fringescl.fits with scale=1.6"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"FRINGCOR": "Fringe image is fringescl.fits with scale=1.6",
+"CCDPROC": "CCD processing done"
+}
+},
+"fringe-noflag": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"Warning: MKFRINGE flag missing from fringe image."
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"both": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Illumination image is illum.fits with scale=1.034",
+"obj.fits: Fringe image is fringescl.fits with scale=1.6"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556",
+"obj.fits: Illumination image is illum.fits with scale=1.034",
+"obj.fits: Fringe image is fringescl.fits with scale=1.6"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"ILLUMCOR": "Illumination image is illum.fits with scale=1.034",
+"FRINGCOR": "Fringe image is fringescl.fits with scale=1.6",
+"CCDPROC": "CCD processing done"
+}
+},
+"read": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.fits: Converted to readout format",
+"obj.fits: Zero level correction image is zero.fits"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.fits: Converted to readout format",
+"obj.fits: Zero level correction image is zero.fits"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"CCDPROC": "CCD processing done"
+}
+},
+"read-target": {
+"logfile": [
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.fits: Converted to readout format"
+],
+"verbose": [
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.fits: Converted to readout format"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.9081",
+"TRIM": "Trim data section is [1:52,1:37]",
+"READCOR": "Converted to readout format",
+"CCDPROC": "CCD processing done"
+}
+},
+"read-col": {
+"logfile": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2246",
+"czero.fits: Trim data section is [1:60,1:35]",
+"czero.fits: Overscan section is [1:60,36:40] with mean=311.179",
+"czero.fits: Converted to readout format",
+"cobj.fits: Zero level correction image is czero.fits"
+],
+"verbose": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2246",
+"czero.fits: Trim data section is [1:60,1:35]",
+"czero.fits: Overscan section is [1:60,36:40] with mean=311.179",
+"czero.fits: Converted to readout format",
+"cobj.fits: Zero level correction image is czero.fits"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [1:60,36:40] with mean=311.2246",
+"TRIM": "Trim data section is [1:60,1:35]",
+"ZEROCOR": "Zero level correction image is czero.fits",
+"CCDPROC": "CCD processing done"
+}
+},
+"read-col-target": {
+"logfile": [
+"czero.fits: Trim data section is [1:60,1:35]",
+"czero.fits: Overscan section is [1:60,36:40] with mean=311.179",
+"czero.fits: Converted to readout format"
+],
+"verbose": [
+"czero.fits: Trim data section is [1:60,1:35]",
+"czero.fits: Overscan section is [1:60,36:40] with mean=311.179",
+"czero.fits: Converted to readout format"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [1:60,36:40] with mean=311.179",
+"TRIM": "Trim data section is [1:60,1:35]",
+"READCOR": "Converted to readout format",
+"CCDPROC": "CCD processing done"
+}
+},
+"scan-short": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.3.fits: Converted to shortscan from zero.fits with nscan=3",
+"obj.fits: Zero level correction image is zero.3.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"dark.3.fits: Converted to shortscan from dark.fits with nscan=3",
+"obj.fits: Dark count correction image is dark.3.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"flat.3.fits: Converted to shortscan from flat.fits with nscan=3",
+"obj.fits: Flat field image is flat.3.fits with scale=7282.128"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.3.fits: Converted to shortscan from zero.fits with nscan=3",
+"obj.fits: Zero level correction image is zero.3.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"dark.3.fits: Converted to shortscan from dark.fits with nscan=3",
+"obj.fits: Dark count correction image is dark.3.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"flat.3.fits: Converted to shortscan from flat.fits with nscan=3",
+"obj.fits: Flat field image is flat.3.fits with scale=7282.128"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.3.fits",
+"DARKCOR": "Dark count correction image is dark.3.fits with scale=4",
+"FLATCOR": "Flat field image is flat.3.fits with scale=7282.128",
+"CCDPROC": "CCD processing done"
+}
+},
+"scan-1": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.556"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.556",
+"CCDPROC": "CCD processing done"
+}
+},
+"scan-key": {
+"logfile": [
+"scan.fits: Trim data section is [1:52,1:37]",
+"scan.fits: Overscan section is [53:60,1:40] with mean=308.8154",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.4.fits: Converted to shortscan from zero.fits with nscan=4",
+"scan.fits: Zero level correction image is zero.4.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"dark.4.fits: Converted to shortscan from dark.fits with nscan=4",
+"scan.fits: Dark count correction image is dark.4.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"flat.4.fits: Converted to shortscan from flat.fits with nscan=4",
+"scan.fits: Flat field image is flat.4.fits with scale=7180.949"
+],
+"verbose": [
+"scan.fits: Trim data section is [1:52,1:37]",
+"scan.fits: Overscan section is [53:60,1:40] with mean=308.8154",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.4.fits: Converted to shortscan from zero.fits with nscan=4",
+"scan.fits: Zero level correction image is zero.4.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"dark.4.fits: Converted to shortscan from dark.fits with nscan=4",
+"scan.fits: Dark count correction image is dark.4.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"flat.4.fits: Converted to shortscan from flat.fits with nscan=4",
+"scan.fits: Flat field image is flat.4.fits with scale=7180.949"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.8154",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.4.fits",
+"DARKCOR": "Dark count correction image is dark.4.fits with scale=4",
+"FLATCOR": "Flat field image is flat.4.fits with scale=7180.949",
+"CCDPROC": "CCD processing done"
+}
+},
+"scan-long": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.1d.fits: Converted to longscan from zero.fits",
+"obj.fits: Zero level correction image is zero.1d.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"dark.1d.fits: Converted to longscan from dark.fits",
+"obj.fits: Dark count correction image is dark.1d.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"flat.1d.fits: Converted to longscan from flat.fits",
+"obj.fits: Flat field image is flat.1d.fits with scale=10660.78"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"zero.1d.fits: Converted to longscan from zero.fits",
+"obj.fits: Zero level correction image is zero.1d.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"dark.1d.fits: Converted to longscan from dark.fits",
+"obj.fits: Dark count correction image is dark.1d.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"flat.1d.fits: Converted to longscan from flat.fits",
+"obj.fits: Flat field image is flat.1d.fits with scale=10660.78"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.1d.fits",
+"DARKCOR": "Dark count correction image is dark.1d.fits with scale=",
+"FLATCOR": "Flat field image is flat.1d.fits with scale=10660.78",
+"CCDPROC": "CCD processing done"
+}
+},
+"scan-long-col": {
+"logfile": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2246",
+"czero.fits: Trim data section is [1:60,1:35]",
+"czero.fits: Overscan section is [1:60,36:40] with mean=311.179",
+"czero.1d.fits: Converted to longscan from czero.fits",
+"cobj.fits: Zero level correction image is czero.1d.fits",
+"cflat.fits: Trim data section is [1:60,1:35]",
+"cflat.fits: Overscan section is [1:60,36:40] with mean=311.0281",
+"cflat.fits: Zero level correction image is czero.fits",
+"cflat.1d.fits: Converted to longscan from cflat.fits",
+"cobj.fits: Flat field image is cflat.1d.fits with scale=4673.169"
+],
+"verbose": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2246",
+"czero.fits: Trim data section is [1:60,1:35]",
+"czero.fits: Overscan section is [1:60,36:40] with mean=311.179",
+"czero.1d.fits: Converted to longscan from czero.fits",
+"cobj.fits: Zero level correction image is czero.1d.fits",
+"cflat.fits: Trim data section is [1:60,1:35]",
+"cflat.fits: Overscan section is [1:60,36:40] with mean=311.0281",
+"cflat.fits: Zero level correction image is czero.fits",
+"cflat.1d.fits: Converted to longscan from cflat.fits",
+"cobj.fits: Flat field image is cflat.1d.fits with scale=4673.169"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [1:60,36:40] with mean=311.2246",
+"TRIM": "Trim data section is [1:60,1:35]",
+"ZEROCOR": "Zero level correction image is czero.1d.fits",
+"FLATCOR": "Flat field image is cflat.1d.fits with scale=4673.169",
+"CCDPROC": "CCD processing done"
+}
+},
+"scan-short-col": {
+"logfile": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2246",
+"czero.fits: Trim data section is [1:60,1:35]",
+"czero.fits: Overscan section is [1:60,36:40] with mean=311.179",
+"czero.3.fits: Converted to shortscan from czero.fits with nscan=3",
+"cobj.fits: Zero level correction image is czero.3.fits",
+"cflat.fits: Trim data section is [1:60,1:35]",
+"cflat.fits: Overscan section is [1:60,36:40] with mean=311.0281",
+"cflat.fits: Zero level correction image is czero.fits",
+"cflat.3.fits: Converted to shortscan from cflat.fits with nscan=3",
+"cobj.fits: Flat field image is cflat.3.fits with scale=4470.663"
+],
+"verbose": [
+"cobj.fits: Trim data section is [1:60,1:35]",
+"cobj.fits: Overscan section is [1:60,36:40] with mean=311.2246",
+"czero.fits: Trim data section is [1:60,1:35]",
+"czero.fits: Overscan section is [1:60,36:40] with mean=311.179",
+"czero.3.fits: Converted to shortscan from czero.fits with nscan=3",
+"cobj.fits: Zero level correction image is czero.3.fits",
+"cflat.fits: Trim data section is [1:60,1:35]",
+"cflat.fits: Overscan section is [1:60,36:40] with mean=311.0281",
+"cflat.fits: Zero level correction image is czero.fits",
+"cflat.3.fits: Converted to shortscan from cflat.fits with nscan=3",
+"cobj.fits: Flat field image is cflat.3.fits with scale=4470.663"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [1:60,36:40] with mean=311.2246",
+"TRIM": "Trim data section is [1:60,1:35]",
+"ZEROCOR": "Zero level correction image is czero.3.fits",
+"FLATCOR": "Flat field image is cflat.3.fits with scale=4470.663",
+"CCDPROC": "CCD processing done"
+}
+},
+"fix": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Bad pixel file is bad.pl",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Bad pixel file is bad.pl",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744"
+],
+"flags": {
+"FIXPIX": "Bad pixel file is bad.pl",
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"fix-only": {
+"logfile": [
+"obj.fits: Bad pixel file is bad.pl"
+],
+"verbose": [
+"obj.fits: Bad pixel file is bad.pl"
+],
+"flags": {
+"FIXPIX": "Bad pixel file is bad.pl",
+"CCDPROC": "CCD processing done"
+}
+},
+"fix-fits": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Bad pixel file is bad.fits",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Bad pixel file is bad.fits",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Bad pixel file is bad.fits",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Bad pixel file is bad.fits",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.579"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Bad pixel file is bad.fits",
+"obj.fits: Overscan section is [53:60,1:40] with mean=308.7744",
+"zero.fits: Trim data section is [1:52,1:37]",
+"zero.fits: Bad pixel file is bad.fits",
+"zero.fits: Overscan section is [53:60,1:40] with mean=308.9081",
+"obj.fits: Zero level correction image is zero.fits",
+"dark.fits: Trim data section is [1:52,1:37]",
+"dark.fits: Bad pixel file is bad.fits",
+"dark.fits: Overscan section is [53:60,1:40] with mean=308.836",
+"dark.fits: Zero level correction image is zero.fits",
+"obj.fits: Dark count correction image is dark.fits with scale=41.",
+"flat.fits: Trim data section is [1:52,1:37]",
+"flat.fits: Bad pixel file is bad.fits",
+"flat.fits: Overscan section is [53:60,1:40] with mean=308.6693",
+"flat.fits: Zero level correction image is zero.fits",
+"flat.fits: Dark count correction image is dark.fits with scale=4.333333",
+"obj.fits: Flat field image is flat.fits with scale=7585.579"
+],
+"flags": {
+"FIXPIX": "Bad pixel file is bad.fits",
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7744",
+"TRIM": "Trim data section is [1:52,1:37]",
+"ZEROCOR": "Zero level correction image is zero.fits",
+"DARKCOR": "Dark count correction image is dark.fits with scale=41.",
+"FLATCOR": "Flat field image is flat.fits with scale=7585.579",
+"CCDPROC": "CCD processing done"
+}
+},
+"fix-median": {
+"logfile": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Bad pixel file is bad.pl",
+"obj.fits: Overscan section is [53:60,1:40] with function=median"
+],
+"verbose": [
+"obj.fits: Trim data section is [1:52,1:37]",
+"obj.fits: Bad pixel file is bad.pl",
+"obj.fits: Overscan section is [53:60,1:40] with function=median"
+],
+"flags": {
+"FIXPIX": "Bad pixel file is bad.pl",
+"OVERSCAN": "Overscan section is [53:60,1:40] with function=median",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+},
+"sub": {
+"logfile": [
+"sub.fits: Overscan section is [53:60,1:40] with mean=308.7736"
+],
+"verbose": [
+"sub.fits: Overscan section is [53:60,1:40] with mean=308.7736"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.7736",
+"CCDPROC": "CCD processing done"
+}
+},
+"sub-trim": {
+"logfile": [
+"sub.fits: Trim data section is [5:50,3:35]",
+"sub.fits: Overscan section is [53:60,1:40] with mean=308.6631"
+],
+"verbose": [
+"sub.fits: Trim data section is [5:50,3:35]",
+"sub.fits: Overscan section is [53:60,1:40] with mean=308.6631"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.6631",
+"TRIM": "Trim data section is [5:50,3:35]",
+"CCDPROC": "CCD processing done"
+}
+},
+"sub-cal": {
+"logfile": [
+"sub2.fits: Zero level correction image is zero2.fits",
+"sub2.fits: Flat field image is flat2.fits with scale=8500."
+],
+"verbose": [
+"sub2.fits: Zero level correction image is zero2.fits",
+"sub2.fits: Flat field image is flat2.fits with scale=8500."
+],
+"flags": {
+"ZEROCOR": "Zero level correction image is zero2.fits",
+"FLATCOR": "Flat field image is flat2.fits with scale=8500.",
+"CCDPROC": "CCD processing done"
+}
+},
+"sub-cal-illum": {
+"logfile": [
+"sub2.fits: Illumination image is illum2.fits with scale=1.25",
+"sub2.fits: Fringe image is fringe2.fits with scale=2."
+],
+"verbose": [
+"sub2.fits: Illumination image is illum2.fits with scale=1.25",
+"sub2.fits: Fringe image is fringe2.fits with scale=2."
+],
+"flags": {
+"ILLUMCOR": "Illumination image is illum2.fits with scale=1.25",
+"FRINGCOR": "Fringe image is fringe2.fits with scale=2.",
+"CCDPROC": "CCD processing done"
+}
+},
+"hdr": {
+"logfile": [
+"hdr.fits: Trim data section is [1:52,1:37]",
+"hdr.fits: Overscan section is [53:60,1:40] with mean=308.6104"
+],
+"verbose": [
+"hdr.fits: Trim data section is [1:52,1:37]",
+"hdr.fits: Overscan section is [53:60,1:40] with mean=308.6104"
+],
+"flags": {
+"OVERSCAN": "Overscan section is [53:60,1:40] with mean=308.6104",
+"TRIM": "Trim data section is [1:52,1:37]",
+"CCDPROC": "CCD processing done"
+}
+}
+}

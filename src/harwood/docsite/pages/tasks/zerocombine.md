@@ -23,3 +23,10 @@ Ten thousand values rejected is one per pixel of the 100 × 100 frames: the
 highest of the three, everywhere. The preset's values are a separate origin,
 so `harwood lpar zerocombine` says *preset: zerocombine* beside them rather
 than passing them off as defaults; anything you give overrides them.
+
+Like IRAF's, it writes ccdred's log -- the IMCOMBINE block: the date, the parameters, a
+line for each frame with what differs among them (exposure, mode, scale, zero, weight)
+and the output -- to `logfile` (`--logfile`, or ccdred's in the project file), and with
+`--verbose` on the terminal too; IRAF 2.18's, line for line. `--process` runs
+[ccdproc](task:ccdproc) over the inputs first, in place, as IRAF's `process=yes` does;
+harwood leaves it off unless asked, since it rewrites the inputs.

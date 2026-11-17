@@ -417,3 +417,17 @@ def test_a_file_tab_saves_where_it_was_opened_after_a_cd(window, tmp_path, monke
     tab.save()
     assert (tmp_path / "list.txt").read_text(encoding="utf-8") == "two\n"
     assert not (tmp_path / "night" / "list.txt").exists()
+
+
+def test_shell_commands_and_redirection_at_the_prompt(window, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ok, _ = window.run_line("printf '%s\\n' a.fits b.fits > input")
+    assert ok and (tmp_path / "input").read_text(encoding="utf-8") == "a.fits\nb.fits\n"
+    ok, _ = window.run_line(r"sed 's/\.fits$/_bt.fits/' input > output")
+    assert ok and (tmp_path / "output").read_text(encoding="utf-8") == "a_bt.fits\nb_bt.fits\n"
+    ok, printed = window.run_line("cat output")
+    assert ok and "a_bt.fits" in printed
+    ok, _ = window.run_line("pwd > where.txt")
+    assert ok
+    assert str(tmp_path.resolve()) in (tmp_path / "where.txt").read_text(encoding="utf-8")
+

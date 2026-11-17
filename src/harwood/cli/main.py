@@ -1224,6 +1224,8 @@ def _run_task(name: str, kwargs: dict[str, Any]) -> None:
         console.print()
     _print_advice(result.warnings)
     for key, value in result.data.items():
+        if key in ("stdout", "errors") and "text" in result.data:
+            continue                     # the same, as the text printed just below
         if key == "rows":
             _print_rows(value)
         elif key == "text":

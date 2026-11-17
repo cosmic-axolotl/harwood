@@ -113,3 +113,34 @@ def test_a_named_calibration_goes_through_the_same_steps_in_memory(work):
 def test_what_it_cannot_do_it_says(work, given, match):
     with pytest.raises(Exception, match=match):
         get_task("ccdproc").run(input=["obj.fits"], output="result.fits", logfile="", **given)
+
+
+# ------------------------------------------------------------------ the log
+
+LOG = json.loads((HERE / "ccdp_log.json").read_text(encoding="utf-8"))
+_DATE = __import__("re").compile(r"[A-Z][a-z]{2} [ \d]\d [ \d]\d:\d\d ")
+
+
+@pytest.mark.parametrize("case", list(LOG))
+def test_ccdproc_logs_and_marks_what_iraf_does(work, case, capsys):
+    """ccdred's logfile and verbose: each step's line, in IRAF's order -- a calibration
+    processed on the way logged where IRAF processes it -- and the same text in the
+    header's processing flags; the dates (cnvdate's) apart."""
+    image, params = CASES[case]
+    with __import__("contextlib").suppress(ValueError, RuntimeError):
+        get_task("ccdproc").run(input=[image], output="result.fits", logfile="logfile",
+                                verbose=True, **arguments(params))
+    gold = LOG[case]
+    mine = (work / "logfile").read_text(encoding="utf-8") if (work / "logfile").exists() \
+        else ""
+    # IRAF processed in place; harwood wrote result.fits, the name readcor logs under
+    mine = mine.replace("result.fits: ", f"{image}: ")
+    assert _DATE.sub("", mine).splitlines() == gold["logfile"]
+    said = [line for line in _DATE.sub("", capsys.readouterr().err.replace(
+        "result.fits: ", f"{image}: ")).splitlines() if ": " in line]
+    assert said == [line for line in gold["verbose"] if line in gold["logfile"]]
+    if (work / "result.fits").exists():
+        header = fits.getheader(work / "result.fits")
+        flags = {key: _DATE.sub("", str(header[key])) for key in gold["flags"]
+                 if key in header}
+        assert flags == gold["flags"]

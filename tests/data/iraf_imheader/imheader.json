@@ -1,0 +1,123 @@
+{
+ "b8.fits short": [
+  "b8.fits[4,3][short]: test b8"
+ ],
+ "b8.fits long": [
+  "b8.fits[4,3][short]: test b8",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [4,3], length of user area 41 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"b8.fits\" [ok]",
+  "OBJECT  = 'test b8 '"
+ ],
+ "i16.fits short": [
+  "i16.fits[4,3][short]: test i16"
+ ],
+ "i16.fits long": [
+  "i16.fits[4,3][short]: test i16",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [4,3], length of user area 41 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"i16.fits\" [ok]",
+  "OBJECT  = 'test i16'"
+ ],
+ "u16.fits short": [
+  "u16.fits[4,3][ushort]: test u16"
+ ],
+ "u16.fits long": [
+  "u16.fits[4,3][ushort]: test u16",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [4,3], length of user area 122 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"u16.fits\" [ok]",
+  "OBJECT  = 'test u16'",
+  "BSCALE  =                    1",
+  "BZERO   =                32768"
+ ],
+ "i32.fits short": [
+  "i32.fits[4,3][int]: test i32"
+ ],
+ "i32.fits long": [
+  "i32.fits[4,3][int]: test i32",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [4,3], length of user area 41 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"i32.fits\" [ok]",
+  "OBJECT  = 'test i32'"
+ ],
+ "f32.fits short": [
+  "f32.fits[4,3][real]: test f32"
+ ],
+ "f32.fits long": [
+  "f32.fits[4,3][real]: test f32",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [4,3], length of user area 41 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"f32.fits\" [ok]",
+  "OBJECT  = 'test f32'"
+ ],
+ "f64.fits short": [
+  "f64.fits[4,3][double]: test f64"
+ ],
+ "f64.fits long": [
+  "f64.fits[4,3][double]: test f64",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [4,3], length of user area 41 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"f64.fits\" [ok]",
+  "OBJECT  = 'test f64'"
+ ],
+ "one.fits short": [
+  "one.fits[5][real]: "
+ ],
+ "one.fits long": [
+  "one.fits[5][real]: ",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [5], length of user area 41 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"one.fits\" [ok]",
+  "EXTEND  =                    T"
+ ],
+ "notitle.fits short": [
+  "notitle.fits[2,2][real]: "
+ ],
+ "notitle.fits long": [
+  "notitle.fits[2,2][real]: ",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [2,2], length of user area 41 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"notitle.fits\" [ok]",
+  "EXTEND  =                    T"
+ ],
+ "mef.fits[1] short": [
+  "mef.fits[1][4,3][real]: "
+ ],
+ "mef.fits[1] long": [
+  "mef.fits[1][4,3][real]: ",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [4,3], length of user area 122 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"mef.fits\" [ok]",
+  "PCOUNT  =                    0 / number of parameters",
+  "GCOUNT  =                    1 / number of groups",
+  "EXTNAME = 'SCI     '           / extension name"
+ ],
+ "real.fits short": [
+  "real.fits[6,5][short]: NGC 660 PA42 #2"
+ ],
+ "real.fits long": [
+  "real.fits[6,5][short]: NGC 660 PA42 #2",
+  "No bad pixels, min=0., max=0. (old)",
+  "Line storage mode, physdim [6,5], length of user area 324 s.u.",
+  "Created Tue 09:34:27 17-Nov-2026, Last modified Tue 09:34:27 17-Nov-2026",
+  "Pixel file \"real.fits\" [ok]",
+  "OBJECT  = 'NGC 660 PA42 #2'",
+  "EXPTIME =                900.0 / Elapsed exposure time in seconds",
+  "DATE-OBS= '19/12/85'",
+  "LONGSTR = 'a string long enough to fill most of the card, as some do'",
+  "GAIN    =                  1.5",
+  "HISTORY 19/12/85          /Date tape file created",
+  "COMMENT a comment card",
+  "        a blank keyword"
+ ]
+}

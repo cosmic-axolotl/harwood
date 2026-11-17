@@ -51,6 +51,9 @@ noao.imred:
 noao.imred.ccdred:
   brief: "CCD reduction: bias, dark and flat; overscan and trim; combining calibration frames."
   icon: "◫"
+noao.imred.ccdred.ccdtest:
+  brief: "Artificial CCD frames to try a reduction on: bias, dark, flat, bad pixels, a section of the chip."
+  icon: "▨"
 noao.imred.crutil:
   brief: "Finding and removing cosmic rays."
   icon: "⚡"

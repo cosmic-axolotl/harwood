@@ -35,7 +35,7 @@ where it went.
 | record | for | kept |
 |---|---|---|
 | `harwood.log.jsonl` | every run: parameters, their origins, the outputs, the time, the command that repeats it | in the reduction directory; `harwood log` reads it |
-| `harwood.log` | a plain text line per frame per step, as IRAF's `logfile`: watch it grow in another window | in the reduction directory; `--logfile` names another, empty keeps none |
+| `logfile` | IRAF's text log: ccdproc's line per frame per step, the combines' IMCOMBINE block; watch it grow in another window | in the reduction directory; `--logfile` names another (or `params.ccdred.logfile`), empty keeps none |
 | HISTORY in the headers | what was done to *that* frame | in each image harwood writes, so it travels with the data |
 
 ```example

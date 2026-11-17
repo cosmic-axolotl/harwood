@@ -32,6 +32,7 @@ _MODULES = (
     "harwood.tasks.imcombine",
     "harwood.tasks.immatch",
     "harwood.tasks.ccdred",
+    "harwood.tasks.ccdtest",
     "harwood.tasks.photometry",
     "harwood.tasks.photcal",
     "harwood.tasks.onedspec",

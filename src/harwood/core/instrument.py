@@ -23,7 +23,6 @@ reduction's record rather than a setting on the machine.
 from __future__ import annotations
 
 import os
-import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -72,6 +71,8 @@ class Instrument:
     keywords: dict[str, str] = field(default_factory=dict)
     #: header value (upper case) -> image type
     types: dict[str, str] = field(default_factory=dict)
+    #: parameter -> the value it has when the header does not say (the third column)
+    defaults: dict[str, str] = field(default_factory=dict)
 
     def keyword(self, parameter: str) -> str:
         """Which header keyword holds this parameter, for this instrument."""
@@ -80,8 +81,25 @@ class Instrument:
                                                          parameter.upper()))
 
     def value(self, header, parameter: str, default=None):
-        """Read a parameter out of a header, through the translation."""
-        return header.get(self.keyword(parameter), default)
+        """Read a parameter out of a header, through the translation; its default in
+        the translation when the header does not have it (hdmgstr)."""
+        key = self.keyword(parameter)
+        if key in header:
+            return header[key]
+        fallback = self.defaults.get(parameter.lower(), "")
+        return fallback if fallback != "" else default
+
+    def flag(self, header, parameter: str) -> bool:
+        """ccdflag: a processing step is done when its keyword says something other
+        than its default -- present at all, when it has none. The camera format writes
+        its flags as 0, the default, until a step is done."""
+        from ..tasks.imutil import image_parameter
+
+        key = self.keyword(parameter)
+        default = self.defaults.get(parameter.lower(), "")
+        value = image_parameter(header, "", key)
+        text = default if value is None else str(value)
+        return text != default
 
     def image_type(self, header) -> str:
         """What kind of exposure this is, in harwood's vocabulary.
@@ -147,36 +165,35 @@ def resolve(name: str | Path) -> Path:
 
 
 def load(name: str | Path) -> Instrument:
-    """Read a translation file, IRAF's format."""
+    """Read a translation file, IRAF's format (hdrmap): a word, the header keyword or
+    value it stands for, and a default -- quoted where they have blanks. A line whose
+    second word is an image type says what a header's IMAGETYP value means; any other
+    is a parameter's keyword, and default, which IRAF takes for any parameter at all:
+    the camera format names its processing flags (fixpix bp-flag 0)."""
+    from .ccdinstsession import words
+
     path = resolve(name)
     instrument = Instrument(name=path.stem, source=str(path))
 
-    for number, raw in enumerate(path.read_text(encoding="utf-8",
-                                                errors="replace").splitlines(),
-                                 start=1):
-        line = raw.split("#", 1)[0].strip()
-        if not line:
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        parts = words(raw)
+        if not parts or parts[0].startswith("#"):
             continue
-        try:
-            parts = shlex.split(line)
-        except ValueError:
-            parts = line.split()
-        if len(parts) < 2:
-            raise ValueError(
-                f"{path}:{number}: expected two words, got {line!r}. A line is "
-                "either 'parameter keyword' or 'HEADER-VALUE imagetype'."
-            )
-        left, right = parts[0], parts[1]
-
-        if left.lower() in PARAMETERS:
-            instrument.keywords[left.lower()] = right
+        left = parts[0]
+        right = parts[1] if len(parts) > 1 else ""
+        default = parts[2] if len(parts) > 2 else ""
+        if right.lower() in TYPES and left.lower() not in PARAMETERS:
+            instrument.types[left.upper()] = right.lower()
             continue
-        if right.lower() not in TYPES:
+        if left != left.lower() or any(c.isspace() for c in left):
+            # a header's value (upper case, or with blanks), not a parameter's name:
+            # what it means can only be an image type
             raise ValueError(
-                f"{path}:{number}: '{right}' is not an image type. "
-                f"Use one of {', '.join(TYPES)}."
-            )
-        instrument.types[left.upper()] = right.lower()
+                f"{path}: '{right}' is not an image type, for the header value "
+                f"'{left}'. Use one of {', '.join(TYPES)}.")
+        instrument.keywords[left.lower()] = right
+        if default:
+            instrument.defaults[left.lower()] = default
 
     return instrument
 

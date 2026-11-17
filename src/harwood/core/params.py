@@ -128,16 +128,36 @@ def load_project(start: Path | None = None) -> tuple[dict[str, Any], Path | None
 
 
 def project_params(task: str, start: Path | None = None) -> tuple[dict[str, Any], Path | None]:
-    """The project file's parameters for one task: its own, over those under
-    `params.all`, which hold for every task that has the parameter -- how a
-    reduction says once that it wants its uncertainties as ERR."""
+    """The project file's parameters for one task: its own, over its package's, over
+    those under `params.all`, which hold for every task that has the parameter -- how
+    a reduction says once that it wants its uncertainties as ERR.
+
+    The package's are IRAF's package parameters, which a task reads when it has no
+    value of its own (a ")_.logfile" in IRAF): `params.ccdred.logfile` is the log of
+    every ccdred task that keeps one. A section named after the task wins over one
+    named after its package, which wins over `all`."""
     data, path = load_project(start)
     every = (data.get("params") or {}).get("all") or {}
+    package = _package_of(task)
+    shared = ((data.get("params") or {}).get(package) or {}) if package and \
+        package != task else {}
     params = (data.get("params") or {}).get(task) or {}
-    for name, value in (("all", every), (task, params)):
+    for name, value in (("all", every), (package, shared), (task, params)):
         if not isinstance(value, dict):
             raise ValueError(f"{path}: params.{name} should be a mapping of name to value")
-    return {**every, **params}, path
+    return {**every, **shared, **params}, path
+
+
+def _package_of(task: str) -> str | None:
+    """The IRAF package a task is in, for its package parameters."""
+    try:
+        from .registry import exists, get_class
+    except ImportError:                  # pragma: no cover -- a partial install
+        return None
+    try:
+        return getattr(get_class(task), "package", None) if exists(task) else None
+    except Exception:                    # noqa: BLE001 -- no package is no package section
+        return None
 
 
 def resolve(

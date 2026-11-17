@@ -388,9 +388,17 @@ class ImCombine(Task[ImCombineParams]):
         from ..core import images
 
         specs = images.expand(params.input)
+        if getattr(params, "process", False):
+            # zerocombine.cl's: ccdproc (ims, output="", ccdtype=ccdtype, noproc=no)
+            from ..core.runner import run as run_task
+
+            run_task("ccdproc", input=[str(s) for s in specs], inplace=True,
+                     ccdtype=params.ccdtype)
+        self._printed = []
         groups = _group(specs, params)
         if len(groups) == 1 and not params.subsets:
-            return self._combine(list(groups.values())[0], params, params.output)
+            result = self._combine(list(groups.values())[0], params, params.output)
+            return self._with_log(result)
 
         outputs, data, history, steps = [], {}, [], []
         for name, members in sorted(groups.items()):
@@ -400,8 +408,16 @@ class ImCombine(Task[ImCombineParams]):
             history.extend(result.history)
             steps.extend(result.steps)
             data[name or "all"] = f"{result.data['images']} images -> {destination.name}"
-        return TaskResult(outputs=outputs, data=data, history=history, steps=steps,
-                          backend=None)
+        return self._with_log(TaskResult(outputs=outputs, data=data, history=history,
+                                         steps=steps, backend=None))
+
+    def _with_log(self, result: TaskResult) -> TaskResult:
+        """verbose's copy of the log, on the standard output."""
+        printed = "".join(getattr(self, "_printed", []))
+        if printed:
+            result.data["text"] = printed.rstrip("\n").split("\n")
+            result.data["stdout"] = printed
+        return result
 
     def _combine(self, specs, params: ImCombineParams, output) -> TaskResult:
         import numpy as np
@@ -618,6 +634,14 @@ class ImCombine(Task[ImCombineParams]):
             _write_plane(params.expmasks, exposure, mask_header)
             outputs.append(params.expmasks)
 
+        if self.flavor == "ccdred" and (params.logfile.strip() or params.verbose):
+            text = _ccd_log(specs, output, params, scaling, headers, geometry,
+                            nimages, int(sum(ncombine)))
+            if params.verbose:
+                self._printed = [*getattr(self, "_printed", []), text]
+            if params.logfile.strip():
+                with open(params.logfile.strip(), "a", encoding="utf-8") as handle:
+                    handle.write(text)
         return TaskResult(
             outputs=outputs,
             data={
@@ -962,6 +986,26 @@ def _finish(stack, mean, nrej, keep_mask, params, mask):
     return np.nan_to_num(combined, nan=params.blank), sigma
 
 
+class CcdCombineParams(ImCombineParams):
+    """ccdred's combines: imcombine's parameters, and what they read from the package
+    (ccdred's logfile, verbose, ssfile) and the scripts' process."""
+
+    logfile: str = Field(
+        "logfile", description="IRAF's text log (ccdred's logfile): the IMCOMBINE block, "
+                               "its parameters and a line for each image -- exposure, "
+                               "statistics, scale, zero, weight -- appended. Empty keeps "
+                               "none.")
+    verbose: bool = Field(False, description="Print that block on the terminal too "
+                                             "(ccdred's verbose).")
+    ssfile: str = Field("subsets", description="The subsets file: what each subset is "
+                                               "called in the outputs' names (ccdred's "
+                                               "ssfile).")
+    process: bool = Field(
+        False, description="Run ccdproc over the inputs first, in place, with its own "
+                           "parameters (the project's), as IRAF's process=yes does. Off "
+                           "unless asked: it rewrites the inputs.")
+
+
 def _make_preset(name: str, doc: str, defaults: dict[str, Any]):
     """Register one of IRAF's *combine names as a preset of the engine.
 
@@ -974,7 +1018,7 @@ def _make_preset(name: str, doc: str, defaults: dict[str, Any]):
         name.title().replace("_", ""),
         (ImCombine,),
         {"name": name, "package": "ccdred", "description": doc, "iraf": name,
-         "Params": ImCombineParams, "presets": {}, "defaults": defaults,
+         "Params": CcdCombineParams, "presets": {}, "defaults": defaults,
          "flavor": "ccdred"},
     ))
 
@@ -1083,6 +1127,171 @@ def _measure_steps(steps, stack, working, combined, nrej, factors, offsets,
         found["combine"].after = Task.statistics(combined)
 
 
+def _ccd_log(specs, output, params, scaling, headers, geometry, nimages: int,
+             nout: int) -> str:
+    """ic_log, ccdred's combine's (noao/imred/ccdred/src/combine/iclog.x): the IMCOMBINE
+    block -- the date, the parameters, a line for each image with what differs among
+    them, and the output."""
+    import numpy as np
+
+    from ..core import iraffmt, sarith
+
+    f32 = np.float32
+    g = lambda v: iraffmt.g(float(v))  # noqa: E731
+    yes = lambda b: "yes" if b else "no"  # noqa: E731
+
+    def name(text) -> str:
+        return "".join(str(text).split())
+
+    out = [f"\n{iraffmt.cnvdate()}: IMCOMBINE\n"]
+    combine = "median" if params.combine == "median" else "average"
+    out.append(f"  combine = {combine}, scale = {name(params.scale)}, zero = "
+               f"{name(params.zero)}, weight = {name(params.weight)}\n")
+    reject = params.reject
+    flow, fhigh = f32(params.nlow), f32(params.nhigh)
+    if reject == "minmax":
+        if flow >= 1:
+            flow = f32(flow / f32(nimages))
+        if fhigh >= 1:
+            fhigh = f32(fhigh / f32(nimages))
+        if int(f32(flow * f32(nimages))) + int(f32(fhigh * f32(nimages))) == 0:
+            reject = "none"
+
+    def noise(value) -> str:
+        return value if isinstance(value, str) else g(value)
+
+    if reject == "minmax":
+        out.append(f"  reject = minmax, nlow = {sarith._nint(float(f32(flow * f32(nimages))))}"
+                   f", nhigh = {sarith._nint(float(f32(fhigh * f32(nimages))))}\n")
+    elif reject == "ccdclip":
+        out.append(f"  reject = ccdclip, mclip = {yes(params.mclip)}, nkeep = "
+                   f"{params.nkeep}\n")
+        out.append(f"  rdnoise = {noise(params.rdnoise)}, gain = {noise(params.gain)}, "
+                   f"snoise = {noise(params.snoise)}, sigma = {g(params.lsigma)}, "
+                   f"hsigma = {g(params.hsigma)}\n")
+    elif reject == "crreject":
+        out.append(f"  reject = crreject, mclip = {yes(params.mclip)}, nkeep = "
+                   f"{params.nkeep}\n")
+        out.append(f"  rdnoise = {noise(params.rdnoise)}, gain = {noise(params.gain)}, "
+                   f"snoise = {noise(params.snoise)}, hsigma = {g(params.hsigma)}\n")
+    elif reject == "pclip":
+        half = int(nimages / 2.0)
+        pclip = f32(params.pclip)
+        if abs(pclip) < 1:
+            pclip = f32(pclip * f32(half))
+        pclip = min(-1, max(-half, int(pclip))) if pclip < 0 else max(1, min(half,
+                                                                         int(pclip)))
+        out.append(f"  reject = pclip, nkeep = {params.nkeep}\n")
+        out.append(f"  pclip = {g(pclip)}, lsigma = {g(params.lsigma)}, hsigma = "
+                   f"{g(params.hsigma)}\n")
+    elif reject in ("sigclip", "avsigclip"):
+        out.append(f"  reject = {reject}, mclip = {yes(params.mclip)}, nkeep = "
+                   f"{params.nkeep}\n")
+        out.append(f"  lsigma = {g(params.lsigma)}, hsigma = {g(params.hsigma)}\n")
+    if reject != "none" and int(params.grow) > 0:
+        out.append(f"  grow = {int(params.grow)}\n")
+    lt, ht = params.lthreshold, params.hthreshold
+    if lt is not None and ht is not None:
+        out.append(f"  lthreshold = {g(lt)}, hthreshold = {g(ht)}\n")
+    elif lt is not None:
+        out.append(f"  lthreshold = {g(lt)}\n")
+    elif ht is not None:
+        out.append(f"  hthreshold = {g(ht)}\n")
+    out.append(f"  blank = {g(params.blank)}\n")
+    if (params.statsec or "").strip():
+        out.append(f"  statsec = {params.statsec}\n")
+    masks = {"goodvalue": "goodval", "badvalue": "badval", "goodbits": "goodbits",
+             "badbits": "badbits"}
+    masktype = masks.get(params.masktype, masks.get(params.masktype.lstrip("!"), ""))
+    if masktype:
+        out.append(f"  masktype = {masktype}, maskval = {int(float(params.maskvalue))}\n")
+
+    # the columns: what differs among the images
+    exptime = [f32(float(h.get(params.exposure_key, 0.0) or 0.0)) for h in headers]
+    ncombine = [int(h.get("NCOMBINE", 1)) for h in headers]
+    kinds = (params.scale, params.zero, params.weight)
+    stats = scaling.statistics
+
+    def column(kind):
+        if kind not in kinds or not stats:
+            return [None] * nimages
+        return [f32(stats[i][kind]) for i in range(nimages)]
+
+    modes, medians, means = column("mode"), column("median"), column("mean")
+
+    def differ(values):
+        return any(v != values[0] for v in values)
+
+    def keyword(value):
+        return isinstance(value, str) and iraffmt.ctod(value) is None
+
+    noisy = reject in ("ccdclip", "crreject")
+    pr = {"N": differ(ncombine), "Exp": differ(exptime), "Mode": differ(modes),
+          "Median": differ(medians), "Mean": differ(means),
+          "Rdnoise": noisy and keyword(params.rdnoise),
+          "Gain": noisy and keyword(params.gain), "Snoise": noisy and keyword(params.snoise)}
+    aligned = getattr(geometry, "aligned", True)
+    head = f"  {'Images':>20s} "
+    for label, width in (("N", 6), ("Exp", 6), ("Mode", 7), ("Median", 7), ("Mean", 7),
+                         ("Rdnoise", 7), ("Gain", 6), ("Snoise", 6)):
+        if pr[label]:
+            head += f" {label:>{width}s}"
+    if scaling.doscale:
+        head += f" {'Scale':>6s}"
+    if scaling.dozero:
+        head += f" {'Zero':>7s}"
+    if scaling.dowts:
+        head += f" {'Weight':>6s}"
+    if not aligned:
+        head += f" {'Offsets':>9s}"
+    out.append(head + "\n")
+
+    def p(value, fmt):
+        return iraffmt.printf(float(value), fmt[-1], *_fmt(fmt))
+
+    for i, spec in enumerate(specs):
+        line = f"  {str(spec):>21s}"
+        if pr["N"]:
+            line += f" {ncombine[i]:6d}"
+        if pr["Exp"]:
+            line += f" {p(exptime[i], '6.1f'):>6s}"
+        for label, values in (("Mode", modes), ("Median", medians), ("Mean", means)):
+            if pr[label]:
+                line += f" {p(values[i], '7.5g'):>7s}"
+        for label, value, width in (("Rdnoise", params.rdnoise, 7), ("Gain", params.gain, 6),
+                                    ("Snoise", params.snoise, 6)):
+            if pr[label]:
+                line += f" {g(f32(float(headers[i].get(value, 0.0)))):>{width}s}"
+        if scaling.doscale:
+            line += f" {p(f32(1.0 / f32(scaling.scales[i])), '6.3f'):>6s}"
+        if scaling.dozero:
+            line += f" {p(f32(-scaling.zeros[i]), '7.5g'):>7s}"
+        if scaling.dowts:
+            line += f" {p(f32(scaling.weights[i]), '6.3f'):>6s}"
+        if not aligned:
+            moved = geometry.offsets[i]
+            if len(moved) == 1:
+                line += f" {int(moved[0]):9d}"
+            else:
+                line += "".join(f" {int(v):4d}" for v in moved)
+        out.append(line + "\n")
+    shown = Path(str(output))
+    shown = str(shown.with_suffix("")) if shown.suffix == ".fits" and \
+        not str(params.output).endswith(".fits") else str(output)
+    out.append(f"\n  Output image = {shown}, ncombine = {nout}\n")
+    if params.nrejmasks:
+        out.append(f"  Pixel list image = {params.nrejmasks}\n")
+    if params.sigmas:
+        out.append(f"  Sigma image = {params.sigmas}\n")
+    return "".join(out)
+
+
+def _fmt(fmt: str):
+    """(decimals, width) of a printf format such as 7.5g."""
+    width, _, rest = fmt[:-1].partition(".")
+    return (int(rest) if rest else None), (int(width) if width else None)
+
+
 def _group(specs, params) -> dict:
     """Split the inputs by type and, when asked, by subset.
 
@@ -1118,7 +1327,8 @@ def _group(specs, params) -> dict:
             "harwood ccdlist shows what the instrument translation makes of each."
         )
     if params.subsets:
-        known = subset_file.record(sorted(set(seen)))
+        known = subset_file.record(sorted(set(seen)),
+                                   file=getattr(params, "ssfile", subset_file.FILE))
         groups = {known.get(key, key): members for key, members in groups.items()}
     return groups
 

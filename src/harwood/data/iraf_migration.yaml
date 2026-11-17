@@ -20,9 +20,9 @@
 #                replaced   the ecosystem already does it; `note` says what with
 #                wontport   deliberately not portable; `note` says why
 #
-# Counts: 610 distinct task names across 52 packages. These are
+# Counts: 614 distinct task names across 53 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 129, partial: 2, planned: 224, replaced: 94, wontport: 161
+#   available: 133, partial: 2, planned: 223, replaced: 94, wontport: 162
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -308,7 +308,8 @@ tasks:
   # --- headers (core, 28 tasks) ---------------------------------
   astcalc: {pkg: astutil, domain: headers, status: planned, milestone: later}
   asthedit: {pkg: astutil, domain: headers, status: planned, milestone: later}
-  ccdhedit: {pkg: imred.ccdred, domain: headers, status: planned, milestone: later}
+  ccdhedit: {pkg: imred.ccdred, domain: headers, status: available, milestone: later, harwood: ccdhedit,
+    note: "t_ccdhedit.x through the instrument's translation (hdrmap): string, real or integer, deleted when empty, an imagetyp written backwards through it (hdmparm); held to IRAF 2.18's by artobs and subsection"}
   ccdinstrument: {pkg: imred.ccdred, domain: headers, status: available, milestone: mvp, harwood: ccdinstrument,
     note: "IRAF's table and commands, character by character"}
   ccdlist: {pkg: imred.ccdred, domain: headers, status: available, milestone: mvp, harwood: ccdlist}
@@ -950,8 +951,16 @@ tasks:
   sptime: {pkg: obsutil, domain: instrument, status: planned, milestone: later}
   starfocus: {pkg: obsutil, domain: instrument, status: planned, milestone: later}
 
-  # --- synthetic-data (core, 10 tasks) --------------------------
+  # --- synthetic-data (core, 14 tasks) --------------------------
   aptest: {pkg: digiphot.apphot, domain: synthetic-data, status: planned, milestone: later}
+  artobs: {pkg: imred.ccdred.ccdtest, domain: synthetic-data, status: available, milestone: later, harwood: artobs,
+    note: "artobs.cl: noise, sky, flat slope, zero and dark, bias, bad pixels and the header through the translation; IRAF's bits, as setinstrument demo sets it. access() of imdata as IRAF asks it: a FITS image named without .fits is not found, and no scene is copied"}
+  demo: {pkg: imred.ccdred.ccdtest, domain: synthetic-data, status: wontport,
+    note: "a recorded terminal session that types ccdred's commands for you; harwood's recipes and tutorial pages are the demonstration"}
+  mkimage: {pkg: imred.ccdred.ccdtest, domain: synthetic-data, status: available, milestone: later, harwood: mkimage,
+    note: "t_mkimage.x: a sloped plane and IRAF's nearly random noise (urand, the static seed carried from call to call), made or edited, sections with their one-pixel axes dropped as IMIO opens them; IRAF's bits"}
+  subsection: {pkg: imred.ccdred.ccdtest, domain: synthetic-data, status: available, milestone: later, harwood: subsection,
+    note: "subsection.cl: a frame read out from a part of the chip, with its CCDSEC; IRAF's bits"}
   asttest: {pkg: astcat, domain: synthetic-data, status: replaced,
     note: "astroquery, as an optional extra; the IRAF catalogue servers are mostly dead and S1 makes harwood offline by default"}
   daotest: {pkg: digiphot.daophot, domain: synthetic-data, status: planned, milestone: later}

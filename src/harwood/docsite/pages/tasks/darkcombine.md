@@ -18,3 +18,6 @@ $ harwood darkcombine 'dark/*.fits' Dark.fits
 ```
 
 The sample night has no dark frames, so there is no example to run here.
+
+It writes ccdred's IMCOMBINE log to `logfile`, and with `--verbose` on the terminal, as
+[zerocombine](task:zerocombine) does; `--process` runs ccdproc over the inputs first.

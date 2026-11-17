@@ -251,3 +251,24 @@ def test_edit_as_text_puts_the_command_at_the_prompt(window):
     window.browser.open_task("daofind")
     window.browser.to_prompt.emit(window.browser.command.text())
     assert window.prompt.text() == "daofind"
+
+
+def test_unchecking_a_project_flag_passes_no_flag(window, tmp_path):
+    """setinstrument turns zerocor on and sets function=chebyshev in
+    harwood.yaml; unchecking zerocor and picking legendre in the form has to
+    write --no-zerocor and --function legendre, even though False and legendre
+    are the model's own defaults."""
+    window.run_line("harwood setinstrument specphot --no-review")
+    browser = window.browser
+    browser.open_task("ccdproc")
+    fields = {f.name: f for f in browser.fields}
+    assert fields["zerocor"].editor.isChecked()
+    assert fields["function"].editor.currentText() == "chebyshev"
+
+    fields["input"].editor.setText("a.fits")
+    fields["zerocor"].editor.setChecked(False)
+    fields["function"].editor.setCurrentText("legendre")
+    line = browser.command.text()
+    assert "--no-zerocor" in line
+    assert "--function legendre" in line
+
