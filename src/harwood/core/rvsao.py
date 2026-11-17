@@ -619,6 +619,12 @@ class Wcs:
     def w2p(self, wl: float) -> float:
         return self.sh.wl(wl) + self.pxshift
 
+    def l2p(self, lw: float) -> float:
+        """wcs_l2p: from log wavelength, clamped to the spectrum (unlike w2p)."""
+        twl = 10.0 ** lw
+        twl = min(max(twl, self.wl1), self.wl2)
+        return self.sh.wl(twl) + self.pxshift
+
     def p2w(self, px: float) -> float:
         tpx = min(max(px, self.px1), self.px2) - self.pxshift
         return self.sh.lw(tpx)
@@ -642,6 +648,8 @@ class Spectrum:
     hcv: float = 0.0       #: spechcv
     vb: bool = False       #: specvb: the correction is barycentric
     messages: list[str] = field(default_factory=list)
+    start_log: float = 0.0  #: spstrt: log10 of the first good pixel's wavelength
+    end_log: float = 0.0    #: spfnsh: of the last
 
 
 def _imgspar(head: Header, key: str) -> str:
@@ -649,12 +657,11 @@ def _imgspar(head: Header, key: str) -> str:
     return "" if text is None else text.strip()
 
 
-def getspec(path: str, mspec: int, band: int, svcor: int,
-            state: dict | None = None) -> Spectrum:
-    """getspec and getimage: the spectrum, its header defaults, and the velocity
-    correction vel_corr asks for. `state` carries getimage's static buffer from one
-    spectrum to the next: it ends each call holding "APIDn", so after the first
-    spectrum of a run a header without RA, DEC, HA or ST is not given them."""
+def getimage(path: str, mspec: int, band: int, state: dict | None = None) -> Spectrum:
+    """getimage: the spectrum as read, its header given RA, DEC, HA and ST when it has
+    none, its name and WCS. `state` carries getimage's static buffer from one call to
+    the next: it ends each call holding "APIDn", so after the first spectrum of a run
+    a header without RA, DEC, HA or ST is not given them."""
     if state is None:
         state = {}
     from . import shdr, splot
@@ -702,21 +709,34 @@ def getspec(path: str, mspec: int, band: int, svcor: int,
         specid += f"[{mspec} ap{sh.ap}]" if sh.ap != mspec else f"[{mspec}]"
     wcs = Wcs(sh)
     wcs.pxshift = head.d("PIXSHIFT", 0.0)
-    spec = Spectrum(specid, name, data, head, sh, wcs, mspec)
+    return Spectrum(specid, name, data, head, sh, wcs, mspec)
+
+
+def getspec(path: str, mspec: int, band: int, svcor: int,
+            state: dict | None = None) -> Spectrum:
+    """getspec: getimage's spectrum, the runs of bad pixels at its ends zeroed (and
+    its limits in log wavelength, start_log and end_log, moved in past them), the
+    gaps between filled, and the velocity correction vel_corr asks for."""
+    spec = getimage(path, mspec, band, state)
+    data, head, sh, wcs = spec.data, spec.head, spec.sh, spec.wcs
     if wcs.p2w(float(sh.np1)) <= 0.0 or wcs.p2w(float(sh.np2)) <= 0.0:
         raise RvsaoError("GETSPEC: Illegal starting wavelength")
+    spec.start_log = wcs.p2l(float(sh.np1))
+    spec.end_log = wcs.p2l(float(sh.np2))
     n = data.size
     ipix1, ipix2 = 1, sh.np2
     for i in range(sh.np1, min(sh.np1 + 300, n) + 1):
         if data[i - 1] < MIN_PIXEL_VALUE:
             data[i - 1] = 0.0
             ipix1 = i + 1
+            spec.start_log = wcs.p2l(float(ipix1))
         else:
             break
     for i in range(sh.np2, max(sh.np2 - 300, 1) - 1, -1):
         if data[i - 1] < MIN_PIXEL_VALUE:
             data[i - 1] = 0.0
             ipix2 = i - 1
+            spec.end_log = wcs.p2l(float(ipix2))
         else:
             break
     ip1 = ip2 = 0

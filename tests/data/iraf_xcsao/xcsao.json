@@ -1,0 +1,277 @@
+{
+"default": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n"
+},
+"negative": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngneg.fits Object: gneg \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: -152.49 h:0.981 R: 154.56 CZ: -152.49 +/-   1.322 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngneg.fits Object: gneg \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: -152.49 h:0.981 R: 154.56 CZ: -152.49 +/-   1.322 1\n"
+},
+"two_templates": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2462.35 h:0.388 R:   5.26 CZ: 2462.35 +/-  49.983 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2462.35 h:0.388 R:   5.26 CZ: 2462.35 +/-  49.983 1\n"
+},
+"three_templates": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 2\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 5967.12 h:0.388 R:   4.03 CZ: 5967.12 +/-  67.622 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 6000.27 h:0.912 R:  61.19 CZ: 6000.27 +/-   4.123 1\nTemp:         tem.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 17862.7 h:0.088 R:   1.00 CZ: 17862.7 +/- 215.014 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 2\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 5967.12 h:0.388 R:   4.03 CZ: 5967.12 +/-  67.622 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 6000.27 h:0.912 R:  61.19 CZ: 6000.27 +/-   4.123 1\nTemp:         tem.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 17862.7 h:0.088 R:   1.00 CZ: 17862.7 +/- 215.014 1\n"
+},
+"galaxy": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 6000.27 h:0.912 R:  61.19 CZ: 6000.27 +/-   4.123 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 6000.27 h:0.912 R:  61.19 CZ: 6000.27 +/-   4.123 1\n"
+},
+"noisy": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\nnoisy.fits Object: noisy \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 1193.62 h:0.593 R:  10.44 CZ: 1193.62 +/-  18.471 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\nnoisy.fits Object: noisy \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 1193.62 h:0.593 R:  10.44 CZ: 1193.62 +/-  18.471 1\n"
+},
+"zeropad": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048x2 points, filter: 10 40 250 500 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 201.95 CZ: 2498.38 +/-   1.020 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048x2 points, filter: 10 40 250 500 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 201.95 CZ: 2498.38 +/-   1.020 1\n"
+},
+"lambda_limits": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n4200.0A- 6000.0A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2495.91 h:0.925 R:  31.09 CZ: 2495.91 +/-   5.026 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n4200.0A- 6000.0A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2495.91 h:0.925 R:  31.09 CZ: 2495.91 +/-   5.026 1\n"
+},
+"template_range": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n4500.0A- 6200.0A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.46 h:0.962 R:  61.68 CZ: 2497.46 +/-   2.571 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n4500.0A- 6200.0A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.46 h:0.962 R:  61.68 CZ: 2497.46 +/-   2.571 1\n"
+},
+"guess": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 198.075 h:0.981 R: 142.33 CZ: 2499.59 +/-   1.452 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 198.075 h:0.981 R: 142.33 CZ: 2499.59 +/-   1.452 1\n"
+},
+"zguess_passes": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak:  -0.101 h:0.912 R:  61.16 CZ: 5999.62 +/-   4.125 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak:  -0.101 h:0.912 R:  61.16 CZ: 5999.62 +/-   4.125 1\n"
+},
+"nzpass": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak:   1.561 h:0.980 R: 140.71 CZ: 2499.96 +/-   1.458 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak:   1.561 h:0.980 R: 140.71 CZ: 2499.96 +/-   1.458 1\n"
+},
+"maxvel": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: -226.74 h:0.145 R:   1.55 CZ: -226.74 +/-  63.654 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: -226.74 h:0.145 R:   1.55 CZ: -226.74 +/-  63.654 1\n"
+},
+"minvel": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngneg.fits Object: gneg \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 39167.7 h:0.183 R:   1.67 CZ: 39167.7 +/-  76.401 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngneg.fits Object: gneg \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 39167.7 h:0.183 R:   1.67 CZ: 39167.7 +/-  76.401 1\n"
+},
+"pkfrac": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.7 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.01 h:0.989 R: 143.57 CZ: 2499.01 +/-   1.432 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.7 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.01 h:0.989 R: 143.57 CZ: 2499.01 +/-   1.432 1\n"
+},
+"pkfrac_points": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 9.0 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.07 h:0.974 R: 139.38 CZ: 2498.07 +/-   1.475 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 9.0 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.07 h:0.974 R: 139.38 CZ: 2498.07 +/-   1.475 1\n"
+},
+"pkfrac_negative": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.4 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2502.48 h:0.972 R: 143.06 CZ: 2502.48 +/-   1.438 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.4 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2502.48 h:0.972 R: 143.06 CZ: 2502.48 +/-   1.438 1\n"
+},
+"filter": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 10 30 200 400 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 5998.18 h:0.845 R:  55.38 CZ: 5998.18 +/-   3.977 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 10 30 200 400 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 5998.18 h:0.845 R:  55.38 CZ: 5998.18 +/-   3.977 1\n"
+},
+"nofilter": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 1 1 2048 2048 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2496.15 h:0.941 R:   8.90 CZ: 2496.15 +/-  14.264 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 1 1 2048 2048 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2496.15 h:0.941 R:   8.90 CZ: 2496.15 +/-  14.264 1\n"
+},
+"bell": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.12 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.78 h:0.972 R:  85.53 CZ: 2497.78 +/-   2.419 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.12 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.78 h:0.972 R:  85.53 CZ: 2497.78 +/-   2.419 1\n"
+},
+"ncols_1024": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 1024 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.79 h:0.975 R:  96.73 CZ: 2498.79 +/-   2.115 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:03\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 1024 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.79 h:0.975 R:  96.73 CZ: 2498.79 +/-   2.115 1\n"
+},
+"ncols_4096": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 4096 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2500.15 h:0.983 R: 145.15 CZ: 2500.15 +/-   1.418 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 4096 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2500.15 h:0.983 R: 145.15 CZ: 2500.15 +/-   1.418 1\n"
+},
+"linear": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.51 h:0.980 R: 143.51 CZ: 2497.51 +/-   1.445 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.51 h:0.980 R: 143.51 CZ: 2497.51 +/-   1.445 1\n"
+},
+"emchop": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\nemabs.fits Object: emabs \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 3996.52 h:0.960 R:  60.80 CZ: 3996.52 +/-   3.332 1 -el\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\nemabs.fits Object: emabs \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 3996.52 h:0.960 R:  60.80 CZ: 3996.52 +/-   3.332 1 -el\n"
+},
+"noemchop": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\nemabs.fits Object: emabs \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 3996.59 h:0.908 R:  28.55 CZ: 3996.59 +/-   6.960 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\nemabs.fits Object: emabs \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 3996.59 h:0.908 R:  28.55 CZ: 3996.59 +/-   6.960 1\n"
+},
+"abschop": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 45647.7 h:0.169 R:   2.50 CZ: 45647.7 +/-  73.861 1 -al\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 45647.7 h:0.169 R:   2.50 CZ: 45647.7 +/-  73.861 1 -al\n"
+},
+"temchop": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:         tem.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 20988.2 h:0.117 R:   1.59 CZ: 20988.2 +/-  91.230 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:         tem.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 20988.2 h:0.117 R:   1.59 CZ: 20988.2 +/-  91.230 1\n"
+},
+"renormalize": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n"
+},
+"small_counts": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngsmall.fits Object: gsmall \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 902.610 h:0.981 R: 202.36 CZ: 902.610 +/-   1.018 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngsmall.fits Object: gsmall \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 902.610 h:0.981 R: 202.36 CZ: 902.610 +/-   1.018 1\n"
+},
+"ends": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngends.fits Object: gends \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 1796.39 h:0.523 R:   8.16 CZ: 1796.39 +/-  22.644 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngends.fits Object: gends \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 1796.39 h:0.523 R:   8.16 CZ: 1796.39 +/-  22.644 1\n"
+},
+"loglinear": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\nglog.fits Object: glog \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6021.2A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 3300.43 h:0.951 R:  48.30 CZ: 3300.43 +/-   3.739 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\nglog.fits Object: glog \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6021.2A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 3300.43 h:0.951 R:  48.30 CZ: 3300.43 +/-   3.739 1\n"
+},
+"multispec": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:06\n\npair.fits[1] Object: first \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.59 h:0.979 R: 122.68 CZ: 2498.59 +/-   1.665 1\n\npair.fits[2] Object: second \n(No position)\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 3500.22 h:0.980 R: 132.25 CZ: 3500.22 +/-   1.544 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:06\n\npair.fits[1] Object: first \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.59 h:0.979 R: 122.68 CZ: 2498.59 +/-   1.665 1\n\npair.fits[2] Object: second \n(No position)\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 3500.22 h:0.980 R: 132.25 CZ: 3500.22 +/-   1.544 1\n"
+},
+"barycentric": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngsite.fits Object: gsite \nRA: 02:10:31.00 Dec: -5:12:41.0 2000.0\n1998-Oct-12 04:22:30.00 =HJD2451098.6877 BCV:   4.55\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.07 h:0.979 R: 118.67 CZ: 2503.66 +/-   1.728 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngsite.fits Object: gsite \nRA: 02:10:31.00 Dec: -5:12:41.0 2000.0\n1998-Oct-12 04:22:30.00 =HJD2451098.6877 BCV:   4.55\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.07 h:0.979 R: 118.67 CZ: 2503.66 +/-   1.728 1\n"
+},
+"heliocentric": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngsite.fits Object: gsite \nRA: 02:10:31.00 Dec: -5:12:41.0 2000.0\n1998-Oct-12 04:22:30.00 =HJD2451098.6877 HCV:   4.56\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.07 h:0.979 R: 118.67 CZ: 2503.67 +/-   1.728 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngsite.fits Object: gsite \nRA: 02:10:31.00 Dec: -5:12:41.0 2000.0\n1998-Oct-12 04:22:30.00 =HJD2451098.6877 HCV:   4.56\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.07 h:0.979 R: 118.67 CZ: 2503.67 +/-   1.728 1\n"
+},
+"file_bcv": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngbcv.fits Object: gbcv \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:  14.75\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.10 h:0.979 R: 128.46 CZ: 2511.97 +/-   1.598 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngbcv.fits Object: gbcv \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:  14.75\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.10 h:0.979 R: 128.46 CZ: 2511.97 +/-   1.598 1\n"
+},
+"hfile": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngbcv.fits Object: gbcv \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) HCV:  14.50\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.10 h:0.979 R: 128.46 CZ: 2511.72 +/-   1.598 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngbcv.fits Object: gbcv \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) HCV:  14.50\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2497.10 h:0.979 R: 128.46 CZ: 2511.72 +/-   1.598 1\n"
+},
+"no_correction": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngsite.fits Object: gsite \nRA: 02:10:31.00 Dec: -5:12:41.0 2000.0\n1998-Oct-12 04:22:30.00 =HJD2451098.6877 \n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.07 h:0.979 R: 118.67 CZ: 2499.07 +/-   1.728 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngsite.fits Object: gsite \nRA: 02:10:31.00 Dec: -5:12:41.0 2000.0\n1998-Oct-12 04:22:30.00 =HJD2451098.6877 \n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.07 h:0.979 R: 118.67 CZ: 2499.07 +/-   1.728 1\n"
+},
+"tshift": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTshift:  20.00 \nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2518.55 +/-   1.460 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTshift:  20.00 \nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2518.55 +/-   1.460 1\n"
+},
+"template_velocity": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:       tgvel.fits vel:  25.00  tsh:   3.50 HCV: -12.25 Peak: 2475.55 h:0.980 R: 144.27 CZ: 2516.63 +/-   1.423 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:       tgvel.fits vel:  25.00  tsh:   3.50 HCV: -12.25 Peak: 2475.55 h:0.980 R: 144.27 CZ: 2516.63 +/-   1.423 1\n"
+},
+"template_hcv": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:       tgvel.fits vel:  25.00  tsh:   3.50 HCV: -12.25 Peak: 2475.55 h:0.980 R: 144.27 CZ: 2516.63 +/-   1.423 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:       tgvel.fits vel:  25.00  tsh:   3.50 HCV: -12.25 Peak: 2475.55 h:0.980 R: 144.27 CZ: 2516.63 +/-   1.423 1\n"
+},
+"template_flat": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:      tgflat.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.84 CZ: 2498.38 +/-   1.460 1 +tc\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:      tgflat.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.84 CZ: 2498.38 +/-   1.460 1 +tc\n"
+},
+"template_filtered": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:      tgfilt.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.22 h:0.854 R: 145.24 CZ: 2498.22 +/-   1.347 1 -tf\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:      tgfilt.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.22 h:0.854 R: 145.24 CZ: 2498.22 +/-   1.347 1 -tf\n"
+},
+"template_divcont": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:       tgdiv.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.87 h:0.981 R: 161.87 CZ: 2498.87 +/-   1.256 1 divc\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:       tgdiv.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.87 h:0.981 R: 161.87 CZ: 2498.87 +/-   1.256 1 divc\n"
+},
+"template_overlap": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:      tgover.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:      tgover.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n"
+},
+"template_zeropad": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048x2 points, filter: 10 40 250 500 apodize 0.05 fit 0.7 best 1\nTemp:      tgzpad.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.01 h:0.989 R: 205.23 CZ: 2499.01 +/-   1.004 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048x2 points, filter: 10 40 250 500 apodize 0.05 fit 0.7 best 1\nTemp:      tgzpad.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.01 h:0.989 R: 205.23 CZ: 2499.01 +/-   1.004 1\n"
+},
+"contpars": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 6000.27 h:0.912 R:  61.22 CZ: 6000.27 +/-   4.121 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 6000.27 h:0.912 R:  61.22 CZ: 6000.27 +/-   4.121 1\n"
+},
+"no_overlap": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\nXCFIT: Spectrum starts after template tblue.fits ends:   3800.00 >   3499.00\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 2\nTemp:       tblue.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak:   0.000 h:0.000 R:   0.00 CZ:   0.000 +/-   0.000 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 2\nTemp:       tblue.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak:   0.000 h:0.000 R:   0.00 CZ:   0.000 +/-   0.000 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n"
+},
+"partial_overlap": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n6000.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:        tred.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2502.22 h:0.880 R:  31.25 CZ: 2502.22 +/-   2.384 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n6000.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:        tred.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2502.22 h:0.880 R:  31.25 CZ: 2502.22 +/-   2.384 1\n"
+},
+"missing_template": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n",
+"err": "COUNTEMP: cannot read template file nothere.fits \nXCFIT: cannot read template file nothere.fits \n",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n"
+},
+"missing_spectrum": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n",
+"err": "XCSAO: cannot read spectrum file nothere.fits \n",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\n"
+},
+"quartic": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:09\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.84 h:0.994 R: 145.64 CZ: 2499.84 +/-   1.412 2\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:09\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2499.84 h:0.994 R: 145.64 CZ: 2499.84 +/-   1.412 2\n"
+},
+"quartic_galaxy": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:09\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 5999.16 h:0.926 R:  62.14 CZ: 5999.16 +/-   4.061 2\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 5968.41 h:0.393 R:   4.08 CZ: 5968.41 +/-  66.969 2\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:09\n\ngal6000.fits Object: gal6000 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 5999.16 h:0.926 R:  62.14 CZ: 5999.16 +/-   4.061 2\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 5968.41 h:0.393 R:   4.08 CZ: 5968.41 +/-  66.969 2\n"
+},
+"quartic_fraction": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:09\n\nnoisy.fits Object: noisy \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.7 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 1194.07 h:0.602 R:  10.60 CZ: 1194.07 +/-  18.219 2\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:09\n\nnoisy.fits Object: noisy \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.7 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 1194.07 h:0.602 R:  10.60 CZ: 1194.07 +/-  18.219 2\n"
+},
+"one_line": {
+"out": "g2500.fits       tg.fits          140.89  2498.383    1.460 0.980 276.420\ng2500.fits       ta.fits            5.26  2462.345   49.983 0.388 414.609\ngal6000.fits     tg.fits           61.19  6000.274    4.123 0.912 340.617\ngal6000.fits     ta.fits            4.03  5967.122   67.622 0.388 450.408\n",
+"err": "",
+"log": "g2500.fits       tg.fits          140.89  2498.383    1.460 0.980 276.420\ng2500.fits       ta.fits            5.26  2462.345   49.983 0.388 414.609\ngal6000.fits     tg.fits           61.19  6000.274    4.123 0.912 340.617\ngal6000.fits     ta.fits            4.03  5967.122   67.622 0.388 450.408\n"
+},
+"two_spectra": {
+"out": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2462.35 h:0.388 R:   5.26 CZ: 2462.35 +/-  49.983 1\n\ngneg.fits Object: gneg \n(No position)\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: -152.49 h:0.981 R: 154.56 CZ: -152.49 +/-   1.322 1\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: -191.87 h:0.385 R:   5.13 CZ: -191.87 +/-  51.291 1\n",
+"err": "",
+"log": "IRAF rvsao.xcsao 2.8.5 costamands@costa.mands  17-Nov-2026 18:04\n\ng2500.fits Object: g2500 \nRA: 00:00:00.00 Dec: 00:00:00.0 1950.0\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2498.38 h:0.980 R: 140.89 CZ: 2498.38 +/-   1.460 1\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: 2462.35 h:0.388 R:   5.26 CZ: 2462.35 +/-  49.983 1\n\ngneg.fits Object: gneg \n(No position)\n(No observation date) BCV:   0.00\n3800.0A- 6438.8A 2048 points, filter: 5 20 125 250 apodize 0.05 fit 0.5 best 1\nTemp:          tg.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: -152.49 h:0.981 R: 154.56 CZ: -152.49 +/-   1.322 1\nTemp:          ta.fits vel:   0.00  tsh:   0.00 HCV:   0.00 Peak: -191.87 h:0.385 R:   5.13 CZ: -191.87 +/-  51.291 1\n"
+}
+}
