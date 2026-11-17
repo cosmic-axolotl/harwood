@@ -174,6 +174,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._follow_system_scheme()
         theme.apply()
         theme.on_change(self._restyle)
+        # theme=hours: a look at the clock every minute, for dusk and dawn
+        self._clock = QtCore.QTimer(self)
+        self._clock.timeout.connect(theme.tick)
+        self._clock.start(60_000)
+        theme.tick()
         # Text that follows the window's size: recomputed a moment after the
         # last resize, so dragging a corner does not restyle on every pixel.
         self._resize_timer = QtCore.QTimer(self)
@@ -397,12 +402,14 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._theme_actions = {}
         group = QtGui.QActionGroup(self)
         for name, label in (("dark", N_("Dark")), ("light", N_("Light")),
-                            ("system", N_("Follow the system"))):
+                            ("system", N_("Follow the system")),
+                            ("hours", N_("By the hour: dark at night"))):
             action = view.addAction(tr(label))
             action.setCheckable(True)
             action.triggered.connect(lambda _=False, n=name: self.set_look(theme=n))
             group.addAction(action)
             self._theme_actions[name] = action
+        lang.action(view, "Night hours...", self.choose_night_hours)
         view.addSeparator()
         self._look_actions = {}
         for key, label, tip in (
@@ -499,6 +506,32 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         words = ", ".join(f"{k} {'on' if v is True else 'off' if v is False else v}"
                           for k, v in changes.items())
         self.log(f"view: {words}  (saved in {theme.Preferences.path()})")
+
+    def choose_night_hours(self) -> None:
+        """When the theme 'by the hour' turns dark and light again."""
+        prefs = theme.current().preferences
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle(tr("Night hours"))
+        form = QtWidgets.QFormLayout(dialog)
+        edits = {}
+        for name, label in (("night_from", N_("Dark from")), ("day_from", N_("Light from"))):
+            edit = QtWidgets.QTimeEdit(QtCore.QTime.fromString(getattr(prefs, name), "HH:mm"))
+            edit.setDisplayFormat("HH:mm")
+            form.addRow(tr(label), edit)
+            edits[name] = edit
+        note = QtWidgets.QLabel(tr("Used when the theme is 'By the hour'; local time."))
+        note.setWordWrap(True)
+        form.addRow(note)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        self.set_look(**{name: edit.time().toString("HH:mm") for name, edit in edits.items()})
+        theme.tick()
 
     def set_language(self, choice: str) -> None:
         """Speak another language: the menus made again, the bound texts set again,

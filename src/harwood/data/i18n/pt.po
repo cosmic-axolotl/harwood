@@ -40,140 +40,156 @@ msgstr "nada depois de '{0}'"
 msgid "add the command to run after '{0}', or drop it"
 msgstr "acrescente o comando a rodar depois de '{0}', ou tire-o"
 
-#: harwood/cli/main.py:1074
+#: harwood/cli/main.py:1001
+msgid "Tab completes the directories that are here; pwd says where you are"
+msgstr "Tab completa as pastas que estão aqui; pwd diz onde você está"
+
+#: harwood/cli/main.py:1105
 #, python-brace-format
 msgid "using {0}, from a directory above this one"
 msgstr "usando {0}, de uma pasta acima desta"
 
-#: harwood/cli/main.py:1074
+#: harwood/cli/main.py:1105
 #, python-brace-format
 msgid "harwood lpar {0} shows what it sets; harwood init starts a project of this directory's own"
 msgstr "harwood lpar {0} mostra o que ele define; harwood init começa um projeto próprio desta pasta"
 
-#: harwood/cli/main.py:1094
+#: harwood/cli/main.py:1125
 #, python-brace-format
 msgid "'{0}' is an IRAF package, and none of its tasks is in harwood yet"
 msgstr "'{0}' é um pacote do IRAF, e nenhuma das tarefas dele está no harwood ainda"
 
-#: harwood/cli/main.py:1094
+#: harwood/cli/main.py:1125
 msgid "harwood list --iraf says what became of each"
 msgstr "harwood list --iraf diz o que foi feito de cada uma"
 
-#: harwood/cli/main.py:1097
+#: harwood/cli/main.py:1128
 #, python-brace-format
 msgid "'{0}' is an IRAF package, and there is nothing to load here: every task is always there"
 msgstr "'{0}' é um pacote do IRAF, e aqui não há nada a carregar: toda tarefa está sempre disponível"
 
-#: harwood/cli/main.py:1097
+#: harwood/cli/main.py:1128
 #, python-brace-format
 msgid "harwood list {0} shows its tasks"
 msgstr "harwood list {0} mostra as tarefas dele"
 
-#: harwood/cli/main.py:1139
+#: harwood/cli/main.py:1170
 msgid "{0} would do this and nothing else:"
 msgstr "{0} faria isto e nada mais:"
 
-#: harwood/cli/main.py:1152
+#: harwood/cli/main.py:1183
 msgid "{0} interrupted."
 msgstr "{0} interrompido."
-
-#: harwood/cli/main.py:1175
-msgid "{0} stopped"
-msgstr "{0} parou"
-
-#: harwood/cli/main.py:1179
-msgid "HARWOOD_TRACEBACK=1 shows where."
-msgstr "HARWOOD_TRACEBACK=1 mostra onde."
 
 #: harwood/cli/main.py:119
 msgid "[green]ok[/green] language: {0}  (saved in {1})"
 msgstr "[green]ok[/green] idioma: {0}  (salvo em {1})"
 
-#: harwood/cli/main.py:1238
-#, python-brace-format
-msgid "no output named, so it went to {0}, and the next task will not look for it there"
-msgstr "nenhuma saída foi nomeada, então ela foi para {0}, e a próxima tarefa não vai procurá-la lá"
+#: harwood/cli/main.py:1206
+msgid "{0} stopped"
+msgstr "{0} parou"
 
-#: harwood/cli/main.py:1238
-#, python-brace-format
-msgid "name it, with its extension: {0}"
-msgstr "dê um nome, com a extensão: {0}"
+#: harwood/cli/main.py:1210
+msgid "HARWOOD_TRACEBACK=1 shows where."
+msgstr "HARWOOD_TRACEBACK=1 mostra onde."
 
 #: harwood/cli/main.py:124
 msgid "Now: {0}. Saved: {1}. The system's: {2}."
 msgstr "Agora: {0}. Salvo: {1}. O do sistema: {2}."
 
-#: harwood/cli/main.py:1244
+#: harwood/cli/main.py:125
+#: harwood/cli/main.py:120
+#: harwood/viewer/window.py:541
+msgid "the system's"
+msgstr "o do sistema"
+
+#: harwood/cli/main.py:1269
+#, python-brace-format
+msgid "no output named, so it went to {0}, and the next task will not look for it there"
+msgstr "nenhuma saída foi nomeada, então ela foi para {0}, e a próxima tarefa não vai procurá-la lá"
+
+#: harwood/cli/main.py:1269
+#, python-brace-format
+msgid "name it, with its extension: {0}"
+msgstr "dê um nome, com a extensão: {0}"
+
+#: harwood/cli/main.py:1275
 #, python-brace-format
 msgid "no output named, so the {0} results went to {1}, under the names of their frames, and the next task has to be told that directory"
 msgstr "nenhuma saída foi nomeada, então os {0} resultados foram para {1}, com os nomes dos quadros, e a próxima tarefa precisa saber dessa pasta"
 
-#: harwood/cli/main.py:1244
+#: harwood/cli/main.py:1275
 #, python-brace-format
 msgid "read them from {0}/, or name the output: harwood help {1}"
 msgstr "leia-os de {0}/, ou nomeie a saída: harwood help {1}"
-
-#: harwood/cli/main.py:125
-#: harwood/cli/main.py:120
-#: harwood/viewer/window.py:508
-msgid "the system's"
-msgstr "o do sistema"
-
-#: harwood/cli/main.py:1256
-#, python-brace-format
-msgid "{0}: a FITS image written as named, with no extension, so '*.fits' and {1}.fits will not find it"
-msgstr "{0}: uma imagem FITS gravada com o nome dado, sem extensão, então '*.fits' e {1}.fits não a encontram"
-
-#: harwood/cli/main.py:1256
-#, python-brace-format
-msgid "write the extension when you name an image; for this one, imrename {0} {1}.fits"
-msgstr "escreva a extensão ao nomear uma imagem; para esta, imrename {0} {1}.fits"
 
 #: harwood/cli/main.py:128
 msgid "HARWOOD_LANG is set, and wins over what is saved."
 msgstr "HARWOOD_LANG está definida, e vale mais que o que está salvo."
 
-#: harwood/cli/main.py:1285
-#: harwood/cli/main.py:1059
+#: harwood/cli/main.py:1287
+#, python-brace-format
+msgid "{0}: a FITS image written as named, with no extension, so '*.fits' and {1}.fits will not find it"
+msgstr "{0}: uma imagem FITS gravada com o nome dado, sem extensão, então '*.fits' e {1}.fits não a encontram"
+
+#: harwood/cli/main.py:1287
+#, python-brace-format
+msgid "write the extension when you name an image; for this one, imrename {0} {1}.fits"
+msgstr "escreva a extensão ao nomear uma imagem; para esta, imrename {0} {1}.fits"
+
+#: harwood/cli/main.py:1316
+#: harwood/cli/main.py:1090
 #: harwood/docsite/builder.py:708
 msgid "note"
 msgstr "nota"
 
-#: harwood/cli/main.py:1285
+#: harwood/cli/main.py:1316
 msgid "warning"
 msgstr "aviso"
 
-#: harwood/cli/main.py:1285
+#: harwood/cli/main.py:1316
 msgid "problem"
 msgstr "problema"
 
-#: harwood/cli/main.py:1325
+#: harwood/cli/main.py:1356
 msgid "try:"
 msgstr "o que fazer:"
 
-#: harwood/cli/main.py:1371
+#: harwood/cli/main.py:1402
 msgid "(no explanation written for this step yet)"
 msgstr "(ainda não há explicação escrita para este passo)"
 
-#: harwood/cli/main.py:948
+#: harwood/cli/main.py:144
+msgid "On Windows and macOS the window shows harwood's icon by itself; there is no launcher to install."
+msgstr "No Windows e no macOS a janela mostra o ícone do harwood sozinha; não há atalho para instalar."
+
+#: harwood/cli/main.py:149
+msgid "launcher file removed: {0}"
+msgstr "arquivo do atalho removido: {0}"
+
+#: harwood/cli/main.py:153
+msgid "[green]ok[/green] launcher file: {0}"
+msgstr "[green]ok[/green] arquivo do atalho: {0}"
+
+#: harwood/cli/main.py:159
+msgid "harwood is in the applications menu; pin it to the dock from there. Its icon follows the theme from the next time it opens."
+msgstr "O harwood está no menu de aplicativos; fixe-o na dock a partir de lá. O ícone acompanha o tema a partir da próxima vez que ele abrir."
+
+#: harwood/cli/main.py:979
 msgid "harwood ends with the command, so a directory changed here would be forgotten at once"
 msgstr "o harwood termina junto com o comando, então uma pasta trocada aqui seria esquecida na hora"
 
-#: harwood/cli/main.py:948
+#: harwood/cli/main.py:979
 msgid "cd in your shell, or start the session with harwood and cd at hw>"
 msgstr "faça cd no seu shell, ou abra a sessão com harwood e faça cd no hw>"
 
-#: harwood/cli/main.py:958
+#: harwood/cli/main.py:989
 msgid "there is no directory to go back to yet"
 msgstr "ainda não há pasta para onde voltar"
 
-#: harwood/cli/main.py:958
+#: harwood/cli/main.py:989
 msgid "cd somewhere first"
 msgstr "faça cd para algum lugar antes"
-
-#: harwood/cli/main.py:970
-msgid "Tab completes the directories that are here; pwd says where you are"
-msgstr "Tab completa as pastas que estão aqui; pwd diz onde você está"
 
 #: harwood/core/apeditsession.py:46
 msgid "a new aperture, centred on the line at the cursor"
@@ -2892,7 +2908,7 @@ msgstr "Link para esta seção"
 
 #: harwood/docsite/builder.py:569
 #: harwood/docsite/builder.py:571
-#: harwood/viewer/window.py:1014
+#: harwood/viewer/window.py:1047
 msgid "Command line"
 msgstr "Linha de comando"
 
@@ -3026,7 +3042,7 @@ msgid "status"
 msgstr "situação"
 
 #: harwood/docsite/builder.py:733
-#: harwood/viewer/window.py:439
+#: harwood/viewer/window.py:446
 msgid "Language"
 msgstr "Idioma"
 
@@ -8757,233 +8773,225 @@ msgstr "candidatos por escala"
 msgid ":shift 0.5   ·   :scale 1.1   ·   :sample 6850:6900   ·   press a key over the graphs, or type a colon command here"
 msgstr ":shift 0.5   ·   :scale 1.1   ·   :sample 6850:6900   ·   aperte uma tecla sobre os gráficos, ou digite aqui um comando de dois-pontos"
 
-#: harwood/viewer/window.py:1043
+#: harwood/viewer/window.py:1076
 msgid "hw>  display obj.fits · imexamine · ccdproc --plan · help phot"
 msgstr "hw>  display obj.fits · imexamine · ccdproc --plan · help phot"
 
-#: harwood/viewer/window.py:1050
+#: harwood/viewer/window.py:1083
 msgid "🕘 History"
 msgstr "🕘 Histórico"
 
-#: harwood/viewer/window.py:1052
+#: harwood/viewer/window.py:1085
 msgid "Search what was typed before, here and in the terminal (Ctrl+R at the prompt)"
 msgstr "Procura o que foi digitado antes, aqui e no terminal (Ctrl+R no prompt)"
 
-#: harwood/viewer/window.py:1057
+#: harwood/viewer/window.py:1090
 msgid "Tab completes · ↑ ↓ walk the history, Ctrl+R searches it · ; runs the next command anyway, && only if this one worked"
 msgstr "Tab completa · ↑ ↓ percorrem o histórico, Ctrl+R procura nele · ; roda o próximo comando de qualquer jeito, && só se este deu certo"
 
-#: harwood/viewer/window.py:233
+#: harwood/viewer/window.py:238
 msgid "harwood viewer. Hover for coordinates; the Keys panel under the image lists what each key does (F2 hides it)."
 msgstr "visor do harwood. Passe o mouse para ver as coordenadas; o painel Teclas, sob a imagem, lista o que cada tecla faz (F2 o esconde)."
 
-#: harwood/viewer/window.py:235
+#: harwood/viewer/window.py:240
 msgid "Ctrl+ and Ctrl- resize the text, Ctrl+0 resets it. F11 full screen, Ctrl+M maximise, Ctrl+Shift+R puts the panels back where they started."
 msgstr "Ctrl+ e Ctrl- mudam o tamanho do texto, Ctrl+0 volta ao normal. F11 tela cheia, Ctrl+M maximiza, Ctrl+Shift+R põe os painéis de volta onde começaram."
 
-#: harwood/viewer/window.py:383
+#: harwood/viewer/window.py:388
 msgid "&File"
 msgstr "&Arquivo"
 
-#: harwood/viewer/window.py:385
+#: harwood/viewer/window.py:390
 msgid "Export image..."
 msgstr "Exportar imagem..."
 
-#: harwood/viewer/window.py:386
+#: harwood/viewer/window.py:391
 msgid "Export view (with marks)..."
 msgstr "Exportar vista (com marcas)..."
 
-#: harwood/viewer/window.py:387
+#: harwood/viewer/window.py:392
 msgid "Export plot..."
 msgstr "Exportar gráfico..."
 
-#: harwood/viewer/window.py:391
+#: harwood/viewer/window.py:396
 msgid "Open text files..."
 msgstr "Abrir arquivos de texto..."
 
-#: harwood/viewer/window.py:393
+#: harwood/viewer/window.py:398
 msgid "Close window"
 msgstr "Fechar janela"
 
-#: harwood/viewer/window.py:396
+#: harwood/viewer/window.py:401
 msgid "&View"
 msgstr "E&xibir"
 
-#: harwood/viewer/window.py:399
+#: harwood/viewer/window.py:404
 msgid "Dark"
 msgstr "Escuro"
 
-#: harwood/viewer/window.py:399
+#: harwood/viewer/window.py:404
 msgid "Light"
 msgstr "Claro"
 
-#: harwood/viewer/window.py:400
-#: harwood/viewer/window.py:442
+#: harwood/viewer/window.py:405
+#: harwood/viewer/window.py:449
 msgid "Follow the system"
 msgstr "Seguir o sistema"
 
-#: harwood/viewer/window.py:409
+#: harwood/viewer/window.py:406
+msgid "By the hour: dark at night"
+msgstr "Por horário: escuro à noite"
+
+#: harwood/viewer/window.py:412
+msgid "Night hours..."
+msgstr "Horário da noite..."
+
+#: harwood/viewer/window.py:416
 msgid "Colour-blind safe colours"
 msgstr "Cores seguras para daltonismo"
 
-#: harwood/viewer/window.py:410
+#: harwood/viewer/window.py:417
 msgid "Okabe-Ito colours for data and warnings; colour is never the only sign"
 msgstr "Cores Okabe-Ito para dados e avisos; a cor nunca é o único sinal"
 
-#: harwood/viewer/window.py:411
+#: harwood/viewer/window.py:418
 msgid "Dyslexia-friendly text"
 msgstr "Texto para dislexia"
 
-#: harwood/viewer/window.py:412
+#: harwood/viewer/window.py:419
 msgid "Atkinson Hyperlegible, wider spacing, cream ground in the light theme"
 msgstr "Atkinson Hyperlegible, espaçamento maior, fundo creme no tema claro"
 
-#: harwood/viewer/window.py:413
+#: harwood/viewer/window.py:420
 msgid "Text follows the window size"
 msgstr "Texto acompanha o tamanho da janela"
 
-#: harwood/viewer/window.py:414
+#: harwood/viewer/window.py:421
 msgid "Text grows and shrinks with the window, on top of Ctrl+ and Ctrl-"
 msgstr "O texto cresce e diminui com a janela, além do Ctrl+ e Ctrl-"
 
-#: harwood/viewer/window.py:415
+#: harwood/viewer/window.py:422
 msgid "Reduce motion"
 msgstr "Reduzir movimento"
 
-#: harwood/viewer/window.py:415
+#: harwood/viewer/window.py:422
 msgid "No animations; blink steps slower"
 msgstr "Sem animações; o piscar alterna mais devagar"
 
-#: harwood/viewer/window.py:422
+#: harwood/viewer/window.py:429
 msgid "Dyslexia font"
 msgstr "Fonte para dislexia"
 
-#: harwood/viewer/window.py:433
-#: harwood/viewer/window.py:631
+#: harwood/viewer/window.py:440
+#: harwood/viewer/window.py:664
 msgid "Larger text  (Ctrl+)"
 msgstr "Texto maior  (Ctrl+)"
 
-#: harwood/viewer/window.py:434
-#: harwood/viewer/window.py:630
+#: harwood/viewer/window.py:441
+#: harwood/viewer/window.py:663
 msgid "Smaller text  (Ctrl-)"
 msgstr "Texto menor  (Ctrl-)"
 
-#: harwood/viewer/window.py:435
+#: harwood/viewer/window.py:442
 msgid "Normal text  (Ctrl+0)"
 msgstr "Texto normal  (Ctrl+0)"
 
-#: harwood/viewer/window.py:449
+#: harwood/viewer/window.py:456
 msgid "Where these choices are kept"
 msgstr "Onde estas escolhas ficam guardadas"
 
-#: harwood/viewer/window.py:455
+#: harwood/viewer/window.py:462
 msgid "&Panels"
 msgstr "&Painéis"
 
-#: harwood/viewer/window.py:459
+#: harwood/viewer/window.py:466
 msgid "Tasks (the package tree)"
 msgstr "Tarefas (a árvore de pacotes)"
 
-#: harwood/viewer/window.py:462
+#: harwood/viewer/window.py:469
 msgid "Command line (the hw> prompt)"
 msgstr "Linha de comando (o prompt hw>)"
 
-#: harwood/viewer/window.py:464
+#: harwood/viewer/window.py:471
 msgid "Files (the text editor)"
 msgstr "Arquivos (o editor de texto)"
 
-#: harwood/viewer/window.py:466
+#: harwood/viewer/window.py:473
 msgid "Documentation (F1)"
 msgstr "Documentação (F1)"
 
-#: harwood/viewer/window.py:468
+#: harwood/viewer/window.py:475
 msgid "Keys (what works on the image now)"
 msgstr "Teclas (o que funciona na imagem agora)"
 
-#: harwood/viewer/window.py:471
+#: harwood/viewer/window.py:478
 msgid "Go to the prompt"
 msgstr "Ir ao prompt"
 
-#: harwood/viewer/window.py:473
+#: harwood/viewer/window.py:480
 msgid "Put the panels back  (Ctrl+Shift+R)"
 msgstr "Pôr os painéis de volta  (Ctrl+Shift+R)"
 
-#: harwood/viewer/window.py:476
+#: harwood/viewer/window.py:483
 msgid "&Help"
 msgstr "Aj&uda"
 
-#: harwood/viewer/window.py:477
-#: harwood/viewer/window.py:954
+#: harwood/viewer/window.py:484
+#: harwood/viewer/window.py:987
 msgid "Documentation"
 msgstr "Documentação"
 
-#: harwood/viewer/window.py:478
+#: harwood/viewer/window.py:485
 msgid "Documentation in the browser"
 msgstr "Documentação no navegador"
 
-#: harwood/viewer/window.py:480
+#: harwood/viewer/window.py:487
 msgid "The sample night (try the examples)"
 msgstr "A noite de exemplo (experimente os exemplos)"
 
-#: harwood/viewer/window.py:509
+#: harwood/viewer/window.py:514
+msgid "Night hours"
+msgstr "Horário da noite"
+
+#: harwood/viewer/window.py:517
+msgid "Dark from"
+msgstr "Escuro a partir de"
+
+#: harwood/viewer/window.py:517
+msgid "Light from"
+msgstr "Claro a partir de"
+
+#: harwood/viewer/window.py:522
+msgid "Used when the theme is 'By the hour'; local time."
+msgstr "Vale quando o tema é 'Por horário'; hora local."
+
+#: harwood/viewer/window.py:542
 msgid "language: {0}  (saved in {1})"
 msgstr "idioma: {0}  (salvo em {1})"
 
-#: harwood/viewer/window.py:617
+#: harwood/viewer/window.py:650
 msgid "frame"
 msgstr "quadro"
 
-#: harwood/viewer/window.py:618
+#: harwood/viewer/window.py:651
 msgid "scale"
 msgstr "escala"
 
-#: harwood/viewer/window.py:620
+#: harwood/viewer/window.py:653
 msgid "stretch"
 msgstr "contraste"
 
-#: harwood/viewer/window.py:622
+#: harwood/viewer/window.py:655
 msgid "colours"
 msgstr "cores"
 
-#: harwood/viewer/window.py:626
+#: harwood/viewer/window.py:659
 msgid "blink"
 msgstr "piscar"
 
-#: harwood/viewer/window.py:626
+#: harwood/viewer/window.py:659
 msgid "Alternate between loaded frames"
 msgstr "Alterna entre os quadros carregados"
-
-#: harwood/viewer/window.py:627
-msgid "tile"
-msgstr "lado a lado"
-
-#: harwood/viewer/window.py:627
-msgid "Show every frame side by side"
-msgstr "Mostra todos os quadros lado a lado"
-
-#: harwood/viewer/window.py:628
-msgid "header"
-msgstr "cabeçalho"
-
-#: harwood/viewer/window.py:628
-msgid "Show this frame's FITS header"
-msgstr "Mostra o cabeçalho FITS deste quadro"
-
-#: harwood/viewer/window.py:629
-msgid "regions"
-msgstr "marcas"
-
-#: harwood/viewer/window.py:629
-msgid "Clear the overlays on this frame"
-msgstr "Limpa as marcas sobre este quadro"
-
-#: harwood/viewer/window.py:632
-msgid "reset"
-msgstr "reiniciar"
-
-#: harwood/viewer/window.py:633
-msgid "Put the panels back where they started  (Ctrl+Shift+R)"
-msgstr "Põe os painéis de volta onde começaram  (Ctrl+Shift+R)"
 
 #: harwood/viewer/window.py:66
 msgid "next frame"
@@ -9005,68 +9013,100 @@ msgstr "encerrar o imexamine, quando está rodando como tarefa"
 msgid "reset the view to the whole image"
 msgstr "voltar a vista à imagem inteira"
 
-#: harwood/viewer/window.py:683
-#: harwood/viewer/window.py:682
+#: harwood/viewer/window.py:660
+msgid "tile"
+msgstr "lado a lado"
+
+#: harwood/viewer/window.py:660
+msgid "Show every frame side by side"
+msgstr "Mostra todos os quadros lado a lado"
+
+#: harwood/viewer/window.py:661
+msgid "header"
+msgstr "cabeçalho"
+
+#: harwood/viewer/window.py:661
+msgid "Show this frame's FITS header"
+msgstr "Mostra o cabeçalho FITS deste quadro"
+
+#: harwood/viewer/window.py:662
+msgid "regions"
+msgstr "marcas"
+
+#: harwood/viewer/window.py:662
+msgid "Clear the overlays on this frame"
+msgstr "Limpa as marcas sobre este quadro"
+
+#: harwood/viewer/window.py:665
+msgid "reset"
+msgstr "reiniciar"
+
+#: harwood/viewer/window.py:666
+msgid "Put the panels back where they started  (Ctrl+Shift+R)"
+msgstr "Põe os painéis de volta onde começaram  (Ctrl+Shift+R)"
+
+#: harwood/viewer/window.py:716
+#: harwood/viewer/window.py:715
 msgid "Image"
 msgstr "Imagem"
 
-#: harwood/viewer/window.py:729
+#: harwood/viewer/window.py:762
 msgid "Examine"
 msgstr "Examinar"
 
-#: harwood/viewer/window.py:742
+#: harwood/viewer/window.py:775
 msgid "nothing examined yet"
 msgstr "nada examinado ainda"
 
-#: harwood/viewer/window.py:745
+#: harwood/viewer/window.py:778
 msgid "press r over a star"
 msgstr "aperte r sobre uma estrela"
 
-#: harwood/viewer/window.py:756
+#: harwood/viewer/window.py:789
 msgid "Keys"
 msgstr "Teclas"
 
-#: harwood/viewer/window.py:780
-#: harwood/viewer/window.py:783
+#: harwood/viewer/window.py:813
+#: harwood/viewer/window.py:816
 msgid "{0}: the keys at the cursor"
 msgstr "{0}: as teclas no cursor"
 
-#: harwood/viewer/window.py:781
+#: harwood/viewer/window.py:814
 msgid "{0} (lower case)"
 msgstr "{0} (minúsculas)"
 
-#: harwood/viewer/window.py:784
+#: harwood/viewer/window.py:817
 msgid "measure (lower case)"
 msgstr "medir (minúsculas)"
 
-#: harwood/viewer/window.py:787
+#: harwood/viewer/window.py:820
 msgid "Display an image to measure it"
 msgstr "Exiba uma imagem para medi-la"
 
-#: harwood/viewer/window.py:788
+#: harwood/viewer/window.py:821
 msgid "measure, once an image is shown"
 msgstr "medir, quando houver uma imagem exibida"
 
-#: harwood/viewer/window.py:796
+#: harwood/viewer/window.py:829
 msgid ", hidden"
 msgstr ", escondida"
 
-#: harwood/viewer/window.py:799
+#: harwood/viewer/window.py:832
 msgid "the window (upper case)"
 msgstr "a janela (maiúsculas)"
 
-#: harwood/viewer/window.py:800
+#: harwood/viewer/window.py:833
 msgid "the mouse"
 msgstr "o mouse"
 
-#: harwood/viewer/window.py:809
+#: harwood/viewer/window.py:842
 msgid "Parameters · rimexam"
 msgstr "Parâmetros · rimexam"
 
-#: harwood/viewer/window.py:884
+#: harwood/viewer/window.py:917
 msgid "  {0} opened; press q there when you are done"
 msgstr "  {0} aberto; aperte q lá quando terminar"
 
-#: harwood/viewer/window.py:942
+#: harwood/viewer/window.py:975
 msgid "Files"
 msgstr "Arquivos"

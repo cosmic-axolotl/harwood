@@ -5,7 +5,8 @@ one switch moves the whole interface: the window, every panel and every
 plot. Three choices, independent of each other:
 
 ``theme``       dark (the default: quiet at night beside a terminal), light,
-                or system (follow the desktop).
+                system (follow the desktop), or hours: dark from `night_from`
+                to `day_from` (18:00 and 06:00 unless set), light between.
 ``colorblind``  data colours from Okabe and Ito's palette, which stays
                 distinguishable in the common colour-vision deficiencies --
                 the red-green pair most plots lean on does not. Colour is
@@ -30,6 +31,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any
@@ -112,11 +114,52 @@ FAMILIES = {
 MONO = ("IBM Plex Mono", "DejaVu Sans Mono", "monospace")
 
 
+THEMES = ("dark", "light", "system", "hours")
+
+
+def minutes(text) -> int | None:
+    """'HH:MM' as minutes after midnight; None if it is not a time."""
+    try:
+        hours, mins = (int(part) for part in str(text).split(":"))
+    except ValueError:
+        return None
+    if not (0 <= hours <= 23 and 0 <= mins <= 59):
+        return None
+    return hours * 60 + mins
+
+
+def night(prefs, when: float | None = None) -> bool:
+    """theme=hours: is it night now (or at `when`, seconds since the epoch), local
+    time -- from night_from up to day_from, across midnight or not."""
+    t = time.localtime(when)
+    now = t.tm_hour * 60 + t.tm_min
+    start, end = minutes(prefs.night_from), minutes(prefs.day_from)
+    if start is None or end is None or start == end:
+        return True
+    if start < end:
+        return start <= now < end
+    return now >= start or now < end
+
+
+def tick() -> bool:
+    """theme=hours: look at the clock, and change the look if day or night began
+    since the last look. True if it changed. The window calls it every minute."""
+    if _theme.preferences.theme != "hours":
+        return False
+    dark = night(_theme.preferences)
+    if dark == _theme.clock_dark:
+        return False
+    update(save=False, clock_dark=dark)
+    return True
+
+
 @dataclass
 class Preferences:
     """What the person chose, as saved."""
 
-    theme: str = "dark"                 #: dark, light or system
+    theme: str = "dark"                 #: dark, light, system or hours
+    night_from: str = "18:00"           #: theme=hours: dark from here...
+    day_from: str = "06:00"             #: ...to here, local time
     colorblind: bool = False
     dyslexia: bool = False
     dyslexia_font: str = "atkinson"     #: atkinson or opendyslexic
@@ -144,8 +187,11 @@ class Preferences:
         """Anything out of range back to its default, rather than an error
         the window would have to show before it could show anything."""
         default = Preferences()
-        if self.theme not in ("dark", "light", "system"):
+        if self.theme not in THEMES:
             self.theme = default.theme
+        for name in ("night_from", "day_from"):
+            if minutes(getattr(self, name)) is None:
+                setattr(self, name, getattr(default, name))
         if self.dyslexia_font not in ("atkinson", "opendyslexic"):
             self.dyslexia_font = default.dyslexia_font
         if self.language not in ("system", "en", "pt", "es"):
@@ -170,11 +216,16 @@ class Theme:
     preferences: Preferences = field(default_factory=Preferences)
     system_dark: bool = True            #: what the desktop says, for "system"
     window_factor: float = 1.0          #: from the window's size, when autoscale
+    clock_dark: bool | None = None      #: for "hours": night when last looked
 
     @property
     def dark(self) -> bool:
         if self.preferences.theme == "system":
             return self.system_dark
+        if self.preferences.theme == "hours":
+            if self.clock_dark is None:
+                return night(self.preferences)
+            return self.clock_dark
         return self.preferences.theme == "dark"
 
     @property
@@ -344,9 +395,12 @@ def update(save: bool = True, **changes) -> Theme:
     """Change preferences (or system_dark / window_factor) and tell everyone."""
     global _theme
     prefs = {k: v for k, v in changes.items() if k in Preferences.__dataclass_fields__}
-    state = {k: v for k, v in changes.items() if k in ("system_dark", "window_factor")}
+    state = {k: v for k, v in changes.items()
+             if k in ("system_dark", "window_factor", "clock_dark")}
     if prefs:
-        _theme = replace(_theme, preferences=replace(_theme.preferences, **prefs).checked())
+        # clock_dark=None: theme=hours reads the clock afresh with the new hours
+        _theme = replace(_theme, preferences=replace(_theme.preferences, **prefs).checked(),
+                         clock_dark=None)
         if save:
             _theme.preferences.save()
     if state:
@@ -390,6 +444,9 @@ def apply() -> None:
     font.setLetterSpacing(QtGui.QFont.SpacingType.PercentageSpacing, t.letter_spacing)
     app.setFont(font)
     app.setStyleSheet(t.stylesheet())
+    from . import icon
+
+    icon.apply(app, c)          # the icon in the theme's colours too
     try:
         import pyqtgraph as pg
 

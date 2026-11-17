@@ -71,7 +71,9 @@ become tabs of the same place. Closing a panel does not lose it: the
 The **View** menu has the choices, and they apply to everything at once,
 the plots and these pages included:
 
-- **Dark**, **Light**, or **Follow the system**.
+- **Dark**, **Light**, **Follow the system**, or **By the hour: dark at
+  night** -- dark from 18:00 to 06:00 unless *Night hours...* sets other
+  times; the window turns by itself at dusk and at dawn.
 - **Colour-blind safe colours**: the data and the warnings take Okabe and
   Ito's palette, which stays distinguishable in the common colour-vision
   deficiencies. Colour is never the only sign anyway: every warning has a
@@ -82,6 +84,13 @@ the plots and these pages included:
 - **Text follows the window size**: text grows with the window, on top of
   Ctrl+ and Ctrl-.
 - **Reduce motion**: no animations.
+
+harwood's icon -- a lowercase h whose arch is the Sun's spectrum, the Planck
+curve of 5777 K, with a star over its peak -- is drawn in the theme's colours
+and changes with it. On Linux, `harwood shortcut` puts harwood in the
+applications menu, to pin to the dock, its icon in the same colours (GNOME
+shows a new one the next time harwood opens); `harwood shortcut --remove`
+takes it away. On Windows and macOS the window shows the icon by itself.
 
 The choices are kept in `~/.config/harwood/interface.json`, a file you can
 read; *View › Where these choices are kept* shows it. They are not reduction

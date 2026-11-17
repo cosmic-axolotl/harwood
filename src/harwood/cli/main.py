@@ -129,6 +129,37 @@ def language_cmd(choice: str | None) -> None:
                                         "saved.") + "[/dim]")
 
 
+@app.command("shortcut")
+@click.option("--remove", is_flag=True, help="Take the launcher away again.")
+def shortcut_cmd(remove: bool) -> None:
+    """A launcher in the desktop's menu and dock (Linux), with harwood's icon in the
+    colours of the theme chosen in the window; it opens the window (harwood gui).
+    The icon is written again whenever the theme changes."""
+    import shutil
+
+    from ..core import i18n
+    from ..viewer import icon, theme
+
+    if not sys.platform.startswith("linux"):
+        console.print(i18n.tr("On Windows and macOS the window shows harwood's icon by "
+                              "itself; there is no launcher to install."))
+        return
+    if remove:
+        for path in icon.remove_launcher():
+            console.print(i18n.trf("launcher file removed: {0}", escape(str(path))))
+        return
+    command = shutil.which("harwood") or str(Path(sys.argv[0]).resolve())
+    for path in icon.install_launcher(theme.palette(), command):
+        console.print(i18n.trf("[green]ok[/green] launcher file: {0}", escape(str(path))))
+    if shutil.which("update-desktop-database"):
+        import subprocess
+
+        subprocess.run(["update-desktop-database", str(icon.launcher_file().parent)],
+                       capture_output=True, check=False)
+    console.print(i18n.tr("harwood is in the applications menu; pin it to the dock from "
+                          "there. Its icon follows the theme from the next time it opens."))
+
+
 # --------------------------------------------------------------- browsing
 
 
