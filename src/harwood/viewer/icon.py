@@ -145,7 +145,7 @@ Comment=Reduce a night of observing, with the tasks you know from IRAF
 Exec={exec} gui %f
 Icon=harwood
 Terminal=false
-Categories=Science;Astronomy;Education;
+Categories=Science;Astronomy;
 StartupWMClass=harwood
 """
 
