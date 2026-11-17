@@ -228,6 +228,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.examine_logfile = ""
         self._blink_timer = QtCore.QTimer(self)
         self._blink_timer.timeout.connect(self._blink_step)
+        #: harwood gui's window keeps its session (viewer/session.py); a window a
+        #: task opened from the terminal does not
+        self.keeps_session = False
+        self._autosave = QtCore.QTimer(self)
+        self._autosave.timeout.connect(self._save_session)
 
         self._build_menus()
         self._build_toolbar()
@@ -415,6 +420,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             lang.action(files, label, slot, shortcut)
         files.addSeparator()
         lang.action(files, "Open text files...", self.choose_files, "Ctrl+O")
+        files.addSeparator()
+        lang.action(files, "New session", self.new_session)
+        self._restore_action = lang.action(files, "Restore previous session",
+                                           self.restore_previous)
+        files.aboutToShow.connect(self._sync_session_menu)
         files.addSeparator()
         lang.action(files, "Close window", self.close)
 
@@ -953,6 +963,98 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         panel.setFocus()
         self.log(lang.trf("  {0} opened; press q there when you are done", title))
 
+    def add_kept_panel(self, panel, title: str) -> None:
+        """A tab no task waits on (a session's graph, put back)."""
+        index = self.views.addTab(panel, title)
+        crosshair.attach_all(panel)
+        self.views.setTabToolTip(index, title)
+
+    # ------------------------------------------------------------ the session
+
+    def begin_session(self) -> None:
+        """harwood gui: the session is kept when the window closes, and every two
+        minutes meanwhile."""
+        from . import session
+
+        self.keeps_session = True
+        self._autosave.start(session.AUTOSAVE_MS)
+
+    def _save_session(self) -> None:
+        if not self.keeps_session:
+            return
+        from . import session
+
+        try:
+            session.save(self)
+        except Exception as error:  # noqa: BLE001 -- the window goes on regardless
+            self.statusBar().showMessage(
+                lang.trf("the session could not be kept: {0}", error), 8000)
+
+    def _sync_session_menu(self) -> None:
+        from . import session
+
+        self._restore_action.setEnabled(
+            session.summary(session.previous_folder()) is not None)
+
+    def _clear_session(self) -> bool:
+        """Everything closed: frames, graph tabs, text files, measurements, the
+        record. False when a task is still waiting on a tab."""
+        if self._waiting or self._beside_running:
+            self.log(tr("  a task is still running; finish it first (q in its tab)"))
+            return False
+        for index in range(self.views.count() - 1, 0, -1):
+            self.close_panel(self.views.widget(index))
+        for tab in list(self.files.files()):
+            tab.document().setModified(False)
+        self.files.close_all()
+        self.frames.clear()
+        self._session_frames = {}
+        self.frame_box.clear()
+        self.image_item.clear()
+        self.dq_item.clear()
+        for item in list(self.overlay.childItems()):
+            self.view.scene().removeItem(item)
+        self.measurements.clear()
+        self.plot.clear()
+        self.session.clear()
+        self.prompt.clear()
+        return True
+
+    def new_session(self) -> None:
+        """File > New session: this one kept as the previous, and a clean window."""
+        from . import session
+
+        if self.keeps_session:
+            self._save_session()
+        if not self._clear_session():
+            return
+        if self.keeps_session:
+            session.set_aside()
+        self.log(tr("New session. File > Restore previous session brings the last one "
+                    "back."))
+
+    def restore_previous(self) -> None:
+        """File > Restore previous session: the session set aside, put back."""
+        from . import session
+
+        where = session.previous_folder()
+        if session.summary(where) is None:
+            self.log(tr("  there is no previous session to restore"))
+            return
+        if not self._clear_session():
+            return
+        self.restore_from(where)
+
+    def restore_from(self, where=None) -> None:
+        from . import session
+
+        meta = session.summary(where)
+        notes = session.restore(self, where)
+        self.log(lang.trf("Session of {0} restored, in {1}", meta.get("when", "?"),
+                          Path.cwd()))
+        for note in notes:
+            self.log("  " + note)
+
     def finish_panel(self, panel) -> None:
         """The task has what it wanted from the panel. A graph stays as a tab
         to look back at, closed with its x. A fit that was a step in a task
@@ -1443,7 +1545,11 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(f"{self._busy} is still running; close the "
                                          "window when it has finished", 6000)
             return
-        if not self.files.close_all():          # it asked, and was told to wait
+        if self.keeps_session:
+            # kept whole, unsaved text with it: nothing to ask
+            self._autosave.stop()
+            self._save_session()
+        elif not self.files.close_all():        # it asked, and was told to wait
             event.ignore()
             return
         self.examine_done.emit()

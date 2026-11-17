@@ -96,6 +96,32 @@ The choices are kept in `~/.config/harwood/interface.json`, a file you can
 read; *View › Where these choices are kept* shows it. They are not reduction
 parameters, so they live with you and not with the night.
 
+## The cursor
+
+Under the tabs, a strip of boxes chooses the cursor's helpers, kept for next
+time: **Crosshair cursor** (a horizontal and a vertical line across the plot,
+crossing at the mouse, as IRAF's cursor), **Values on the axes** (with it: the
+values where its lines meet the plot's edges, the pixel's x and y on the
+image), and, on the image only, **Aperture** (imexamine's circles: the radius
+and the sky annulus, from the Parameters panel), **Pixel** (the square of the
+pixel under the mouse) and **Centre** (where `r` would centre the star). They
+are drawn in a colour no curve or mark uses, and never change what a plot shows.
+
+## The session
+
+When `harwood gui` closes, it keeps what it had open: the folder it was in, the
+window and its panels, each frame (its pixels, header, z1 z2, marks) with the
+scale, stretch, colours and zoom, imexamine's parameters and measurements, the
+graph tabs (implot alive again; a fit whose task is over, as the picture it
+was), the text files -- with what was typed and not yet saved -- and the
+command line's record. It also keeps it every two minutes, against a crash.
+
+The next time, it asks: **Restore previous session** or **Start a new session**.
+A new one sets the old aside, and *File › Restore previous session* still
+brings it back; *File › New session* starts afresh at any time. The session
+lives in `~/.local/state/harwood/session`, with a `session.json` you can read.
+A window that a task opens from the terminal keeps no session.
+
 ## Saving what you see
 
 The **File** menu exports the image as it is displayed (PNG, JPEG, TIFF),

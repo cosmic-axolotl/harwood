@@ -1019,6 +1019,11 @@ def gui_cmd(image: str | None) -> None:
     from ..core import images
 
     screen = display_module.get("native")
+    window = getattr(screen, "window", None)
+    if window is not None:
+        from ..viewer import session
+
+        session.offer(window)
     if image:
         data, header = images.read(image)
         screen.show(data, header, name=str(image))

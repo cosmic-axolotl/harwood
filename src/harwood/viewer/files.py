@@ -174,16 +174,27 @@ class FileEditor(QtWidgets.QWidget):
             if b"\x00" in raw[:4096]:
                 refused.append(f"{name} is not a text file")
                 continue
-            tab = FileTab(path, raw.decode("utf-8", errors="replace"))
-            tab.document().modificationChanged.connect(lambda _m, t=tab: self._title(t))
-            tab.cursorPositionChanged.connect(self._where)
-            index = self.tabs.addTab(tab, path.name)
-            self.tabs.setTabToolTip(index, str(path))
-            self.tabs.setCurrentIndex(index)
+            self._add(path, raw.decode("utf-8", errors="replace"))
         self._sync()
         for reason in refused:
             self.said.emit("  " + reason)
         return refused
+
+    def _add(self, path: Path, text: str) -> FileTab:
+        tab = FileTab(path, text)
+        tab.document().modificationChanged.connect(lambda _m, t=tab: self._title(t))
+        tab.cursorPositionChanged.connect(self._where)
+        index = self.tabs.addTab(tab, path.name)
+        self.tabs.setTabToolTip(index, str(path))
+        self.tabs.setCurrentIndex(index)
+        return tab
+
+    def open_text(self, path, text: str) -> FileTab:
+        """A tab for a file that is not on disk (any more): what was typed in it,
+        saved to `path` when saved."""
+        tab = self._add(Path(path).expanduser().absolute(), text)
+        self._sync()
+        return tab
 
     def _title(self, tab: FileTab) -> None:
         index = self.tabs.indexOf(tab)
