@@ -59,6 +59,7 @@ class Palette:
     series: tuple[str, ...] = ()        #: overplotted curves, in order
     interstellar: str = ""
     telluric: str = ""
+    cursor: str = ""                    #: the crosshair: no curve, mark or fit has it
 
 
 DARK = Palette(
@@ -67,7 +68,7 @@ DARK = Palette(
     drop="#d2686a", comment="#7f93a6", note="#56b4e9", warning="#e69f00",
     problem="#e86a33",
     series=("#4fb59b", "#e0a33e", "#7db2d8", "#d2686a", "#a98fd0"),
-    interstellar="#b48ead", telluric="#d16a6a")
+    interstellar="#b48ead", telluric="#d16a6a", cursor="#e879c4")
 
 LIGHT = Palette(
     ground="#f7f5f0", panel="#ebe7df", line="#c9c2b6", ink="#1d252c",
@@ -75,7 +76,7 @@ LIGHT = Palette(
     drop="#b0383b", comment="#55697b", note="#1f6f9f", warning="#9a5b00",
     problem="#b0383b",
     series=("#0f7660", "#9a5b00", "#2c6a9a", "#b0383b", "#6b4f9a"),
-    interstellar="#7d4f8a", telluric="#a83434")
+    interstellar="#7d4f8a", telluric="#a83434", cursor="#b02a83")
 
 #: Okabe and Ito (2008): blue, orange, bluish green, vermillion, reddish
 #: purple, sky blue, yellow -- as bright on the dark ground, and darkened to
@@ -91,7 +92,9 @@ def _colorblind(base: Palette, okabe: tuple[str, ...]) -> Palette:
     return replace(base, accent=orange, sky=blue, band=green, drop=vermillion,
                    note=blue, warning=orange, problem=vermillion,
                    series=(blue, orange, green, vermillion, purple),
-                   interstellar=purple, telluric=vermillion)
+                   interstellar=purple, telluric=vermillion,
+                   # Okabe and Ito's yellow, which nothing else here takes
+                   cursor=okabe[5])
 
 
 DARK_CB = _colorblind(DARK, OKABE_ITO_DARK)
@@ -115,6 +118,7 @@ MONO = ("IBM Plex Mono", "DejaVu Sans Mono", "monospace")
 
 
 THEMES = ("dark", "light", "system", "hours")
+CURSORS = ("arrow", "cross")
 
 
 def minutes(text) -> int | None:
@@ -167,6 +171,11 @@ class Preferences:
     autoscale: bool = True              #: and the window's on top of it
     reduce_motion: bool = False
     language: str = "system"            #: en, pt, es, or system (core/i18n.py)
+    cursor: str = "arrow"               #: arrow, or cross (viewer/crosshair.py)
+    cursor_axes: bool = False           #: the cross's values at the plot's edges
+    cursor_aperture: bool = False       #: imexamine's circles around the mouse
+    cursor_pixel: bool = False          #: the square of the pixel under it
+    cursor_centroid: bool = False       #: where r would centre the star
 
     @classmethod
     def path(cls) -> Path:
@@ -196,6 +205,8 @@ class Preferences:
             self.dyslexia_font = default.dyslexia_font
         if self.language not in ("system", "en", "pt", "es"):
             self.language = default.language
+        if self.cursor not in CURSORS:
+            self.cursor = default.cursor
         try:
             self.scale = min(max(float(self.scale), SCALES[0]), SCALES[-1])
         except (TypeError, ValueError):
@@ -301,6 +312,8 @@ QPlainTextEdit, QTextEdit {{ background: {c.ground}; color: {c.ink};
 QTabBar::tab {{ background: {c.panel}; color: {c.muted}; padding: 5px 12px;
     border: 1px solid {c.line}; border-bottom: none; }}
 QTabBar::tab:selected {{ color: {c.ink}; border-top: 2px solid {c.accent}; }}
+QWidget#viewstrip {{ background: {c.panel}; border-bottom: 1px solid {c.line}; }}
+QWidget#viewstrip QCheckBox {{ color: {c.muted}; font-size: {small:.1f}pt; }}
 QStatusBar {{ background: {c.panel}; border-top: 1px solid {c.line};
     color: {c.ink}; font-family: {monofam}; font-size: {mono:.1f}pt; }}
 QLabel#hint {{ color: {c.muted}; font-size: {small:.1f}pt; }}

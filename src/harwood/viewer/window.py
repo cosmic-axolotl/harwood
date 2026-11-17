@@ -42,9 +42,30 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..core import dq, examine, logfile, pixels, render
 from ..core.display import Marker
-from . import keyguide, lang, theme
+from . import crosshair, keyguide, lang, theme
 from .lang import N_, tr
 from .theme import palette as _c
+
+#: The cursor's helpers in the strip under the tabs (viewer/crosshair.py): the
+#: preference, the box's text and its tooltip.
+CURSOR_HELPERS = (
+    ("cross", N_("Crosshair cursor"),
+     N_("A horizontal and a vertical line across the plot, crossing at the mouse, "
+        "as IRAF's cursor")),
+    ("axes", N_("Values on the axes"),
+     N_("With the crosshair: where its lines meet the plot's edges, the values "
+        "there (on the image, the pixel's x and y)")),
+    ("aperture", N_("Aperture"),
+     N_("imexamine's circles around the mouse: the radius it measures within, and "
+        "the sky annulus after the buffer -- radius, buffer and width as in "
+        "Parameters")),
+    ("pixel", N_("Pixel"),
+     N_("The square of the pixel under the mouse: the one whose value is at the "
+        "bottom of the window")),
+    ("centroid", N_("Centre"),
+     N_("Where r would centre the star near the mouse: the moments of the "
+        "marginals, as IRAF's ie_center")),
+)
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=False)
 
@@ -708,7 +729,9 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         # The middle of the window holds the image and every graph, in tabs:
         # a new plot is a new tab, never a window of its own to lose behind
         # this one. The bar only appears once there is something to choose.
-        self.views = QtWidgets.QTabWidget()
+        from .views import Views
+
+        self.views = Views()
         self.views.setDocumentMode(True)
         self.views.setTabsClosable(True)
         self.views.setTabBarAutoHide(True)
@@ -720,6 +743,19 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             bar.setTabButton(0, side, None)     # the image is always there
         self.views.tabCloseRequested.connect(self._close_tab)
         self.views.currentChanged.connect(self._view_changed)
+        # Under the tabs, for the image and every graph: the cursor's helpers
+        self.cursor_boxes: dict[str, Any] = {}
+        for name, text, tip in CURSOR_HELPERS:
+            box = lang.bind(QtWidgets.QCheckBox(), "setText", text)
+            lang.bind(box, "setToolTip", tip)
+            box.setChecked(crosshair.on(name))
+            box.toggled.connect(lambda value, n=name: crosshair.set_option(n, value))
+            self.views.add_option(box)
+            self.cursor_boxes[name] = box
+        self.cross_box = self.cursor_boxes["cross"]
+        theme.on_change(self._cursor_boxes_follow, owner=self.cross_box)
+        self._cursor_boxes_follow()
+        crosshair.attach(self.graphics, image=self._cursor_image, image_box=self.view)
         #: the panels a task is waiting on, and the tab each was opened from
         self._waiting: dict[Any, Any] = {}
         self._keys_were_shown = True
@@ -911,6 +947,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         """A panel a task opens: a new tab beside the image, brought forward."""
         self._waiting[panel] = self.views.currentWidget()
         index = self.views.addTab(panel, title)
+        crosshair.attach_all(panel)
         self.views.setTabToolTip(index, title)
         self.views.setCurrentIndex(index)
         panel.setFocus()
@@ -939,12 +976,34 @@ class HarwoodWindow(QtWidgets.QMainWindow):
             return
         self.close_panel(panel)
 
+    def _cursor_boxes_follow(self) -> None:
+        """The boxes as the preferences are; the image's helpers only over the
+        image, the values on the axes only with the cross."""
+        on_image = self.views.currentWidget() is self.graphics
+        for name, box in self.cursor_boxes.items():
+            if box.isChecked() != crosshair.on(name):
+                box.setChecked(crosshair.on(name))
+            if name in crosshair.IMAGE_ONLY:
+                box.setVisible(on_image)
+        self.cursor_boxes["axes"].setEnabled(crosshair.on("cross"))
+
+    def _cursor_image(self):
+        """What the image's cursor helpers need: the pixels shown and imexamine's
+        radius, buffer and width as the panel has them."""
+        frame = self.frames.get(self.current)
+        if frame is None or frame.data is None or np.ndim(frame.data) != 2:
+            return None
+        params = self._read_params()
+        return frame.data, params["radius"], params["buffer"], params["width"]
+
     def _view_changed(self, index: int) -> None:
         """Focus goes with the tab, so its keys work at once. The Keys strip
         speaks of the image, and each panel lists its own: it steps aside."""
         panel = self.views.widget(index)
         if panel is None:
             return
+        if hasattr(self, "cursor_boxes"):
+            self._cursor_boxes_follow()
         panel.setFocus()
         if not hasattr(self, "keys_dock"):
             return
@@ -1432,7 +1491,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
     def _load_another(self) -> None:
         """The d key: IRAF's prompts for an image and a frame, in a dialog."""
         name, chosen = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Load the image display", "", "FITS images (*.fits *.fit *.fts);;All (*)")
+            self, "Load the image display", "", "Images (*.fits *.fit *.fts *.pl);;All (*)")
         if not chosen or not name:
             return
         frame, accepted = QtWidgets.QInputDialog.getInt(

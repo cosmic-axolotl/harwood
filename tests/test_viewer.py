@@ -664,3 +664,139 @@ def test_daofind_in_the_window_circles_what_it_finds_and_writes_on_the_space_bar
     assert circled == [6, 6], "each find replaces the circles of the last"
     assert [path.name for path in result.outputs] == ["out.coo"]
     assert tabs.key_hook is None
+
+
+# ------------------------------------------------------------- the crosshair
+
+def _over(view_widget, box, x, y):
+    """The mouse moved over (x, y) of a ViewBox: what pyqtgraph's scene tells."""
+    from PySide6 import QtCore
+
+    view_widget.scene().sigMouseMoved.emit(box.mapViewToScene(QtCore.QPointF(x, y)))
+
+
+def test_the_crosshair_box_is_under_the_tabs_even_with_only_the_image(tabs, tmp_path,
+                                                                      monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from harwood.viewer import crosshair, theme
+
+    tabs.resize(900, 700)
+    tabs.show()
+    try:
+        assert tabs.views.strip.isVisible() and tabs.cross_box.isVisible()
+        assert not tabs.views.tabBar().isVisible()          # one tab: no bar
+        tabs.cross_box.setChecked(True)
+        assert crosshair.enabled()
+        assert theme.Preferences.load().cursor == "cross"   # kept for next time
+        tabs.cross_box.setChecked(False)
+        assert not crosshair.enabled()
+    finally:
+        theme.update(save=False, cursor="arrow")
+        tabs.close()
+
+
+def test_the_crosshair_follows_the_mouse_on_the_image_and_on_graphs(tabs, tmp_path,
+                                                                    monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from PySide6 import QtWidgets
+
+    from harwood.viewer import crosshair, theme
+
+    tabs.resize(900, 700)
+    tabs.show()
+    tabs.view.setRange(xRange=(0, 100), yRange=(0, 100), padding=0)
+    QtWidgets.QApplication.processEvents()
+    try:
+        theme.update(save=False, cursor="cross")
+        cross = crosshair.attach(tabs.graphics)
+        _over(tabs.graphics, tabs.view, 12.5, 40.0)
+        v, h = cross.lines
+        assert v.isVisible() and h.isVisible()
+        assert (v.value(), h.value()) == pytest.approx((12.5, 40.0), abs=1e-6)
+        assert v.getViewBox() is tabs.view
+        assert v.pen.color().name() == theme.palette().cursor
+        assert theme.palette().cursor not in theme.palette().series
+        # a graph tab has its own, in the graph's units, and a cleared plot
+        # gets the lines back at the next move
+        panel = _panel()
+        tabs.open_panel(panel, "curve")
+        QtWidgets.QApplication.processEvents()
+        (gcross,) = crosshair.attach_all(panel)
+        box = panel.plot.getPlotItem().getViewBox()
+        _over(panel.plot, box, 2.0, 5.0)
+        assert gcross.lines[0].value() == pytest.approx(2.0)
+        # the lines never set the plot's range: the curve's 1..3 does
+        assert box.childrenBounds()[0] == pytest.approx((1.0, 3.0), abs=0.05)
+        panel.plot.getPlotItem().clear()
+        _over(panel.plot, box, 2.5, 6.0)
+        assert gcross.lines[0].getViewBox() is box and gcross.lines[1].isVisible()
+        assert all(bound is None for bound in box.childrenBounds())
+        # off: gone at the next move, and the pointer is the pointer again
+        theme.update(save=False, cursor="arrow")
+        _over(tabs.graphics, tabs.view, 20.0, 20.0)
+        assert not v.isVisible()
+    finally:
+        theme.update(save=False, cursor="arrow")
+        tabs.close()
+
+
+def test_the_cursor_helpers_on_the_image(tabs, tmp_path, monkeypatch):
+    """Values on the axes (the 1-based pixel there), imexamine's circles of radius,
+    radius + buffer and + width around the mouse, the pixel's square, and the
+    centre r would find -- and only the cross and its values over a graph."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from PySide6 import QtWidgets
+
+    from harwood.core import display
+    from harwood.viewer import crosshair, theme
+
+    yy, xx = np.mgrid[0:80, 0:100]
+    image = 1000 + 3000 * np.exp(-((xx - 50.3) ** 2 + (yy - 40.7) ** 2) / 8.0)
+    tabs.resize(1200, 800)
+    tabs.show()
+    try:
+        display.get().show(image, None, frame=1, name="star.fits")
+        tabs.view.setRange(xRange=(25, 75), yRange=(18, 62), padding=0)
+        QtWidgets.QApplication.processEvents()
+        for name in crosshair.OPTIONS:
+            tabs.cursor_boxes[name].setChecked(True)
+        cross = crosshair.attach(tabs.graphics)
+        _over(tabs.graphics, tabs.view, 47.6, 38.2)       # scene: pixel 48.1, 38.7
+        assert [t.toPlainText() for t in cross.tags] == ["x 48.1", "y 38.7"]
+        radii = [c.rect().width() / 2 for c in cross.circles]
+        assert radii == pytest.approx([5.0, 10.0, 15.0])
+        assert cross.circles[0].rect().center().x() == pytest.approx(47.6)
+        square = cross.square.rect()
+        # pixel (48, 39), 1-based: the scene from 47 to 48 and from 38 to 39
+        assert (square.x(), square.y(), square.width()) == pytest.approx((47.0, 38.0, 1.0))
+        assert cross.centre == pytest.approx((51.3, 41.7), abs=0.05)
+        # the radius is the one in Parameters
+        tabs.param_widgets["radius"].setText("3")
+        _over(tabs.graphics, tabs.view, 47.0, 38.0)
+        assert cross.circles[0].rect().width() == pytest.approx(6.0)
+        # values on the axes need the cross; the image's helpers stay on their own
+        tabs.cross_box.setChecked(False)
+        assert not tabs.cursor_boxes["axes"].isEnabled()
+        _over(tabs.graphics, tabs.view, 47.0, 38.0)
+        assert not cross.lines[0].isVisible() and not cross.tags[0].isVisible()
+        assert cross.circles[0].isVisible() and cross.mark.isVisible()
+        # over a graph, the image's boxes step aside
+        tabs.cross_box.setChecked(True)
+        panel = _panel()
+        tabs.open_panel(panel, "curve")
+        QtWidgets.QApplication.processEvents()
+        assert not tabs.cursor_boxes["aperture"].isVisible()
+        assert tabs.cursor_boxes["axes"].isVisible()
+        (gcross,) = crosshair.attach_all(panel)
+        box = panel.plot.getPlotItem().getViewBox()
+        _over(panel.plot, box, 2.25, 5.5)
+        assert [t.toPlainText() for t in gcross.tags] == ["2.25", "5.5"]
+        assert not gcross.circles and gcross.square is None
+        tabs.views.setCurrentWidget(tabs.graphics)
+        assert tabs.cursor_boxes["aperture"].isVisible()
+    finally:
+        for name in crosshair.OPTIONS:
+            crosshair.set_option(name, False, save=False)
+        theme.update(save=False, cursor="arrow")
+        display.reset()
+        tabs.close()
