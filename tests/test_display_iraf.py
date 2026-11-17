@@ -246,3 +246,48 @@ def test_user_lut_as_iraf_builds_it(tmp_path):
     # times 4095 -- the 250 IRAF wrote for every pixel above 200.
     assert table.table[-1] == 250
     assert table.table[0] == 0
+
+
+def test_display_shows_an_iraf_pixel_list(tmp_path, monkeypatch):
+    """display mask.pl, as exercise 7.1 asks after ccdmask: IRAF's .pl is not FITS,
+    and display reads it as every other task does -- the mask's pixels, nothing
+    else, on screen."""
+    import shutil
+
+    import harwood
+    from harwood.core import display, mef
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HARWOOD_DISPLAY", "headless")
+    shutil.copy(HERE / "mk1.pl", "mask.pl")
+    mask, _ = plio.read("mask.pl")
+    data, _, var, quality = mef.load("mask.pl")
+    assert np.array_equal(data, mask) and var is None and not quality.any()
+    display.reset()
+    harwood.run("display", image="mask.pl", frame=2, wait=False)
+    from PIL import Image
+
+    # z1 = z2 = 0 (the mask is mostly 0): IRAF's 0 black, the rest white
+    grey = np.asarray(Image.open("display.png").convert("L"))[::-1]
+    assert grey.shape == mask.shape
+    assert np.array_equal(grey > 127, mask != 0)
+    display.reset()
+
+
+def test_tasks_that_open_the_hdu_read_a_pixel_list(tmp_path, monkeypatch):
+    """imheader and the other readers through images.open_hdu: a .pl opens as its
+    integers and header; changing it in place is refused, with what to do."""
+    import shutil
+
+    import harwood
+    from harwood.core import images
+
+    monkeypatch.chdir(tmp_path)
+    shutil.copy(HERE / "mk1.pl", "mask.pl")
+    mask, _ = plio.read("mask.pl")
+    hdul, hdu = images.open_hdu("mask.pl")
+    assert hdu.data.dtype.kind == "i" and np.array_equal(hdu.data, mask)
+    result = harwood.run("imheader", input=["mask.pl"])
+    assert result.data["rows"][0]["shape"] == "x".join(map(str, mask.shape[::-1]))
+    with pytest.raises(ValueError, match="pixel list"):
+        images.open_hdu("mask.pl", mode="update")

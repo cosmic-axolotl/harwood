@@ -257,6 +257,8 @@ def open_hdu(spec: ImageSpec | str, mode: str = "readonly"):
     from astropy.io import fits
 
     spec = parse(spec) if not isinstance(spec, ImageSpec) else spec
+    if spec.path.suffix == ".pl":
+        return _pixel_list_hdu(spec, mode)
     hdul = fits.open(str(spec.path), mode=mode, memmap=False)
     try:
         index = _resolve_extension(hdul, spec.extension)
@@ -264,6 +266,25 @@ def open_hdu(spec: ImageSpec | str, mode: str = "readonly"):
         hdul.close()
         raise
     return hdul, hdul[index]
+
+
+def _pixel_list_hdu(spec: ImageSpec, mode: str):
+    """An IRAF pixel list (.pl, a mask) as a FITS file in memory, for the tasks that
+    read an image through its HDU: the mask's integers and the header it carried."""
+    import numpy as np
+    from astropy.io import fits
+
+    from . import plio
+
+    if mode != "readonly":
+        advice.fail(f"'{spec.path}' is an IRAF pixel list, which harwood reads but "
+                    "does not change in place",
+                    f"write a copy first (imcopy {spec.path} {spec.path.stem}.fits) "
+                    "and work on that")
+    mask, text = plio.read(spec.path)
+    header = plio.fits_header(mask, text)
+    hdu = fits.PrimaryHDU(np.asarray(mask, np.int32), header)
+    return fits.HDUList([hdu]), hdu
 
 
 def _resolve_extension(hdul, extension):

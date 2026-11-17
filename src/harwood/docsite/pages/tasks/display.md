@@ -51,6 +51,10 @@ the stretch box changes the transfer, without touching the pixels.
 
 ## Masks
 
+A mask is an image too: `display mask_1800_cr.pl 2` shows the `.pl` that
+`ccdmask` wrote, as IRAF's display does -- the good pixels (0) black, the
+others white, since z1 and z2 both come out 0.
+
 `--bpmask` and `--zmask` take the names every harwood task takes, as IRAF's
 do: a FITS image or an IRAF `.pl` mask (read without IRAF), `BPM` or
 `!KEYWORD` for a file a keyword names, a section, a text file of

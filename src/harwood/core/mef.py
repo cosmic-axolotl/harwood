@@ -136,6 +136,13 @@ def read(path: Path | str, workdir: Path | str = ".") -> Image:
     from . import images
 
     spec = images.parse(path)
+    if spec.path.suffix == ".pl":
+        # IRAF's pixel list (a mask, as ccdmask writes it): not FITS; read as
+        # images.read reads it, one plane, every pixel good
+        data, header = images.read(images.parse(str(spec.path)))
+        primary, plane_header = split(header)
+        return Image(primary, [Plane(data, None, dq.empty(data.shape), plane_header)],
+                     layout="single")
     with fits.open(spec.path, memmap=False) as hdul:
         names = [str(h.header.get("EXTNAME", "")).upper() for h in hdul]
         if "SCI" in names[1:]:
