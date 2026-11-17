@@ -172,8 +172,8 @@ msgid "[green]ok[/green] launcher file: {0}"
 msgstr "[green]ok[/green] archivo del acceso directo: {0}"
 
 #: harwood/cli/main.py:159
-msgid "harwood is in the applications menu; pin it to the dock from there. Its icon follows the theme from the next time it opens."
-msgstr "harwood está en el menú de aplicaciones; fíjelo en el dock desde allí. Su ícono sigue el tema desde la próxima vez que se abra."
+msgid "harwood is in the applications menu; pin it to the dock from there. Its icon follows the theme you choose in the window."
+msgstr "harwood está en el menú de aplicaciones; fíjalo en el dock desde allí. Su icono sigue el tema que elijas en la ventana."
 
 #: harwood/cli/main.py:979
 msgid "harwood ends with the command, so a directory changed here would be forgotten at once"
@@ -7768,23 +7768,23 @@ msgid "contour: {0}"
 msgstr "contour: {0}"
 
 #: harwood/tasks/plot.py:254
-#: harwood/tasks/plot.py:347
+#: harwood/tasks/plot.py:346
 msgid "give a floor and a ceiling the data cross"
 msgstr "dé un piso y un techo que los datos crucen"
 
-#: harwood/tasks/plot.py:283
+#: harwood/tasks/plot.py:282
 msgid "The image reduced to about xres by yres points (block averaged or subsampled), clipped to the floor and the ceiling."
 msgstr "La imagen reducida a unos xres por yres puntos (promedio de bloques o submuestreo), recortada al piso y al techo."
 
-#: harwood/tasks/plot.py:283
+#: harwood/tasks/plot.py:282
 msgid "EZSRFC's: the grid twice as wide as the data's range is high, the eye ten ranges away at angh (horizontal) and angv (vertical), TRN32S's perspective."
 msgstr "El de EZSRFC: la grilla el doble de ancha que la altura del rango de los datos, el ojo a diez rangos de distancia en angh (horizontal) y angv (vertical), la perspectiva de TRN32S."
 
-#: harwood/tasks/plot.py:283
-msgid "The cells painted from the farthest to the nearest, each over what is behind it, so that what a ridge hides is not drawn."
-msgstr "Las celdas pintadas desde la más lejana hasta la más cercana, cada una sobre lo que está detrás, para que lo que oculta una cresta no se dibuje."
+#: harwood/tasks/plot.py:282
+msgid "SRFACE's floating horizon: the lines drawn from the side nearest the eye, each only where it rises above, or falls below, all drawn before it -- what a ridge hides is not drawn."
+msgstr "El horizonte flotante de SRFACE: las líneas dibujadas desde el lado más cercano al ojo, cada una solo donde queda por encima, o por debajo, de todo lo dibujado antes -- lo que una cresta oculta no se dibuja."
 
-#: harwood/tasks/plot.py:322
+#: harwood/tasks/plot.py:321
 msgid "Perspective view of an image as a surface."
 msgstr "Vista en perspectiva de una imagen como superficie."
 

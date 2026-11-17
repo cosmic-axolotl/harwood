@@ -21,10 +21,9 @@ the first and last column and line, as srf_perimeter does -- the labels written
 as NCAR's PWRZS writes them: in its own stroked letters, in the plane of the base,
 along each axis and in the same perspective as the surface.
 
-What is IRAF's: on 18 cases the messages and the title are IRAF 2.18's, and nearly
-every vertex IRAF draws is within one unit of NCAR's 1024-wide frame of a point
-harwood projects. The hidden lines are taken out by painting the grid's cells from
-the farthest to the nearest, where NCAR keeps a floating horizon, so where a line
-disappears behind a ridge is not IRAF's to the point; the faithful port of NCAR is
-in harwood's queue. Not yet: `--append`. IRAF's `surface ... >G meta` saves the
-metacode; here `--device name.svg` saves the picture.
+What is IRAF's: on 18 cases the messages and the title are IRAF 2.18's, and so is
+the drawing -- every line NCAR puts into IRAF's metacode, to the unit: the mesh
+with what a ridge hides taken out by SRFACE's floating horizon, and with
+`--label` the axes, ticks and stroked labels. Not yet: `--append`. IRAF's
+`surface ... >G meta` saves the metacode; here `--device name.svg` saves the
+picture.

@@ -8,15 +8,15 @@ major (labelled) levels, the labels as ENCD writes them, scaled when the values
 are very large or small, the high and low marks of MINMAX (nhi 0) or each point's
 value (nhi 1), and the texts of the perimeter.
 
-The curves themselves are traced by marching squares on the same grid, linear
-along each cell's edges, where IRAF's NCAR library (CONREC, with DASHSMTH's
-splines) smooths them; they pass through the same points of the grid's edges but
-are not IRAF's to the point. The faithful port of NCAR is a later step (harwood's
-porting queue).
+The curves are NCAR's, drawn by core.ncar: CONREC's tracing, DASHSMTH's splines
+under tension, the dash pattern with the label in its gap, down to gio's clipping
+-- the same polylines and texts, to the unit, as IRAF writes into its metacode,
+on the viewport pl_map_viewport chooses (pkg/plot/vport.x).
 
-Translated from IRAF (pkg/plot/t_contour.x, getdata.x, perim.x) and its NCAR
-utilities (sys/gio/ncarutil/conrec.f, support.f), Copyright (c) 1986 Association of
-Universities for Research in Astronomy Inc.; see LICENSES/IRAF-COPYRIGHT.
+Translated from IRAF (pkg/plot/t_contour.x, getdata.x, perim.x, vport.x) and its
+NCAR utilities (sys/gio/ncarutil/conrec.f, support.f), Copyright (c) 1986
+Association of Universities for Research in Astronomy Inc.; see
+LICENSES/IRAF-COPYRIGHT.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import iraffmt
+from . import iraffmt, ncar
 
 f32 = np.float32
 NLA, NLM = 16, 40           # conbd: about 16 levels, at most 40
@@ -373,75 +373,6 @@ def point_values(z: np.ndarray, ash: float, ioffdt: int):
 # ------------------------------------------------------------- the curves
 
 
-def isolines(z: np.ndarray, level: float) -> list[np.ndarray]:
-    """Marching squares: the curves where z crosses level, as (x, y) polylines in
-    grid coordinates (1-based), linear along the cells' edges, closed curves closed."""
-    ny, nx = z.shape
-    above = z >= level
-    segs: list[tuple[tuple, tuple]] = []
-
-    def edge_point(i0, j0, i1, j1):
-        a, b = float(z[j0, i0]), float(z[j1, i1])
-        t = (a - level) / (a - b) if a != b else 0.5
-        return (i0 + 1 + t * (i1 - i0), j0 + 1 + t * (j1 - j0))
-
-    for j in range(ny - 1):
-        for i in range(nx - 1):
-            c = (int(above[j, i]) | int(above[j, i + 1]) << 1
-                 | int(above[j + 1, i + 1]) << 2 | int(above[j + 1, i]) << 3)
-            if c in (0, 15):
-                continue
-            e = {"b": lambda: edge_point(i, j, i + 1, j),         # noqa: B023
-                 "r": lambda: edge_point(i + 1, j, i + 1, j + 1),  # noqa: B023
-                 "t": lambda: edge_point(i, j + 1, i + 1, j + 1),  # noqa: B023
-                 "l": lambda: edge_point(i, j, i, j + 1)}          # noqa: B023
-            pairs = {1: ["lb"], 2: ["br"], 3: ["lr"], 4: ["rt"], 6: ["bt"], 7: ["lt"],
-                     8: ["tl"], 9: ["tb"], 11: ["tr"], 12: ["rl"], 13: ["rb"], 14: ["bl"]}
-            if c in (5, 10):
-                centre = (float(z[j, i]) + float(z[j, i + 1]) + float(z[j + 1, i + 1])
-                          + float(z[j + 1, i])) / 4
-                if (c == 5) == (centre >= level):
-                    pairs_c = ["lt", "br"] if c == 5 else ["lb", "rt"]
-                else:
-                    pairs_c = ["lb", "rt"] if c == 5 else ["lt", "br"]
-            else:
-                pairs_c = pairs[c]
-            for p in pairs_c:
-                segs.append((e[p[0]](), e[p[1]]()))
-    return _join(segs)
-
-
-def _join(segs) -> list[np.ndarray]:
-    def key(p):
-        return (round(p[0], 9), round(p[1], 9))
-    ends: dict = {}
-    for k, (a, b) in enumerate(segs):
-        ends.setdefault(key(a), []).append(k)
-        ends.setdefault(key(b), []).append(k)
-    used = [False] * len(segs)
-    out = []
-    for k in range(len(segs)):
-        if used[k]:
-            continue
-        used[k] = True
-        line = [segs[k][0], segs[k][1]]
-        for forward in (True, False):
-            while True:
-                tail = line[-1] if forward else line[0]
-                nxt = next((s for s in ends.get(key(tail), []) if not used[s]), None)
-                if nxt is None:
-                    break
-                used[nxt] = True
-                a, b = segs[nxt]
-                p = b if key(a) == key(tail) else a
-                if forward:
-                    line.append(p)
-                else:
-                    line.insert(0, p)
-        out.append(np.asarray(line, float))
-    return out
-
-
 # ------------------------------------------------------------- the map
 
 
@@ -451,13 +382,17 @@ class Level:
     major: bool
     label: str
     dashed: bool
+    #: the polylines NCAR draws for the level, in the image's pixels: broken where a
+    #: dash pattern has a gap and where the label is written
     curves: list[np.ndarray] = field(default_factory=list)
 
 
 @dataclass
 class ContourMap:
     """What contour draws: the levels and their curves (in the image's pixels), the
-    marks, the texts and the message IRAF prints."""
+    marks, the texts and the message IRAF prints. `drawing` is NCAR's, in GKI units,
+    as the metacode has it; `texts`, its texts in the image's pixels: (x, y, text,
+    angle in degrees, height in the image's lines)."""
     title: str
     ncols: int
     nlines: int
@@ -471,6 +406,8 @@ class ContourMap:
     marks: list[tuple] = field(default_factory=list)
     message: str = ""
     perimeter: bool = True
+    drawing: ncar.Drawing | None = None
+    texts: list[tuple] = field(default_factory=list)
 
     @property
     def caption(self) -> str:
@@ -489,14 +426,27 @@ class ContourMap:
         sy = (self.nlines - 1) / (self.ny - 1) if self.ny > 1 else 1.0
         return 1 + (np.asarray(gx) - 1) * sx, 1 + (np.asarray(gy) - 1) * sy
 
+    def from_gki(self, mx, my):
+        """GKI units on the viewport to the image's pixels."""
+        x1, x2, y1, y2 = self.drawing.viewport
+        gx = 1 + (np.asarray(mx, float) / ncar.GKI_MAXNDC - x1) / (x2 - x1) * (self.nx - 1)
+        gy = 1 + (np.asarray(my, float) / ncar.GKI_MAXNDC - y1) / (y2 - y1) * (self.ny - 1)
+        return self.to_pixels(gx, gy)
+
+
+def _text_height(size: int, viewport, nlines: int) -> float:
+    """WTSTR's character height for NCAR's sizes 0..3 (NDC), in the image's lines."""
+    cs = (8 + 4 * size + 4 * (size // 3)) / 2.0 ** ncar.YF * 25.5 / 27 * 2
+    return cs / (viewport[3] - viewport[2]) * max(nlines - 1, 1)
+
 
 def contour(data: np.ndarray, image: str, title_param: str = "imtitle",
             imtitle: str = "", floor=None, ceiling=None, zero: float = 0.0,
             ncontours: int = 0, interval: float = 0.0, nhi: int = -1,
             dashpat: int = 528, label: bool = True, xres: int = 64, yres: int = 64,
             subsample: bool = False, preserve: bool = True,
-            perimeter: bool = True) -> ContourMap:
-    """t_contour up to conrec: the grid, the levels, the labels and the marks."""
+            perimeter: bool = True, fill: bool = False) -> ContourMap:
+    """t_contour: the grid, the levels, their labels, and NCAR's drawing of them."""
     finc = f32(-abs(ncontours)) if ncontours > 0 else f32(interval if interval > 0 else 0)
     data = np.asarray(data, f32)
     if data.ndim == 1:
@@ -522,46 +472,34 @@ def contour(data: np.ndarray, image: str, title_param: str = "imtitle",
     ny, nx = z.shape
     out = ContourMap(title, ncols, nlines, nx, ny, [], gl, ha, gp, ash,
                      message=message, perimeter=perimeter)
-    for k, value in enumerate(levels):
-        major = k < nml
-        lev = Level(value, major, encd(value, ash, ioffdt) if major else "",
-                    dashed=value < 0 and dashpat not in (0, 1, 1023))
-        for curve in isolines(z, value):
-            px, py = out.to_pixels(curve[:, 0], curve[:, 1])
+    if nhi == 0:
+        grid_marks = minmax(z, ash, ioffdt)
+    elif nhi > 0:
+        grid_marks = point_values(z, ash, ioffdt)
+    else:
+        grid_marks = []
+    drawn = [(value, encd(value, ash, ioffdt) if k < nml else "", k < nml)
+             for k, value in enumerate(levels)]
+    viewport = ncar.map_viewport(nx, ny, fill, perimeter)
+    out.drawing = d = ncar.conrec(z, drawn, viewport, dashpat, nhi, grid_marks)
+    bounds = [*d.starts, len(d.lines)]
+    for k, (value, text, major) in enumerate(drawn):
+        lev = Level(value, major, text, dashed=value < 0 and dashpat not in (0, 1, 1023))
+        for line in d.lines[bounds[k]:bounds[k + 1]]:
+            pts = np.asarray(line, float)
+            px, py = out.from_gki(pts[:, 0], pts[:, 1])
             lev.curves.append(np.column_stack([px, py]))
         out.levels.append(lev)
+    for mx, my, text, angle, size in d.texts:
+        px, py = out.from_gki(mx, my)
+        out.texts.append((float(px), float(py), text, float(angle),
+                          _text_height(size, d.viewport, nlines)))
     if nhi == 0:
-        for gx, gy, kind, text in minmax(z, ash, ioffdt):
+        for gx, gy, kind, text in grid_marks:
             px, py = out.to_pixels(gx, gy)
             out.marks.append((float(px), float(py), kind, text))
     elif nhi > 0:
-        for gx, gy, text in point_values(z, ash, ioffdt):
+        for gx, gy, text in grid_marks:
             px, py = out.to_pixels(gx, gy)
             out.marks.append((float(px), float(py), "", text))
-    return out
-
-
-def label_points(m: ContourMap, every: float = 0.3, shortest: float = 0.06):
-    """Where the major contours carry their labels: along each curve, every `every`
-    of the frame's size (from half that in), none on a curve shorter than
-    `shortest` of it. NCAR's DASHSMTH writes the label into the line's dash
-    pattern instead; this keeps about as many, in about such places."""
-    size = max(m.ncols, m.nlines)
-    out = []
-    for lev in m.levels:
-        if not lev.major or not lev.label.strip():
-            continue
-        for curve in lev.curves:
-            steps = np.hypot(*np.diff(curve, axis=0).T)
-            length = float(steps.sum())
-            if length < shortest * size:
-                continue
-            arc = np.concatenate([[0.0], np.cumsum(steps)])
-            spacing = every * size
-            at = spacing / 2 if length > spacing else length / 2
-            while at < length:
-                x = float(np.interp(at, arc, curve[:, 0]))
-                y = float(np.interp(at, arc, curve[:, 1]))
-                out.append((x, y, lev.label.strip()))
-                at += spacing
     return out

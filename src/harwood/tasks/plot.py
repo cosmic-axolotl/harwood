@@ -219,9 +219,9 @@ class ContourParams(TaskParams):
 @register
 class Contour(Task[ContourParams]):
     """IRAF's contour (pkg/plot/t_contour.x): the grid, the levels, their labels, the
-    high and low marks and the texts IRAF's (NCAR's CLGEN, REORD, ENCD, MINMAX); the
-    curves traced by marching squares on that grid, where IRAF's NCAR smooths them
-    with splines."""
+    high and low marks and the texts IRAF's (NCAR's CLGEN, REORD, ENCD, MINMAX), and
+    the curves NCAR's (CONREC and DASHSMTH: traced, smoothed, dashed and labelled as
+    IRAF draws them, every point of its metacode)."""
 
     name = "contour"
     package = "plot"
@@ -249,7 +249,7 @@ class Contour(Task[ContourParams]):
                              params.ceiling, params.zero, params.ncontours,
                              params.interval, params.nhi, params.dashpat, params.label,
                              params.xres, params.yres, params.subsample, params.preserve,
-                             params.perimeter)
+                             params.perimeter, params.fill)
         except cmod.ContourError as error:
             advice.fail(f"contour: {error}", "give a floor and a ceiling the data cross")
         g = graphmod.Graph([m.title, m.caption] if params.perimeter else [],
@@ -258,13 +258,12 @@ class Contour(Task[ContourParams]):
         g.window = (1.0, float(m.ncols), 1.0, float(m.nlines))
         g.lock_aspect = not params.fill
         g.frame = params.perimeter
+        # NCAR's dashes are breaks in its polylines: each piece is drawn solid
         for lev in m.levels:
             for curve in lev.curves:
-                g.line(curve[:, 0], curve[:, 1], 2 if lev.dashed else 1, 1)
-        for x, y, text in cmod.label_points(m):
-            g.text(x, y, text)
-        for x, y, kind, text in m.marks:
-            g.text(x, y, f"{kind}\n{text.strip()}" if kind else text.strip())
+                g.line(curve[:, 0], curve[:, 1], 1, 1)
+        for x, y, text, angle, height in m.texts:
+            g.label(x, y, text.strip(), angle=angle, size=height)
         where = _plot(g, params.device, f"contour · {params.image}",
                       images.parse(params.image).path.stem + ".contour.svg",
                       task="contour")
@@ -285,8 +284,9 @@ SWHY = {
             "subsampled), clipped to the floor and the ceiling.",
     "view": "EZSRFC's: the grid twice as wide as the data's range is high, the eye ten "
             "ranges away at angh (horizontal) and angv (vertical), TRN32S's perspective.",
-    "hidden": "The cells painted from the farthest to the nearest, each over what is "
-              "behind it, so that what a ridge hides is not drawn.",
+    "hidden": "SRFACE's floating horizon: the lines drawn from the side nearest the eye, "
+              "each only where it rises above, or falls below, all drawn before it -- "
+              "what a ridge hides is not drawn.",
 }
 
 
@@ -313,9 +313,8 @@ class SurfaceParams(TaskParams):
 @register
 class Surface(Task[SurfaceParams]):
     """IRAF's surface (pkg/plot/t_surface.x): the grid, the limits and their messages,
-    and NCAR's geometry -- every point of the grid where IRAF puts it, 99% of IRAF's
-    vertices within one unit of NCAR's frame. The hidden lines go by painting the
-    cells back to front, where NCAR keeps a floating horizon."""
+    and NCAR's drawing (EZSRFC, SRFACE's floating horizon, srf_perimeter and PWRZS's
+    labels): every line IRAF puts into its metacode."""
 
     name = "surface"
     package = "plot"
@@ -352,13 +351,23 @@ class Surface(Task[SurfaceParams]):
         # NCAR's frame over the whole viewport, or (label) over 0.1..0.9 of it
         pad = 1023.0 / 8 if params.label else 0.0
         g.window = (1.0 - pad, 1024.0 + pad, 1.0 - pad, 1024.0 + pad)
-        g.polygons = list(smod.polygons(s))
-        if params.label:
-            lines, texts = smod.perimeter(s)
-            for line in lines:
-                g.line(line[:, 0], line[:, 1])
-            for x, y, text in texts:
-                g.text(x, y, text)
+        import numpy as np
+
+        drawing = smod.draw(s, params.label)
+        lo, hi = smod.viewport(params.label)[:2]
+        # what IRAF draws, from GKI back to NCAR's frame; SRFACE draws a line it sees
+        # from both its horizons twice, the picture once
+        xs, ys, seen = [], [], set()
+        for line in drawing.lines:
+            key = tuple(map(tuple, line))
+            if key in seen:
+                continue
+            seen.add(key)
+            pts = np.asarray(line, float) / 32767
+            xs += [*(1 + (pts[:, 0] - lo) / (hi - lo) * 1023), np.nan]
+            ys += [*(1 + (pts[:, 1] - lo) / (hi - lo) * 1023), np.nan]
+        if xs:
+            g.line(np.asarray(xs), np.asarray(ys))
         where = _plot(g, params.device, f"surface · {params.image}",
                       images.parse(params.image).path.stem + ".surface.svg",
                       task="surface")

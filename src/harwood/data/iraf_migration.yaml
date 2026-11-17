@@ -22,7 +22,7 @@
 #
 # Counts: 614 distinct task names across 53 packages. These are
 # recomputed by tests/test_core.py, so a stale comment fails the suite.
-#   available: 133, partial: 2, planned: 223, replaced: 94, wontport: 162
+#   available: 135, partial: 0, planned: 223, replaced: 94, wontport: 162
 #   milestone mvp: 57 (57 of them running), later: 298
 #
 # `milestone` stays on a task after it is built, so that progress
@@ -605,8 +605,8 @@ tasks:
   bplot: {pkg: onedspec, domain: display, status: planned, milestone: later}
   calcomp: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
-  contour: {pkg: plot, domain: display, status: partial, milestone: later, harwood: contour,
-    note: "t_contour.x, plt_getdata and NCAR's CLGEN, REORD, ENCD and MINMAX ported: the grid (block average or subsample, its message), the levels, the labelled majors, the scaled labels, the highs and lows (nhi 0) and values (nhi 1), the title and the levels' line identical to IRAF 2.18's on 19 cases, and every point IRAF draws lies on harwood's levels. The curves are traced by marching squares, not by NCAR's CONREC and DASHSMTH splines (the faithful port of NCAR is queued); append is wcslab's: contour --no-perimeter, then wcslab --append"}
+  contour: {pkg: plot, domain: display, status: available, milestone: later, harwood: contour,
+    note: "t_contour.x, plt_getdata, pl_map_viewport and NCAR ported -- CLGEN, REORD, ENCD, MINMAX, CONREC's STLINE and DRLINE, DASHSMTH's tension splines, dash patterns and labels in their gaps, SPPS and IRAF's GKS down to gio's clipping: every polyline and every text CONREC puts into the metacode identical to IRAF 2.18's, point for point, on 19 cases, with the grid's message, the title and the levels' line. wcslab --append draws RA and Dec over the map (contour --no-perimeter first); contour's own append, a map over another graph, is not here"}
   crtpict: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   cv: {pkg: images.tv.iis, domain: display, status: wontport,
@@ -677,8 +677,8 @@ tasks:
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
   stdplot: {pkg: plot, domain: display, status: wontport,
     note: "GKI metacode and plotter devices: legacy graphics (S2)"}
-  surface: {pkg: plot, domain: display, status: partial, milestone: later, harwood: surface,
-    note: "t_surface.x, surf_limits and NCAR's EZSRFC, SRFGK framing and TRN32S perspective ported, with srf_perimeter's labelled axes and PWRZS's stroked labels in the plane of the base: the messages and the title IRAF 2.18's on 18 cases, and over 97% of the vertices IRAF draws within one unit of NCAR's frame of harwood's projected points. The hidden lines go by painting the cells back to front, where NCAR's SRFACE keeps a floating horizon (queued with the rest of NCAR); append is not yet"}
+  surface: {pkg: plot, domain: display, status: available, milestone: later, harwood: surface,
+    note: "t_surface.x, surf_limits and NCAR ported -- EZSRFC, SRFGK, TRN32S, SRFACE's floating horizon (DRAWS), srf_perimeter and PWRZS's stroked labels, through SPPS and IRAF's GKS to gio: every polyline IRAF 2.18 puts into its metacode identical, to the GKI unit, on 18 cases, with the messages and the title; append is not here"}
   tvmark: {pkg: images.tv, domain: display, status: available, milestone: mvp, harwood: tvmark,
     note: "IRAF's parameters, marks (point, circle, rectangle, plus, cross, none), numbers and labels; the cursor keys and colon commands, logfile/autolog, command files, a and d updating the list, deletions, and the snapshot as the frame's grey levels with the marks at their colour (or a PNG). Marks are harwood's own raster, IRAF's sizes"}
   velvect: {pkg: plot, domain: display, status: planned, milestone: later}

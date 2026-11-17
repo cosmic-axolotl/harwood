@@ -1,10 +1,8 @@
 """surface against IRAF 2.18's: what it says (surf_limits' four messages and the
-block average's), its title, and where every point of the grid lands -- NCAR's
-EZSRFC and TRN32S ported, nearly every vertex IRAF draws (the mesh's and, with
-label yes, the axes' and their labels', which PWRZS strokes in the plane of the
-base) is within one unit of NCAR's 1..1024 frame of one of harwood's projected
-points. The few others are where a line disappears behind a ridge: NCAR's
-floating horizon, which harwood replaces by painting the cells back to front.
+block average's), its title, and what it draws -- NCAR's EZSRFC, TRN32S and
+SRFACE's floating horizon, and with label yes srf_perimeter's axes and ticks and
+the labels PWRZS strokes in the plane of the base: every polyline of IRAF's
+metacode, in order, to the GKI unit.
 
 tests/data/iraf_surface holds the cases (srf_cases.py, on iraf_contour's images)
 and what IRAF did (run.py, srf_collect.py -> surface.json).
@@ -18,7 +16,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from scipy.spatial import cKDTree
 
 from harwood.core import images, surface
 
@@ -64,18 +61,7 @@ def test_surface_says_what_iraf_says(tmp_path, monkeypatch, case):
 
 
 @pytest.mark.parametrize("case", [c for c in CASES if GOLD[c]["lines"]])
-def test_every_point_lands_where_iraf_puts_it(tmp_path, monkeypatch, case):
+def test_surface_draws_iraf_s_metacode(tmp_path, monkeypatch, case):
     s, _, p = _run(tmp_path, monkeypatch, case)
-    pts = np.array([q for line in GOLD[case]["lines"] for q in line], float)
-    lo, hi = (0.1, 0.9) if p.get("label") else (0.0, 1.0)
-    ours = np.column_stack([s.u.ravel(), s.v.ravel()])
-    gki = (lo + (hi - lo) * (ours - 1) / 1023) * 32767
-    dist, _ = cKDTree(gki).query(pts)
-    near = 33 * (hi - lo)
-    if p.get("label"):
-        lines, _ = surface.perimeter(s)
-        axes = np.vstack(lines)
-        axes_gki = (lo + (hi - lo) * (axes - 1) / 1023) * 32767
-        dist = np.minimum(dist, cKDTree(axes_gki).query(pts)[0])
-    assert (dist < near).mean() > 0.97
-    assert np.median(dist) < 2.0
+    drawing = surface.draw(s, p.get("label", False))
+    assert [[list(q) for q in line] for line in drawing.lines] == GOLD[case]["lines"]
