@@ -129,12 +129,6 @@ def copy_into(source: str, target: str) -> None:
         from ..core.runner import run as run_task
 
         run_task("imcopy", input=[_iraf_name(source)], output=str(path))
-        # ... and the source's pixel type, which IRAF's imcopy keeps
-        src, _ = _split(_iraf_name(source))
-        with fits.open(src, memmap=False) as hdul:
-            dtype = hdul[0].data.dtype
-        with fits.open(path, mode="update") as hdul:
-            hdul[0].data = ccdtest.stored(np.asarray(hdul[0].data, np.float32), dtype)
         return
     pixels, header = images.read(_iraf_name(source))
     with fits.open(path, mode="update") as hdul:

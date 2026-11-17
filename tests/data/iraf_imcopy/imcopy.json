@@ -1,0 +1,74 @@
+{
+ "b8": {
+  "bitpix": 16,
+  "bzero": null,
+  "shape": [
+   3,
+   4
+  ],
+  "sha": "ac35efcb02b5541daf0e2533421c65167ede2e2c1442e7c6efd11adf5899cb83"
+ },
+ "i16": {
+  "bitpix": 16,
+  "bzero": null,
+  "shape": [
+   3,
+   4
+  ],
+  "sha": "4d0033aef9b60b31414c25afde5b87a0119fc2d4b7a9da6db3a874ef8a11a69a"
+ },
+ "u16": {
+  "bitpix": 16,
+  "bzero": 32768.0,
+  "shape": [
+   3,
+   4
+  ],
+  "sha": "2a5884e5ddbd9f51267ae532a01b81bba47998897c6d65a0d0ec394aa802f799"
+ },
+ "i32": {
+  "bitpix": 32,
+  "bzero": null,
+  "shape": [
+   3,
+   4
+  ],
+  "sha": "106fe0d774c2c7a001c38b1bcc48e97dfd7e5c82c037f81caad49f6fb23e83fd"
+ },
+ "f32": {
+  "bitpix": -32,
+  "bzero": null,
+  "shape": [
+   3,
+   4
+  ],
+  "sha": "7e6ea1681e62a36983fbceb89d7a845f4b0b62a463bafa082b04bf09a3a65511"
+ },
+ "f64": {
+  "bitpix": -64,
+  "bzero": null,
+  "shape": [
+   3,
+   4
+  ],
+  "sha": "d87e8c2af5adfea94665063e1a8ac1474ad102fbea133d28fcbaf6aebc1c40ad"
+ },
+ "scaled": {
+  "bitpix": -32,
+  "bzero": null,
+  "shape": [
+   3,
+   4
+  ],
+  "sha": "33c3946fae57eedf24884fa911ea2bf989ed62fda8d6758cfa77d2b539fe2f99"
+ },
+ "section": {
+  "bitpix": 16,
+  "bzero": 32768.0,
+  "shape": [
+   3,
+   2
+  ],
+  "sha": "d2a4f0055ee81cac74bb63635268b95b55f5ad778ea19f899f3bc9baee92eab4"
+ }
+}

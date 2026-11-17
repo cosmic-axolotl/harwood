@@ -694,6 +694,11 @@ class ImCopyParams(TaskParams):
                          "template like '%m%tr%'."
     )
     verbose: bool = Field(True, description="Say what was copied.")
+    pixtype: Literal["", "short", "ushort", "int", "long", "real", "double"] = Field(
+        "", description="The copy's pixel type. Left out, the input's own, as IRAF's "
+                        "imcopy keeps it (bytes become short, scaled integers real); "
+                        "given, the pixels are written in it, integers truncated toward "
+                        "zero.")
 
 
 @register
@@ -722,6 +727,10 @@ class ImCopy(Task[ImCopyParams]):
         rows, outputs = [], []
         for spec, destination in zip(specs, destinations, strict=True):
             data, header = images.read(spec)
+            pixtype = params.pixtype or (
+                "real" if spec.path.suffix == ".pl" else
+                images.iraf_type(images.read_header(images.ImageSpec(spec.path,
+                                                                     spec.extension))))
             provenance.stamp_header(header, [f"imcopy: from {spec}"])
             destination.parent.mkdir(parents=True, exist_ok=True)
             if destination.suffix == ".pl":
@@ -729,7 +738,9 @@ class ImCopy(Task[ImCopyParams]):
 
                 plio.write(destination, data.astype(np.int64), header=header)
             else:
-                fits.PrimaryHDU(np.asarray(data, dtype=np.float32),
+                for key in ("BSCALE", "BZERO"):
+                    header.remove(key, ignore_missing=True)
+                fits.PrimaryHDU(images.as_type(data, pixtype),
                                 header).writeto(destination, overwrite=True)
             outputs.append(destination)
             rows.append({"from": str(spec), "to": str(destination),

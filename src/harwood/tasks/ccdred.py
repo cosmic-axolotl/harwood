@@ -605,12 +605,7 @@ def _input_type(spec) -> str:
     """The input's IRAF pixel type, from its BITPIX (and BZERO, for ushort)."""
     from ..core import images
 
-    header = images.read_header(spec)
-    bitpix = int(header.get("BITPIX", -32))
-    if bitpix == 16 and header.get("BZERO") == 32768 and header.get("BSCALE", 1) == 1:
-        return "ushort"
-    return {8: "short", 16: "short", 32: "int", -32: "real", -64: "double"}.get(bitpix,
-                                                                             "real")
+    return images.iraf_type(images.read_header(spec))
 
 
 def _output_type(data, spec, pixeltype: str):

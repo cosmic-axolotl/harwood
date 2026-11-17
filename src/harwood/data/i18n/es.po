@@ -3821,161 +3821,161 @@ msgstr "no se entiende la época '{0}'"
 msgid "a year such as 2000, J2000 or B1950"
 msgstr "un año como 2000, J2000 o B1950"
 
-#: harwood/tasks/ccdred.py:1150
+#: harwood/tasks/ccdred.py:1145
 #, python-brace-format
 msgid "{0} flag missing from the {1} image {2}, so it was not used."
 msgstr "falta la marca {0} en la imagen de {1} {2}, así que no se usó."
 
-#: harwood/tasks/ccdred.py:1150
+#: harwood/tasks/ccdred.py:1145
 #, python-brace-format
 msgid "mark it with `hedit {0} {1} yes` if it is what mk{2}cor makes."
 msgstr "márquela con `hedit {0} {1} yes` si es lo que hace mk{2}cor."
 
-#: harwood/tasks/ccdred.py:1570
+#: harwood/tasks/ccdred.py:1565
 #, python-brace-format
 msgid "graphics '{0}': harwood fits the overscan by hand in its window, stdgraph"
 msgstr "graphics '{0}': harwood ajusta el overscan a mano en su ventana, stdgraph"
 
-#: harwood/tasks/ccdred.py:1570
+#: harwood/tasks/ccdred.py:1565
 msgid "give --graphics stdgraph, or --cursor with a file of keys to fit without the window"
 msgstr "dé --graphics stdgraph, o --cursor con un archivo de teclas para ajustar sin la ventana"
 
-#: harwood/tasks/ccdred.py:1782
+#: harwood/tasks/ccdred.py:1777
 msgid "Choose the header translation this reduction uses."
 msgstr "Elegir la traducción de cabecera que usa esta reducción."
 
-#: harwood/tasks/ccdred.py:1789
+#: harwood/tasks/ccdred.py:1784
 msgid "A translation file says which keyword holds the filter, and what each IMAGETYP value means. Without one, harwood reads the common keywords and reports anything else as unknown."
 msgstr "Un archivo de traducción dice qué palabra clave guarda el filtro, y qué significa cada valor de IMAGETYP. Sin uno, harwood lee las palabras clave comunes e informa cualquier otra cosa como desconocida."
 
-#: harwood/tasks/ccdred.py:1793
+#: harwood/tasks/ccdred.py:1788
 msgid "It goes in the project file rather than a setting on the machine, so the reduction carries its own conventions and someone else can repeat it."
 msgstr "Va en el archivo del proyecto en vez de en un ajuste de la máquina, para que la reducción lleve sus propias convenciones y otra persona pueda repetirla."
 
-#: harwood/tasks/ccdred.py:1852
+#: harwood/tasks/ccdred.py:1847
 #, python-brace-format
 msgid "{0} of the instrument's settings have no harwood counterpart and were not applied; the table says why"
 msgstr "{0} de los ajustes del instrumento no tienen equivalente en harwood y no se aplicaron; la tabla dice por qué"
 
-#: harwood/tasks/ccdred.py:1852
+#: harwood/tasks/ccdred.py:1847
 msgid "nothing to do for the reduction: the table says what each was for"
 msgstr "nada que hacer para la reducción: la tabla dice para qué servía cada uno"
 
-#: harwood/tasks/ccdred.py:1999
+#: harwood/tasks/ccdred.py:1994
 msgid "List images as the reduction sees them: type, subset, what is done."
 msgstr "Listar imágenes como las ve la reducción: tipo, subconjunto, lo que ya se hizo."
 
-#: harwood/tasks/ccdred.py:2003
+#: harwood/tasks/ccdred.py:1998
 msgid "This is the check to run before ccdproc: if a frame comes back 'unknown', ccdproc will not know what to do with it either, and the translation file is what to fix."
 msgstr "Esta es la comprobación a hacer antes de ccdproc: si un cuadro vuelve 'unknown', ccdproc tampoco sabrá qué hacer con él, y lo que hay que arreglar es el archivo de traducción."
 
-#: harwood/tasks/ccdred.py:2055
+#: harwood/tasks/ccdred.py:2050
 #, python-brace-format
 msgid "{0} image(s) came back 'unknown'. ccdproc will refuse them too, so they would drop out of the reduction silently."
 msgstr "{0} imagen(es) volvieron 'unknown'. ccdproc también las rechazará, así que saldrían de la reducción en silencio."
 
-#: harwood/tasks/ccdred.py:2055
+#: harwood/tasks/ccdred.py:2050
 #, python-brace-format
 msgid "add the missing IMAGETYP value to the '{0}' translation, or pick another with 'harwood setinstrument'. 'harwood imheader <image> IMAGETYP' shows what the frames actually say."
 msgstr "agregue el valor de IMAGETYP que falta a la traducción '{0}', o elija otra con 'harwood setinstrument'. 'harwood imheader <imagen> IMAGETYP' muestra lo que dicen realmente los cuadros."
 
-#: harwood/tasks/ccdred.py:2145
+#: harwood/tasks/ccdred.py:2140
 msgid "Group CCD images into lists by position, title, date, type or subset."
 msgstr "Agrupar imágenes de CCD en listas por posición, título, fecha, tipo o subconjunto."
 
-#: harwood/tasks/ccdred.py:2153
+#: harwood/tasks/ccdred.py:2148
 msgid "A night is easier to reduce as lists: the flats of one filter, the frames of one field, one date at a time."
 msgstr "Una noche es más fácil de reducir en listas: los flats de un filtro, los cuadros de un campo, una fecha a la vez."
 
-#: harwood/tasks/ccdred.py:2156
+#: harwood/tasks/ccdred.py:2151
 msgid "Each file lists one group's images, one per line, for any task's @list input."
 msgstr "Cada archivo lista las imágenes de un grupo, una por línea, para la entrada @lista de cualquier tarea."
 
-#: harwood/tasks/ccdred.py:2204
+#: harwood/tasks/ccdred.py:2199
 #, python-brace-format
 msgid "{0}: {1} -- not grouped"
 msgstr "{0}: {1} -- no agrupada"
 
-#: harwood/tasks/ccdred.py:2204
+#: harwood/tasks/ccdred.py:2199
 msgid "check the header with 'harwood imheader', or the keyword names in the instrument translation"
 msgstr "compruebe la cabecera con 'harwood imheader', o los nombres de las palabras clave en la traducción del instrumento"
 
-#: harwood/tasks/ccdred.py:2211
+#: harwood/tasks/ccdred.py:2206
 #, python-brace-format
 msgid "{0} already exists; the names are added to it, as IRAF does"
 msgstr "{0} ya existe; los nombres se agregan a él, como en IRAF"
 
-#: harwood/tasks/ccdred.py:2211
+#: harwood/tasks/ccdred.py:2206
 #, python-brace-format
 msgid "delete {0} first to start the list afresh"
 msgstr "borre {0} antes para empezar la lista de cero"
 
+#: harwood/tasks/ccdred.py:2271
 #: harwood/tasks/ccdred.py:2276
-#: harwood/tasks/ccdred.py:2281
 msgid "Parameter value is not a number"
 msgstr "Parameter value is not a number"
 
+#: harwood/tasks/ccdred.py:2271
 #: harwood/tasks/ccdred.py:2276
-#: harwood/tasks/ccdred.py:2281
 #, python-brace-format
 msgid "give a number for {0}"
 msgstr "dé un número para {0}"
 
-#: harwood/tasks/ccdred.py:2305
+#: harwood/tasks/ccdred.py:2300
 msgid "Edit CCD image headers through the instrument's translation."
 msgstr "Edita cabeceras de imágenes CCD mediante la traducción del instrumento."
 
-#: harwood/tasks/ccdred.py:2311
+#: harwood/tasks/ccdred.py:2306
 msgid "ccdred's name, not the keyword: the translation says which keyword and, for an image type, how this instrument writes it."
 msgstr "El nombre de ccdred, no la palabra clave: la traducción dice cuál palabra clave y, para un tipo de imagen, cómo lo escribe este instrumento."
 
-#: harwood/tasks/ccdred.py:2342
+#: harwood/tasks/ccdred.py:2337
 msgid "An image of the bad pixels from a bad pixel file."
 msgstr "Una imagen de los píxeles malos a partir de un archivo de píxeles malos."
 
-#: harwood/tasks/ccdred.py:2346
+#: harwood/tasks/ccdred.py:2341
 msgid "To see the bad pixels against the data, blink one against the other, or to carry them through arithmetic."
 msgstr "Para ver los píxeles malos contra los datos, alternar uno con otro, o llevarlos por la aritmética."
 
-#: harwood/tasks/ccdred.py:2361
+#: harwood/tasks/ccdred.py:2356
 msgid "check the bad pixel file's name"
 msgstr "compruebe el nombre del archivo de píxeles malos"
 
-#: harwood/tasks/ccdred.py:2444
+#: harwood/tasks/ccdred.py:2439
 msgid "A bad pixel mask from a flat field or a ratio of flats."
 msgstr "Una máscara de píxeles malos a partir de un flat o de un cociente de flats."
 
-#: harwood/tasks/ccdred.py:2448
+#: harwood/tasks/ccdred.py:2443
 msgid "A ratio of two flats at different levels leaves only what does not flat field, and what stands out from it is really bad."
 msgstr "Un cociente de dos flats a niveles distintos deja solo lo que no se corrige con flat, y lo que se destaca de eso es malo de verdad."
 
-#: harwood/tasks/ccdred.py:2452
+#: harwood/tasks/ccdred.py:2447
 msgid "A mask, to give to fixpix or ccdproc."
 msgstr "Una máscara, para dar a fixpix o a ccdproc."
 
-#: harwood/tasks/ccdred.py:2462
+#: harwood/tasks/ccdred.py:2457
 #, python-brace-format
 msgid "{0} is not two-dimensional"
 msgstr "{0} no es bidimensional"
 
-#: harwood/tasks/ccdred.py:2462
+#: harwood/tasks/ccdred.py:2457
 msgid "give a frame, or a section of one"
 msgstr "dé un cuadro, o una sección de uno"
 
-#: harwood/tasks/ccdred.py:2465
+#: harwood/tasks/ccdred.py:2460
 #, python-brace-format
 msgid "{0} is smaller than the box for the sigma, {1}x{2}"
 msgstr "{0} es menor que la caja del sigma, {1}x{2}"
 
-#: harwood/tasks/ccdred.py:2465
+#: harwood/tasks/ccdred.py:2460
 msgid "use a larger frame, or a smaller --ncsig and --nlsig"
 msgstr "use un cuadro mayor, o --ncsig y --nlsig menores"
 
-#: harwood/tasks/ccdred.py:2498
+#: harwood/tasks/ccdred.py:2493
 msgid "Review and edit instrument translation files."
 msgstr "Revisar y editar archivos de traducción del instrumento."
 
-#: harwood/tasks/ccdred.py:2503
+#: harwood/tasks/ccdred.py:2498
 msgid "A wrong keyword here is a frame processed as what it is not."
 msgstr "Una palabra clave errónea aquí es un cuadro procesado como lo que no es."
 
@@ -4047,64 +4047,64 @@ msgstr "{0} imagen(es) se corrigieron en el lugar. Las marcas de la cabecera hac
 msgid "give --output next time so the raw frames survive. To get them back now you would have to copy them from the archive again."
 msgstr "dé --output la próxima vez para que sobrevivan los cuadros crudos. Para recuperarlos ahora habría que copiarlos otra vez del archivo."
 
-#: harwood/tasks/ccdred.py:667
+#: harwood/tasks/ccdred.py:662
 #, python-brace-format
 msgid "Can't delete or make backup of original image {0}: {1} is not a directory"
 msgstr "Can't delete or make backup of original image {0}: {1} no es un directorio"
 
-#: harwood/tasks/ccdred.py:667
+#: harwood/tasks/ccdred.py:662
 msgid "make the directory the backup prefix names, or give a prefix such as B for Bobj001.fits"
 msgstr "cree el directorio que nombra el prefijo del backup, o dé un prefijo como B para Bobj001.fits"
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "Bad columns and hot pixels carry no information, and a bad column running through a star ruins its photometry silently. Each bad region is replaced by interpolating across its narrowest side, as IRAF does -- a bad column along the rows, a bad row along the columns -- which makes the image look right without making the data real, so the mask travels with the frame."
 msgstr "Las columnas malas y los píxeles calientes no llevan información, y una columna mala que atraviesa una estrella arruina su fotometría en silencio. Cada región mala se reemplaza interpolando por su lado más estrecho, como hace IRAF -- una columna mala a lo largo de las filas, una fila mala a lo largo de las columnas --, lo que hace que la imagen parezca correcta sin volver reales los datos, así que la máscara viaja con el cuadro."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "The overscan is a strip of pixels the detector reads out without exposing them, so it carries the electronic offset the amplifier adds to every pixel and nothing else. That offset drifts during a readout, so it is fitted as a function of row rather than averaged to one number, and the fit is subtracted from the whole frame."
 msgstr "El overscan es una franja de píxeles que el detector lee sin exponer, así que lleva el desplazamiento electrónico que el amplificador suma a todo píxel y nada más. Ese desplazamiento deriva durante la lectura, así que se ajusta como función de la fila en vez de promediarse en un número, y el ajuste se resta del cuadro entero."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "The edges of a CCD are not illuminated: the overscan strip, and usually a row or two at each border that the shutter or the mask clips. Keeping them means every later statistic is computed over pixels that never saw sky."
 msgstr "Los bordes de un CCD no se iluminan: la franja de overscan, y por lo general una o dos filas en cada borde que recortan el obturador o la máscara. Conservarlos hace que toda estadística posterior se calcule sobre píxeles que nunca vieron cielo."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "Even with the overscan removed, the bias has structure that varies from pixel to pixel and not from row to row -- fixed pattern in the amplifier and the clocking. A bias frame is a zero-second exposure, so it holds that pattern and nothing else; subtracting it removes what the overscan fit could not see."
 msgstr "Aun sin el overscan, el bias tiene estructura que varía de píxel a píxel y no de fila a fila -- patrón fijo del amplificador y del reloj. Un cuadro de bias es una exposición de cero segundos, así que guarda ese patrón y nada más; restarlo quita lo que el ajuste del overscan no podía ver."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "Thermal electrons accumulate in each pixel whether or not light falls on it, at a rate that depends on the temperature and varies across the chip. The dark frame measures that rate, and is scaled to this exposure's time before subtraction -- twice the exposure, twice the dark."
 msgstr "Los electrones térmicos se acumulan en cada píxel caiga luz en él o no, a un ritmo que depende de la temperatura y varía por el chip. El cuadro de dark mide ese ritmo, y se escala al tiempo de esta exposición antes de restarlo -- el doble de exposición, el doble de dark."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "Above its full well a pixel stops counting, and its value is a floor, not a measurement. It is flagged in the DQ while the frame is raw -- after the bias and the flat are off, the level it hit is no longer the number the detector reported."
 msgstr "Por encima del pozo lleno un píxel deja de contar, y su valor es un piso, no una medida. Se marca en el DQ mientras el cuadro está crudo -- después de quitar el bias y el flat, el nivel que alcanzó ya no es el número que informó el detector."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "With the overscan and the bias subtracted, what is left in a pixel counts the electrons it collected -- star, sky and dark current. Their number fluctuates as Poisson says, and the amplifier adds its read noise, so the variance is data/gain + (readnoise/gain)^2, in ADU^2. From here on it travels with the data: the dark and the flat add their own."
 msgstr "Con el overscan y el bias restados, lo que queda en un píxel cuenta los electrones que recogió -- estrella, cielo y corriente oscura. Su número fluctúa como dice Poisson, y el amplificador suma su ruido de lectura, así que la varianza es data/gain + (readnoise/gain)^2, en ADU^2. De aquí en adelante viaja con los datos: el dark y el flat suman la suya."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "A flat is about to be divided into every frame of the night, so a pixel near zero in it -- a dead column, a vignetted corner -- would turn into an enormous value in each of them. IRAF raises anything below minreplace to it when it processes a flat, and so does harwood."
 msgstr "Un flat se va a dividir en cada cuadro de la noche, así que un píxel cerca de cero en él -- una columna muerta, una esquina viñeteada -- se volvería un valor enorme en cada uno. IRAF sube todo lo que está debajo de minreplace hasta ese valor cuando procesa un flat, y harwood también."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "Pixels do not respond equally: quantum efficiency varies across the chip, dust on the window shadows it, and the optics vignette the corners. A flat field is a uniformly lit exposure, so it measures the response of every pixel relative to the rest. Dividing by it, normalised to one, turns counts into a quantity proportional to the light that arrived."
 msgstr "Los píxeles no responden igual: la eficiencia cuántica varía por el chip, el polvo en la ventana hace sombra, y la óptica viñetea las esquinas. Un flat es una exposición iluminada de manera uniforme, así que mide la respuesta de cada píxel respecto del resto. Dividir por él, normalizado a uno, convierte cuentas en una magnitud proporcional a la luz que llegó."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "A dome flat is lit differently from the sky, by a pattern that is smooth across the chip. An illumination image holds that pattern, usually from dark-sky flats, and dividing by it, normalised by its mean, flattens the sky."
 msgstr "Un flat de cúpula se ilumina de manera distinta que el cielo, con un patrón suave por el chip. Una imagen de iluminación guarda ese patrón, por lo general de flats de cielo oscuro, y dividir por ella, normalizada por su media, aplana el cielo."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "In the red, night-sky lines interfere in the thin chip and print a pattern that adds to the sky and does not divide. A fringe image holds it for some exposure, and it is subtracted scaled by the exposure times."
 msgstr "En el rojo, las líneas del cielo nocturno interfieren en el chip delgado e imprimen un patrón que se suma al cielo y no divide. Una imagen de franjas lo guarda para alguna exposición, y se resta escalado por los tiempos de exposición."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "A zero's structure can run only along the readout, the same for every line. Averaging across that axis leaves the structure and removes the noise of all those pixels."
 msgstr "La estructura de un zero solo puede correr a lo largo de la lectura, la misma en cada línea. Promediar en ese eje deja la estructura y quita el ruido de todos esos píxeles."
 
-#: harwood/tasks/ccdred.py:678
+#: harwood/tasks/ccdred.py:673
 msgid "A scanned detector moves the charge while it exposes, so each pixel of the image was seen by several real pixels, and the calibrations have to be made the same way: a moving average over the scan, or a single line for a scan as long as the exposure."
 msgstr "Un detector de barrido mueve la carga mientras expone, así que cada píxel de la imagen fue visto por varios píxeles reales, y las calibraciones tienen que hacerse de la misma manera: una media móvil sobre el barrido, o una sola línea para un barrido tan largo como la exposición."
 
@@ -4125,27 +4125,27 @@ msgstr "Bad pixel type"
 msgid "give short, int, long, real or double"
 msgstr "dé short, int, long, real o double"
 
-#: harwood/tasks/ccdtest.py:172
+#: harwood/tasks/ccdtest.py:166
 msgid "Make an image of a sloped plane and noise, or edit one with it."
 msgstr "Hace una imagen de un plano inclinado y ruido, o edita una con ellos."
 
-#: harwood/tasks/ccdtest.py:176
+#: harwood/tasks/ccdtest.py:170
 msgid "A test frame whose every value is known: the plane gives levels and gradients, the noise gives something to reject."
 msgstr "Un cuadro de prueba con todos los valores conocidos: el plano da niveles y gradientes, el ruido da algo que rechazar."
 
-#: harwood/tasks/ccdtest.py:228
+#: harwood/tasks/ccdtest.py:222
 msgid "Make an artificial CCD observation, as ccdred's demonstration does."
 msgstr "Hace una observación CCD artificial, como la demostración de ccdred."
 
-#: harwood/tasks/ccdtest.py:232
+#: harwood/tasks/ccdtest.py:226
 msgid "Noise, sky, the flat field's slope, zero level and dark, bias over the whole frame, bad pixels: what ccdproc takes away."
 msgstr "Ruido, cielo, la pendiente del flat, nivel cero y dark, bias en todo el cuadro, píxeles malos: lo que ccdproc quita."
 
-#: harwood/tasks/ccdtest.py:314
+#: harwood/tasks/ccdtest.py:308
 msgid "Make a frame read out from a section of the chip, from a full one."
 msgstr "Hace un cuadro leído de una sección del chip, a partir de uno entero."
 
-#: harwood/tasks/ccdtest.py:318
+#: harwood/tasks/ccdtest.py:312
 msgid "A detector read out in part: the header says where the frame sits on the chip (CCDSEC), and the calibrations of the whole chip still apply."
 msgstr "Un detector leído en parte: la cabecera dice dónde está el cuadro en el chip (CCDSEC), y las calibraciones del chip entero siguen valiendo."
 
@@ -4746,15 +4746,15 @@ msgid "Error median filtering image: {0}: {1}"
 msgstr "Error median filtering image: {0}: {1}"
 
 #: harwood/tasks/imfilter.py:193
-#: harwood/tasks/imutil.py:888
-#: harwood/tasks/imutil.py:1707
+#: harwood/tasks/imutil.py:899
+#: harwood/tasks/imutil.py:1718
 #, python-brace-format
 msgid "'{0}' matches no image"
 msgstr "'{0}' no coincide con ninguna imagen"
 
 #: harwood/tasks/imfilter.py:193
-#: harwood/tasks/imutil.py:888
-#: harwood/tasks/imutil.py:2140
+#: harwood/tasks/imutil.py:899
+#: harwood/tasks/imutil.py:2151
 msgid "check the name, or run `harwood sections` on the template"
 msgstr "compruebe el nombre, o ejecute `harwood sections` sobre el patrón"
 
@@ -4991,142 +4991,146 @@ msgstr "Registrar imágenes por los centroides de las estrellas, desplazarlas y 
 msgid "trim the outputs by hand with imcopy and a section"
 msgstr "recorte las salidas a mano con imcopy y una sección"
 
-#: harwood/tasks/imutil.py:1047
+#: harwood/tasks/imutil.py:1005
+msgid "Edit header keywords, over one image or a whole night."
+msgstr "Editar palabras clave de la cabecera, en una imagen o en una noche entera."
+
+#: harwood/tasks/imutil.py:1058
 #, python-brace-format
 msgid "parameter {0},{1} already exists"
 msgstr "el parámetro {0},{1} ya existe"
 
-#: harwood/tasks/imutil.py:1047
+#: harwood/tasks/imutil.py:1058
 msgid "--add edits keywords that are there as well"
 msgstr "--add también edita las palabras clave que ya están"
 
-#: harwood/tasks/imutil.py:1089
+#: harwood/tasks/imutil.py:1100
 #, python-brace-format
 msgid "{0} of {1} were not there and were left alone. hedit will not invent a keyword, because a typo in a keyword name would otherwise silently add a card nobody reads."
 msgstr "{0} de {1} no estaban y quedaron como estaban. hedit no inventa una palabra clave, porque si no un error de tipeo en el nombre agregaría en silencio una tarjeta que nadie lee."
 
-#: harwood/tasks/imutil.py:1089
+#: harwood/tasks/imutil.py:1100
 msgid "add --add if you meant to create them. If you did not, check the spelling against 'harwood imheader <image> --long'."
 msgstr "agregue --add si quería crearlas. Si no, compruebe la ortografía con 'harwood imheader <imagen> --long'."
 
-#: harwood/tasks/imutil.py:1096
+#: harwood/tasks/imutil.py:1107
 msgid "--no-update was given, so nothing was written. The table above is what would have happened."
 msgstr "se dio --no-update, así que no se escribió nada. La tabla de arriba es lo que habría pasado."
 
-#: harwood/tasks/imutil.py:1096
+#: harwood/tasks/imutil.py:1107
 msgid "run it again without --no-update to apply it."
 msgstr "ejecútelo otra vez sin --no-update para aplicarlo."
 
-#: harwood/tasks/imutil.py:1203
+#: harwood/tasks/imutil.py:1214
 #, python-brace-format
 msgid "{0},{1}: cannot evaluate {2}: {3}"
 msgstr "{0},{1}: no puedo evaluar {2}: {3}"
 
-#: harwood/tasks/imutil.py:1203
+#: harwood/tasks/imutil.py:1214
 msgid "an expression is in parentheses and uses the header's keywords; a keyword with - in its name is written @\"DATE-OBS\""
 msgstr "una expresión va entre paréntesis y usa las palabras clave de la cabecera; una palabra clave con - en el nombre se escribe @\"DATE-OBS\""
 
-#: harwood/tasks/imutil.py:1438
+#: harwood/tasks/imutil.py:1449
 msgid "Get one header keyword, for a script to read."
 msgstr "Obtener una palabra clave de la cabecera, para que la lea un script."
 
-#: harwood/tasks/imutil.py:1443
+#: harwood/tasks/imutil.py:1454
 msgid "One keyword, one value, nothing else printed -- so a shell loop can use it. hselect is for asking many images a question; this is for asking one image one thing and getting an answer a script can read."
 msgstr "Una palabra clave, un valor, nada más impreso -- para que un bucle del shell pueda usarlo. hselect es para hacer una pregunta a muchas imágenes; esto es para preguntar una cosa a una imagen y tener una respuesta que un script pueda leer."
 
-#: harwood/tasks/imutil.py:1466
+#: harwood/tasks/imutil.py:1477
 #, python-brace-format
 msgid "image header parameter not found ({0}); printing {1} instead, as IRAF does"
 msgstr "image header parameter not found ({0}); se imprime {1} en su lugar, como hace IRAF"
 
-#: harwood/tasks/imutil.py:1466
+#: harwood/tasks/imutil.py:1477
 #, python-brace-format
 msgid "'harwood imheader {0} --long' lists what the header has"
 msgstr "'harwood imheader {0} --long' lista lo que tiene la cabecera"
 
-#: harwood/tasks/imutil.py:1584
+#: harwood/tasks/imutil.py:1595
 msgid "Histogram of an image's pixel values."
 msgstr "Histograma de los valores de los píxeles de una imagen."
 
-#: harwood/tasks/imutil.py:1590
+#: harwood/tasks/imutil.py:1601
 msgid "The histogram is how the sky level, the saturation and a bad bias show at a glance."
 msgstr "El histograma es cómo el nivel del cielo, la saturación y un bias malo se ven de un vistazo."
 
-#: harwood/tasks/imutil.py:1605
+#: harwood/tasks/imutil.py:1616
 #, python-brace-format
 msgid "image '{0}' has no data range"
 msgstr "la imagen '{0}' no tiene rango de datos"
 
-#: harwood/tasks/imutil.py:1605
+#: harwood/tasks/imutil.py:1616
 msgid "give z1 and z2 around the values it does have"
 msgstr "dé z1 y z2 alrededor de los valores que tiene"
 
-#: harwood/tasks/imutil.py:1648
+#: harwood/tasks/imutil.py:1659
 #, python-brace-format
 msgid "no graphics device '{0}'"
 msgstr "no hay dispositivo gráfico '{0}'"
 
-#: harwood/tasks/imutil.py:1648
+#: harwood/tasks/imutil.py:1659
 msgid "use stdgraph (the window, or a file without a screen) or a name ending in .svg"
 msgstr "use stdgraph (la ventana, o un archivo sin pantalla) o un nombre terminado en .svg"
 
-#: harwood/tasks/imutil.py:1699
+#: harwood/tasks/imutil.py:1710
 msgid "Rename images, or move them into a directory."
 msgstr "Renombrar imágenes, o moverlas a una carpeta."
 
-#: harwood/tasks/imutil.py:1707
+#: harwood/tasks/imutil.py:1718
 msgid "check the names, or run 'harwood sections' on the template"
 msgstr "compruebe los nombres, o ejecute 'harwood sections' sobre el patrón"
 
-#: harwood/tasks/imutil.py:1712
+#: harwood/tasks/imutil.py:1723
 #, python-brace-format
 msgid "'{0}' is part of a file; a rename moves whole files"
 msgstr "'{0}' es parte de un archivo; renombrar mueve archivos enteros"
 
-#: harwood/tasks/imutil.py:1712
+#: harwood/tasks/imutil.py:1723
 msgid "name the file itself, without the [...]"
 msgstr "nombre el propio archivo, sin el [...]"
 
-#: harwood/tasks/imutil.py:1718
+#: harwood/tasks/imutil.py:1729
 #, python-brace-format
 msgid "different number of old ({0}) and new ({1}) image names"
 msgstr "cantidad distinta de nombres viejos ({0}) y nuevos ({1})"
 
-#: harwood/tasks/imutil.py:1718
+#: harwood/tasks/imutil.py:1729
 msgid "give one new name per image, or a single directory"
 msgstr "dé un nombre nuevo por imagen, o una sola carpeta"
 
-#: harwood/tasks/imutil.py:1728
+#: harwood/tasks/imutil.py:1739
 #, python-brace-format
 msgid "renaming would overwrite {0}{1}"
 msgstr "renombrar sobrescribiría {0}{1}"
 
-#: harwood/tasks/imutil.py:1728
+#: harwood/tasks/imutil.py:1739
 msgid "choose new names, or delete those images first (imdelete)"
 msgstr "elija nombres nuevos, o borre antes esas imágenes (imdelete)"
 
-#: harwood/tasks/imutil.py:1736
+#: harwood/tasks/imutil.py:1747
 msgid "Names are how a night is found again; IRAF's imrename never overwrites an image, and neither does this."
 msgstr "Los nombres son cómo se vuelve a encontrar una noche; el imrename de IRAF nunca sobrescribe una imagen, y este tampoco."
 
-#: harwood/tasks/imutil.py:1806
+#: harwood/tasks/imutil.py:1817
 msgid "Minimum and maximum pixel of an image, and where they are."
 msgstr "Píxel mínimo y máximo de una imagen, y dónde están."
 
-#: harwood/tasks/imutil.py:1821
+#: harwood/tasks/imutil.py:1832
 msgid "check the name; the others were examined"
 msgstr "compruebe el nombre; las demás se examinaron"
 
-#: harwood/tasks/imutil.py:1840
+#: harwood/tasks/imutil.py:1851
 #, python-brace-format
 msgid "{0}: {1} pixels are NaN or infinite and were left out"
 msgstr "{0}: {1} píxeles son NaN o infinitos y quedaron fuera"
 
-#: harwood/tasks/imutil.py:1840
+#: harwood/tasks/imutil.py:1851
 msgid "IRAF reads them as 0, so its minimum or maximum can be that 0"
 msgstr "IRAF los lee como 0, así que su mínimo o su máximo puede ser ese 0"
 
-#: harwood/tasks/imutil.py:1889
+#: harwood/tasks/imutil.py:1900
 msgid "Each pixel of an image as a line of text: coordinates and value."
 msgstr "Cada píxel de una imagen como una línea de texto: coordenadas y valor."
 
@@ -5134,59 +5138,59 @@ msgstr "Cada píxel de una imagen como una línea de texto: coordenadas y valor.
 msgid "Select images by a boolean expression over their headers."
 msgstr "Seleccionar imágenes por una expresión booleana sobre sus cabeceras."
 
-#: harwood/tasks/imutil.py:1933
+#: harwood/tasks/imutil.py:1944
 #, python-brace-format
 msgid "{0}: {1} pixels are NaN or infinite, listed as INDEF"
 msgstr "{0}: {1} píxeles son NaN o infinitos, listados como INDEF"
 
-#: harwood/tasks/imutil.py:1933
+#: harwood/tasks/imutil.py:1944
 msgid "IRAF reads them as 0, so its list has a 0 there"
 msgstr "IRAF los lee como 0, así que su lista tiene un 0 allí"
 
-#: harwood/tasks/imutil.py:2007
+#: harwood/tasks/imutil.py:2018
 msgid "An image computed from an expression, IRAF's types and functions."
 msgstr "Una imagen calculada a partir de una expresión, con los tipos y funciones de IRAF."
 
-#: harwood/tasks/imutil.py:2025
+#: harwood/tasks/imutil.py:2036
 #: harwood/tasks/proto.py:780
 #: harwood/tasks/proto.py:892
 #, python-brace-format
 msgid "in the expression: {0}"
 msgstr "en la expresión: {0}"
 
-#: harwood/tasks/imutil.py:2025
+#: harwood/tasks/imutil.py:2036
 #: harwood/tasks/proto.py:780
 #: harwood/tasks/proto.py:892
 #, python-brace-format
 msgid "the expression was: {0}"
 msgstr "la expresión era: {0}"
 
-#: harwood/tasks/imutil.py:2060
+#: harwood/tasks/imutil.py:2071
 msgid "Each image the template matches. imreplace is meant for a whole set at once -- the same bad values out of every frame of a night."
 msgstr "Cada imagen con que coincide el patrón. imreplace está hecho para un conjunto entero a la vez -- los mismos valores malos fuera de cada cuadro de una noche."
 
-#: harwood/tasks/imutil.py:2060
+#: harwood/tasks/imutil.py:2071
 msgid "Pixels from lower to upper, both included; a side left empty has no limit, and neither side means every pixel. In an integer image the limits are made integers as IRAF makes them: upper truncated, lower truncated when whole and raised by one when not -- for a negative limit that is not whole, that is one off where it reads (-100.5 starts at -99). The value is truncated toward zero too."
 msgstr "Píxeles de lower a upper, ambos incluidos; un lado vacío no tiene límite, y ninguno de los dos significa todos los píxeles. En una imagen de enteros los límites se vuelven enteros como los hace IRAF: upper truncado, lower truncado cuando es entero y aumentado en uno cuando no -- para un límite negativo no entero, eso queda uno corrido de lo que se lee (-100.5 empieza en -99). El valor también se trunca hacia cero."
 
-#: harwood/tasks/imutil.py:2060
+#: harwood/tasks/imutil.py:2071
 msgid "Every pixel within the radius of one in the window is replaced as well: the edge of a bad region, which is bad without being far off."
 msgstr "Todo píxel dentro del radio de uno del rango también se reemplaza: el borde de una región mala, que es mala sin estar muy fuera."
 
-#: harwood/tasks/imutil.py:2060
+#: harwood/tasks/imutil.py:2071
 msgid "The pixel type is kept, as IRAF keeps it in place. The input is not modified unless --output names it."
 msgstr "El tipo de píxel se mantiene, como lo mantiene IRAF en el lugar. La entrada no se modifica a menos que --output la nombre."
 
-#: harwood/tasks/imutil.py:2115
+#: harwood/tasks/imutil.py:2126
 msgid "Replace the pixels in a window of values by a constant."
 msgstr "Reemplazar los píxeles de un rango de valores por una constante."
 
-#: harwood/tasks/imutil.py:2162
+#: harwood/tasks/imutil.py:2173
 #, python-brace-format
 msgid "{0}: IRAF cannot write {1} image back in place and stops; harwood writes it as IRAF reads it, {2}."
 msgstr "{0}: IRAF no puede escribir la imagen {1} de vuelta en el lugar y se detiene; harwood la escribe como la lee IRAF, {2}."
 
-#: harwood/tasks/imutil.py:2162
+#: harwood/tasks/imutil.py:2173
 msgid "nothing to do: the values are the ones IRAF would compare; only the file's pixel type differs."
 msgstr "nada que hacer: los valores son los que compararía IRAF; solo difiere el tipo de píxel del archivo."
 
@@ -5199,15 +5203,6 @@ msgstr "no puedo evaluar {0}: {1}"
 msgid "write it as IRAF does: imagetyp == 'zero' && exptime > 30; a keyword with - in it is @\"DATE-OBS\""
 msgstr "escríbala como IRAF: imagetyp == 'zero' && exptime > 30; una palabra clave con - es @\"DATE-OBS\""
 
-#: harwood/tasks/imutil.py:2217
-#, python-brace-format
-msgid "IRAF's imreplace writes nothing on {0}: a line is written only once the one int(radius) further on has been read. harwood does the same, and the image is left as it was."
-msgstr "el imreplace de IRAF no escribe nada en {0}: una línea solo se escribe cuando ya se leyó la que está int(radius) más adelante. harwood hace lo mismo, y la imagen queda como estaba."
-
-#: harwood/tasks/imutil.py:2217
-msgid "use a radius smaller than the number of lines, or imexpr for a 1-D image"
-msgstr "use un radio menor que la cantidad de líneas, o imexpr para una imagen 1-D"
-
 #: harwood/tasks/imutil.py:222
 #, python-brace-format
 msgid "expression must be boolean: {0} is a {1}"
@@ -5217,67 +5212,76 @@ msgstr "la expresión tiene que ser booleana: {0} es un {1}"
 msgid "compare it: exptime > 0, object ?= 'M92*'"
 msgstr "compárela: exptime > 0, object ?= 'M92*'"
 
-#: harwood/tasks/imutil.py:2224
+#: harwood/tasks/imutil.py:2228
+#, python-brace-format
+msgid "IRAF's imreplace writes nothing on {0}: a line is written only once the one int(radius) further on has been read. harwood does the same, and the image is left as it was."
+msgstr "el imreplace de IRAF no escribe nada en {0}: una línea solo se escribe cuando ya se leyó la que está int(radius) más adelante. harwood hace lo mismo, y la imagen queda como estaba."
+
+#: harwood/tasks/imutil.py:2228
+msgid "use a radius smaller than the number of lines, or imexpr for a 1-D image"
+msgstr "use un radio menor que la cantidad de líneas, o imexpr para una imagen 1-D"
+
+#: harwood/tasks/imutil.py:2235
 msgid "IRAF's imreplace with a radius on a cube leaves the last lines of the last band as they were (its line counter goes back to 0 at each band's end, so they are never written), and the other bands' last lines written late. harwood does the same."
 msgstr "el imreplace de IRAF con radio en un cubo deja las últimas líneas de la última banda como estaban (su contador de líneas vuelve a 0 al final de cada banda, así que nunca se escriben), y las últimas líneas de las otras bandas escritas con retraso. harwood hace lo mismo."
 
-#: harwood/tasks/imutil.py:2224
+#: harwood/tasks/imutil.py:2235
 msgid "replace band by band, with a section such as [*,*,2]"
 msgstr "reemplace banda por banda, con una sección como [*,*,2]"
 
-#: harwood/tasks/imutil.py:2235
+#: harwood/tasks/imutil.py:2246
 msgid "Every image, which must all have the same shape. The first one's header is the output's, as IRAF's NEW_COPY makes it."
 msgstr "Todas las imágenes, que tienen que tener la misma forma. La cabecera de la primera es la de la salida, como la hace el NEW_COPY de IRAF."
 
-#: harwood/tasks/imutil.py:2235
+#: harwood/tasks/imutil.py:2246
 msgid "What the pixels are added in, and what the output is written as, decide the result: an integer calculation wraps a sum too large for it and truncates an average, and a real result written as an integer image is truncated. By default the calculation is in the highest type of the inputs (a short and an unsigned short together, int), and the output in that."
 msgstr "En qué tipo se suman los píxeles, y como qué se escribe la salida, deciden el resultado: un cálculo entero da la vuelta en una suma demasiado grande para él y trunca una media, y un resultado real escrito como imagen de enteros se trunca. Por omisión el cálculo es en el tipo más alto de las entradas (un short y un short sin signo juntos, int), y la salida en ese."
 
-#: harwood/tasks/imutil.py:2235
+#: harwood/tasks/imutil.py:2246
 msgid "The lowest and highest values of each pixel are left out before adding: a number from 1 on, a fraction of the images below 1. The median keeps the middle one -- of an even number, the upper of the two in the middle."
 msgstr "Los valores más bajos y más altos de cada píxel quedan fuera antes de sumar: un número desde 1, una fracción de las imágenes por debajo de 1. La mediana se queda con el del medio -- de un número par, el de arriba de los dos del medio."
 
-#: harwood/tasks/imutil.py:2235
+#: harwood/tasks/imutil.py:2246
 msgid "IRAF's imsum keeps no uncertainty, and neither does this: imcombine adds the variance planes of a harwood night."
 msgstr "El imsum de IRAF no guarda incertidumbre, y este tampoco: imcombine suma los planos de varianza de una noche de harwood."
 
-#: harwood/tasks/imutil.py:2292
+#: harwood/tasks/imutil.py:2303
 msgid "Sum, average or median of images, with high and low rejection."
 msgstr "Suma, media o mediana de imágenes, con rechazo de altos y bajos."
 
-#: harwood/tasks/imutil.py:2316
+#: harwood/tasks/imutil.py:2327
 msgid "No input images in list"
 msgstr "No input images in list"
 
-#: harwood/tasks/imutil.py:2316
+#: harwood/tasks/imutil.py:2327
 #, python-brace-format
 msgid "'{0}' matches nothing: check the names, or run `harwood sections` on the template"
 msgstr "'{0}' no coincide con nada: compruebe los nombres, o ejecute `harwood sections` sobre el patrón"
 
-#: harwood/tasks/imutil.py:2377
+#: harwood/tasks/imutil.py:2388
 #, python-brace-format
 msgid "{0} of the inputs carry an uncertainty plane, which imsum leaves behind, as IRAF's has nowhere to keep one."
 msgstr "{0} de las entradas tienen un plano de incertidumbre, que imsum deja atrás, ya que el de IRAF no tiene dónde guardarlo."
 
-#: harwood/tasks/imutil.py:2377
+#: harwood/tasks/imutil.py:2388
 msgid "use imcombine to add the frames with their variance"
 msgstr "use imcombine para sumar los cuadros con su varianza"
 
-#: harwood/tasks/imutil.py:2413
+#: harwood/tasks/imutil.py:2424
 #, python-brace-format
 msgid "Image header parameter not found ({0} in {1})"
 msgstr "Image header parameter not found ({0} in {1})"
 
-#: harwood/tasks/imutil.py:2413
+#: harwood/tasks/imutil.py:2424
 msgid "give --hparams keywords every input has"
 msgstr "dé palabras clave en --hparams que tengan todas las entradas"
 
-#: harwood/tasks/imutil.py:2418
+#: harwood/tasks/imutil.py:2429
 #, python-brace-format
 msgid "{0} in {1} is not a number: {2}"
 msgstr "{0} en {1} no es un número: {2}"
 
-#: harwood/tasks/imutil.py:2418
+#: harwood/tasks/imutil.py:2429
 msgid "give --hparams keywords with numeric values"
 msgstr "dé palabras clave en --hparams con valores numéricos"
 
@@ -5371,49 +5375,45 @@ msgstr "Estadística de píxeles, con recorte opcional y elección de campos."
 msgid "Arithmetic between images, lists of images, and constants."
 msgstr "Aritmética entre imágenes, listas de imágenes y constantes."
 
-#: harwood/tasks/imutil.py:703
+#: harwood/tasks/imutil.py:708
 msgid "Copy images, or sections of them."
 msgstr "Copiar imágenes, o secciones de ellas."
 
-#: harwood/tasks/imutil.py:755
+#: harwood/tasks/imutil.py:766
 msgid "Delete images."
 msgstr "Borrar imágenes."
 
-#: harwood/tasks/imutil.py:802
+#: harwood/tasks/imutil.py:813
 msgid "Expand an image template and show what it matches."
 msgstr "Expandir un patrón de nombres de imágenes y mostrar qué coincide."
 
-#: harwood/tasks/imutil.py:866
+#: harwood/tasks/imutil.py:877
 msgid "Plot lines and columns of an image, interactively."
 msgstr "Graficar líneas y columnas de una imagen, de forma interactiva."
 
-#: harwood/tasks/imutil.py:876
+#: harwood/tasks/imutil.py:887
 msgid "Lower case picks what to plot, a colon command takes a range, and e expands a corner at a time -- the keys the tutorials tell you to press."
 msgstr "La minúscula elige qué graficar, un comando de dos puntos toma un rango, y la e amplía una esquina a la vez -- las teclas que los tutoriales dicen que se pulsen."
 
-#: harwood/tasks/imutil.py:900
+#: harwood/tasks/imutil.py:911
 msgid "write 'x y 1 key' lines, or leave --coords empty for the window"
 msgstr "escriba líneas 'x y 1 tecla', o deje --coords vacío para la ventana"
 
-#: harwood/tasks/imutil.py:927
+#: harwood/tasks/imutil.py:938
 msgid "Every image the template matches. A keyword edit is nearly always wanted on a whole set -- all the flats, all of one night -- and doing it one file at a time is how half a set ends up different from the other half."
 msgstr "Cada imagen con que coincide el patrón. Una edición de palabra clave casi siempre se quiere en un conjunto entero -- todos los flats, toda una noche -- y hacerla un archivo a la vez es cómo la mitad de un conjunto termina distinta de la otra mitad."
 
-#: harwood/tasks/imutil.py:927
+#: harwood/tasks/imutil.py:938
 msgid "The keyword is set, added or deleted. What it was before goes to HISTORY: a header changed with no record of what it said is a file nobody can retrace, and headers are edited precisely when something was wrong, which is exactly when the old value matters."
 msgstr "La palabra clave se fija, se agrega o se borra. Lo que era antes va a HISTORY: una cabecera cambiada sin registro de lo que decía es un archivo que nadie puede reconstruir, y las cabeceras se editan justamente cuando algo estaba mal, que es exactamente cuando importa el valor viejo."
 
-#: harwood/tasks/imutil.py:927
+#: harwood/tasks/imutil.py:938
 msgid "In place. There is no output copy, because a header edit on a hundred frames that wrote a hundred copies would be worse than the problem -- but --no-update shows what would happen without touching anything, and it is worth using first."
 msgstr "En el lugar. No hay copia de salida, porque una edición de cabecera en cien cuadros que escribiera cien copias sería peor que el problema -- pero --no-update muestra lo que pasaría sin tocar nada, y vale la pena usarlo primero."
 
 #: harwood/tasks/imutil.py:97
 msgid "Print image headers, or selected keywords."
 msgstr "Imprimir cabeceras de imágenes, o palabras clave elegidas."
-
-#: harwood/tasks/imutil.py:994
-msgid "Edit header keywords, over one image or a whole night."
-msgstr "Editar palabras clave de la cabecera, en una imagen o en una noche entera."
 
 #: harwood/tasks/longslit.py:128
 #: harwood/tasks/longslit.py:911

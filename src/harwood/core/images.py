@@ -402,3 +402,35 @@ def read_stack(specs: list[ImageSpec | str]):
     if not frames:
         raise ValueError("no input images")
     return np.stack(frames), headers
+
+
+# ------------------------------------------------------------- pixel types
+
+#: IRAF's pixel types, as numpy's.
+PIXTYPES = {"short": "int16", "ushort": "uint16", "int": "int32", "long": "int32",
+            "real": "float32", "double": "float64"}
+
+
+def iraf_type(header) -> str:
+    """The pixel type IRAF's FITS kernel gives an image: from BITPIX, ushort for 16 bits
+    offset by 32768, real for integers scaled by BSCALE or BZERO, short for bytes."""
+    bitpix = int(header.get("BITPIX", -32))
+    bscale = float(header.get("BSCALE", 1.0) or 1.0)
+    bzero = float(header.get("BZERO", 0.0) or 0.0)
+    if bitpix == 16 and bscale == 1.0 and bzero == 32768.0:
+        return "ushort"
+    if bitpix in (8, 16, 32) and (bscale != 1.0 or bzero != 0.0):
+        return "real"
+    return {8: "short", 16: "short", 32: "int", -32: "real", -64: "double"}.get(bitpix,
+                                                                             "real")
+
+
+def as_type(data, pixtype: str):
+    """Pixels as IMIO writes them into an image of an IRAF pixel type: an integer type
+    truncates toward zero, as Fortran's assignment does."""
+    import numpy as np
+
+    dtype = np.dtype(PIXTYPES[pixtype])
+    if dtype.kind == "f":
+        return np.asarray(data, dtype)
+    return np.trunc(np.asarray(data, np.float64)).astype(np.int64).astype(dtype)
