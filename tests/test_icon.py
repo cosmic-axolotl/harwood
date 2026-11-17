@@ -141,19 +141,27 @@ def test_the_shortcut_installs_a_launcher_whose_icon_follows_the_theme(tmp_path,
         result = CliRunner().invoke(cli, ["shortcut"])
         assert result.exit_code == 0, result.output
         desktop = tmp_path / "applications" / "harwood.desktop"
-        svg = tmp_path / "icons" / "hicolor" / "scalable" / "apps" / "harwood.svg"
+        folder = tmp_path / "icons" / "hicolor" / "scalable" / "apps"
         text = desktop.read_text(encoding="utf-8")
-        for line in ("Icon=harwood", " gui %f", "StartupWMClass=harwood"):
+        for line in (" gui %f", "StartupWMClass=harwood"):
             assert line in text
-        assert theme.LIGHT.ground in svg.read_text(encoding="utf-8")
+        light = icon.launcher_icon()
+        assert f"Icon={light}" in text and light.parent == folder
+        assert theme.LIGHT.ground in light.read_text(encoding="utf-8")
         pytest.importorskip("PySide6")
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from harwood.viewer._qt import application
 
         application()
         theme.update(save=False, theme="dark")
-        assert theme.DARK.ground in svg.read_text(encoding="utf-8")
+        # a new file under a new name, which the .desktop names; the old one gone, so
+        # that GNOME, which keeps an icon by its name, reads the new one
+        dark = icon.launcher_icon()
+        assert dark != light and not light.exists()
+        assert f"Icon={dark}" in desktop.read_text(encoding="utf-8")
+        assert theme.DARK.ground in dark.read_text(encoding="utf-8")
+        assert [p.name for p in folder.iterdir()] == [dark.name]   # nothing half-written
         result = CliRunner().invoke(cli, ["shortcut", "--remove"])
-        assert result.exit_code == 0 and not desktop.exists() and not svg.exists()
+        assert result.exit_code == 0 and not desktop.exists() and not dark.exists()
     finally:
         theme.update(save=False, theme=before.theme, colorblind=before.colorblind)

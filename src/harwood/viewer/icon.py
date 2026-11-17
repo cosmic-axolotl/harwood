@@ -15,6 +15,7 @@ light, the desktop's, and the colour-blind palettes.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import math
 import os
 from functools import lru_cache
@@ -103,34 +104,69 @@ def qicon(palette):
 _shown: tuple | None = None
 
 
+def _key(palette) -> tuple:
+    return (palette.ground, palette.ink, palette.sky, palette.accent)
+
+
 def apply(app, palette) -> None:
     """Set the application's icon to the palette's, if it is not that already; name
     the desktop file, which is what Wayland's docks find the icon by; and, when
-    `harwood shortcut` installed one, write the launcher's icon in these colours too
-    (GNOME shows it the next time harwood opens)."""
+    `harwood shortcut` installed a launcher, point it at an icon in these colours."""
     global _shown
-    key = (palette.ground, palette.ink, palette.sky, palette.accent)
+    key = _key(palette)
     if _shown == key and not app.windowIcon().isNull():
         return
     app.setWindowIcon(qicon(palette))
     if not app.desktopFileName():
         app.setDesktopFileName("harwood")
     _shown = key
-    path = launcher_icon()
-    if path.is_file():
+    if launcher_file().is_file():
         # a launcher's icon is not worth a failed window
         with contextlib.suppress(OSError):
-            path.write_text(svg(palette), encoding="utf-8")
+            _write_launcher(palette, None)
 
 
 # ------------------------------------------------------------- the launcher
+#
+# GNOME takes the menu's and the dock's icon from the .desktop file, not from the
+# window, and keeps an icon it has read by its name: rewriting harwood.svg in place
+# changes nothing it shows (and if it reads the file while it is being written, it
+# shows none). So each palette's icon is a file of its own, harwood-<colours>.svg,
+# written whole before it appears (a rename), and the .desktop file -- itself
+# replaced the same way, which makes the desktop read the entry again -- names it.
+
 
 def _data_home() -> Path:
     return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
 
 
-def launcher_icon() -> Path:
-    return _data_home() / "icons" / "hicolor" / "scalable" / "apps" / "harwood.svg"
+def _icon_dir() -> Path:
+    return _data_home() / "icons" / "hicolor" / "scalable" / "apps"
+
+
+def launcher_icon(palette=None) -> Path:
+    """The launcher's icon for a palette (by default, the one the launcher names)."""
+    if palette is None:
+        named = _named_icon()
+        if named is not None:
+            return named
+        from . import theme
+
+        palette = theme.palette()
+    digest = hashlib.sha1("".join(_key(palette)).encode("utf-8")).hexdigest()[:8]
+    return _icon_dir() / f"harwood-{digest}.svg"
+
+
+def _named_icon() -> Path | None:
+    try:
+        text = launcher_file().read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        if line.startswith("Icon="):
+            path = Path(line[5:].strip())
+            return path if path.is_absolute() else None
+    return None
 
 
 def launcher_file() -> Path:
@@ -143,29 +179,65 @@ Name=harwood
 GenericName=Astronomical data reduction
 Comment=Reduce a night of observing, with the tasks you know from IRAF
 Exec={exec} gui %f
-Icon=harwood
+Icon={icon}
 Terminal=false
 Categories=Science;Astronomy;
 StartupWMClass=harwood
 """
 
 
+def _replace(path: Path, text: str) -> None:
+    """Write the file whole, then put it in place: whoever reads it sees the old or
+    the new one, never half of either."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _exec_of(desktop: Path) -> str | None:
+    try:
+        text = desktop.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        if line.startswith("Exec="):
+            return line[5:].removesuffix(" gui %f")
+    return None
+
+
+def _write_launcher(palette, command: str | None) -> list[Path]:
+    icon_path, desktop = launcher_icon(palette), launcher_file()
+    if not icon_path.is_file():
+        _replace(icon_path, svg(palette))
+    exec_ = (f'"{command}"' if " " in command else command) if command else _exec_of(desktop)
+    if exec_ is None:
+        return []
+    entry = DESKTOP.format(exec=exec_, icon=icon_path)
+    try:
+        same = desktop.read_text(encoding="utf-8") == entry
+    except OSError:
+        same = False
+    if not same:
+        _replace(desktop, entry)
+    for old in _icon_dir().glob("harwood*.svg"):
+        if old != icon_path:
+            old.unlink(missing_ok=True)
+    return [desktop, icon_path]
+
+
 def install_launcher(palette, command: str) -> list[Path]:
     """A freedesktop launcher (Linux): the .desktop file, which opens the window with
     `command gui`, and the icon in the palette's colours. The files written."""
-    icon_path, desktop = launcher_icon(), launcher_file()
-    icon_path.parent.mkdir(parents=True, exist_ok=True)
-    desktop.parent.mkdir(parents=True, exist_ok=True)
-    icon_path.write_text(svg(palette), encoding="utf-8")
-    quoted = f'"{command}"' if " " in command else command
-    desktop.write_text(DESKTOP.format(exec=quoted), encoding="utf-8")
-    return [desktop, icon_path]
+    return _write_launcher(palette, command)
 
 
 def remove_launcher() -> list[Path]:
     removed = []
-    for path in (launcher_file(), launcher_icon()):
-        if path.is_file():
-            path.unlink()
-            removed.append(path)
+    if launcher_file().is_file():
+        launcher_file().unlink()
+        removed.append(launcher_file())
+    for path in sorted(_icon_dir().glob("harwood*.svg")) if _icon_dir().is_dir() else []:
+        path.unlink()
+        removed.append(path)
     return removed

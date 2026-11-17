@@ -157,7 +157,7 @@ def shortcut_cmd(remove: bool) -> None:
         subprocess.run(["update-desktop-database", str(icon.launcher_file().parent)],
                        capture_output=True, check=False)
     console.print(i18n.tr("harwood is in the applications menu; pin it to the dock from "
-                          "there. Its icon follows the theme from the next time it opens."))
+                          "there. Its icon follows the theme you choose in the window."))
 
 
 # --------------------------------------------------------------- browsing
