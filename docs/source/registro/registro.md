@@ -1,7 +1,7 @@
 ---
 title: "harwood: where this came from and where it is"
 subtitle: "A modern replacement for IRAF — project record"
-date: "17 November 2026"
+date: "18 November 2026"
 mainfont: "Linux Libertine O"
 monofont: "DejaVu Sans Mono"
 monofontoptions: "Scale=0.82"
@@ -259,7 +259,7 @@ off by following the manual — the SPP source is ported line by line. Some resu
 | cosmicrays `--algorithm iraf` | pixel, mask and CRCOR as IRAF's, up to 31,669 replacements on M92 |
 | contour and surface | IRAF's NCAR curves and hidden lines, against its metacode |
 | emsao (RVSAO) | the emsao.log line for line, 44 cases |
-| xcsao (RVSAO) | 55 cases |
+| xcsao (RVSAO) | the xcsao.log line for line, 135 cases (every report mode; correlation in velocity, wavelength or pixels); the header cards `save_vel` writes, card for card |
 | 1992 airmasses | all seven object frames to 0.01, from the site table |
 
 **Against the course.** Every exercise of the IRAF course (introduction, CL and display, CCD
@@ -279,7 +279,7 @@ synthesise the observation, demand the truth back. That is how a 4% bias in band
 integration and an optimal extraction that was a no-op on the flux were found — both passed
 every test that compared a measurement with its own error bar.
 
-**6,986 tests**, on Linux and Windows, Python 3.12 and 3.14.
+**7,167 tests**, on Linux and Windows, Python 3.12 and 3.14.
 
 ## Bugs found in IRAF
 
@@ -288,7 +288,11 @@ purpose and with a test that says so: `apall` with variance weights and a gain o
 divides only the first subaperture by the gain; and the Marsh `fit2d` profile with its default
 order is so ill-conditioned in single precision that IRAF itself is not reproducible. The
 course material has its own: `imreplace lower=0.` replaces the pixels *at or above* zero, not
-the negative ones the text says — the recipe works because of that.
+the negative ones the text says — the recipe works because of that. And RVSAO's `save_vel`
+writes back into the file the whole header it holds in memory, with the 00:00:00 RA and Dec
+it made up while reading a spectrum that had none and today's date: the next task — the next
+aperture of the same multispec, to begin with — then corrects the velocity for an object at
+0h 0° observed today. harwood writes RVSAO's own cards and nothing else.
 
 ## What the course taught the software
 
@@ -301,8 +305,10 @@ nothing at all.
 
 # What is left
 
-**Next.** The rest of RVSAO: the `emsao` and `xcsao` graph with its cursor keys, saving
-velocities to the header, then `fxcor`, which was deferred for its size.
+**Next.** The rest of RVSAO: the `emsao` and `xcsao` graph with its cursor keys (xcsao's
+default display is emsao's), `emsao` saving its velocity to the header and its sky spectrum,
+then `fxcor`, which was deferred for its size. `xcsao` itself is otherwise complete: its
+correlation in velocity, wavelength or pixels, every report mode, and `save_vel`.
 
 **Planned.** 223 IRAF tasks remain on the map, most of them later milestones: `daophot`
 (13), `imcoords` (16), the rest of `immatch` (`geomap`, `geotran`, `psfmatch`, mosaics),

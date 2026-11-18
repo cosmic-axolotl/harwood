@@ -108,4 +108,41 @@ CASES = {
                                                   "save_vel": "yes"}, {}),
     "save_log": ("glog.fits", {"templates": "tg.fits", "save_vel": "yes"}, {}),
     "save_no": ("g2500.fits", {"templates": "tg.fits", "save_vel": "no"}, {}),
+    # correlate: in wavelength (Angstroms) and in pixels instead of velocity
+    "wavelength": ("g2500.fits", {"templates": "tg.fits", "correlate": "wavelength"}, {}),
+    "wavelength_two": ("gal6000.fits", {"templates": "tg.fits,ta.fits",
+                                        "correlate": "wavelength"}, {}),
+    "wavelength_guess": ("g2500.fits", {"templates": "tg.fits", "correlate": "wavelength",
+                                        "vel_init": "guess", "czguess": 2300.0}, {}),
+    "wavelength_quartic": ("g2500.fits", {"templates": "tg.fits",
+                                          "correlate": "wavelength", "pkmode": 2}, {}),
+    "wavelength_lambda": ("g2500.fits", {"templates": "tg.fits", "correlate": "wavelength",
+                                         "st_lambda": 4200.0, "end_lambda": 6000.0}, {}),
+    "wavelength_log": ("glog.fits", {"templates": "tg.fits", "correlate": "wavelength"}, {}),
+    "wavelength_save": ("g2500.fits", {"templates": "tg.fits", "correlate": "wavelength",
+                                       "save_vel": "yes"}, {}),
+    "pixel": ("g2500.fits", {"templates": "tg.fits", "correlate": "pixel"}, {}),
+    "pixel_two": ("gal6000.fits", {"templates": "tg.fits,ta.fits", "correlate": "pixel"},
+                  {}),
+    "pixel_ends": ("gends.fits", {"templates": "tg.fits", "correlate": "pixel"}, {}),
+    "pixel_report2": ("g2500.fits", {"templates": "tg.fits,ta.fits", "correlate": "pixel",
+                                     "report_mode": 2}, {}),
+    "pixel_nzpass": ("g2500.fits", {"templates": "tg.fits", "correlate": "pixel",
+                                    "nzpass": 1}, {}),
 }
+# the report modes: 0 (none) to 18, and the negative ones (tabs, with a header)
+for _mode in [0, *range(3, 19), -3, -8, -10, -11, -12, -14, -6]:
+    CASES[f"report{_mode}"] = ("g2500.fits,gal6000.fits",
+                               {"templates": "tg.fits,ta.fits", "report_mode": _mode}, {})
+for _mode in (3, 8, 14, -8, -14):
+    CASES[f"report{_mode}_em"] = ("gemnear.fits,gold.fits",
+                                  {"templates": "tg.fits", "report_mode": _mode}, {})
+for _mode in (10, 11, 12, -10, -11, -12):
+    CASES[f"report{_mode}_one"] = ("g2500.fits", {"templates": "tg.fits",
+                                                  "report_mode": _mode}, {})
+for _mode in (3, 13, 16, 17, 18):
+    CASES[f"report{_mode}_more"] = ("pair.fits,gsite.fits",
+                                    {"templates": "tg.fits:4500-6200,tgvel.fits",
+                                     "specnum": "1-2", "report_mode": _mode}, {})
+CASES["report11_weak"] = ("noisy.fits", {"templates": "tblue.fits,ta.fits,tg.fits",
+                                          "report_mode": 11}, {})

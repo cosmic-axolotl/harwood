@@ -149,6 +149,9 @@ XWHY = {
     "rebin": "The spectrum and each template rebinned onto one grid even in log "
              "wavelength (ncols points) over the range they share, so that a "
              "velocity is a shift by the same number of bins everywhere.",
+    "rebin_linear": "The spectrum and each template rebinned onto one grid even in "
+                    "wavelength (or in pixels), so that the peak gives a shift in "
+                    "Angstroms (or pixels) rather than a velocity.",
     "continuum": "Each one's continuum fit and taken off (contpars), its ends "
                  "tapered (bell_window), and -- if asked -- its emission or "
                  "absorption lines clipped, so that the lines alone correlate.",
@@ -178,6 +181,10 @@ class XcsaoParams(TaskParams):
                                           "spectrum.")
     specband: int = Field(0, description="Band of a multispec.")
     specdir: str = Field("", description="Directory of the spectra.")
+    correlate: Literal["velocity", "wavelength", "pixel", "yes"] = Field(
+        "velocity", description="Correlate in velocity (a grid even in log wavelength), "
+                                "or in wavelength or pixels (an even grid): the shift is "
+                                "then in Angstroms or pixels.")
     tempband: int = Field(1, description="Band of a multispec template.")
     st_lambda: float | None = Field(None, description="Starting wavelength to "
                                                       "correlate (empty: the overlap's).")
@@ -223,8 +230,11 @@ class XcsaoParams(TaskParams):
                                            "many points).")
     minvel: float | None = Field(-5000.0, description="Lowest velocity looked at.")
     maxvel: float | None = Field(100000.0, description="Highest velocity looked at.")
-    report_mode: Literal[1, 2] = Field(1, description="Report format: 1, the normal one; "
-                                                     "2, a line per template.")
+    report_mode: int = Field(1, ge=-18, le=18, description=(
+        "Report format: 1, the normal one; 2, a line per template; 3 to 18, RVSAO's "
+        "one-line formats (8: with emsao's velocity; 10-12: every template on one "
+        "line; 17, 18: Hectochelle's and TRES'); negative: tabs between the fields "
+        "and a header; 0: none."))
     logfiles: str = Field("STDOUT,xcsao.log", description="Where the report goes: "
                                                           "STDOUT and files, by commas.")
     save_vel: bool = Field(False, description="Write the velocity into the spectrum's "
@@ -283,9 +293,10 @@ class Xcsao(Task[XcsaoParams]):
     """RVSAO's xcsao (Smithsonian Astrophysical Observatory, an IRAF external
     package): the radial velocity by cross-correlation with templates (Tonry & Davis
     1979), held to RVSAO 2.8.5 compiled against IRAF 2.18 -- its log identical on
-    82 cases, and with save_vel the cards it writes into the header. Not ported
-    yet: the graph and its cursor (displot, curmode), archives, correlate in
-    wavelength or pixels and the report modes other than 1 and 2."""
+    135 cases -- every report mode, the correlation in velocity, wavelength or
+    pixels -- and with save_vel the cards it writes into the header. Not ported
+    yet: the graph and its cursor (displot, curmode), correlate=no (which only
+    redraws the header's results) and archives."""
 
     name = "xcsao"
     package = "rvsao"
@@ -294,7 +305,8 @@ class Xcsao(Task[XcsaoParams]):
 
     def plan(self, params: XcsaoParams) -> list[Step]:
         return [Step("rebin", f"{', '.join(params.spectra)} x {params.templates}",
-                     why=XWHY["rebin"]),
+                     why=XWHY["rebin"] if params.correlate in ("velocity", "yes")
+                     else XWHY["rebin_linear"]),
                 Step("continuum", f"bell {params.bell_window:g}", why=XWHY["continuum"]),
                 Step("correlate", f"filter {params.low_bin} {params.top_low} "
                      f"{params.top_nrun} {params.nrun}", why=XWHY["correlate"]),

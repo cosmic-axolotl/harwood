@@ -8004,6 +8004,10 @@ msgid "The spectrum and each template rebinned onto one grid even in log wavelen
 msgstr "O espectro e cada template rebinados numa grade só, uniforme em log do comprimento de onda (ncols pontos), sobre a faixa em comum, para que uma velocidade seja o mesmo deslocamento em bins em toda parte."
 
 #: harwood/tasks/rvsao.py:148
+msgid "The spectrum and each template rebinned onto one grid even in wavelength (or in pixels), so that the peak gives a shift in Angstroms (or pixels) rather than a velocity."
+msgstr "O espectro e cada modelo reamostrados numa grade só, uniforme em comprimento de onda (ou em pixels), para que o pico dê um deslocamento em angstroms (ou pixels) em vez de uma velocidade."
+
+#: harwood/tasks/rvsao.py:148
 msgid "Each one's continuum fit and taken off (contpars), its ends tapered (bell_window), and -- if asked -- its emission or absorption lines clipped, so that the lines alone correlate."
 msgstr "O contínuo de cada um ajustado e retirado (contpars), as pontas atenuadas (bell_window) e, se pedido, as linhas de emissão ou absorção cortadas, para que só as linhas se correlacionem."
 
@@ -8035,36 +8039,36 @@ msgstr "Cada linha da lista onde esse redshift a põe, se ela fica linesig vezes
 msgid "The lines' redshifts weighted by their centres' errors; a line too near an end, or with too small an equivalent width, left out."
 msgstr "Os redshifts das linhas pesados pelos erros dos centros delas; uma linha perto demais de uma ponta, ou com largura equivalente pequena demais, fica de fora."
 
-#: harwood/tasks/rvsao.py:276
+#: harwood/tasks/rvsao.py:286
 msgid "RVSAO's templates, shipped with harwood"
 msgstr "Os modelos do RVSAO, que vêm com o harwood"
 
-#: harwood/tasks/rvsao.py:292
+#: harwood/tasks/rvsao.py:303
 msgid "Radial velocity by cross-correlation (RVSAO's xcsao)."
 msgstr "Velocidade radial por correlação cruzada (xcsao do RVSAO)."
 
-#: harwood/tasks/rvsao.py:309
+#: harwood/tasks/rvsao.py:321
 msgid "xcsao needs templates to correlate with"
 msgstr "o xcsao precisa de templates para correlacionar"
 
-#: harwood/tasks/rvsao.py:309
+#: harwood/tasks/rvsao.py:321
 msgid "give --templates star.fits (several by commas), and --tempdir for their folder. RVSAO's own templates come with harwood: --templates fallstars,femtemp97 (the list: harwood xcsao --list-templates)"
 msgstr "dê --templates estrela.fits (vários separados por vírgula) e --tempdir para a pasta deles. Os modelos do próprio RVSAO vêm com o harwood: --templates fallstars,femtemp97 (a lista: harwood xcsao --list-templates)"
 
-#: harwood/tasks/rvsao.py:321
+#: harwood/tasks/rvsao.py:333
 #, python-brace-format
 msgid "xcsao stopped: {0}"
 msgstr "o xcsao parou: {0}"
 
-#: harwood/tasks/rvsao.py:321
+#: harwood/tasks/rvsao.py:333
 msgid "check the templates and tempdir"
 msgstr "confira os templates e o tempdir"
 
-#: harwood/tasks/rvsao.py:346
+#: harwood/tasks/rvsao.py:358
 msgid "check the name and the directory"
 msgstr "confira o nome e a pasta"
 
-#: harwood/tasks/rvsao.py:349
+#: harwood/tasks/rvsao.py:361
 msgid "the file is read-only: copy it, or give yourself write permission, and run again"
 msgstr "o arquivo é somente leitura: copie-o, ou dê a você permissão de escrita, e rode de novo"
 

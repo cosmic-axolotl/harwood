@@ -62,6 +62,10 @@ DEFAULTS = {
 VINIT = ("zero", "guess", "zguess", "correlation", "emission", "combination")
 CHOPS = ("yes", "no", "tempfile", "specfile")
 NOCONT, SUBCONT, DIVCONT, ZEROCONT, CONTFIT = 0, 1, 2, 3, 4
+COR_VEL, COR_PIX, COR_WAV = 2, 3, 4
+#: correlate: in velocity (log wavelength), in pixels or in wavelength (Angstroms)
+CORRELATE = {"velocity": COR_VEL, "yes": COR_VEL, "pixel": COR_PIX,
+             "wavelength": COR_WAV}
 
 
 # ------------------------------------------------------------- arithmetic
@@ -137,6 +141,26 @@ def rebinl(data: np.ndarray, wcs, indlog: float, npts: int, w0: float, dw: float
         if indlog != 0.0:
             lw -= indlog
         xpos = f32(wcs.l2p(lw))
+        if xpos < f32(1) or xpos > f32(n):
+            out[i - 1] = 0
+        else:
+            out[i - 1] = arieval(xpos, data, kind)
+    return out
+
+
+def rebin(data: np.ndarray, wcs, indlog: float, npts: int, w0: float, dw: float,
+          ispix: bool, kind: str = "spline3") -> np.ndarray:
+    """rebin: the spectrum at npts points even in wavelength (or, ispix, in pixels)
+    from w0 by dw -- each moved by indlog in log wavelength first -- 0 outside it."""
+    out = np.zeros(npts, f32)
+    n = data.size
+    for i in range(1, npts + 1):
+        if indlog != 0.0:
+            wl0 = w0 + (dw * float(i - 1))
+            wl = 10.0 ** (math.log10(wl0) - indlog)
+        else:
+            wl = w0 + (dw * float(i - 1))
+        xpos = f32(wl if ispix else wcs.w2p(wl))
         if xpos < f32(1) or xpos > f32(n):
             out[i - 1] = 0
         else:
@@ -420,7 +444,7 @@ def pkfitp(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel):
 _QUARTIC = [0.0] * 6     #: pkfitq's coefficients, SAVEd from one fit to the next
 
 
-def quarticpeak(a, xl: float, xr: float, x0: float):
+def quarticpeak(a, xl: float, xr: float, x0: float, out: list[str] | None = None):
     """quarticpeak: the quartic's maximum near x0 by Newton's method, and the points
     where it falls to half on each side, from xl and xr. (x0, h, w, xl, xr)."""
     def poly(z):
@@ -448,6 +472,8 @@ def quarticpeak(a, xl: float, xr: float, x0: float):
         while s < 3.0 and poly(x0 + s * (x1 - x0)) >= 0:
             s = s + step
         if s >= 3:
+            if out is not None:
+                out.append("QUARTICPEAK: poly never reaches half maximum\n")
             x = x1
         else:
             i = 1
@@ -681,7 +707,8 @@ def pkfitc(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel,
     return npfit, a[2], 2.0 * psi0, a[0], imax
 
 
-def pkfitq(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel):
+def pkfitq(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel,
+           out: list[str] | None = None):
     """pkfitq: the peak fit by quartics, above fracpeak of it, on the points inside and
     one wider, the half-height points from pkwidth's at 0.5."""
     _h, _w, ilh, irh, imax = pkwidth(xcor, xvel, 0.5, pkindx, minvel, maxvel)
@@ -694,12 +721,12 @@ def pkfitq(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel):
         co = earlin(xind[ilu - 1:iru], xcor[ilu - 1:iru], 5)
         a[1:6] = list(co[1:6])
         cu, hu, wu = quarticpeak(a, float(xind[ilh - 1]), float(xind[irh - 1]),
-                                 float(xind[imax - 1]))
+                                 float(xind[imax - 1]), out)
         npfit = ir - il + 1
         co = earlin(xind[il - 1:ir], xcor[il - 1:ir], 5)
         a[1:6] = list(co[1:6])
         cl, hl, wl = quarticpeak(a, float(xind[ilh - 1]), float(xind[irh - 1]),
-                                 float(xind[imax - 1]))
+                                 float(xind[imax - 1]), out)
         pwl = float(ir - il)
         pweight = (pwidth - pwl) / 2.0
         center = cl + ((cl - cu) * pweight)
@@ -710,7 +737,8 @@ def pkfitq(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel):
         co = earlin(xind[il - 1:il - 1 + npfit], xcor[il - 1:il - 1 + npfit], 3)
         a[1:4] = list(co[1:4])
         center, height, width = quarticpeak(a, float(xind[ilh - 1]),
-                                            float(xind[irh - 1]), float(xind[imax - 1]))
+                                            float(xind[irh - 1]), float(xind[imax - 1]),
+                                            out)
     return npfit, center, width, height, imax
 
 
@@ -718,7 +746,7 @@ def pkfitq(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel):
 
 
 def icsubcon(fdata: np.ndarray, p: dict, spectype: int, conproc: int, chop: bool,
-             abrej: float, emrej: float) -> np.ndarray:
+             abrej: float, emrej: float, out: list[str] | None = None) -> np.ndarray:
     """icsubcon: the continuum fit (contpars; the spectrum's or the template's
     rejection) to the points from the first to the last not zero; with `chop`, the
     points beyond abrej (below) or emrej (above) sigmas of it set to it; and the
@@ -748,6 +776,8 @@ def icsubcon(fdata: np.ndarray, p: dict, spectype: int, conproc: int, chop: bool
                       low_reject=float(f32(p[low])), high_reject=float(f32(p[high])),
                       niterate=int(p["niterate"]), grow=float(f32(p["grow"])))
     curve = icfitbits.fit(ic, x, fdata.astype(f32), w)
+    if out is not None:            # ic_fit's errors, as it prints them
+        out.extend(f"{m}\n" for m in ic.messages)
     if chop and (abrej > 0 or emrej > 0):
         clip = icfitbits.Ic(low_reject=float(f32(abrej)), high_reject=float(f32(emrej)),
                             grow=float(f32(p["grow"])))
@@ -815,6 +845,9 @@ class TempResult:
     conproc: int = SUBCONT
     dlogw: float = 0.0            #: the grid's step in log wavelength (taa's inverse)
     vshift: float = 0.0           #: tvshift: the initial velocity the template was moved by
+    pcent: float = 0.0            #: tpcent, tphght, tpwdth: the peak as measured, not fit
+    phght: float = 0.0
+    pwdth: float = 0.0
     xvel: np.ndarray | None = None
     xcor: np.ndarray | None = None
 
@@ -837,9 +870,12 @@ class XcResult:
     emvel: float = INDEFD         #: spevel, speerr, spnlf: emsao's, from the header
     emerr: float = INDEFD
     emnlf: int = 0
+    emnl: int = 0
     vel: float = INDEFD           #: spvel, sperr: vcombine's of the two
     err: float = INDEFD
     saved: str = ""               #: the file save_vel wrote into
+    specfile: str = ""            #: the name as listed
+    old: tuple = (INDEFD, INDEFD, 0.0, INDEFD, "_")  #: vrhead's: vel, err, R, BCV, quality
 
 
 def emrhead(head, mspec: int) -> tuple[float, float, int]:
@@ -858,6 +894,119 @@ def emrhead(head, mspec: int) -> tuple[float, float, int]:
     scan.i()
     nlf = scan.i()
     return (INDEFD if vel is None else vel), (INDEFD if err is None else err), nlf or 0
+
+
+def _apvem_nl(head, mspec: int) -> int:
+    from .rvsao import Scan
+
+    if mspec >= 1000 or not head.has(f"APVEM{mspec}"):
+        return 0
+    scan = Scan(head.string(f"APVEM{mspec}") or "")
+    scan.d()
+    scan.d()
+    return scan.i() or 0
+
+
+def vrhead(head, mspec: int) -> tuple:
+    """vrhead: the velocity a run before left in the header -- VELOCITY (with
+    VELERR or CZERR, CZXCR and VELQUAL), or a multispec's APVELn -- and the BCV:
+    (vel, err, R, bcv, quality), INDEFD where there is none."""
+    from .rvsao import Scan
+
+    bcv = head.d("BCV", INDEFD)
+    vfound = afound = False
+    key = "VELOCITY"
+    if mspec == 0:
+        vfound = head.has("VELOCITY")
+        if not vfound:
+            afound = head.has("APVEL1")
+            key = "APVEL0"
+    elif mspec < 1000:
+        key = f"APVEL{mspec}"
+        afound = head.has(key)
+        if not afound:
+            vfound = head.has("VELOCITY")
+    else:
+        vfound = head.has("VELOCITY")
+    vel = err = INDEFD
+    r0 = 0.0
+    qflag = "\\000"            # a char never set: IRAF's %c prints NUL so
+    if vfound:
+        vel = head.d("VELOCITY", INDEFD)
+        err = head.d("VELERR", INDEFD)
+        err = head.d("CZERR", err)
+        r0 = head.d("CZXCR", 0.0)
+        qflag = (head.string("VELQUAL") or "_")[:1] or "_"
+    elif afound:
+        scan = Scan(head.string(key) or "")
+        vel = scan.d()
+        err = scan.d()
+        word = scan.wrd()
+        qflag = word[:1] if word else "_"
+        extra = scan.d()
+        vel = INDEFD if vel is None else vel
+        err = INDEFD if err is None else err
+        if extra is not None:
+            bcv = extra
+    return vel, err, r0, bcv, qflag
+
+
+def report_head(rmode: int, ntemp: int, tab: bool = True) -> str:
+    """xcrshead: the column names and dashes a tab-separated report (a negative
+    report_mode) starts with -- for modes 8, 10, 11, 12 and 14."""
+    sp = "\t" if tab else " "
+    d = "-" * 32
+
+    def temps(n1: int, n2: int, n3: int, n4: int, left: bool = True,
+              plain: bool = False) -> str:
+        out = ""
+        for i in range(1, ntemp + 1):
+            if plain:
+                out += (f"{sp}{f'temp{i}':<{n1}.{n1}}{sp}{f'vel{i}':>7}{sp}"
+                        f"{f'err{i}':<5}{sp}{f'xcr{i}':>4}")
+            else:
+                out += (f"{sp}{f'temp{i}':<{n1}.{n1}}{sp}{f'vel{i}':<{n2}.{n2}}{sp}"
+                        f"{f'err{i}':<{n3}.{n3}}{sp}{f'xcr{i}':<{n4}.{n4}}")
+        return out
+
+    def dashes(n1: int, n2: int, n3: int, n4: int, left: bool = False) -> str:
+        cell = (lambda n: f"{d:<{n}.{n}}") if left else (lambda n: f"{d:>{n}.{n}}")
+        return "".join(f"{sp}{cell(n1)}{sp}{cell(n2)}{sp}{cell(n3)}{sp}{cell(n4)}"
+                       for _ in range(ntemp))
+
+    if rmode == 8:
+        return (f"{'specid':<32.32}{sp}{'instrument':<8.8}{sp}{'title':<16.16}{sp}"
+                f"{'julian_date':<15.15}{sp}{'emvel':<5.5}{sp}{'emerr':>5.5}{sp}"
+                f"{'xcvel':<5.5}{sp}{'xcerr':>5.5}{sp}{'xcr':<5.5}{sp}{'vel':>5.5}{sp}"
+                f"{'err':>3.3}{sp}C{sp}{'nl':>2.2}{sp}{'nf':>2.2}{sp}{'best':<8.8}\n"
+                f"{d:>32.32}{sp}{d:>8.8}{sp}{d:>16.16}{sp}{d:>15.15}{sp}{d:>5.5}{sp}"
+                f"{d:>5.5}{sp}{d:>5.5}{sp}{d:>5.5}{sp}{d:>5.5}{sp}{d:>5.5}{sp}{d:>3.3}"
+                f"{sp}{d:>1.1}{sp}{d:>2.2}{sp}{d:>2.2}{sp}{d:>8.8}\n")
+    if rmode == 10:
+        best = (f"{sp}{'besttemp':<12.12}{sp}{'bestvel':<7.7}{sp}{'besterr':<7.7}{sp}"
+                f"{'bestr':<5.5}") if ntemp > 1 else ""
+        bestd = f"{sp}{d:>12.12}{sp}{d:>7.7}{sp}{d:>5.5}{sp}{d:>4.4}" if ntemp > 1 else ""
+        return (f"{'specid':<14.14}{sp}{'julian_date':<14.14}{sp}{'best':<4.4}{best}"
+                f"{temps(12, 7, 5, 4)}\n{d:>14.14}{sp}{d:>14.14}{sp}{d:>2.2}{bestd}"
+                f"{dashes(12, 7, 5, 4)}\n")
+    if rmode == 11:
+        best = (f"{sp}{'besttemp':<14.14}{sp}{'xcvel':<7.7}{sp}{'xcerr':<5.5}{sp}"
+                f"{'xcr':>4.4}") if ntemp > 1 else ""
+        bestd = f"{sp}{d:>14.14}{sp}{d:>7.7}{sp}{d:>5.5}{sp}{d:>4.4}" if ntemp > 1 else ""
+        return (f"{'specid':<32.32}{sp}{'julian_date':<14.14}{sp}best{best}"
+                f"{temps(14, 7, 5, 4)}\n{d:>32.32}{sp}{d:>14.14}{sp}{d:>2.2}{bestd}"
+                f"{dashes(14, 7, 5, 4)}\n")
+    if rmode == 12:
+        return (f"{'specid':<32.32}{sp}{'julian_date':<14.14}{sp}{'best':<4.4}"
+                f"{temps(14, 7, 5, 4, plain=True)}\n{d:>32.32}{sp}{d:>14.14}{sp}"
+                f"{d:>4.4}{dashes(14, 7, 5, 4, left=True)}\n")
+    if rmode == 14:
+        return (f"{'specid':<32.32}{sp}{'julian_date':<14.14}{sp}{'emvel':<7.7}{sp}"
+                f"{'emerr':<5}{sp}nl{sp}nf{sp}best{sp}{'besttemp':<14.14}"
+                f"{temps(14, 7, 5, 4, plain=True)}\n{d:>32.32}{sp}{d:>14.14}{sp}"
+                f"{d:>7.7}{sp}{d:>5.5}{sp}{d:>2.2}{sp}{d:>2.2}{sp}{d:>2.2}{sp}{d:>14.14}"
+                f"{dashes(14, 7, 5, 4)}\n")
+    return ""
 
 
 def peak_width(t: TempResult) -> float:
@@ -910,6 +1059,7 @@ class Xcsao:
         self.log: list[str] = []
         self.tempfilt: dict[int, int] = {}
         self._counted = False         # countemp runs once, when the buffers are made
+        self._tempinfo = [""] * 36    # xcrslts' tempinfo, as the stack keeps it
 
     def logfiles(self) -> list[str]:
         return [w.strip() for w in str(self.p.get("logfiles", "STDOUT")).split(",")
@@ -927,6 +1077,8 @@ class Xcsao:
         self.to_stdout = "STDOUT" in self.logfiles()
         if int(self.p["report_mode"]) == 1:
             self._log(rvsao.loghead("rvsao.xcsao") + "\n")
+        if int(self.p["report_mode"]) < 0:
+            self._log(report_head(-int(self.p["report_mode"]), 0))
         for name in names:
             path = str(self.p["specdir"]) + name
             text = str(self.p["specnum"]).strip() or "0"
@@ -943,6 +1095,11 @@ class Xcsao:
                     continue
                 result = self.xcfit(spec)
                 if result is not None:
+                    result.specfile = name
+                    result.old = vrhead(spec.head, mspec)
+                    result.emvel, result.emerr, result.emnlf = emrhead(spec.head, mspec)
+                    result.emnl = spec.head.i("CZEMNL", 0) if mspec == 0 else \
+                        _apvem_nl(spec.head, mspec)
                     self.results.append(result)
                     self._report(result)
                     if _yes(self.p.get("save_vel")):
@@ -1121,8 +1278,11 @@ class Xcsao:
     def xcfit(self, spec) -> XcResult | None:
         p = self.p
         corr = str(p["correlate"])
-        if corr not in ("velocity", "yes"):
+        if corr not in CORRELATE:
             raise RvsaoError(f"correlate={corr} is not ported yet")
+        self.cor = CORRELATE[corr]
+        linear = self.cor in (COR_WAV, COR_PIX)
+        ispix = self.cor == COR_PIX
         data = spec.data
         sh = spec.sh
         np1, np2 = sh.np1, sh.np2
@@ -1213,8 +1373,12 @@ class Xcsao:
             else:
                 ncor, lo, toplo, topnrn, nrun = npts, lo0, toplo0, tpnrn0, nrun0
             pkfrac = temp.spec.head.d("PEAKFRAC", pkfrac0)
-            tz = ((1.0 + spec.hcv / C0) * (1.0 + temp.vel / C0) * (1.0 + temp.shift / C0)
-                  * (1.0 + tshift / C0) / (1.0 + temp.hcv / C0))
+            if ispix:
+                tz = 1.0
+            else:
+                tz = ((1.0 + spec.hcv / C0) * (1.0 + temp.vel / C0)
+                      * (1.0 + temp.shift / C0) * (1.0 + tshift / C0)
+                      / (1.0 + temp.hcv / C0))
             zshift = (1.0 + czguess / C0) / tz if zinit else 1.0
             tcz = 0.0
             for izpass in range(1, nzpass + 1):
@@ -1224,8 +1388,12 @@ class Xcsao:
                     tmstrt, tmfnsh = tmstrt + tmshft, tmfnsh + tmshft
                 else:
                     tmshft = 0.0
-                spwl1, spwl2 = sorted((10.0 ** spec.start_log, 10.0 ** spec.end_log))
-                tmwl1, tmwl2 = sorted((10.0 ** tmstrt, 10.0 ** tmfnsh))
+                if ispix:
+                    spwl1, spwl2 = 1.0, float(np2 - np1 + 1)
+                    tmwl1, tmwl2 = 1.0, float(temp.spec.sh.np2 - temp.spec.sh.np1 + 1)
+                else:
+                    spwl1, spwl2 = sorted((10.0 ** spec.start_log, 10.0 ** spec.end_log))
+                    tmwl1, tmwl2 = sorted((10.0 ** tmstrt, 10.0 ** tmfnsh))
                 if spwl1 > tmwl2:
                     self.out += ("XCFIT: Spectrum starts after template "
                                  f"{temp.id} ends: {spwl1:9.2f} > {tmwl2:9.2f}\n")
@@ -1247,27 +1415,47 @@ class Xcsao:
                     maxwav = maxwav1
                 else:
                     maxwav = maxwav0
+                if ispix:
+                    minwav, maxwav = float(np1), float(np2)
                 tr.wl1, tr.wl2 = minwav, maxwav
                 logmin, logmax = math.log10(minwav), math.log10(maxwav)
                 dlogw = (logmax - logmin) / float(npts - 1)
+                self.delwav = (maxwav - minwav) / float(npts - 1)
                 kind = str(p["interp_mode"])
-                shspec = rebinl(data, spec.wcs, 0.0, npts, logmin, dlogw, kind)
-                shtemp = rebinl(temp.spec.data, temp.spec.wcs, tmshft, npts, logmin,
-                                dlogw, kind)
+                if linear:
+                    shspec = rebin(data, spec.wcs, 0.0, npts, minwav, self.delwav, ispix,
+                                   kind)
+                    shtemp = rebin(temp.spec.data, temp.spec.wcs, tmshft, npts, minwav,
+                                   self.delwav, ispix, kind)
+                else:
+                    shspec = rebinl(data, spec.wcs, 0.0, npts, logmin, dlogw, kind)
+                    shtemp = rebinl(temp.spec.data, temp.spec.wcs, tmshft, npts, logmin,
+                                    dlogw, kind)
                 tvel = ((tz * zshift) - 1.0) * C0 if (zinit or izpass > 1) else \
                     (tz - 1.0) * C0
                 tcz = self.xcorfit(shspec, shtemp, tr, ncor, (lo, toplo, topnrn, nrun),
                                    dlogw, tvel, contfit, conproc, ttcont, han, pkfrac,
                                    minvel, maxvel, (schop, sab, sem), (tchop, tab, tem))
-                tr.zvel = (1.0 + (tr.cz / C0)) * tz
-                if zinit or izpass > 1:
-                    tr.zvel *= zshift
-                    tr.vshift = (zshift - 1.0) * C0
+                if linear:
+                    tr.zvel = tr.cz
+                    if zinit or izpass > 1:
+                        tr.zvel += zshift
+                        tr.vshift = zshift
+                    else:
+                        tr.vshift = 0.0
                 else:
-                    tr.vshift = 0.0
-                tr.zvel = (tr.zvel - 1.0) * C0
+                    tr.zvel = (1.0 + (tr.cz / C0)) * tz
+                    if zinit or izpass > 1:
+                        tr.zvel *= zshift
+                        tr.vshift = (zshift - 1.0) * C0
+                    else:
+                        tr.vshift = 0.0
+                    tr.zvel = (tr.zvel - 1.0) * C0
                 if nzpass > 1 and izpass < nzpass:
-                    zshift *= (1.0 + tcz / C0)
+                    if linear:
+                        zshift += tcz
+                    else:
+                        zshift *= (1.0 + tcz / C0)
             else:
                 result.filter = (lo, toplo, topnrn, nrun)
                 result.zpad, result.ncor, result.fracpeak = zpad, ncor, abs(pkfrac)
@@ -1293,18 +1481,28 @@ class Xcsao:
         log2 = int(math.log(float(f32(ncor))) / LN2 + 0.001)
         index = np.arange(1, ncor + 1) - ncor2 - 1
         xind = index.astype(f32)
-        xvel = np.array([f32(C0 * (10.0 ** (k * dlogw) - 1.0) + tvel) for k in index], f32)
+        linear = self.cor in (COR_WAV, COR_PIX)
+        delwav = self.delwav
+        if linear:
+            xvel = np.array([f32(float(k) * delwav) for k in index], f32)
+        else:
+            xvel = np.array([f32(C0 * (10.0 ** (k * dlogw) - 1.0) + tvel) for k in index],
+                            f32)
         npts = spectrum.size
         tfilt = tr.template.filt
         if contfit:
-            icsubcon(spectrum, self.p, 1, conproc, schop[0], schop[1], schop[2])
+            said: list[str] = []
+            icsubcon(spectrum, self.p, 1, conproc, schop[0], schop[1], schop[2], said)
+            self.out += "".join(said)
         apodize(spectrum, han)
         re1 = np.zeros(ncor, f32)
         im1 = np.zeros(ncor, f32)
         re1[:npts] = spectrum
         fourm(re1, im1, log2, 1)
         if tcont:
-            icsubcon(template, self.p, 2, conproc, tchop[0], tchop[1], tchop[2])
+            said = []
+            icsubcon(template, self.p, 2, conproc, tchop[0], tchop[1], tchop[2], said)
+            self.out += "".join(said)
             apodize(template, han)
         re2 = np.zeros(ncor, f32)
         im2 = np.zeros(ncor, f32)
@@ -1326,7 +1524,10 @@ class Xcsao:
         fracpeak = abs(pkfrac)
         pkmode = int(self.p["pkmode"])
         if pkmode == 2:
-            npfit, pc, pw, ph, pkindx = pkfitq(xind, xcor, xvel, fracpeak, 0, minvel, maxvel)
+            said = []
+            npfit, pc, pw, ph, pkindx = pkfitq(xind, xcor, xvel, fracpeak, 0, minvel, maxvel,
+                                               said)
+            self.out += "".join(said)
         elif pkmode == 3:
             said: list[str] = []
             npfit, pc, pw, ph, pkindx = pkfitc(xind, xcor, xvel, fracpeak, 0, minvel,
@@ -1337,7 +1538,7 @@ class Xcsao:
             # xcorfit: any other mode is 1, and is reported as 1
             self.p["pkmode"] = 1
             npfit, pc, pw, ph, pkindx = pkfitp(xind, xcor, xvel, fracpeak, 0, minvel, maxvel)
-        tcz = C0 * (10.0 ** (pc * dlogw) - 1.0)
+        tcz = pc * delwav if linear else C0 * (10.0 ** (pc * dlogw) - 1.0)
         fourm(cre, cim, log2, 1)
         arms, srms = aspartf(cre, cim, lo, nrun, pc, tfilt)
         arms, srms = arms * fnorm, srms * fnorm
@@ -1345,19 +1546,28 @@ class Xcsao:
         tr.arms, tr.srms, tr.npfit = arms, srms, npfit
         if arms > 0:
             tczr = ph / (2.0 * arms) if pw > 0 else 0.0
-            _h, pwidth, _il, _ir, pkindx = pkwidth(xcor, xvel, 0.5, 0, minvel, maxvel)
+            pheight, pwidth, _il, _ir, pkindx = pkwidth(xcor, xvel, 0.5, 0, minvel,
+                                                        maxvel)
             pwidth = abs(pwidth)
             epsilon = 3.0 * pwidth / 8.0 / (1.0 + tczr)
-            tczerr = C0 * (10.0 ** (epsilon * dlogw) - 1.0)
+            tczerr = epsilon * delwav if linear else \
+                C0 * (10.0 ** (epsilon * dlogw) - 1.0)
         else:
-            tczr = tczerr = pwidth = 0.0
+            tczr = tczerr = pwidth = pheight = 0.0
+        # the peak as measured: its bin, its height, and its half width in bins
+        # (Memr[xind+pkindx+pwidth/2-1]: the pointer's sum truncated)
+        tr.pcent, tr.phght = float(xind[pkindx - 1]), pheight
+        hi = min(max(math.floor(pkindx - 1 + pwidth * 0.5), 0), ncor - 1)
+        lo_ = min(max(math.floor(pkindx - 1 - pwidth * 0.5), 0), ncor - 1)
+        tr.pwdth = 0.5 * (float(xind[hi]) - float(xind[lo_]))
         if (minvel is not None and tcz + tvel < minvel) or \
                 (maxvel is not None and tcz + tvel > maxvel):
             tcz = float(xvel[pkindx - 1])
             tczr = tczerr = 0.0
             tr.center, tr.height, tr.width = float(xind[pkindx - 1]), \
                 float(xcor[pkindx - 1]), 0.0
-        tcz1 = C0 * (10.0 ** ((pc - (pwidth * 0.5)) * dlogw) - 1.0)
+        tcz1 = (pc - (pwidth * 0.5)) * delwav if linear else \
+            C0 * (10.0 ** ((pc - (pwidth * 0.5)) * dlogw) - 1.0)
         tr.vwidth = tcz - tcz1
         tr.cz, tr.czerr, tr.czr = tcz, tczerr, tczr
         tr.xvel, tr.xcor, tr.dlogw = xvel, xcor, dlogw
@@ -1365,12 +1575,195 @@ class Xcsao:
 
     # ---------------------------------------------------------------- report
 
+    def _report_line(self, rmode: int, r: XcResult, sp: str) -> str:
+        """xcrslts' report modes 3 to 18: a line per spectrum or per template, in
+        the formats of SAO's archives and instruments (sp: a tab between the fields
+        of modes 8, 10, 11, 12 and 14 when report_mode is negative)."""
+        from .emsao import round_half, vcombine
+        from .iraffmt import Format
+        from .rvsao import juldate
+
+        def f(fmt: str, value) -> str:
+            return Format(fmt)(value)
+
+        spec, head = r.spectrum, r.spectrum.head
+        specid = spec.name
+        _ut, dj, djh, _date = juldate(head)
+        instrument = (head.string("INSTRUME") or "")[:8]
+        incode = "T" if instrument.startswith("echelle") else \
+            "M" if instrument.startswith("mmtech") else \
+            "W" if instrument.startswith("oroech") else "_"
+        temps = r.temps
+        ntemp = len(temps)
+        best = temps[r.best - 1]
+        hcv = spec.hcv
+        vel0, err0, r0, bcv0, qual0 = r.old
+        out = ""
+
+        def stem(text: str) -> str:   # strcpy (specid, filename, strldx ('.') - 1)
+            nc = text.rfind(".")
+            return specid[:nc] if nc > 0 else ""
+
+        if rmode == 3:
+            out += (f"{specid[:16]:<16.16} {f('%6.2f', r0)} {f('%6.2f', best.czr)} "
+                    f"{f('%9.3f', vel0)} {f('%9.3f', best.zvel)} {f('%8.3f', err0)} "
+                    f"{f('%8.3f', best.czerr)} {f('%6.3f', bcv0)} {f('%6.3f', hcv)} "
+                    f"{f('%12.2f', djh)} {qual0} {best.template.id}\n")
+        elif rmode == 4:
+            name = stem(r.specfile)
+            for t in temps:
+                out += (f"{name:<16.16} {t.template.id} {f('%6.2f', t.czr)} "
+                        f"{f('%9.3f', t.zvel)} {f('%8.3f', t.czerr)}\n")
+        elif rmode == 5:
+            lo, toplo, topnrn, nrun = r.filter
+            for t in temps:
+                out += (f"{lo:2d} {toplo:2d} {topnrn:3d} {nrun:3d} "
+                        f"{t.template.id:<16.16} {f('%5.2f', t.template.shift)} "
+                        f"{specid:<14.14} {f('%6.2f', t.zvel)} {f('%4.1f', t.czr)} "
+                        f"{f('%4.2f', t.height)} {f('%5.1f', peak_width(t))} "
+                        f"{f('%5.2f', hcv)}\n")
+        elif rmode in (6, 9, 15):
+            for t in temps:
+                width = peak_width(t)
+                if rmode != 9:
+                    width = max(width, 0.0)
+                if rmode == 6:
+                    out += (f"{incode} {specid:<14.14} {t.template.id:<16.16} "
+                            f"{f('%14.5f', djh)} {f('%7.2f', t.zvel)} {f('%6.2f', t.czerr)} "
+                            f"{f('%5.3g', t.czr)} {f('%4.2f', t.height)} {f('%5.1f', width)} "
+                            f"{f('%6.2f', hcv)}\n")
+                elif rmode == 9:
+                    out += (f"{incode} {specid:<14.14} {t.template.id:<16.16} "
+                            f"{f('%14.5f', djh)} {f('%8.3f', t.zvel)} {f('%7.3f', t.czerr)} "
+                            f"{f('%4.1f', t.czr)} {f('%4.2f', t.height)} {f('%5.1f', width)} "
+                            f"{f('%6.2f', hcv)}\n")
+                else:
+                    out += (f"{incode} {specid:<14.14} {t.template.id:<18.18} "
+                            f"{f('%14.5f', djh)} {f('%9.3f', t.zvel)} {f('%7.3f', t.czerr)} "
+                            f"{f('%5.3g', t.czr)} {f('%5.3f', t.height)} {f('%7.3f', width)} "
+                            f"{f('%7.3f', hcv)}\n")
+        elif rmode == 7:
+            nnova = head.i("NTEMP", 0)
+            qnova = head.i("QCSTAT", 0)
+            nova = {}
+            for i in range(1, nnova + 1):
+                name = (head.string(f"TEMPL{i}") or "")
+                name = name.split(" ")[0].lower() if name else ("ztemp" if i == 1 else "")
+                nova[name] = (head.d(f"TCZXCR{i}", 0.0), head.d(f"TCZXC{i}", 0.0),
+                              head.d(f"TCZXCER{i}", 0.0), head.d(f"TXCHGHT{i}", 0.0),
+                              head.d(f"TXCARMS{i}", 0.0))
+            q = {1: "?", 2: "?", 3: "X", 4: "Q"}.get(qnova, "_")
+            for t in temps:
+                name = t.template.id if t.template.id in nova else "none"
+                nr, nv, ne, nh, na = nova.get(t.template.id, (0.0, 0.0, 0.0, 0.0, 0.0))
+                out += (f"{specid[:16]:>16.16} {f('%6.2f', nr)} {f('%6.2f', t.czr)} "
+                        f"{f('%9.3f', nv)} {f('%9.3f', t.zvel)} {f('%8.3f', ne)} "
+                        f"{f('%8.3f', t.czerr)} {f('%7.5f', float(f32(nh)))} "
+                        f"{f('%7.5f', t.height)} {f('%7.5f', float(f32(na)))} "
+                        f"{f('%7.5f', t.arms)} {f('%12.2f', dj)} {t.template.id} {name} "
+                        f"{q}\n")
+        elif rmode == 8:
+            vel, err = vcombine(r.xcvel, r.xcerr, r.xcr, r.emvel, r.emerr, r.emnlf)
+
+            def pair(v, e):
+                return (int(round_half(v)), int(round_half(e))) if v != INDEFD else (0, 0)
+            icz, icze = pair(vel, err)
+            iczxc, iczxce = pair(r.xcvel, r.xcerr)
+            iczem, iczeme = pair(r.emvel, r.emerr)
+            title = (head.string("OBJECT") or "").strip() or "_" * 16
+            out += (f"{specid:>6}{sp}{instrument or '_' * 8:<8}{sp}{title:<16}{sp}"
+                    f"{f('%15.5f', dj)}{sp}{iczem:5d}{sp}{iczeme:3d}{sp}{iczxc:5d}{sp}"
+                    f"{iczxce:3d}{sp}{f('%5.1f', r.xcr)}{sp}{icz:5d}{sp}{icze:3d}{sp}C"
+                    f"{sp}{r.emnl:2d}{sp}{r.emnlf:2d}{sp}{best.template.id}\n")
+        elif rmode in (10, 11, 12, 14):
+            name = specid
+            if rmode == 12:
+                name = name.replace("[", " ", 1).replace("]", " ", 1)
+            width = 14 if rmode == 10 else 32
+            best_i = r.best
+            if rmode == 11 and best.czr < 1.0:
+                best_i = 0
+            line = f"{name:<{width}.{width}}{sp}{f('%14.5f', dj)}"
+            if rmode == 14:
+                line += (f"{sp}{f('%7.1f', r.emvel)}{sp}{f('%5.1f', r.emerr)}{sp}"
+                         f"{r.emnl}{sp}{r.emnlf}{sp}{r.best}{sp}{best.template.id:<14.14}")
+            else:
+                line += f"{sp}{best_i}"
+            tw = 12 if rmode == 10 else 14
+            if rmode in (10, 11) and ntemp > 1:
+                if rmode == 11 and best.czr < 1.0:
+                    line += (f"{sp}{'none':<14.14}{sp}{f('%7.1f', 0.0)}{sp}"
+                             f"{f('%5.1f', 0.0)}{sp}{f('%4.2f', best.czr)}")
+                else:
+                    line += (f"{sp}{best.template.id:<{tw}.{tw}}{sp}{f('%7.1f', best.zvel)}"
+                             f"{sp}{f('%5.1f', best.czerr)}{sp}{f('%4.2f', best.czr)}")
+            for t in temps:
+                if rmode in (11, 12):
+                    line += (f"{sp}{t.template.id:<14.14}{sp}{f('%7.7g', t.zvel)}{sp}"
+                             f"{f('%5.5g', t.czerr)}{sp}{f('%4.2f', t.czr)}")
+                else:
+                    line += (f"{sp}{t.template.id:<{tw}.{tw}}{sp}{f('%7.1f', t.zvel)}{sp}"
+                             f"{f('%5.1f', t.czerr)}{sp}{f('%4.2f', t.czr)}")
+            out += line + "\n"
+        elif rmode == 13:
+            for t in temps:
+                taa = 1.0 / t.dlogw / math.log(10.0) if t.dlogw else 0.0
+                if taa != 0:
+                    dlogw = 1.0 / (math.log(10.0) * taa)
+                    width = C0 * ((10.0 ** (t.pwdth * dlogw)) - 1.0)
+                    z1 = (10.0 ** (t.pcent * dlogw)) * (1.0 + (hcv / C0))
+                    vel = C0 * (z1 - 1.0)
+                else:
+                    width, vel = t.vwidth, t.cz
+                out += (f"{incode} {specid:<14.14} {t.template.id:<16.16} "
+                        f"{f('%14.5f', djh)} {f('%7.2f', vel)} {f('%7.5f', t.phght)} "
+                        f"{f('%6.2f', width)} {f('%6.2f', hcv)}\n")
+        elif rmode == 16:
+            for t in temps:
+                w1, w2 = t.template.wl1, t.template.wl2
+                mid = (w1 + w2) * 0.5
+                # INDEF + INDEF overflows: IRAF prints the infinity so
+                tail = f('%7.1f', mid) if math.isfinite(mid) else "0.00E309"
+                out += (f"{specid:<24.24} {t.template.id:<16.16} {f('%6.2f', t.czr)} "
+                        f"{f('%9.3f', t.zvel)} {f('%8.3f', t.czerr)} {f('%5.3f', t.height)} "
+                        f"{f('%7.1f', w1)} {f('%7.1f', w2)} {tail}\n")
+        elif rmode in (17, 18):
+            aperture = r.spectrum.mspec if r.spectrum.mspec > 0 else head.i("APERTURE", 1)
+            fiber, beam = head.i("FIBER", 0), head.i("BEAM", 1)
+            for t in temps:
+                tid = t.template.id
+                if rmode == 17:
+                    width = max(peak_width(t), 0.0)
+                    k = tid.rfind("/") + 1
+                    start = k if k > 0 else max(len(tid) - 35, 0)
+                    # tempinfo: copied in without its EOS, over what the template
+                    # before left (an EOS at 28 only)
+                    buf = self._tempinfo
+                    buf[27] = ""
+                    for j, ch in enumerate(tid[start:start + min(len(tid), 35)]):
+                        buf[j] = ch
+                    info = "".join(buf[:buf.index("")])
+                    out += (f"{aperture:03d} {fiber:03d} {beam} {spec.object:<24.24} "
+                            f"{info:<35.35} {f('%14.5f', djh)} {f('%9.3f', t.zvel)} "
+                            f"{f('%8.3f', t.czerr)} {f('%6.3f', t.czr)} "
+                            f"{f('%6.4f', t.height)} {f('%6.2f', width)} {f('%7.3f', hcv)}\n")
+                else:
+                    tempfile = tid.split("[")[0]
+                    out += (f"{aperture:02d} {r.specfile} {tempfile} {f('%14.5f', djh)} "
+                            f"{f('%9.5f', t.zvel)} {f('%8.5f', t.czerr)} {f('%6.3f', t.czr)} "
+                            f"{f('%7.3f', hcv)}\n")
+        return out
+
     def _report(self, r: XcResult) -> None:
         from . import iraffmt
         from .emsao import _f
         from .rvsao import BCV, FBCV, FHCV, HCV, NONE, juldate
 
-        rmode = int(self.p["report_mode"])
+        rmode0 = int(self.p["report_mode"])
+        rmode = abs(rmode0)
+        if rmode >= 3:
+            self._log(self._report_line(rmode, r, "\t" if rmode0 < 0 else " "))
+            return
         if rmode == 2:
             text = ""
             for t in r.temps:
@@ -1381,7 +1774,7 @@ class Xcsao:
             self._log(text)
             return
         if rmode != 1:
-            raise RvsaoError(f"report_mode {rmode} is not ported yet")
+            return                      # 0: the archive's, which xcsao does not write
         spec = r.spectrum
         head = spec.head
         ra = head.d("RA", INDEFD)
@@ -1427,7 +1820,9 @@ class Xcsao:
             line = (f"Temp: {t.template.id:>16s} vel: {_f(t.template.vel, 6, 2)} "
                     f" tsh: {_f(t.template.shift, 6, 2)} HCV: {_f(t.template.hcv, 6, 2)} "
                     f"Peak: {_f(t.cz, 7, 3)}"
-                    f" h:{_f(t.height, 5, 3)} R: {_f(t.czr, 6, 2)} CZ: {_f(t.zvel, 7, 3)} "
+                    f" h:{_f(t.height, 5, 3)} R: {_f(t.czr, 6, 2)} "
+                    f"{'Shift' if self.cor in (COR_PIX, COR_WAV) else 'CZ'}: "
+                    f"{_f(t.zvel, 7, 3)} "
                     f"+/- {_f(t.czerr, 7, 3)} {int(self.p['pkmode'])}")
             if t.schop:
                 line += " -el"

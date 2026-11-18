@@ -17,7 +17,7 @@
     size: A4;
     margin: 16mm 16mm 22mm 16mm;
     @bottom-left {
-      content: "harwood — decisões de projeto · seções 9 e 10 revistas em 17/11/2026";
+      content: "harwood — decisões de projeto · seções 9 e 10 revistas em 18/11/2026";
       font: 7.5pt "DejaVu Sans"; color: #595959; vertical-align: top; padding-top: 4mm;
     }
     @bottom-right {
@@ -62,7 +62,7 @@ visor de cabeçalho, teclas do imexamine, marcas do tvmark.</p>
 
 <h2 class="next">9. Estado atual do código</h2>
 
-<p class="nota">Revisto em 17 de novembro de 2026 (commit <code>c18ef5c</code>). A versão de
+<p class="nota">Revisto em 18 de novembro de 2026. A versão de
 21/10 desta página, com o estado de antes da reconstrução, está em
 <code>docs/historico/</code>.</p>
 
@@ -85,7 +85,7 @@ visor de cabeçalho, teclas do imexamine, marcas do tvmark.</p>
       inteira depois: onedspec (35), apextract (7), longslit (4), photcal (12) e o
       redshift do RVSAO</td></tr>
   <tr><td>Verificação</td>
-      <td>6 986 testes. O IRAF 2.18 e o RVSAO 2.8.5 instalados servem de gabarito: a saída
+      <td>7 167 testes. O IRAF 2.18 e o RVSAO 2.8.5 instalados servem de gabarito: a saída
       deles fica congelada em <code>tests/data</code> e cada tarefa é comparada número a
       número. Onde o manual e o código do IRAF divergem, vale o código (<code>.x</code>
       portado linha a linha). O que o IRAF não tem é validado contra verdade conhecida ou
@@ -136,7 +136,7 @@ visor de cabeçalho, teclas do imexamine, marcas do tvmark.</p>
 <h2 class="next">10. Em aberto</h2>
 
 <p class="nota">Os seis itens de 21/10, com o que aconteceu a cada um, e os que vieram
-depois. Revisto em 17/11/2026.</p>
+depois. Revisto em 18/11/2026.</p>
 
 <table>
   <tr><th class="n">#</th><th>Item</th><th class="st">Estado</th><th>Como ficou</th></tr>
@@ -167,8 +167,10 @@ depois. Revisto em 17/11/2026.</p>
       <td class="st decidido">Resolvido</td><td>Uma lista própria no mapa de migração,
       <code>added:</code>, que <code>harwood list</code> mostra à parte</td></tr>
   <tr><td class="n">10</td><td>Velocidade radial: o que falta</td>
-      <td class="st proposto">Proposto</td><td>Próximos: o resto do xcsao e do emsao (a janela
-      com cursor, gravar no cabeçalho) e depois o fxcor, adiado por ser grande</td></tr>
+      <td class="st proposto">Proposto</td><td>O xcsao está completo fora da janela (correlação
+      em velocidade, λ ou pixel, todos os modos de relatório, save_vel). Próximos: a janela
+      com cursor do emsao e do xcsao (o gráfico padrão do xcsao é o do emsao), o emsao gravar
+      no cabeçalho e o espectro de céu, e depois o fxcor, adiado por ser grande</td></tr>
   <tr><td class="n">11</td><td>Publicação</td><td class="st aberto">Em aberto</td>
       <td>A primeira versão no PyPI e o extra <code>rust</code></td></tr>
 </table>
