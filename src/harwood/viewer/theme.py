@@ -313,7 +313,13 @@ QTabBar::tab {{ background: {c.panel}; color: {c.muted}; padding: 5px 12px;
     border: 1px solid {c.line}; border-bottom: none; }}
 QTabBar::tab:selected {{ color: {c.ink}; border-top: 2px solid {c.accent}; }}
 QWidget#viewstrip {{ background: {c.panel}; border-bottom: 1px solid {c.line}; }}
+QLabel#advice {{ color: {c.warning}; border-left: 3px solid {c.warning};
+    padding: 3px 8px; }}
 QWidget#viewstrip QCheckBox {{ color: {c.muted}; font-size: {small:.1f}pt; }}
+QWidget#viewstrip QLabel#notice {{ color: {c.accent}; font-size: {small:.1f}pt; }}
+QWidget#viewstrip QToolButton#save {{ font-size: {small:.1f}pt; padding: 1px 8px;
+    border: 1px solid {c.line}; border-radius: 4px; background: {c.ground}; }}
+QWidget#viewstrip QToolButton#save:hover {{ border-color: {c.accent}; }}
 QStatusBar {{ background: {c.panel}; border-top: 1px solid {c.line};
     color: {c.ink}; font-family: {monofam}; font-size: {mono:.1f}pt; }}
 QLabel#hint {{ color: {c.muted}; font-size: {small:.1f}pt; }}
@@ -326,6 +332,11 @@ QLabel#status {{ background: {c.panel}; border-top: 1px solid {c.line};
 QLabel#keys {{ color: {c.muted}; font-family: {monofam}; font-size: {small:.1f}pt;
     padding: 4px 9px; }}
 QLineEdit#command {{ font-family: {monofam}; background: {c.panel}; }}
+QPlainTextEdit#command {{ font-family: {monofam}; font-size: {mono:.1f}pt;
+    background: {c.panel}; color: {c.ink}; border: 1px solid {c.line};
+    border-radius: 4px; padding: 1px 4px;
+    selection-background-color: {c.accent}; selection-color: {c.ground}; }}
+QPlainTextEdit#command:focus {{ border: 2px solid {c.accent}; }}
 QLabel#clock {{ color: {c.ink}; font-family: {monofam}; font-size: {mono:.1f}pt; }}
 QProgressBar {{ background: {c.panel}; border: 1px solid {c.line}; border-radius: 4px; }}
 QProgressBar::chunk {{ background: {c.accent}; border-radius: 3px; }}

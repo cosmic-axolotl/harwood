@@ -70,6 +70,17 @@ class Display(Protocol):
 _current: Display | None = None
 
 
+#: Pictures rather than images: display shows them in a tab of their own.
+FIGURES = (".eps", ".epsi", ".epsf", ".ps", ".pdf", ".png", ".jpg", ".jpeg", ".gif",
+           ".bmp", ".tif", ".tiff", ".webp", ".svg")
+
+
+def is_figure(name: Any) -> bool:
+    from pathlib import Path
+
+    return Path(str(name).split("[")[0]).suffix.lower() in FIGURES
+
+
 def get(backend: str | None = None, **options: Any) -> Display:
     """Get the display, starting it if necessary.
 

@@ -102,6 +102,35 @@ class Feature:
     ftype: str | None = None
 
 
+def disorder(features) -> list[tuple[Feature, Feature]]:
+    """The neighbouring pairs of used features (in pixel order) whose wavelengths go
+    against the rest -- one of each pair was given the wrong wavelength. What makes
+    a solution not monotonic, said in lines rather than in coefficients."""
+    used = sorted((f for f in features if f.user is not None and f.wts != 0
+                   and f.pix is not None), key=lambda f: f.pix)
+    if len(used) < 3:
+        return []
+    rising = sum(1 if b.user > a.user else -1 for a, b in zip(used, used[1:], strict=False))
+    return [(a, b) for a, b in zip(used, used[1:], strict=False)
+            if (b.user - a.user) * (1 if rising >= 0 else -1) < 0]
+
+
+def disorder_advice(features, units: str = "") -> str:
+    """disorder() in words, with what to do; "" when the lines are in order."""
+    pairs = disorder(features)
+    if not pairs:
+        return ""
+    from .i18n import trf
+
+    u = {"angstroms": " Å", "angstrom": " Å"}.get(units.lower(), f" {units}") \
+        if units and units.lower() not in ("pixels", "") else ""
+    said = "; ".join(trf("{0} at pixel {1} comes before {2} at pixel {3}",
+                         f"{a.user:.2f}{u}", f"{a.pix:.1f}", f"{b.user:.2f}{u}",
+                         f"{b.pix:.1f}") for a, b in pairs)
+    return trf("Lines out of order: {0}. One of each pair has the wrong wavelength: put "
+               "the cursor on it and press d to delete it, or m to mark it again.", said)
+
+
 @dataclass
 class Identify:
     """The state identify keeps for one spectrum."""
@@ -410,6 +439,27 @@ class Identify:
         for f in used:
             total += (f.fit - float(f.user or 0.0)) ** 2
         return math.sqrt(total / len(used))
+
+
+def too_few_lines(fit) -> str:
+    """When the curve has as many coefficients as lines, or more: it passes through
+    every line and its RMS of 0 says nothing about the solution -- with 5 lines,
+    spline3 order 2 bends anywhere between them, and fitcoords after it is free."""
+    if fit is None:
+        return ""
+    from .i18n import trf
+
+    deleted = getattr(fit, "deleted", None)
+    used = fit.mask if deleted is None else fit.mask & ~deleted
+    n = int(np.count_nonzero(used))
+    order, function = int(fit.spec.order), fit.spec.function
+    ncoeff = {"spline3": order + 3, "spline1": order + 1}.get(function, order)
+    if n > ncoeff:
+        return ""
+    return trf("Only {0} lines for a {1} of order {2} ({3} coefficients): the curve "
+               "passes through every one, so its RMS proves nothing. Press l to find "
+               "the rest of the line list, then f to fit again.", n, function, order,
+               ncoeff)
 
 
 def _cv_order(fit) -> int:

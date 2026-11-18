@@ -99,7 +99,7 @@ msgstr "Ahora: {0}. Guardado: {1}. El del sistema: {2}."
 
 #: harwood/cli/main.py:125
 #: harwood/cli/main.py:120
-#: harwood/viewer/window.py:572
+#: harwood/viewer/window.py:573
 msgid "the system's"
 msgstr "el del sistema"
 
@@ -732,11 +732,11 @@ msgstr "Wavelength out of range of extinction function"
 msgid "Cardelli, Clayton & Mathis's law is defined from 1000 to 33333 A; trim the spectrum to that range first."
 msgstr "la ley de Cardelli, Clayton y Mathis vale de 1000 a 33333 A; recorte antes el espectro a ese rango."
 
-#: harwood/core/display.py:99
+#: harwood/core/display.py:110
 msgid "the ds9 backend is not written yet"
 msgstr "el backend ds9 todavía no está escrito"
 
-#: harwood/core/display.py:99
+#: harwood/core/display.py:110
 msgid "use the harwood window (leave --backend empty), or --backend headless for a PNG"
 msgstr "use la ventana de harwood (deje --backend vacío), o --backend headless para un PNG"
 
@@ -1257,6 +1257,18 @@ msgstr "las dimensiones de las imágenes no son las mismas"
 msgid "combine images of one dimension"
 msgstr "combine imágenes de una misma dimensión"
 
+#: harwood/core/identify.py:127
+msgid "{0} at pixel {1} comes before {2} at pixel {3}"
+msgstr "{0} en el píxel {1} viene antes de {2} en el píxel {3}"
+
+#: harwood/core/identify.py:130
+msgid "Lines out of order: {0}. One of each pair has the wrong wavelength: put the cursor on it and press d to delete it, or m to mark it again."
+msgstr "Líneas fuera de orden: {0}. Una de cada par tiene la longitud de onda equivocada: pon el cursor sobre ella y pulsa d para borrarla, o m para marcarla de nuevo."
+
+#: harwood/core/identify.py:459
+msgid "Only {0} lines for a {1} of order {2} ({3} coefficients): the curve passes through every one, so its RMS proves nothing. Press l to find the rest of the line list, then f to fit again."
+msgstr "Solo {0} líneas para una {1} de orden {2} ({3} coeficientes): la curva pasa por todas, así que su RMS no prueba nada. Pulse l para encontrar el resto de la lista de líneas y luego f para ajustar de nuevo."
+
 #: harwood/core/identifysession.py:50
 msgid "mark the line at the cursor, then type its coordinate"
 msgstr "marcar la línea en el cursor, después escribir su coordenada"
@@ -1361,6 +1373,10 @@ msgstr "la línea o apertura escrita"
 #: harwood/core/identifysession.py:50
 msgid "show, features, read, add, write, nsum, match, minsep, zwidth, labels, fwidth, ftype, threshold"
 msgstr "show, features, read, add, write, nsum, match, minsep, zwidth, labels, fwidth, ftype, threshold"
+
+#: harwood/core/identifysession.py:896
+msgid "The fit turns back on itself between the lines: lower the order (:order), or delete (d) the line where the residuals jump."
+msgstr "El ajuste vuelve sobre sí mismo entre las líneas: baja el orden (:order) o borra (d) la línea donde saltan los residuos."
 
 #: harwood/core/igsfit.py:73
 msgid "the values of the nearest point"
@@ -2922,7 +2938,7 @@ msgstr "Enlace a esta sección"
 
 #: harwood/docsite/builder.py:569
 #: harwood/docsite/builder.py:571
-#: harwood/viewer/window.py:1208
+#: harwood/viewer/window.py:1315
 msgid "Command line"
 msgstr "Línea de comandos"
 
@@ -2997,7 +3013,7 @@ msgstr "Todos los paquetes"
 
 #: harwood/docsite/builder.py:649
 #: harwood/docsite/builder.py:661
-#: harwood/viewer/browser.py:620
+#: harwood/viewer/browser.py:629
 msgid "Packages"
 msgstr "Paquetes"
 
@@ -3010,7 +3026,7 @@ msgid "{0} of {1} tasks in harwood"
 msgstr "{0} de {1} tareas en harwood"
 
 #: harwood/docsite/builder.py:674
-#: harwood/viewer/browser.py:648
+#: harwood/viewer/browser.py:657
 msgid "partial"
 msgstr "parcial"
 
@@ -3028,13 +3044,13 @@ msgstr "en harwood, con huecos"
 
 #: harwood/docsite/builder.py:691
 #: harwood/docsite/builder.py:673
-#: harwood/viewer/browser.py:648
+#: harwood/viewer/browser.py:657
 msgid "planned"
 msgstr "planificada"
 
 #: harwood/docsite/builder.py:691
 #: harwood/docsite/builder.py:673
-#: harwood/viewer/browser.py:649
+#: harwood/viewer/browser.py:658
 msgid "replaced"
 msgstr "reemplazada"
 
@@ -3056,7 +3072,7 @@ msgid "status"
 msgstr "estado"
 
 #: harwood/docsite/builder.py:733
-#: harwood/viewer/window.py:477
+#: harwood/viewer/window.py:478
 msgid "Language"
 msgstr "Idioma"
 
@@ -3385,7 +3401,7 @@ msgid "Every column the spectrum has, as numbers, with a comment saying what eac
 msgstr "Todas las columnas que tiene el espectro, como números, con un comentario que dice qué es cada una. Nada se recalcula y nada queda fuera."
 
 #: harwood/tasks/apextract.py:746
-#: harwood/tasks/onedspec.py:2087
+#: harwood/tasks/onedspec.py:2098
 #, python-brace-format
 msgid "'{0}' has no aperture {1}; it holds {2}."
 msgstr "'{0}' no tiene la apertura {1}; tiene {2}."
@@ -4028,7 +4044,7 @@ msgstr "escriba una tecla por línea, 'x y 1 tecla' o ':comando', cada ajuste ha
 
 #: harwood/tasks/ccdred.py:492
 #: harwood/tasks/longslit.py:419
-#: harwood/tasks/longslit.py:677
+#: harwood/tasks/longslit.py:705
 #, python-brace-format
 msgid "answers file '{0}' does not exist"
 msgstr "el archivo de respuestas '{0}' no existe"
@@ -4853,6 +4869,10 @@ msgstr "{0}: Input and output images have different sizes"
 msgid "give an output section the size of the input's"
 msgstr "dé una sección de salida del tamaño de la entrada"
 
+#: harwood/tasks/imfit.py:204
+msgid "a line, or two for their average (275, or 270 280); empty or Cancel fits every line with what was set"
+msgstr "una línea, o dos para su promedio (275, o 270 280); vacío o Cancelar ajusta todas las líneas con lo definido"
+
 #: harwood/tasks/imfit.py:22
 msgid "Each line (axis 1) or column (axis 2) fitted with ICFIT on the sample points -- for a sky, the columns off the object -- with rejection of what stands out."
 msgstr "Cada línea (eje 1) o columna (eje 2) ajustada con ICFIT en los puntos de muestra -- para un cielo, las columnas fuera del objeto -- rechazando lo que se destaca."
@@ -4865,11 +4885,11 @@ msgstr "El propio ajuste, los datos menos él (un fondo restado), o los datos di
 msgid "In real, a new image the size of the whole input -- zeros outside a section (ones for a ratio); an image that already exists is written in place, only where the section is, as IRAF writes it."
 msgstr "En real, una imagen nueva del tamaño de la entrada entera -- ceros fuera de una sección (unos para un cociente); una imagen que ya existe se escribe en el lugar, solo donde está la sección, como la escribe IRAF."
 
-#: harwood/tasks/imfit.py:258
+#: harwood/tasks/imfit.py:268
 msgid "Fit a function to each line or column of images."
 msgstr "Ajustar una función a cada línea o columna de imágenes."
 
-#: harwood/tasks/imfit.py:288
+#: harwood/tasks/imfit.py:298
 msgid "Subtract a background fitted along the lines or columns."
 msgstr "Restar un fondo ajustado a lo largo de las líneas o columnas."
 
@@ -4884,7 +4904,7 @@ msgid "Input and output image lists do not match"
 msgstr "Input and output image lists do not match"
 
 #: harwood/tasks/imfit.py:94
-#: harwood/tasks/longslit.py:869
+#: harwood/tasks/longslit.py:897
 #, python-brace-format
 msgid "{0} inputs and {1} outputs: give one each"
 msgstr "{0} entradas y {1} salidas: dé una de cada"
@@ -5426,7 +5446,7 @@ msgid "Print image headers, or selected keywords."
 msgstr "Imprimir cabeceras de imágenes, o palabras clave elegidas."
 
 #: harwood/tasks/longslit.py:128
-#: harwood/tasks/longslit.py:911
+#: harwood/tasks/longslit.py:939
 #, python-brace-format
 msgid "{0} is not a 2-D image"
 msgstr "{0} no es una imagen 2-D"
@@ -5444,7 +5464,7 @@ msgid "check the names"
 msgstr "compruebe los nombres"
 
 #: harwood/tasks/longslit.py:153
-#: harwood/tasks/longslit.py:961
+#: harwood/tasks/longslit.py:989
 #, python-brace-format
 msgid "{0} has no DISPAXIS keyword"
 msgstr "{0} no tiene la palabra clave DISPAXIS"
@@ -5582,72 +5602,81 @@ msgid "delete fewer points or lower the orders: a surface needs more points than
 msgstr "borre menos puntos o baje los órdenes: una superficie necesita más puntos que coeficientes"
 
 #: harwood/tasks/longslit.py:626
-#: harwood/tasks/longslit.py:745
+#: harwood/tasks/longslit.py:773
 msgid "check the database's records"
 msgstr "compruebe los registros del database"
 
-#: harwood/tasks/longslit.py:677
+#: harwood/tasks/longslit.py:676
+#, python-brace-format
+msgid "only {0} different lines along the dispersion, for {1} {2}: the surface passes through them and is free between and beyond them, so the wavelengths at the corners are not to be trusted"
+msgstr "solo {0} líneas distintas a lo largo de la dispersión, para {1} {2}: la superficie pasa por ellas y queda libre entre ellas y más allá, así que las longitudes de onda en las esquinas no son fiables"
+
+#: harwood/tasks/longslit.py:676
+msgid "identify more lines in the arc (in identify, l finds the rest of the line list; f fits), reidentify and run fitcoords again -- or lower the order along the dispersion below the number of lines"
+msgstr "identifique más líneas en el arco (en identify, l encuentra el resto de la lista; f ajusta), ejecute reidentify y fitcoords de nuevo -- o baje el orden a lo largo de la dispersión por debajo del número de líneas"
+
+#: harwood/tasks/longslit.py:705
 msgid "write one answer a line: yes or no"
 msgstr "escriba una respuesta por línea: yes o no"
 
-#: harwood/tasks/longslit.py:684
+#: harwood/tasks/longslit.py:712
 #: harwood/tasks/onedtools.py:3179
 msgid "write one key a line, 'x y 1 key' or ':command', or use --interactive for the window"
 msgstr "escriba una tecla por línea, 'x y 1 tecla' o ':comando', o use --interactive para la ventana"
 
-#: harwood/tasks/longslit.py:764
+#: harwood/tasks/longslit.py:792
 msgid "The surfaces fitcoords wrote, database/fc<fitname>: the wavelength (and, with a fit of the other axis, the position along the slit) of every input pixel."
 msgstr "Las superficies que escribió fitcoords, database/fc<fitname>: la longitud de onda (y, con un ajuste del otro eje, la posición a lo largo de la rendija) de cada píxel de entrada."
 
-#: harwood/tasks/longslit.py:764
+#: harwood/tasks/longslit.py:792
 msgid "The surfaces inverted on every tenth output pixel by Newton's method, and interpolated bilinearly in between: where each output pixel falls on the input."
 msgstr "Las superficies invertidas en cada décimo píxel de salida por el método de Newton, e interpoladas bilinealmente en el medio: dónde cae cada píxel de salida sobre la entrada."
 
-#: harwood/tasks/longslit.py:764
+#: harwood/tasks/longslit.py:792
 msgid "The input interpolated there; with flux on, multiplied by the input area the output pixel covers, so that counts are kept."
 msgstr "La entrada interpolada allí; con flux activado, multiplicada por el área de la entrada que cubre el píxel de salida, para que se conserven las cuentas."
 
-#: harwood/tasks/longslit.py:764
+#: harwood/tasks/longslit.py:792
 msgid "A new image on straight lines of constant wavelength, with a linear world system for onedspec."
 msgstr "Una imagen nueva en líneas rectas de longitud de onda constante, con un sistema de coordenadas lineal para onedspec."
 
-#: harwood/tasks/longslit.py:844
+#: harwood/tasks/longslit.py:872
 msgid "Resample a long-slit frame onto straight lines of constant wavelength."
 msgstr "Remuestrear un cuadro de rendija larga en líneas rectas de longitud de onda constante."
 
-#: harwood/tasks/longslit.py:869
+#: harwood/tasks/longslit.py:897
 msgid "Number of input and output images differ"
 msgstr "Number of input and output images differ"
 
-#: harwood/tasks/longslit.py:874
+#: harwood/tasks/longslit.py:902
 msgid "Can't associate input masks with input images"
 msgstr "Can't associate input masks with input images"
 
-#: harwood/tasks/longslit.py:874
+#: harwood/tasks/longslit.py:902
 msgid "give one mask, or one for each input"
 msgstr "dé una máscara, o una para cada entrada"
 
-#: harwood/tasks/longslit.py:877
+#: harwood/tasks/longslit.py:905
 msgid "Number output masks differ from input"
 msgstr "Number output masks differ from input"
 
-#: harwood/tasks/longslit.py:877
+#: harwood/tasks/longslit.py:905
 msgid "give one output mask for each input"
 msgstr "dé una máscara de salida para cada entrada"
 
-#: harwood/tasks/longslit.py:891
+#: harwood/tasks/longslit.py:919
 msgid "run fitcoords first: transform reads database/fc<fitname>"
 msgstr "ejecute fitcoords antes: transform lee database/fc<fitname>"
 
-#: harwood/tasks/longslit.py:911
+#: harwood/tasks/longslit.py:939
 msgid "transform resamples long-slit frames"
 msgstr "transform remuestrea cuadros de rendija larga"
 
-#: harwood/tasks/longslit.py:919
+#: harwood/tasks/longslit.py:947
 msgid "the image's world system has to be linear and invertible to transform by it"
 msgstr "el sistema de coordenadas de la imagen tiene que ser lineal e invertible para transformar por él"
 
-#: harwood/tasks/longslit.py:961
+#: harwood/tasks/longslit.py:989
 msgid "give --dispaxis 2 (the dispersion along the columns) or 1 (along the lines), as IRAF's longslit.dispaxis, or add DISPAXIS with hedit"
 msgstr "dé --dispaxis 2 (la dispersión a lo largo de las columnas) o 1 (a lo largo de las líneas), como el longslit.dispaxis de IRAF, o agregue DISPAXIS con hedit"
 
@@ -6233,71 +6262,81 @@ msgstr "Entry not found: identify {0}{1}"
 msgid "identify that aperture or line of the reference, or give --section for the one identified."
 msgstr "identifique esa apertura o línea de la referencia, o dé --section para la que se identificó."
 
+#: harwood/tasks/onedspec.py:1845
+#, python-brace-format
+msgid "the reference solution of {0}{1} (database/id{2}) is not monotonic. {3}."
+msgstr "la solución de referencia de {0}{1} (database/id{2}) no es monótona. {3}."
+
+#: harwood/tasks/onedspec.py:1845
+#, python-brace-format
+msgid "identify the reference again (harwood identify ... --section '{0}'): delete (d) or re-mark (m) the line with the wrong wavelength, fit (f), and write it to the database."
+msgstr "rehaz el identify de la referencia (harwood identify ... --section '{0}'): borra (d) o vuelve a marcar (m) la línea con la longitud de onda equivocada, ajusta (f) y grábala en la base."
+
 #: harwood/tasks/onedspec.py:187
 msgid "give --section 'line 2' or 'aperture 2'; 'middle line' is the middle aperture."
 msgstr "dé --section 'line 2' o 'aperture 2'; 'middle line' es la apertura del medio."
 
-#: harwood/tasks/onedspec.py:2065
+#: harwood/tasks/onedspec.py:2076
 msgid "Name the atoms, ions and molecules behind the features."
 msgstr "Nombrar los átomos, iones y moléculas detrás de los rasgos."
 
-#: harwood/tasks/onedspec.py:2087
+#: harwood/tasks/onedspec.py:2098
 msgid "use --aperture with a number in that range, or run wspectext to see what the file contains."
 msgstr "use --aperture con un número en ese rango, o ejecute wspectext para ver qué contiene el archivo."
 
-#: harwood/tasks/onedspec.py:2094
+#: harwood/tasks/onedspec.py:2105
 #, python-brace-format
 msgid "'{0}' has no wavelengths yet -- it is still in pixels, and naming a line needs to know what wavelength it is at."
 msgstr "'{0}' todavía no tiene longitudes de onda -- sigue en píxeles, y nombrar una línea necesita saber en qué longitud de onda está."
 
-#: harwood/tasks/onedspec.py:2094
+#: harwood/tasks/onedspec.py:2105
 msgid "run dispcor on it first. That needs a dispersion solution, so identify on an arc comes before it."
 msgstr "ejecute dispcor sobre él antes. Eso necesita una solución de dispersión, así que identify sobre un arco va antes."
 
-#: harwood/tasks/onedspec.py:2102
+#: harwood/tasks/onedspec.py:2113
 #, python-brace-format
 msgid "no origin called '{0}'."
 msgstr "no hay origen llamado '{0}'."
 
-#: harwood/tasks/onedspec.py:2102
+#: harwood/tasks/onedspec.py:2113
 #, python-brace-format
 msgid "use one of {0}, or leave --origin out to consider every kind of line."
 msgstr "use uno de {0}, o deje fuera --origin para considerar todo tipo de línea."
 
-#: harwood/tasks/onedspec.py:2184
+#: harwood/tasks/onedspec.py:2195
 #, python-brace-format
 msgid "the identified lines do not agree on a shift: {0} km/s with a scatter of {1}. Lines that are identified correctly agree on one velocity; this scatter says several of them are wrong."
 msgstr "las líneas identificadas no coinciden en un desplazamiento: {0} km/s con una dispersión de {1}. Las líneas bien identificadas coinciden en una velocidad; esta dispersión dice que varias están mal."
 
-#: harwood/tasks/onedspec.py:2184
+#: harwood/tasks/onedspec.py:2195
 msgid "narrow --tolerance, or raise --prominence to 2 so only the lines that name themselves are considered."
 msgstr "achique --tolerance, o suba --prominence a 2 para que solo se consideren las líneas que se nombran solas."
 
-#: harwood/tasks/onedspec.py:2192
+#: harwood/tasks/onedspec.py:2203
 #, python-brace-format
 msgid "the lines agree that everything is shifted by {0} km/s (scatter {1}). The shift is the object's radial velocity, give or take the wavelength calibration."
 msgstr "las líneas coinciden en que todo está desplazado {0} km/s (dispersión {1}). El desplazamiento es la velocidad radial del objeto, más o menos la calibración en longitud de onda."
 
-#: harwood/tasks/onedspec.py:2192
+#: harwood/tasks/onedspec.py:2203
 #, python-brace-format
 msgid "run it again with --velocity {0} to centre the identifications."
 msgstr "ejecútelo otra vez con --velocity {0} para centrar las identificaciones."
 
-#: harwood/tasks/onedspec.py:2202
+#: harwood/tasks/onedspec.py:2213
 #, python-brace-format
 msgid "{0} of {1} features are not in the catalogue, which holds only the lines that name themselves. Unidentified here means unnamed, not unreal."
 msgstr "{0} de {1} rasgos no están en el catálogo, que solo tiene las líneas que se nombran solas. No identificado aquí quiere decir sin nombre, no irreal."
 
-#: harwood/tasks/onedspec.py:2202
+#: harwood/tasks/onedspec.py:2213
 msgid "nothing, usually. If you expected one of them to be named, widen --tolerance or lower --prominence, and check 'harwood lines --range' for what is catalogued there."
 msgstr "nada, en general. Si esperaba que uno de ellos tuviera nombre, agrande --tolerance o baje --prominence, y mire en 'harwood lines --range' qué está catalogado allí."
 
-#: harwood/tasks/onedspec.py:2213
+#: harwood/tasks/onedspec.py:2224
 #, python-brace-format
 msgid "{0} identifications are ambiguous -- at {1} A the catalogue offers {2}. Wavelength alone cannot choose between them."
 msgstr "{0} identificaciones son ambiguas -- en {1} A el catálogo ofrece {2}. La longitud de onda sola no puede elegir entre ellas."
 
-#: harwood/tasks/onedspec.py:2213
+#: harwood/tasks/onedspec.py:2224
 msgid "narrow it with --origin stellar, nebular, interstellar or telluric. What you pointed the telescope at is exactly the information the spectrum does not contain."
 msgstr "acótelo con --origin stellar, nebular, interstellar o telluric. Adónde apuntó el telescopio es exactamente la información que el espectro no contiene."
 
@@ -7677,7 +7716,7 @@ msgstr "dé la lista que escribió daofind, o mida con el cursor: --interactive,
 
 #: harwood/tasks/photometry.py:583
 #: harwood/tasks/photometry.py:777
-#: harwood/tasks/tv.py:469
+#: harwood/tasks/tv.py:496
 msgid "--interactive needs the window"
 msgstr "--interactive necesita la ventana"
 
@@ -8024,6 +8063,7 @@ msgstr "vea el mensaje de arriba"
 
 #: harwood/tasks/specplot.py:117
 #: harwood/tasks/splot.py:110
+#: harwood/tasks/tv.py:269
 #, python-brace-format
 msgid "{0} does not exist"
 msgstr "{0} no existe"
@@ -8262,7 +8302,16 @@ msgstr "no hay columna '{0}' para {1}"
 msgid "its columns are {0}, or give a number from 1"
 msgstr "sus columnas son {0}, o dé un número desde 1"
 
-#: harwood/tasks/tv.py:1024
+#: harwood/tasks/tv.py:1007
+#, python-brace-format
+msgid "wcslab: {0}"
+msgstr "wcslab: {0}"
+
+#: harwood/tasks/tv.py:1007
+msgid "give a two-dimensional image"
+msgstr "dé una imagen bidimensional"
+
+#: harwood/tasks/tv.py:1051
 msgid "use solid, dotted, dashed or dotdash"
 msgstr "use solid, dotted, dashed o dotdash"
 
@@ -8323,130 +8372,134 @@ msgstr "Las medidas usan los píxeles originales en punto flotante, nunca la fig
 msgid "Each measurement is appended as one line, as you make it -- the seeing of a night is something you want to read back the next morning, not remember."
 msgstr "Cada medida se agrega como una línea, en el momento en que la hace -- el seeing de una noche es algo que se quiere releer a la mañana siguiente, no recordar."
 
-#: harwood/tasks/tv.py:285
+#: harwood/tasks/tv.py:269
+msgid "check the name and the folder"
+msgstr "compruebe el nombre y la carpeta"
+
+#: harwood/tasks/tv.py:273
+#, python-brace-format
+msgid "{0} is a figure, and figures are shown in the window"
+msgstr "{0} es una figura, y las figuras se muestran en la ventana"
+
+#: harwood/tasks/tv.py:273
+msgid "run it inside harwood gui, or on a desktop session"
+msgstr "ejecútelo dentro de harwood gui, o en una sesión de escritorio"
+
+#: harwood/tasks/tv.py:312
 msgid "--ztrans user needs a table"
 msgstr "--ztrans user necesita una tabla"
 
-#: harwood/tasks/tv.py:285
+#: harwood/tasks/tv.py:312
 #: harwood/tasks/tv.py:182
 msgid "give it with --lutfile"
 msgstr "désela con --lutfile"
 
-#: harwood/tasks/tv.py:291
+#: harwood/tasks/tv.py:318
 msgid "with --no-zscale --no-zrange the limits are --z1 and --z2"
 msgstr "con --no-zscale --no-zrange los límites son --z1 y --z2"
 
-#: harwood/tasks/tv.py:291
+#: harwood/tasks/tv.py:318
 msgid "give both, or leave --zscale on"
 msgstr "dé los dos, o deje --zscale activado"
 
-#: harwood/tasks/tv.py:305
+#: harwood/tasks/tv.py:332
 msgid "sample more of the image: a larger --nsample, or a wider --zmask"
 msgstr "muestree más de la imagen: un --nsample mayor, o un --zmask más amplio"
 
-#: harwood/tasks/tv.py:371
+#: harwood/tasks/tv.py:398
 msgid "Mark objects from a coordinate list on a displayed frame."
 msgstr "Marcar objetos de una lista de coordenadas en un cuadro en pantalla."
 
-#: harwood/tasks/tv.py:391
+#: harwood/tasks/tv.py:418
 #, python-brace-format
 msgid "coordinate list '{0}' does not exist"
 msgstr "la lista de coordenadas '{0}' no existe"
 
-#: harwood/tasks/tv.py:391
+#: harwood/tasks/tv.py:418
 msgid "give the file daofind or a script wrote, or leave it empty and mark with the cursor"
 msgstr "dé el archivo que escribió daofind o un script, o déjelo vacío y marque con el cursor"
 
-#: harwood/tasks/tv.py:437
+#: harwood/tasks/tv.py:464
 msgid "The frame as it looks marked, kept: a FITS of its grey levels with the marks at their colour number, as IRAF's snap image, or a PNG picture. The pixels of the data are not in it."
 msgstr "El cuadro tal como queda marcado, guardado: un FITS de sus niveles de gris con las marcas en su número de color, como la imagen de snap de IRAF, o una figura PNG. Los píxeles de los datos no están en él."
 
-#: harwood/tasks/tv.py:457
+#: harwood/tasks/tv.py:484
 #, python-brace-format
 msgid "frame {0} holds no image to mark"
 msgstr "el cuadro {0} no tiene imagen que marcar"
 
-#: harwood/tasks/tv.py:457
+#: harwood/tasks/tv.py:484
 msgid "display one first in the same session, or give it with --image"
 msgstr "muestre una antes en la misma sesión, o désela con --image"
 
-#: harwood/tasks/tv.py:469
+#: harwood/tasks/tv.py:496
 msgid "run it where there is a screen, or replay a command file with --commands"
 msgstr "ejecútelo donde haya una pantalla, o repita un archivo de comandos con --commands"
 
-#: harwood/tasks/tv.py:688
+#: harwood/tasks/tv.py:715
 msgid "Examine images with the cursor: profiles, photometry, statistics."
 msgstr "Examinar imágenes con el cursor: perfiles, fotometría, estadística."
 
-#: harwood/tasks/tv.py:699
+#: harwood/tasks/tv.py:726
 msgid "Lower case belongs to the task and upper case to the window, as in IRAF's cursor mode."
 msgstr "La minúscula es de la tarea y la mayúscula de la ventana, como en el modo de cursor de IRAF."
 
-#: harwood/tasks/tv.py:716
+#: harwood/tasks/tv.py:743
 msgid "check the name, or run `harwood sections` on the template to see what it matches"
 msgstr "compruebe el nombre, o ejecute `harwood sections` sobre el patrón para ver con qué coincide"
 
-#: harwood/tasks/tv.py:755
+#: harwood/tasks/tv.py:782
 msgid "write one 'x y [frame] key' per line, or leave --imagecur empty to use the mouse"
 msgstr "escriba un 'x y [cuadro] tecla' por línea, o deje --imagecur vacío para usar el ratón"
 
-#: harwood/tasks/tv.py:763
+#: harwood/tasks/tv.py:790
 #, python-brace-format
 msgid "{0} asks for frame {1}, and only frames {2}-{3} are loaded"
 msgstr "{0} pide el cuadro {1}, y solo están cargados los cuadros {2}-{3}"
 
-#: harwood/tasks/tv.py:763
+#: harwood/tasks/tv.py:790
 msgid "name more images, or correct the frame column of the cursor file"
 msgstr "nombre más imágenes, o corrija la columna de cuadro del archivo de cursor"
 
-#: harwood/tasks/tv.py:794
+#: harwood/tasks/tv.py:821
 msgid "imexamine needs a window to point at, and there is no screen here"
 msgstr "imexamine necesita una ventana a la que apuntar, y aquí no hay pantalla"
 
-#: harwood/tasks/tv.py:794
+#: harwood/tasks/tv.py:821
 msgid "put the positions in a file and pass --imagecur, which gives the same numbers without one"
 msgstr "ponga las posiciones en un archivo y pase --imagecur, que da los mismos números sin una"
 
-#: harwood/tasks/tv.py:824
+#: harwood/tasks/tv.py:851
 msgid "The world system's ranges from twenty points of the edges, rounded to a step from IRAF's tables (seconds of time and of arc for RA and Dec); the lines of constant RA and Dec drawn in segments, a polar graph when the pole is in the image and a near-polar one when it is close."
 msgstr "Los rangos del sistema de coordenadas a partir de veinte puntos de los bordes, redondeados a un paso de las tablas de IRAF (segundos de tiempo y de arco para RA y Dec); las líneas de RA y Dec constantes dibujadas en segmentos, un gráfico polar cuando el polo está en la imagen y uno casi polar cuando está cerca."
 
-#: harwood/tasks/tv.py:824
+#: harwood/tasks/tv.py:851
 msgid "Where each line crosses an edge: hms and dms, the one nearest the corner in full; the title two character heights beyond the labels."
 msgstr "Donde cada línea cruza un borde: hms y dms, la más cercana a la esquina completa; el título dos alturas de carácter más allá de las etiquetas."
 
-#: harwood/tasks/tv.py:824
+#: harwood/tasks/tv.py:851
 msgid "On the display over the image (imd), or a graph: alone, or added to the last one drawn (append, over contour)."
 msgstr "En la pantalla sobre la imagen (imd), o un gráfico: solo, o agregado al último dibujado (append, sobre contour)."
 
-#: harwood/tasks/tv.py:933
+#: harwood/tasks/tv.py:960
 msgid "Overlay a labelled world coordinate grid on an image or a graph."
 msgstr "Superponer una grilla rotulada de coordenadas del cielo a una imagen o gráfico."
 
-#: harwood/tasks/tv.py:956
+#: harwood/tasks/tv.py:983
 msgid "there is no display window here: the grid is drawn as a graph instead"
 msgstr "no hay ventana de visualización aquí: la grilla se dibuja como gráfico"
 
-#: harwood/tasks/tv.py:956
+#: harwood/tasks/tv.py:983
 msgid "run it where there is a screen to see it over the image"
 msgstr "ejecútelo donde haya una pantalla para verla sobre la imagen"
 
-#: harwood/tasks/tv.py:965
+#: harwood/tasks/tv.py:992
 msgid "there is no graph to draw over"
 msgstr "no hay gráfico sobre el cual dibujar"
 
-#: harwood/tasks/tv.py:965
+#: harwood/tasks/tv.py:992
 msgid "draw one first (contour wpix.fits --no-perimeter), or leave out --append"
 msgstr "dibuje uno antes (contour wpix.fits --no-perimeter), o deje fuera --append"
-
-#: harwood/tasks/tv.py:980
-#, python-brace-format
-msgid "wcslab: {0}"
-msgstr "wcslab: {0}"
-
-#: harwood/tasks/tv.py:980
-msgid "give a two-dimensional image"
-msgstr "dé una imagen bidimensional"
 
 #: harwood/tasks/utilities.py:125
 msgid "Attempt to take projection over nonexistent axis"
@@ -8576,7 +8629,7 @@ msgid "Pick several with Ctrl or Shift."
 msgstr "Elija varios con Ctrl o Shift."
 
 #: harwood/viewer/browser.py:362
-#: harwood/viewer/browser.py:592
+#: harwood/viewer/browser.py:601
 msgid "◀  Back"
 msgstr "◀  Volver"
 
@@ -8624,92 +8677,96 @@ msgstr "Muestra los pasos que daría, con los valores reales, sin cambiar nada."
 msgid "▶  Run"
 msgstr "▶  Ejecutar"
 
-#: harwood/viewer/browser.py:585
 #: harwood/viewer/browser.py:589
+msgid "search: {0}"
+msgstr "búsqueda: {0}"
+
+#: harwood/viewer/browser.py:594
+#: harwood/viewer/browser.py:598
 msgid "◀  Back to {0}"
 msgstr "◀  Volver a {0}"
 
-#: harwood/viewer/browser.py:594
+#: harwood/viewer/browser.py:603
 msgid "Alt+Left, Esc, or Backspace outside a text field."
 msgstr "Alt+←, Esc, o Retroceso fuera de un campo de texto."
 
-#: harwood/viewer/browser.py:624
+#: harwood/viewer/browser.py:633
 msgid "{0} of {1}"
 msgstr "{0} de {1}"
 
-#: harwood/viewer/browser.py:626
+#: harwood/viewer/browser.py:635
 msgid "package. {0}"
 msgstr "paquete. {0}"
 
-#: harwood/viewer/browser.py:635
+#: harwood/viewer/browser.py:644
 msgid "harwood has nothing here yet. Tick the box below to see what IRAF has."
 msgstr "harwood todavía no tiene nada aquí. Marque la casilla de abajo para ver lo que tiene IRAF."
 
-#: harwood/viewer/browser.py:649
+#: harwood/viewer/browser.py:658
 msgid "wontport"
 msgstr "no se portará"
 
-#: harwood/viewer/browser.py:660
+#: harwood/viewer/browser.py:669
 msgid "Search"
 msgstr "Búsqueda"
 
-#: harwood/viewer/browser.py:681
+#: harwood/viewer/browser.py:690
 msgid "{0} found"
 msgstr "{0} encontrada(s)"
 
-#: harwood/viewer/browser.py:682
+#: harwood/viewer/browser.py:691
 msgid " -- try a shorter word, or tick the box below."
 msgstr " -- pruebe una palabra más corta, o marque la casilla de abajo."
 
-#: harwood/viewer/browser.py:735
+#: harwood/viewer/browser.py:744
 msgid "the image on display"
 msgstr "la imagen en pantalla"
 
-#: harwood/viewer/browser.py:742
+#: harwood/viewer/browser.py:751
 msgid "What it works on"
 msgstr "Sobre qué trabaja"
 
-#: harwood/viewer/browser.py:746
+#: harwood/viewer/browser.py:755
 msgid "▸  More options ({0})"
 msgstr "▸  Más opciones ({0})"
 
-#: harwood/viewer/browser.py:761
+#: harwood/viewer/browser.py:770
 msgid "  More options ({0})"
 msgstr "  Más opciones ({0})"
 
-#: harwood/viewer/browser.py:774
+#: harwood/viewer/browser.py:783
 msgid "  (needed)"
 msgstr "  (obligatorio)"
 
-#: harwood/viewer/browser.py:808
+#: harwood/viewer/browser.py:817
 msgid "{0} is needed"
 msgstr "{0} es obligatorio"
 
-#: harwood/viewer/browser.py:850
+#: harwood/viewer/browser.py:859
 msgid "{0} task"
 msgstr "{0} tarea"
 
-#: harwood/viewer/browser.py:850
+#: harwood/viewer/browser.py:859
 msgid "{0} tasks"
 msgstr "{0} tareas"
 
-#: harwood/viewer/browser.py:860
+#: harwood/viewer/browser.py:869
 msgid "Not in harwood yet."
 msgstr "Todavía no está en harwood."
 
-#: harwood/viewer/browser.py:860
+#: harwood/viewer/browser.py:869
 msgid "Partly in harwood."
 msgstr "En parte en harwood."
 
-#: harwood/viewer/browser.py:861
+#: harwood/viewer/browser.py:870
 msgid "Done another way in harwood."
 msgstr "Hecho de otra manera en harwood."
 
-#: harwood/viewer/browser.py:862
+#: harwood/viewer/browser.py:871
 msgid "Not carried over."
 msgstr "No se trasladó."
 
-#: harwood/viewer/browser.py:863
+#: harwood/viewer/browser.py:872
 msgid "Not in harwood."
 msgstr "No está en harwood."
 
@@ -8744,6 +8801,14 @@ msgstr "La misma página en su navegador"
 #: harwood/viewer/docs.py:82
 msgid "Showing the documentation here needs QtWebEngine: pip install 'harwood[docs]'. Until then each page opens in your browser -- the same pages."
 msgstr "Mostrar la documentación aquí necesita QtWebEngine: pip install 'harwood[docs]'. Mientras tanto, cada página se abre en su navegador -- las mismas páginas."
+
+#: harwood/viewer/figure_panel.py:135
+msgid "+ and − zoom (or Ctrl and the wheel) · 0 fits it to the tab · 1 is its own size"
+msgstr "+ y − amplían (o Ctrl y la rueda) · 0 la ajusta a la pestaña · 1 es su tamaño real"
+
+#: harwood/viewer/figure_panel.py:206
+msgid "Save the figure"
+msgstr "Guardar la figura"
 
 #: harwood/viewer/implot_panel.py:27
 msgid "plot the line under the cursor"
@@ -8791,7 +8856,7 @@ msgid "back to the whole image"
 msgstr "volver a la imagen entera"
 
 #: harwood/viewer/keyguide.py:25
-#: harwood/viewer/window.py:87
+#: harwood/viewer/window.py:88
 msgid "show or hide the DQ layer"
 msgstr "mostrar u ocultar la capa DQ"
 
@@ -8863,44 +8928,44 @@ msgstr "original"
 msgid "done"
 msgstr "listo"
 
-#: harwood/viewer/session.py:285
+#: harwood/viewer/session.py:287
 msgid "the folder {0} is not there any more; staying in {1}"
 msgstr "la carpeta {0} ya no existe; sigo en {1}"
 
-#: harwood/viewer/session.py:306
+#: harwood/viewer/session.py:308
 msgid "frame {0} ({1}) could not be read back"
 msgstr "el cuadro {0} ({1}) no se pudo volver a leer"
 
-#: harwood/viewer/session.py:343
+#: harwood/viewer/session.py:345
 msgid "the tab {0} could not be opened again"
 msgstr "la pestaña {0} no se pudo volver a abrir"
 
-#: harwood/viewer/session.py:354
+#: harwood/viewer/session.py:356
 msgid "{0} is not there any more"
 msgstr "{0} ya no existe"
 
-#: harwood/viewer/session.py:425
+#: harwood/viewer/session.py:431
 msgid "Previous session"
 msgstr "Sesión anterior"
 
-#: harwood/viewer/session.py:427
+#: harwood/viewer/session.py:433
 msgid "Restore the session harwood had open when it closed?"
 msgstr "¿Restaurar la sesión que harwood tenía abierta cuando se cerró?"
 
-#: harwood/viewer/session.py:429
-#: harwood/viewer/window.py:425
+#: harwood/viewer/session.py:435
+#: harwood/viewer/window.py:426
 msgid "Restore previous session"
 msgstr "Restaurar sesión anterior"
 
-#: harwood/viewer/session.py:431
+#: harwood/viewer/session.py:437
 msgid "Start a new session"
 msgstr "Iniciar una sesión nueva"
 
-#: harwood/viewer/session.py:441
+#: harwood/viewer/session.py:447
 msgid "  the previous session could not be restored"
 msgstr "  la sesión anterior no se pudo restaurar"
 
-#: harwood/viewer/session.py:448
+#: harwood/viewer/session.py:454
 msgid "Text not saved in the previous session ({0}) is kept with it: File > Restore previous session brings it back."
 msgstr "El texto sin guardar de la sesión anterior ({0}) quedó guardado con ella: Archivo > Restaurar sesión anterior lo trae de vuelta."
 
@@ -8976,404 +9041,456 @@ msgstr "candidatos por escala"
 msgid ":shift 0.5   ·   :scale 1.1   ·   :sample 6850:6900   ·   press a key over the graphs, or type a colon command here"
 msgstr ":shift 0.5   ·   :scale 1.1   ·   :sample 6850:6900   ·   pulse una tecla sobre los gráficos, o escriba aquí un comando de dos puntos"
 
-#: harwood/viewer/window.py:1003
+#: harwood/viewer/window.py:1012
+msgid "nothing to save: load an image first"
+msgstr "nada que guardar: carga una imagen antes"
+
+#: harwood/viewer/window.py:1015
+msgid "Image as displayed (its own pixels)..."
+msgstr "Imagen como se muestra (en sus píxeles)..."
+
+#: harwood/viewer/window.py:1017
+msgid "The view, with its marks..."
+msgstr "La vista, con sus marcas..."
+
+#: harwood/viewer/window.py:1027
+msgid "nothing here to save"
+msgstr "nada aquí que guardar"
+
+#: harwood/viewer/window.py:1035
+msgid "saved: {0}"
+msgstr "guardado: {0}"
+
+#: harwood/viewer/window.py:1050
+msgid "Save..."
+msgstr "Guardar..."
+
+#: harwood/viewer/window.py:1069
+msgid "  {0} opened in a tab of its own"
+msgstr "  {0} abierto en una pestaña propia"
+
+#: harwood/viewer/window.py:1098
+msgid "the session could not be kept: {0}"
+msgstr "la sesión no se pudo guardar: {0}"
+
+#: harwood/viewer/window.py:1110
 msgid "  a task is still running; finish it first (q in its tab)"
 msgstr "  una tarea todavía está en marcha; termínala antes (q en su pestaña)"
 
-#: harwood/viewer/window.py:1033
+#: harwood/viewer/window.py:1140
 msgid "New session. File > Restore previous session brings the last one back."
 msgstr "Sesión nueva. Archivo > Restaurar sesión anterior trae la última de vuelta."
 
-#: harwood/viewer/window.py:1042
+#: harwood/viewer/window.py:1149
 msgid "  there is no previous session to restore"
 msgstr "  no hay una sesión anterior para restaurar"
 
-#: harwood/viewer/window.py:1053
+#: harwood/viewer/window.py:1160
 msgid "Session of {0} restored, in {1}"
 msgstr "Sesión del {0} restaurada, en la carpeta {1}"
 
-#: harwood/viewer/window.py:1136
+#: harwood/viewer/window.py:1243
 msgid "Files"
 msgstr "Archivos"
 
-#: harwood/viewer/window.py:1237
+#: harwood/viewer/window.py:1344
 msgid "hw>  display obj.fits · imexamine · ccdproc --plan · help phot"
 msgstr "hw>  display obj.fits · imexamine · ccdproc --plan · help phot"
 
-#: harwood/viewer/window.py:1244
+#: harwood/viewer/window.py:1351
 msgid "🕘 History"
 msgstr "🕘 Historial"
 
-#: harwood/viewer/window.py:1246
+#: harwood/viewer/window.py:1353
 msgid "Search what was typed before, here and in the terminal (Ctrl+R at the prompt)"
 msgstr "Busca lo que se escribió antes, aquí y en la terminal (Ctrl+R en el prompt)"
 
-#: harwood/viewer/window.py:1251
+#: harwood/viewer/window.py:1358
 msgid "Tab completes · ↑ ↓ walk the history, Ctrl+R searches it · ; runs the next command anyway, && only if this one worked"
 msgstr "Tab completa · ↑ ↓ recorren el historial, Ctrl+R busca en él · ; ejecuta el siguiente comando de todos modos, && solo si este salió bien"
 
-#: harwood/viewer/window.py:264
+#: harwood/viewer/window.py:1449
+msgid "  frame {0} ({1}) taken off the display; its file is untouched"
+msgstr "  cuadro {0} ({1}) quitado del visor; el archivo no se tocó"
+
+#: harwood/viewer/window.py:265
 msgid "harwood viewer. Hover for coordinates; the Keys panel under the image lists what each key does (F2 hides it)."
 msgstr "visor de harwood. Pase el ratón para ver las coordenadas; el panel Teclas, bajo la imagen, lista lo que hace cada tecla (F2 lo oculta)."
 
-#: harwood/viewer/window.py:266
+#: harwood/viewer/window.py:267
 msgid "Ctrl+ and Ctrl- resize the text, Ctrl+0 resets it. F11 full screen, Ctrl+M maximise, Ctrl+Shift+R puts the panels back where they started."
 msgstr "Ctrl+ y Ctrl- cambian el tamaño del texto, Ctrl+0 lo restablece. F11 pantalla completa, Ctrl+M maximiza, Ctrl+Shift+R devuelve los paneles a su lugar inicial."
 
-#: harwood/viewer/window.py:414
+#: harwood/viewer/window.py:415
 msgid "&File"
 msgstr "&Archivo"
 
-#: harwood/viewer/window.py:416
+#: harwood/viewer/window.py:417
 msgid "Export image..."
 msgstr "Exportar imagen..."
 
-#: harwood/viewer/window.py:417
+#: harwood/viewer/window.py:418
 msgid "Export view (with marks)..."
 msgstr "Exportar vista (con marcas)..."
 
-#: harwood/viewer/window.py:418
+#: harwood/viewer/window.py:419
 msgid "Export plot..."
 msgstr "Exportar gráfico..."
 
-#: harwood/viewer/window.py:422
+#: harwood/viewer/window.py:423
 msgid "Open text files..."
 msgstr "Abrir archivos de texto..."
 
-#: harwood/viewer/window.py:424
+#: harwood/viewer/window.py:425
 msgid "New session"
 msgstr "Sesión nueva"
 
-#: harwood/viewer/window.py:429
+#: harwood/viewer/window.py:430
 msgid "Close window"
 msgstr "Cerrar ventana"
 
-#: harwood/viewer/window.py:432
+#: harwood/viewer/window.py:433
 msgid "&View"
 msgstr "&Ver"
 
-#: harwood/viewer/window.py:435
+#: harwood/viewer/window.py:436
 msgid "Dark"
 msgstr "Oscuro"
 
-#: harwood/viewer/window.py:435
+#: harwood/viewer/window.py:436
 msgid "Light"
 msgstr "Claro"
 
-#: harwood/viewer/window.py:436
-#: harwood/viewer/window.py:480
+#: harwood/viewer/window.py:437
+#: harwood/viewer/window.py:481
 msgid "Follow the system"
 msgstr "Seguir el sistema"
 
-#: harwood/viewer/window.py:437
+#: harwood/viewer/window.py:438
 msgid "By the hour: dark at night"
 msgstr "Por horario: oscuro de noche"
 
-#: harwood/viewer/window.py:443
+#: harwood/viewer/window.py:444
 msgid "Night hours..."
 msgstr "Horario de la noche..."
 
-#: harwood/viewer/window.py:447
+#: harwood/viewer/window.py:448
 msgid "Colour-blind safe colours"
 msgstr "Colores seguros para daltonismo"
 
-#: harwood/viewer/window.py:448
+#: harwood/viewer/window.py:449
 msgid "Okabe-Ito colours for data and warnings; colour is never the only sign"
 msgstr "Colores Okabe-Ito para datos y avisos; el color nunca es la única señal"
 
-#: harwood/viewer/window.py:449
+#: harwood/viewer/window.py:450
 msgid "Dyslexia-friendly text"
 msgstr "Texto para dislexia"
 
-#: harwood/viewer/window.py:450
+#: harwood/viewer/window.py:451
 msgid "Atkinson Hyperlegible, wider spacing, cream ground in the light theme"
 msgstr "Atkinson Hyperlegible, espaciado mayor, fondo crema en el tema claro"
 
-#: harwood/viewer/window.py:451
+#: harwood/viewer/window.py:452
 msgid "Text follows the window size"
 msgstr "El texto sigue el tamaño de la ventana"
 
-#: harwood/viewer/window.py:452
+#: harwood/viewer/window.py:453
 msgid "Text grows and shrinks with the window, on top of Ctrl+ and Ctrl-"
 msgstr "El texto crece y se achica con la ventana, además de Ctrl+ y Ctrl-"
 
-#: harwood/viewer/window.py:453
+#: harwood/viewer/window.py:454
 msgid "Reduce motion"
 msgstr "Reducir movimiento"
 
-#: harwood/viewer/window.py:453
+#: harwood/viewer/window.py:454
 msgid "No animations; blink steps slower"
 msgstr "Sin animaciones; el parpadeo alterna más despacio"
 
-#: harwood/viewer/window.py:460
+#: harwood/viewer/window.py:461
 msgid "Dyslexia font"
 msgstr "Fuente para dislexia"
 
-#: harwood/viewer/window.py:471
-#: harwood/viewer/window.py:695
+#: harwood/viewer/window.py:472
+#: harwood/viewer/window.py:715
 msgid "Larger text  (Ctrl+)"
 msgstr "Texto más grande  (Ctrl+)"
 
-#: harwood/viewer/window.py:472
-#: harwood/viewer/window.py:694
+#: harwood/viewer/window.py:473
+#: harwood/viewer/window.py:714
 msgid "Smaller text  (Ctrl-)"
 msgstr "Texto más chico  (Ctrl-)"
 
-#: harwood/viewer/window.py:473
+#: harwood/viewer/window.py:474
 msgid "Normal text  (Ctrl+0)"
 msgstr "Texto normal  (Ctrl+0)"
 
-#: harwood/viewer/window.py:487
+#: harwood/viewer/window.py:488
 msgid "Where these choices are kept"
 msgstr "Dónde se guardan estas elecciones"
 
-#: harwood/viewer/window.py:493
+#: harwood/viewer/window.py:494
 msgid "&Panels"
 msgstr "&Paneles"
 
-#: harwood/viewer/window.py:497
+#: harwood/viewer/window.py:498
 msgid "Tasks (the package tree)"
 msgstr "Tareas (el árbol de paquetes)"
 
-#: harwood/viewer/window.py:500
+#: harwood/viewer/window.py:501
 msgid "Command line (the hw> prompt)"
 msgstr "Línea de comandos (el prompt hw>)"
 
-#: harwood/viewer/window.py:502
+#: harwood/viewer/window.py:503
 msgid "Files (the text editor)"
 msgstr "Archivos (el editor de texto)"
 
-#: harwood/viewer/window.py:504
+#: harwood/viewer/window.py:505
 msgid "Documentation (F1)"
 msgstr "Documentación (F1)"
 
-#: harwood/viewer/window.py:506
+#: harwood/viewer/window.py:507
 msgid "Keys (what works on the image now)"
 msgstr "Teclas (lo que funciona en la imagen ahora)"
 
-#: harwood/viewer/window.py:509
+#: harwood/viewer/window.py:510
 msgid "Go to the prompt"
 msgstr "Ir al prompt"
 
-#: harwood/viewer/window.py:511
+#: harwood/viewer/window.py:512
 msgid "Put the panels back  (Ctrl+Shift+R)"
 msgstr "Devolver los paneles  (Ctrl+Shift+R)"
 
-#: harwood/viewer/window.py:514
+#: harwood/viewer/window.py:515
 msgid "&Help"
 msgstr "Ay&uda"
 
-#: harwood/viewer/window.py:515
-#: harwood/viewer/window.py:1148
+#: harwood/viewer/window.py:516
+#: harwood/viewer/window.py:1255
 msgid "Documentation"
 msgstr "Documentación"
 
-#: harwood/viewer/window.py:516
+#: harwood/viewer/window.py:517
 msgid "Documentation in the browser"
 msgstr "Documentación en el navegador"
 
-#: harwood/viewer/window.py:518
+#: harwood/viewer/window.py:519
 msgid "The sample night (try the examples)"
 msgstr "La noche de ejemplo (pruebe los ejemplos)"
 
-#: harwood/viewer/window.py:52
+#: harwood/viewer/window.py:53
 msgid "Crosshair cursor"
 msgstr "Cursor en cruz"
 
-#: harwood/viewer/window.py:53
+#: harwood/viewer/window.py:54
 msgid "A horizontal and a vertical line across the plot, crossing at the mouse, as IRAF's cursor"
 msgstr "Una línea horizontal y una vertical que cruzan el gráfico, cortándose en el ratón, como el cursor de IRAF"
 
-#: harwood/viewer/window.py:545
+#: harwood/viewer/window.py:546
 msgid "Night hours"
 msgstr "Horario de la noche"
 
-#: harwood/viewer/window.py:548
+#: harwood/viewer/window.py:549
 msgid "Dark from"
 msgstr "Oscuro desde"
 
-#: harwood/viewer/window.py:548
+#: harwood/viewer/window.py:549
 msgid "Light from"
 msgstr "Claro desde"
 
-#: harwood/viewer/window.py:55
-msgid "Values on the axes"
-msgstr "Valores en los ejes"
-
-#: harwood/viewer/window.py:553
+#: harwood/viewer/window.py:554
 msgid "Used when the theme is 'By the hour'; local time."
 msgstr "Se usa cuando el tema es 'Por horario'; hora local."
 
 #: harwood/viewer/window.py:56
+msgid "Values on the axes"
+msgstr "Valores en los ejes"
+
+#: harwood/viewer/window.py:57
 msgid "With the crosshair: where its lines meet the plot's edges, the values there (on the image, the pixel's x and y)"
 msgstr "Con el cursor en cruz: donde sus líneas tocan los bordes del gráfico, los valores allí (en la imagen, la x y la y del píxel)"
 
-#: harwood/viewer/window.py:573
+#: harwood/viewer/window.py:574
 msgid "language: {0}  (saved in {1})"
 msgstr "idioma: {0}  (guardado en {1})"
 
-#: harwood/viewer/window.py:58
+#: harwood/viewer/window.py:59
 msgid "Aperture"
 msgstr "Apertura"
 
-#: harwood/viewer/window.py:59
+#: harwood/viewer/window.py:60
 msgid "imexamine's circles around the mouse: the radius it measures within, and the sky annulus after the buffer -- radius, buffer and width as in Parameters"
 msgstr "Los círculos de imexamine alrededor del ratón: el radio dentro del cual mide, y el anillo del cielo tras el buffer -- radius, buffer y width como en Parámetros"
 
-#: harwood/viewer/window.py:62
+#: harwood/viewer/window.py:63
 msgid "Pixel"
 msgstr "Píxel"
 
-#: harwood/viewer/window.py:63
+#: harwood/viewer/window.py:64
 msgid "The square of the pixel under the mouse: the one whose value is at the bottom of the window"
 msgstr "El cuadrado del píxel bajo el ratón: aquel cuyo valor aparece abajo en la ventana"
 
-#: harwood/viewer/window.py:65
+#: harwood/viewer/window.py:66
 msgid "Centre"
 msgstr "Centro"
 
-#: harwood/viewer/window.py:66
+#: harwood/viewer/window.py:67
 msgid "Where r would centre the star near the mouse: the moments of the marginals, as IRAF's ie_center"
 msgstr "Donde r centraría la estrella cerca del ratón: los momentos de las marginales, como el ie_center de IRAF"
 
-#: harwood/viewer/window.py:681
+#: harwood/viewer/window.py:682
 msgid "frame"
 msgstr "cuadro"
 
-#: harwood/viewer/window.py:682
+#: harwood/viewer/window.py:688
+msgid "The frame before  (p over the image)"
+msgstr "El cuadro anterior  (p sobre la imagen)"
+
+#: harwood/viewer/window.py:690
+msgid "The frame after  (n over the image)"
+msgstr "El cuadro siguiente  (n sobre la imagen)"
+
+#: harwood/viewer/window.py:692
+msgid "Take this frame off the display (the file is not touched)"
+msgstr "Quitar este cuadro del visor (el archivo no se toca)"
+
+#: harwood/viewer/window.py:702
 msgid "scale"
 msgstr "escala"
 
-#: harwood/viewer/window.py:684
+#: harwood/viewer/window.py:704
 msgid "stretch"
 msgstr "contraste"
 
-#: harwood/viewer/window.py:686
+#: harwood/viewer/window.py:706
 msgid "colours"
 msgstr "colores"
 
-#: harwood/viewer/window.py:690
+#: harwood/viewer/window.py:710
 msgid "blink"
 msgstr "parpadeo"
 
-#: harwood/viewer/window.py:690
+#: harwood/viewer/window.py:710
 msgid "Alternate between loaded frames"
 msgstr "Alterna entre los cuadros cargados"
 
-#: harwood/viewer/window.py:691
+#: harwood/viewer/window.py:711
 msgid "tile"
 msgstr "mosaico"
 
-#: harwood/viewer/window.py:691
+#: harwood/viewer/window.py:711
 msgid "Show every frame side by side"
 msgstr "Muestra todos los cuadros uno al lado del otro"
 
-#: harwood/viewer/window.py:692
+#: harwood/viewer/window.py:712
 msgid "header"
 msgstr "cabecera"
 
-#: harwood/viewer/window.py:692
+#: harwood/viewer/window.py:712
 msgid "Show this frame's FITS header"
 msgstr "Muestra la cabecera FITS de este cuadro"
 
-#: harwood/viewer/window.py:693
+#: harwood/viewer/window.py:713
 msgid "regions"
 msgstr "marcas"
 
-#: harwood/viewer/window.py:693
+#: harwood/viewer/window.py:713
 msgid "Clear the overlays on this frame"
 msgstr "Limpia las marcas sobre este cuadro"
 
-#: harwood/viewer/window.py:696
+#: harwood/viewer/window.py:716
 msgid "reset"
 msgstr "restablecer"
 
-#: harwood/viewer/window.py:697
+#: harwood/viewer/window.py:717
 msgid "Put the panels back where they started  (Ctrl+Shift+R)"
 msgstr "Devuelve los paneles a su lugar inicial  (Ctrl+Shift+R)"
 
-#: harwood/viewer/window.py:749
-#: harwood/viewer/window.py:748
+#: harwood/viewer/window.py:769
+#: harwood/viewer/window.py:768
 msgid "Image"
 msgstr "Imagen"
 
-#: harwood/viewer/window.py:808
+#: harwood/viewer/window.py:791
+msgid "💾  Save"
+msgstr "💾  Guardar"
+
+#: harwood/viewer/window.py:792
+msgid "Save what is in view: the image (as displayed, or with its marks), or the graph (PNG, SVG, PDF or its numbers as CSV)  (Ctrl+S)"
+msgstr "Guardar lo que está a la vista: la imagen (como se muestra, o con sus marcas) o el gráfico (PNG, SVG, PDF o sus números en CSV)  (Ctrl+S)"
+
+#: harwood/viewer/window.py:837
 msgid "Examine"
 msgstr "Examinar"
 
-#: harwood/viewer/window.py:821
+#: harwood/viewer/window.py:850
 msgid "nothing examined yet"
 msgstr "nada examinado todavía"
 
-#: harwood/viewer/window.py:824
+#: harwood/viewer/window.py:853
 msgid "press r over a star"
 msgstr "pulse r sobre una estrella"
 
-#: harwood/viewer/window.py:835
+#: harwood/viewer/window.py:864
 msgid "Keys"
 msgstr "Teclas"
 
-#: harwood/viewer/window.py:859
-#: harwood/viewer/window.py:862
-msgid "{0}: the keys at the cursor"
-msgstr "{0}: las teclas en el cursor"
-
-#: harwood/viewer/window.py:860
-msgid "{0} (lower case)"
-msgstr "{0} (minúsculas)"
-
-#: harwood/viewer/window.py:863
-msgid "measure (lower case)"
-msgstr "medir (minúsculas)"
-
-#: harwood/viewer/window.py:866
-msgid "Display an image to measure it"
-msgstr "Muestre una imagen para medirla"
-
-#: harwood/viewer/window.py:867
-msgid "measure, once an image is shown"
-msgstr "medir, cuando haya una imagen en pantalla"
-
-#: harwood/viewer/window.py:87
+#: harwood/viewer/window.py:88
 msgid "next frame"
 msgstr "cuadro siguiente"
 
-#: harwood/viewer/window.py:87
+#: harwood/viewer/window.py:88
 msgid "previous frame"
 msgstr "cuadro anterior"
 
-#: harwood/viewer/window.py:87
+#: harwood/viewer/window.py:88
 msgid "list these keys"
 msgstr "listar estas teclas"
 
-#: harwood/viewer/window.py:87
+#: harwood/viewer/window.py:88
 msgid "end imexamine, when it is running as a task"
 msgstr "terminar imexamine, cuando se ejecuta como tarea"
 
-#: harwood/viewer/window.py:87
+#: harwood/viewer/window.py:88
 msgid "reset the view to the whole image"
 msgstr "volver la vista a la imagen entera"
 
-#: harwood/viewer/window.py:875
+#: harwood/viewer/window.py:888
+#: harwood/viewer/window.py:891
+msgid "{0}: the keys at the cursor"
+msgstr "{0}: las teclas en el cursor"
+
+#: harwood/viewer/window.py:889
+msgid "{0} (lower case)"
+msgstr "{0} (minúsculas)"
+
+#: harwood/viewer/window.py:892
+msgid "measure (lower case)"
+msgstr "medir (minúsculas)"
+
+#: harwood/viewer/window.py:895
+msgid "Display an image to measure it"
+msgstr "Muestre una imagen para medirla"
+
+#: harwood/viewer/window.py:896
+msgid "measure, once an image is shown"
+msgstr "medir, cuando haya una imagen en pantalla"
+
+#: harwood/viewer/window.py:904
 msgid ", hidden"
 msgstr ", oculta"
 
-#: harwood/viewer/window.py:878
+#: harwood/viewer/window.py:907
 msgid "the window (upper case)"
 msgstr "la ventana (mayúsculas)"
 
-#: harwood/viewer/window.py:879
+#: harwood/viewer/window.py:908
 msgid "the mouse"
 msgstr "el ratón"
 
-#: harwood/viewer/window.py:888
+#: harwood/viewer/window.py:917
 msgid "Parameters · rimexam"
 msgstr "Parámetros · rimexam"
 
-#: harwood/viewer/window.py:964
+#: harwood/viewer/window.py:994
 msgid "  {0} opened; press q there when you are done"
 msgstr "  {0} abierto; pulse q allí cuando termine"
-
-#: harwood/viewer/window.py:991
-msgid "the session could not be kept: {0}"
-msgstr "la sesión no se pudo guardar: {0}"

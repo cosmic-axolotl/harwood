@@ -406,7 +406,7 @@ class TaskBrowser(QtWidgets.QWidget):
         lang.bind(self.search, "setPlaceholderText",
                   "Find a task: daofind, combine, airmass...")
         self.search.setClearButtonEnabled(True)
-        self.search.textChanged.connect(lambda _: self._fill())
+        self.search.textChanged.connect(lambda _: (self._fill(), self._show_crumbs()))
         self.search.returnPressed.connect(self._open_first)
         layout.addWidget(self.search)
         self.title = QtWidgets.QLabel()
@@ -564,24 +564,33 @@ class TaskBrowser(QtWidgets.QWidget):
         # only fires elsewhere -- "back", as in a file manager.
         self.back()
 
+    #: The root's link: an empty href is not a link to every QLabel, which is how
+    #: "all" came to do nothing when clicked.
+    ROOT = "@all"
+
     def _crumb(self, path: str) -> None:
-        self.go(path)
+        self.go("" if path == self.ROOT else path)
 
     def _show_crumbs(self) -> None:
         if not hasattr(self, "_link"):
             return
-        parts = [("", "all")]          # the tree's root, named as the docs name it
+        parts = [(self.ROOT, "all")]   # the tree's root, named as the docs name it
         if self.node.path:
             pieces = self.node.path.split(".")
             parts += [(".".join(pieces[: i + 1]), piece) for i, piece in enumerate(pieces)]
         links = [f'<a href="{html.escape(p)}" style="{self._link}">{html.escape(n)}</a>'
                  for p, n in parts]
-        if self.task is None:
-            links[-1] = f"<b>{html.escape(parts[-1][1])}</b>"
-        else:
-            links.append(f"<b>{html.escape(self.task)}</b>")
-        self.crumbs.setText(" › ".join(links))
+        query = self.search.text().strip() if hasattr(self, "search") else ""
         if self.task is not None:
+            links.append(f"<b>{html.escape(self.task)}</b>")
+        elif query:
+            # the results are a page of their own: where they were searched from
+            # stays a link back
+            links.append(f"<b>{html.escape(lang.trf('search: {0}', query))}</b>")
+        else:
+            links[-1] = f"<b>{html.escape(parts[-1][1])}</b>"
+        self.crumbs.setText(" › ".join(links))
+        if self.task is not None or query:
             self.back_button.setText(lang.trf("◀  Back to {0}", self.node.name))
             self.back_button.setEnabled(True)
         elif self.node.parent_path is not None:

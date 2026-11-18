@@ -226,6 +226,8 @@ class Display(Task[DisplayParams]):
 
         from ..core import catalog, display, images, mef
 
+        if display.is_figure(params.image):
+            return _figure_result(params)
         data, header = images.read(params.image)
         _, _, _, quality = mef.load(params.image)
         z1, z2, table, notes = display_limits(params, data, header)
@@ -256,6 +258,31 @@ class Display(Task[DisplayParams]):
                           # as IRAF prints them, %g of a single-precision value
                           data={"z1": float(f"{z1:.7g}"), "z2": float(f"{z2:.7g}"),
                                 "shape": "x".join(str(n) for n in reversed(data.shape))})
+
+
+def _figure_result(params: DisplayParams) -> TaskResult:
+    """A picture, not an image: no frame, no limits -- its own tab."""
+    from ..core import display
+
+    path = Path(str(params.image))
+    if not path.exists():
+        advice.fail(f"{path} does not exist", "check the name and the folder",
+                    FileNotFoundError)
+    screen = display.get(params.backend or None)
+    if not hasattr(screen, "show_figure"):
+        advice.fail(f"{path.name} is a figure, and figures are shown in the window",
+                    "run it inside harwood gui, or on a desktop session")
+    from ..viewer.figure_panel import FigureError
+
+    try:
+        screen.show_figure(path)
+    except FigureError as error:
+        advice.fail(str(error), error.fix)
+    if params.wait and hasattr(screen, "run") and getattr(screen, "owns", False):
+        screen.run()
+    return TaskResult(outputs=[], steps=[Step("show", f"{path.name} -> a tab of its own",
+                                              why=WHY["show"])],
+                      data={"figure": str(path)})
 
 
 def _how_limits(params: DisplayParams) -> str:

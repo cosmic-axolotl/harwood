@@ -122,11 +122,27 @@ brings it back; *File › New session* starts afresh at any time. The session
 lives in `~/.local/state/harwood/session`, with a `session.json` you can read.
 A window that a task opens from the terminal keeps no session.
 
+## Frames
+
+Beside the frame box in the toolbar, ◀ and ▶ go to the frame before and after
+(`p` and `n` over the image), and 🗑 takes the frame off the display -- the one
+beside it is shown, and the file itself is not touched.
+
 ## Saving what you see
 
-The **File** menu exports the image as it is displayed (PNG, JPEG, TIFF),
-the view with its marks, and any plot (PNG, SVG, PDF). From the command
-line, [impicture](task:impicture) does the same for any image.
+**💾 Save**, at the right of the strip under the tabs (or Ctrl+S), saves what is
+in view: on the image, the image as displayed (PNG, JPEG, TIFF) or the view with
+its marks; on a graph or a spectrum, the graph (PNG, SVG, PDF, or its numbers as
+CSV). The dialog is the desktop's own; what was written is said in the strip and
+goes by itself. A graph's right-click *Save...* is the same. The **File** menu
+has the same exports; from the command line, [impicture](task:impicture) does it
+for any image.
+
+## The command line
+
+A long command wraps and the box grows with it (up to six lines), so the whole
+of it stays in view; Enter runs it, and ↑ ↓ move through its lines before they
+reach the history.
 
 ## Time
 

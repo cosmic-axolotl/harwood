@@ -14,6 +14,12 @@ terminal, and a line typed in one is found by Up in the other.
 
 Tab on an empty prompt still moves the focus, as everywhere else, so that a
 keyboard can always get out of here; Shift+Tab always does.
+
+A long line wraps and the box grows with it (up to six lines, then it scrolls),
+rather than running off to the side: the whole command stays in view, and a typo
+at its start is fixed without scrolling back. Enter still runs it -- the command is
+one line, however many it is shown on -- and Up and Down move through the wrapped
+lines, going to the history only from the first line or the last.
 """
 
 from __future__ import annotations
@@ -29,17 +35,35 @@ SHOWN = 200
 _VALUE = QtCore.Qt.ItemDataRole.UserRole
 
 
-class CommandLine(QtWidgets.QLineEdit):
-    """A line edit that completes and remembers. Enter is the window's: it
-    reads `take()`, which returns the line and keeps it in the history."""
+#: The most lines the box grows to before it scrolls.
+MAX_LINES = 6
+
+
+class CommandLine(QtWidgets.QPlainTextEdit):
+    """A command box that completes, remembers and wraps. Enter is the window's: it
+    reads `take()`, which returns the line and keeps it in the history. It answers
+    to what the window used of a QLineEdit (text, setText, cursorPosition,
+    returnPressed, textEdited), the command always one line."""
 
     #: A word to say about a Tab that found nothing, or a history search
     #: that found nothing -- for the status bar, so silence is never the answer.
     said = QtCore.Signal(str)
+    returnPressed = QtCore.Signal()
+    textEdited = QtCore.Signal(str)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("command")
+        self.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        self.setTabChangesFocus(False)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
+                           QtWidgets.QSizePolicy.Policy.Fixed)
+        self._quiet = False              # a change made here, not typed
+        self.document().contentsChanged.connect(self._grow)
+        self.textChanged.connect(self._typed_in)
         self.lines = history.load()
         self._at = len(self.lines)       # where Up and Down are in the history
         self._typed = ""                 # what was there before walking it
@@ -60,6 +84,67 @@ class CommandLine(QtWidgets.QLineEdit):
         self.completer_.setPopup(popup)
         self.completer_.activated[QtCore.QModelIndex].connect(self._chosen)
         self.textEdited.connect(self._edited)
+        self._grow()
+
+    # ------------------------------------------------------- a line, wrapped
+
+    def text(self) -> str:
+        return self.toPlainText()
+
+    def setText(self, text: str) -> None:
+        self._quiet = True
+        self.setPlainText(text.replace("\n", " "))
+        self._quiet = False
+        self.setCursorPosition(len(self.toPlainText()))
+
+    def clear(self) -> None:
+        self._quiet = True
+        super().clear()
+        self._quiet = False
+
+    def cursorPosition(self) -> int:
+        return self.textCursor().position()
+
+    def setCursorPosition(self, position: int) -> None:
+        cursor = self.textCursor()
+        cursor.setPosition(max(0, min(position, len(self.toPlainText()))))
+        self.setTextCursor(cursor)
+
+    def _typed_in(self) -> None:
+        if not self._quiet:
+            self.textEdited.emit(self.toPlainText())
+
+    def insertFromMimeData(self, source) -> None:
+        """A pasted block is one command: its line breaks become spaces."""
+        if source.hasText():
+            self.insertPlainText(" ".join(source.text().split("\n")))
+        else:
+            super().insertFromMimeData(source)
+
+    def _grow(self) -> None:
+        """As tall as its wrapped lines, one to MAX_LINES; past that it scrolls."""
+        metrics = QtGui.QFontMetricsF(self.font())
+        lines = 0
+        block = self.document().begin()
+        while block.isValid():
+            layout = block.layout()
+            lines += max(1, layout.lineCount() if layout is not None else 1)
+            block = block.next()
+        lines = max(1, min(MAX_LINES, lines))
+        margins = self.contentsMargins()
+        frame = 2 * self.frameWidth() + margins.top() + margins.bottom() \
+            + 2 * int(self.document().documentMargin())
+        self.setFixedHeight(int(lines * metrics.lineSpacing() + frame + 2))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._grow()
+
+    def _on_edge(self, up: bool) -> bool:
+        """The cursor on the first visual line (up) or the last (down)."""
+        cursor = QtGui.QTextCursor(self.textCursor())
+        op = QtGui.QTextCursor.MoveOperation.Up if up else QtGui.QTextCursor.MoveOperation.Down
+        return not cursor.movePosition(op)
 
     # ------------------------------------------------------------ history
 
@@ -179,6 +264,16 @@ class CommandLine(QtWidgets.QLineEdit):
     # ------------------------------------------------------------ keys
 
     def event(self, event: QtCore.QEvent) -> bool:
+        # On an empty prompt Tab and Shift+Tab move the focus, as in any field
+        if event.type() == QtCore.QEvent.Type.KeyPress and \
+                event.key() in (QtCore.Qt.Key.Key_Tab, QtCore.Qt.Key.Key_Backtab) and \
+                (event.key() == QtCore.Qt.Key.Key_Backtab
+                 or event.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier
+                 or not self.text().strip()):
+            back = event.key() == QtCore.Qt.Key.Key_Backtab or \
+                bool(event.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier)
+            self.focusPreviousChild() if back else self.focusNextChild()
+            return True
         # Tab has to be caught before QWidget turns it into a focus change.
         if event.type() == QtCore.QEvent.Type.KeyPress and \
                 event.key() == QtCore.Qt.Key.Key_Tab and \
@@ -210,10 +305,13 @@ class CommandLine(QtWidgets.QLineEdit):
                 modifiers & QtCore.Qt.KeyboardModifier.ControlModifier:
             self.search_history()
             return
-        if key == QtCore.Qt.Key.Key_Up:
+        if key in (QtCore.Qt.Key.Key_Return, QtCore.Qt.Key.Key_Enter):
+            self.returnPressed.emit()    # the command is one line: Enter runs it
+            return
+        if key == QtCore.Qt.Key.Key_Up and self._on_edge(True):
             self.walk(-1)
             return
-        if key == QtCore.Qt.Key.Key_Down:
+        if key == QtCore.Qt.Key.Key_Down and self._on_edge(False):
             self.walk(+1)
             return
         super().keyPressEvent(event)

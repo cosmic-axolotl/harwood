@@ -42,6 +42,23 @@ class Views(QtWidgets.QWidget):
         """A control in the strip, from the left."""
         self._options.insertWidget(self._options.count() - 1, widget)
 
+    def add_action(self, widget) -> None:
+        """A control in the strip, at its right end."""
+        self._options.addWidget(widget)
+
+    def notice(self, text: str, ms: int = 5000) -> None:
+        """A word in the strip that goes by itself ("saved: ..."): said where the
+        eye is, not in a box that has to be closed."""
+        if not hasattr(self, "_notice"):
+            self._notice = QtWidgets.QLabel("")
+            self._notice.setObjectName("notice")
+            self._options.insertWidget(self._options.count() - 1, self._notice)
+            self._notice_timer = QtCore.QTimer(self)
+            self._notice_timer.setSingleShot(True)
+            self._notice_timer.timeout.connect(lambda: self._notice.setText(""))
+        self._notice.setText(text)
+        self._notice_timer.start(ms)
+
     def _changed(self, index: int) -> None:
         if 0 <= index < self._stack.count():
             self._stack.setCurrentIndex(index)

@@ -882,11 +882,20 @@ class IdentifySession:
         return out
 
     def _fitdata(self) -> None:
+        from .identify import disorder_advice, too_few_lines
+
         try:
             self.ident.update_fitdata()
             self._error = ""
+            self.advice = too_few_lines(self.ident.fit)
         except ValueError as error:
             self._error = str(error)
+            # harwood's own words beside IRAF's: which lines, and what to do
+            from .i18n import tr
+
+            self.advice = disorder_advice(self.features, self.units) or tr(
+                "The fit turns back on itself between the lines: lower the order "
+                "(:order), or delete (d) the line where the residuals jump.")
             return
         self._labels()
 
@@ -934,6 +943,9 @@ class IdentifySession:
     _batch_graph = False
     _pending_status = ""
     _error = ""
+    #: harwood's explanation of a problem with the solution (not IRAF's text; the
+    #: window shows it apart): which lines are out of order, and what to do
+    advice = ""
 
     def _finish(self) -> None:
         if self.reidentify:

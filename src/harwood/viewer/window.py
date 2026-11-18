@@ -32,6 +32,7 @@ the habit transfers.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -659,12 +660,12 @@ class HarwoodWindow(QtWidgets.QMainWindow):
 
     PLOT_FORMATS = [("PNG", "png"), ("SVG", "svg"), ("PDF", "pdf"), ("CSV data", "csv")]
 
-    def export_plot(self, path=None, widget=None) -> object:
+    def export_plot(self, path=None, widget=None, stem: str = "plot") -> object:
         """The examine plot (or another), as a picture or as its numbers."""
         from pathlib import Path
 
         plot = widget or self.plot
-        target = Path(path) if path else self._save_dialog("Export plot", "plot",
+        target = Path(path) if path else self._save_dialog("Export plot", stem,
                                                           self.PLOT_FORMATS)
         if target is None:
             return None
@@ -679,6 +680,25 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.addToolBar(bar)
 
         self.frame_box = self._combo(bar, N_("frame"), [], self._frame_changed, width=230)
+        # Beside it: the frame before and after, and the bin -- off the display, the
+        # file untouched. Words in the tooltips; the signs are the usual ones.
+        self.frame_buttons = {}
+        for name, text, slot, tip in (
+                ("prev", "◀", lambda: self._step_frame(-1),
+                 N_("The frame before  (p over the image)")),
+                ("next", "▶", lambda: self._step_frame(+1),
+                 N_("The frame after  (n over the image)")),
+                ("delete", "🗑", lambda: self.delete_frame(),
+                 N_("Take this frame off the display (the file is not touched)"))):
+            button = QtWidgets.QToolButton()
+            button.setText(text)
+            button.setObjectName(f"frame-{name}")
+            lang.bind(button, "setToolTip", tip)
+            lang.bind(button, "setAccessibleName", tip)
+            button.clicked.connect(slot)
+            bar.addWidget(button)
+            self.frame_buttons[name] = button
+        self._sync_frame_buttons()
         self.scale_box = self._combo(bar, N_("scale"), ["zscale", "minmax", "99.5%", FIXED],
                                      self._redraw)
         self.stretch_box = self._combo(bar, N_("stretch"), list(render.STRETCHES),
@@ -766,6 +786,15 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         theme.on_change(self._cursor_boxes_follow, owner=self.cross_box)
         self._cursor_boxes_follow()
         crosshair.attach(self.graphics, image=self._cursor_image, image_box=self.view)
+        self.save_button = QtWidgets.QToolButton()
+        self.save_button.setObjectName("save")
+        lang.bind(self.save_button, "setText", "💾  Save")
+        lang.bind(self.save_button, "setToolTip",
+                  "Save what is in view: the image (as displayed, or with its marks), "
+                  "or the graph (PNG, SVG, PDF or its numbers as CSV)  (Ctrl+S)")
+        self.save_button.clicked.connect(self.save_current)
+        self.views.add_action(self.save_button)
+        QtGui.QShortcut(QtGui.QKeySequence("Ctrl+S"), self, activated=self.save_current)
         #: the panels a task is waiting on, and the tab each was opened from
         self._waiting: dict[Any, Any] = {}
         self._keys_were_shown = True
@@ -958,15 +987,93 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self._waiting[panel] = self.views.currentWidget()
         index = self.views.addTab(panel, title)
         crosshair.attach_all(panel)
+        self._route_export(panel)
         self.views.setTabToolTip(index, title)
         self.views.setCurrentIndex(index)
         panel.setFocus()
         self.log(lang.trf("  {0} opened; press q there when you are done", title))
 
+    # ------------------------------------------------------------ saving
+
+    def _plot_of(self, panel):
+        """The graph a tab shows: its pyqtgraph view (the first, if several)."""
+        if isinstance(panel, pg.GraphicsView):
+            return panel
+        found = panel.findChildren(pg.PlotWidget) or panel.findChildren(pg.GraphicsView)
+        return found[0] if found else None
+
+    def save_current(self) -> None:
+        """The save button: what the current tab shows. The image asks which of
+        its two pictures; a graph is saved at once. The dialog is the desktop's,
+        and closes; what was written is said in the strip, which clears itself."""
+        panel = self.views.currentWidget()
+        if panel is self.graphics:
+            if not self.frames:
+                self.views.notice(tr("nothing to save: load an image first"))
+                return
+            menu = QtWidgets.QMenu(self)
+            lang.action(menu, "Image as displayed (its own pixels)...",
+                        lambda: self._saved(self.export_image()))
+            lang.action(menu, "The view, with its marks...",
+                        lambda: self._saved(self.export_view()))
+            menu.exec(self.save_button.mapToGlobal(
+                QtCore.QPoint(0, self.save_button.height())))
+            return
+        if hasattr(panel, "save_picture"):
+            self._saved(panel.save_picture(self))
+            return
+        plot = self._plot_of(panel)
+        if plot is None:
+            self.views.notice(tr("nothing here to save"))
+            return
+        title = self.views.tabText(self.views.currentIndex())
+        stem = "".join(c if c.isalnum() or c in "-_." else "_" for c in title).strip("_")
+        self._saved(self.export_plot(widget=plot, stem=stem or "plot"))
+
+    def _saved(self, path) -> None:
+        if path:
+            self.views.notice("✓  " + lang.trf("saved: {0}", Path(path).name))
+
+    def _route_export(self, panel) -> None:
+        """pyqtgraph's own right-click "Export..." opens a dialog of its own that
+        stays open and is not the window's look: it saves through the window's
+        instead."""
+        views = [panel] if isinstance(panel, pg.GraphicsView) else \
+            panel.findChildren(pg.GraphicsView)
+        for view in views:
+            actions = getattr(view.scene(), "contextMenu", None)
+            if not actions:
+                continue
+            action = actions[0]
+            with contextlib.suppress(RuntimeError, TypeError):
+                action.triggered.disconnect()
+            action.setText(tr("Save..."))
+            action.triggered.connect(lambda _=False, v=view: self._saved(
+                self.export_plot(widget=v, stem="plot")))
+
+    def show_figure(self, path) -> Any:
+        """A picture (.eps, .ps, .pdf, .png, .svg...) in a tab of its own, brought
+        forward; the same file again is the same tab, drawn afresh."""
+        from .figure_panel import FigurePanel
+
+        path = Path(path)
+        panel = FigurePanel(path)
+        for index in range(1, self.views.count()):
+            old = self.views.widget(index)
+            if isinstance(old, FigurePanel) and old.path.resolve() == path.resolve():
+                self.close_panel(old)
+                break
+        self.add_kept_panel(panel, path.name)
+        self.views.setCurrentWidget(panel)
+        panel.setFocus()
+        self.log(lang.trf("  {0} opened in a tab of its own", path.name))
+        return panel
+
     def add_kept_panel(self, panel, title: str) -> None:
         """A tab no task waits on (a session's graph, put back)."""
         index = self.views.addTab(panel, title)
         crosshair.attach_all(panel)
+        self._route_export(panel)
         self.views.setTabToolTip(index, title)
 
     # ------------------------------------------------------------ the session
@@ -1293,6 +1400,7 @@ class HarwoodWindow(QtWidgets.QMainWindow):
                 box.setCurrentText(value)
                 box.blockSignals(False)
 
+        self._sync_frame_buttons()
         low, high = self.frames[frame].limits(scale)
         how = "" if window is not None else f" --{scale}"
         self.log(f"display '{name}' --frame {frame}{how}", prompt=True)
@@ -1314,7 +1422,42 @@ class HarwoodWindow(QtWidgets.QMainWindow):
         self.frame_box.blockSignals(True)
         self.frame_box.setCurrentText(f"{frame}  {self.frames[frame].name}")
         self.frame_box.blockSignals(False)
+        self._sync_frame_buttons()
         self._redraw(reset_view=True)
+
+    def _sync_frame_buttons(self) -> None:
+        """The arrows with somewhere to go; the bin with something to take off."""
+        if not hasattr(self, "frame_buttons"):
+            return
+        n = len(getattr(self, "frames", {}))
+        self.frame_buttons["prev"].setEnabled(n > 1)
+        self.frame_buttons["next"].setEnabled(n > 1)
+        self.frame_buttons["delete"].setEnabled(n > 0)
+
+    def delete_frame(self, frame: int | None = None) -> None:
+        """The bin: the frame off the display -- its file is not touched -- and the
+        one beside it shown instead."""
+        frame = self.current if frame is None else frame
+        if frame not in self.frames:
+            return
+        name = self.frames.pop(frame).name
+        getattr(self, "_session_frames", {}).pop(frame, None)
+        self.frame_box.blockSignals(True)
+        self.frame_box.clear()
+        self.frame_box.addItems([f"{n}  {f.name}" for n, f in sorted(self.frames.items())])
+        self.frame_box.blockSignals(False)
+        self.log(lang.trf("  frame {0} ({1}) taken off the display; its file is untouched",
+                          frame, name))
+        if self.frames:
+            later = [n for n in sorted(self.frames) if n > frame]
+            self.select_frame(later[0] if later else max(self.frames))
+        else:
+            self.image_item.clear()
+            self.dq_item.clear()
+            for item in list(self.overlay.childItems()):
+                self.view.scene().removeItem(item)
+            self._sync_frame_buttons()
+            self._refresh_keys()
 
     def _step_frame(self, direction: int) -> None:
         numbers = sorted(self.frames)
@@ -1597,8 +1740,15 @@ class HarwoodWindow(QtWidgets.QMainWindow):
     def _load_another(self) -> None:
         """The d key: IRAF's prompts for an image and a frame, in a dialog."""
         name, chosen = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Load the image display", "", "Images (*.fits *.fit *.fts *.pl);;All (*)")
+            self, "Load the image display", "",
+            "Images (*.fits *.fit *.fts *.pl);;"
+            "Figures (*.eps *.ps *.pdf *.png *.jpg *.svg);;All (*)")
         if not chosen or not name:
+            return
+        from ..core.display import is_figure
+
+        if is_figure(name):
+            self.show_figure(name)
             return
         frame, accepted = QtWidgets.QInputDialog.getInt(
             self, "Load the image display", "Frame", self.current, 1, 999)

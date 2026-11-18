@@ -800,3 +800,52 @@ def test_the_cursor_helpers_on_the_image(tabs, tmp_path, monkeypatch):
         theme.update(save=False, cursor="arrow")
         display.reset()
         tabs.close()
+
+
+# ------------------------------------------------------------- frames and saving
+
+def test_the_arrows_and_the_bin_by_the_frame_box(tabs):
+    """Item 1 of her list: the frame before and after, and taking one off the
+    display -- the one beside it shown, the file untouched."""
+    image = np.ones((20, 30))
+    tabs.load(image, None, frame=1, name="a.fits")
+    assert not tabs.frame_buttons["prev"].isEnabled(), "one frame: nowhere to go"
+    tabs.load(image * 2, None, frame=2, name="b.fits")
+    tabs.load(image * 3, None, frame=3, name="c.fits")
+    assert tabs.current == 3 and tabs.frame_buttons["next"].isEnabled()
+    tabs.frame_buttons["next"].click()
+    assert tabs.current == 1, "after the last, the first"
+    tabs.frame_buttons["prev"].click()
+    assert tabs.current == 3
+    tabs.select_frame(2)
+    tabs.frame_buttons["delete"].click()
+    assert sorted(tabs.frames) == [1, 3] and tabs.current == 3
+    assert tabs.frame_box.currentText() == "3  c.fits" and tabs.frame_box.count() == 2
+    tabs.frame_buttons["delete"].click()
+    tabs.frame_buttons["delete"].click()
+    assert not tabs.frames and not tabs.frame_buttons["delete"].isEnabled()
+
+
+def test_the_save_button_saves_the_tab_in_view(tabs, tmp_path, monkeypatch):
+    """Item 2: one button for what is in view; the desktop's dialog, which closes;
+    the word that it was saved goes by itself. A graph's right-click "Export..."
+    is the same save, not pyqtgraph's dialog."""
+    from PySide6 import QtWidgets
+
+    target = tmp_path / "curve.png"
+    asked = []
+
+    def dialog(parent, title, name, filters):
+        asked.append(name)
+        return str(target), filters.split(";;")[0]
+
+    monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", dialog)
+    panel = _panel()
+    tabs.open_panel(panel, "curve 1")
+    tabs.save_current()
+    assert target.exists() and asked == ["curve_1.png"]
+    assert tabs.views._notice.text().endswith("curve.png")
+    action = panel.plot.scene().contextMenu[0]
+    target.unlink()
+    action.trigger()
+    assert target.exists() and "Export" not in action.text()

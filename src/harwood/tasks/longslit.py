@@ -624,6 +624,9 @@ class Fitcoords(Task[FitcoordsParams]):
             run.said(session)
             for text in coords.warnings:
                 run.warnings.append(advice.warn(text, "check the database's records"))
+            thin = _too_few_lines(coords, common)
+            if thin:
+                run.warnings.append(thin)
             run.plot(session, name)
             run.log(fc.result_lines(coords, session.sf, common.function, common.xorder,
                                     common.yorder))
@@ -652,6 +655,31 @@ class Fitcoords(Task[FitcoordsParams]):
         return TaskResult(outputs=run.written, steps=self.plan(params), data=data,
                           warnings=run.warnings,
                           history=[f"fitcoords: {len(run.rows)} fit(s)"])
+
+
+def _too_few_lines(coords, common):
+    """Fewer distinct lines along the dispersion than the surface's order there: the
+    surface goes through them and is free between and beyond -- a map that looks
+    fitted and is not (5 lines and yorder 6 put 6320-6936 A at 6383-6832). IRAF fits
+    it without a word."""
+    import numpy as np
+
+    from ..core import fitcoords as fc
+
+    pts = coords.points
+    used = pts[fc.W] > 0
+    lines = int(np.unique(np.round(pts[fc.Z][used].astype(float), 3)).size)
+    order, axis = (common.yorder, "yorder") if coords.axis == 2 else (common.xorder,
+                                                                         "xorder")
+    if lines > order:
+        return None
+    return advice.problem(
+        f"only {lines} different lines along the dispersion, for {axis} {order}: the "
+        "surface passes through them and is free between and beyond them, so the "
+        "wavelengths at the corners are not to be trusted",
+        "identify more lines in the arc (in identify, l finds the rest of the line "
+        "list; f fits), reidentify and run fitcoords again -- or lower the order "
+        "along the dispersion below the number of lines")
 
 
 class _FitcoordsRun:

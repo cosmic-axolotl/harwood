@@ -123,8 +123,33 @@ def test_going_in_and_coming_back(browser):
 
     browser.back_button.click()
     assert browser.node.path == "noao"
-    browser.crumbs.linkActivated.emit("")
+    _follow(browser, "all")
     assert browser.node.path == ""
+
+
+def _follow(widget, name):
+    """A crumb clicked: the href in the trail, as the label hands it on -- never an
+    empty one, which a QLabel does not treat as a link."""
+    import re
+
+    links = dict((n, h) for h, n in re.findall(r'<a href="([^"]*)"[^>]*>([^<]*)</a>',
+                                               widget.crumbs.text()))
+    assert links.get(name), f"{name} is a link in {widget.crumbs.text()!r}"
+    widget.crumbs.linkActivated.emit(links[name])
+
+
+def test_all_goes_home_from_a_search_and_from_a_task_found(browser):
+    browser.search.setText("phot")
+    assert "search: phot" in browser.crumbs.text()
+    assert browser.back_button.isEnabled()
+    _follow(browser, "all")                      # from the results on the top page
+    assert browser.node.path == "" and browser.search.text() == ""
+    browser.go("noao.digiphot")
+    browser.search.setText("daofind")
+    browser._open_first()
+    assert browser.task == "daofind"
+    _follow(browser, "all")                      # from a task the search opened
+    assert browser.task is None and browser.node.path == "" and not browser.search.text()
 
 
 def test_a_task_goes_back_to_its_package(browser):

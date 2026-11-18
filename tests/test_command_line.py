@@ -431,3 +431,49 @@ def test_shell_commands_and_redirection_at_the_prompt(window, tmp_path, monkeypa
     assert ok
     assert str(tmp_path.resolve()) in (tmp_path / "where.txt").read_text(encoding="utf-8")
 
+
+
+def test_a_long_command_wraps_and_the_box_grows(window):
+    """Item 4 of her list: the line does not run off to the side; the box grows (to
+    six lines) and the whole command stays in view; Enter still runs it."""
+    from PySide6 import QtCore, QtGui, QtWidgets
+
+    prompt = window.prompt
+    window.resize(1000, 700)
+    window.show()
+    QtWidgets.QApplication.processEvents()
+    one = prompt.height()
+    long = ("reidentify cuar_btpf_bp.fits cuar_btpf_bp.fits --section 'middle column' "
+            "--newaps --override --refit --no-trace --step 10 --nsum 10 --shift 0 "
+            "--search 0 --nlost 3 --cradius 5 --threshold 10 --no-addfeatures")
+    prompt.setText(long)
+    QtWidgets.QApplication.processEvents()
+    assert prompt.height() > one, "the box grew"
+    assert prompt.horizontalScrollBar().maximum() == 0, "nothing to scroll sideways"
+    assert prompt.text() == long and "\n" not in prompt.text()
+    # Up inside the wrapped lines moves the cursor; only from the first line the history
+    prompt.setCursorPosition(len(long))
+    key = QtGui.QKeyEvent(QtCore.QEvent.Type.KeyPress, QtCore.Qt.Key.Key_Up,
+                          QtCore.Qt.KeyboardModifier.NoModifier)
+    prompt.keyPressEvent(key)
+    assert prompt.text() == long and prompt.cursorPosition() < len(long)
+    ran = []
+    prompt.returnPressed.disconnect()             # the window's own runner, not here
+    prompt.returnPressed.connect(lambda: ran.append(prompt.text()))
+    enter = QtGui.QKeyEvent(QtCore.QEvent.Type.KeyPress, QtCore.Qt.Key.Key_Return,
+                            QtCore.Qt.KeyboardModifier.NoModifier)
+    prompt.keyPressEvent(enter)
+    assert ran == [long] and "\n" not in prompt.text(), "Enter runs; it adds no line"
+    prompt.clear()
+    QtWidgets.QApplication.processEvents()
+    assert prompt.height() == one, "and it shrinks back"
+    window.close()
+
+
+def test_a_pasted_block_is_one_command(window):
+    from PySide6 import QtCore
+
+    data = QtCore.QMimeData()
+    data.setText("imstat a.fits\n--fields mean")
+    window.prompt.insertFromMimeData(data)
+    assert window.prompt.text() == "imstat a.fits --fields mean"

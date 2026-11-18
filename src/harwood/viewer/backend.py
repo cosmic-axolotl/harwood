@@ -39,6 +39,10 @@ class NativeDisplay:
                          window=window, stretch=stretch, table=table, quality=quality)
         self._pump()
 
+    def show_figure(self, path: Any) -> None:
+        self.window.show_figure(path)
+        self._pump()
+
     def mark(self, markers: list[Marker], frame: int = 1) -> None:
         self.window.add_markers(markers, frame)
         self._pump()

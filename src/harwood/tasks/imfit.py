@@ -189,13 +189,23 @@ def run_fit1d(params, kind: str, function: str, bpms: list[str], task: str):
 
 
 def _answer(answers: list[str], prompt: str) -> str | None:
-    """f1d_getline's getline: the next answer given, else the terminal's; None at the
-    end (EOF, or no terminal to ask)."""
+    """f1d_getline's getline: the next answer given; in the window, a question there
+    (Cancel or an empty answer is the end, as Enter or Ctrl-D at the terminal); else
+    the terminal's. None at the end (EOF, or nowhere to ask)."""
     import sys
 
     if answers:
         return answers.pop(0)
-    if not sys.stdin.isatty():
+    qt = sys.modules.get("harwood.viewer._qt")
+    if qt is not None and qt.window() is not None:
+        from ..core.i18n import tr
+        from ..viewer import ask
+
+        hint = tr("a line, or two for their average (275, or 270 280); empty or Cancel "
+                  "fits every line with what was set")
+        text = ask.line(f"{prompt}\n\n({hint})", "harwood")
+        return text if text and text.strip() else None
+    if sys.stdin is None or not sys.stdin.isatty():
         return None
     try:
         return input(prompt + " ")

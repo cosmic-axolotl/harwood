@@ -118,6 +118,8 @@ def _panel_state(panel) -> tuple[str, Any] | None:
     from .graph_panel import GraphPanel
     from .implot_panel import ImplotPanel
 
+    if hasattr(panel, "save_picture"):
+        return "figure", str(Path(panel.path).resolve())
     if isinstance(panel, ImplotPanel):
         state = {k: v for k, v in panel.engine.__dict__.items() if k != "read"}
         return "implot", {"name": panel.name, "engine": state}
@@ -385,6 +387,10 @@ def _panel_back(kind: str, payload):
     try:
         if kind == "graph" or kind == "picture":
             return GraphPanel(payload)
+        if kind == "figure":
+            from .figure_panel import FigurePanel
+
+            return FigurePanel(payload)
         if kind == "implot":
             from ..core import images as imageio
             from .implot_panel import ImplotPanel

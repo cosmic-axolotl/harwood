@@ -1836,6 +1836,17 @@ class _ReidState:
                         "identify that aperture or line of the reference, or give "
                         "--section for the one identified.", FileNotFoundError)
         ref = ri.reference_from(record, key0, self.p.fwidth)
+        from ..core.identify import disorder_advice
+
+        said = disorder_advice(ref.features, "angstroms")
+        if said:
+            # IRAF would go on, find nothing anywhere and say "Too many features
+            # lost" at every step; the reference is what is wrong, so say so first
+            advice.fail(f"the reference solution of {bare}{section0} (database/id{bare}) "
+                        f"is not monotonic. {said.split('. ')[0]}.",
+                        "identify the reference again (harwood identify ... --section "
+                        f"'{section0}'): delete (d) or re-mark (m) the line with the wrong "
+                        "wavelength, fit (f), and write it to the database.")
         self.refs[key0] = ref
         self.order.append(key0)
         self.current = ref

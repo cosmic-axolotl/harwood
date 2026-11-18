@@ -70,6 +70,13 @@ class IdentifyPanel(QtWidgets.QWidget):
         self.status.setObjectName("status")
         self.status.setWordWrap(True)
         page.addWidget(self.status)
+        # harwood's word on the solution, apart from IRAF's text: a sign, not only
+        # a colour
+        self.advice = QtWidgets.QLabel("")
+        self.advice.setObjectName("advice")
+        self.advice.setWordWrap(True)
+        self.advice.hide()
+        page.addWidget(self.advice)
 
         self.keys = keyguide.strip([("space" if k == " " else k, what) for k, what in HELP])
         page.addWidget(self.keys)
@@ -185,6 +192,8 @@ class IdentifyPanel(QtWidgets.QWidget):
         lines = [line for line in said.replace("\a", "").splitlines() if line.strip()]
         if lines:
             self.status.setText("\n".join(lines[-3:]))
+        self.advice.setText(f"⚠  {session.advice}" if session.advice else "")
+        self.advice.setVisible(bool(session.advice))
         asking = session.state != "keys"
         self.command.setPlaceholderText(
             session.prompt if asking else
