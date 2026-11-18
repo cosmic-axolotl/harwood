@@ -462,6 +462,220 @@ def quarticpeak(a, xl: float, xr: float, x0: float):
     return x0, h, xr - xl
 
 
+def _pow_di(base: float, n: int) -> float:
+    """f2c's pow_di: a double to an integer power by repeated squaring (1/x first
+    for a negative power), which is what x**n compiles to in SPP, not C's pow."""
+    value = 1.0
+    if n == 0:
+        return value
+    if n < 0:
+        n = -n
+        base = 1.0 / base
+    while True:
+        if n & 1:
+            value *= base
+        n >>= 1
+        if n == 0:
+            return value
+        base *= base
+
+
+def _matinv(array: list[list[float]], norder: int) -> float:
+    """Util/matinv.x (Bevington): the symmetric matrix inverted in place, with full
+    pivoting; its determinant, 0 when singular. 0-based."""
+    det = 1.0
+    ik = [0] * norder
+    jk = [0] * norder
+    for k in range(norder):
+        while True:
+            amax = 0.0
+            for i in range(k, norder):
+                for j in range(k, norder):
+                    if abs(amax) <= abs(array[i][j]):
+                        amax = array[i][j]
+                        ik[k] = i
+                        jk[k] = j
+            if amax == 0:
+                return 0.0
+            i = ik[k]
+            if i < k:
+                continue
+            if i > k:
+                for j in range(norder):
+                    save = array[k][j]
+                    array[k][j] = array[i][j]
+                    array[i][j] = -save
+            j = jk[k]
+            if j < k:
+                continue
+            if j > k:
+                for i in range(norder):
+                    save = array[i][k]
+                    array[i][k] = array[i][j]
+                    array[i][j] = -save
+            break
+        for i in range(norder):
+            if i != k:
+                array[i][k] = -array[i][k] / amax
+        for i in range(norder):
+            for j in range(norder):
+                if i != k and j != k:
+                    array[i][j] = array[i][j] + array[i][k] * array[k][j]
+        for j in range(norder):
+            if j != k:
+                array[k][j] = array[k][j] / amax
+        array[k][k] = 1.0 / amax
+        det = det * amax
+    for back in range(1, norder + 1):
+        k = norder - back
+        j = jk[k]
+        if j > k:
+            for i in range(norder):
+                save = array[i][k]
+                array[i][k] = -array[i][j]
+                array[i][j] = save
+        i = ik[k]
+        if i > k:
+            for j in range(norder):
+                save = array[k][j]
+                array[k][j] = -array[i][j]
+                array[i][j] = save
+    return det
+
+
+def _mfunk(x: list[float], y: list[float], a: list[float]) -> float:
+    """pkfitc's function: chi² of A cos(B z) / (1 + D z²), z = x - C, over n - 4."""
+    chi = 0.0
+    for xi, yi in zip(x, y, strict=True):
+        psi = xi - a[2]
+        f = a[0] * math.cos(a[1] * psi) / (1.0 + a[3] * (psi * psi))
+        d = yi - f
+        chi = chi + d * d
+    return chi / (len(x) - 4)
+
+
+def xcmin(x, y, a: list[float], out: list[str]) -> int:
+    """Xcsao/xcmin.x, after Tonry's MINI: a minimum of _mfunk by numerical derivatives
+    and a Levenberg-like mix of gradient and Newton steps. `a` is the start and the
+    result (changed in place). 0, 1 (iterations exceeded) or 2 (singular)."""
+    n = len(a)
+    lam = -3
+    base = 10.0
+    itermax = 40
+    qfrac, dfrac, places, vary = 1.0e-6, 0.02, 1.0e-7, 1.0e-5
+    a0 = list(a)
+    d2f = [[0.0] * n for _ in range(n)]
+    cov = [[0.0] * n for _ in range(n)]
+    df = [0.0] * n
+    da = [0.0] * n
+    fnow = _mfunk(x, y, a)
+    ai = [abs(vary * v) or 1.0e-6 for v in a0]
+    it = 0
+    for it in range(1, itermax + 2):
+        if it > itermax:
+            break
+        fthen = fnow
+        a[:] = a0
+        for j in range(n):
+            a[j] = a0[j] + ai[j]
+            df[j] = _mfunk(x, y, a)
+            a[j] = a0[j]
+        for j in range(1, n):
+            for k in range(j):
+                a[k] = a0[k] + ai[k]
+                a[j] = a0[j] + ai[j]
+                chi = _mfunk(x, y, a)
+                if ai[j] == 0.0:
+                    out.append(f"XCMIN: ai[{j + 1}] is zero\n")
+                    d2f[j][k] = 0.0
+                elif ai[k] == 0.0:
+                    out.append(f"XCMIN: ai[{k + 1}] is zero\n")
+                    d2f[j][k] = 0.0
+                else:
+                    d2f[j][k] = (chi - df[j] - df[k] + fnow) / (ai[j] * ai[k])
+                d2f[k][j] = d2f[j][k]
+                a[j] = a0[j]
+                a[k] = a0[k]
+        for j in range(n):
+            a[j] = a0[j] - ai[j]
+            fminus = _mfunk(x, y, a)
+            if ai[j] == 0.0:
+                out.append(f"XCMIN: ai[{j + 1}] is zero\n")
+                d2f[j][j] = 0.0
+            else:
+                d2f[j][j] = (fminus + df[j] - 2 * fnow) / (ai[j] * ai[j])
+            df[j] = (df[j] - fminus) / (2 * ai[j])
+            a[j] = a0[j]
+        for j in range(n):
+            curve = d2f[j][j]
+            if curve == 0:
+                curve = 1.0e-5
+            g = df[j] * dfrac / curve
+            ai[j] = math.sqrt(g * g + abs(fnow * places / curve))
+        for _ii in range(15):
+            for j in range(n):
+                for k in range(j):
+                    cov[j][k] = d2f[j][k]
+                    cov[k][j] = d2f[j][k]
+                cov[j][j] = abs(d2f[j][j] * (1.0 + _pow_di(base, lam)))
+            if _matinv(cov, n) == 0:
+                return 2
+            for j in range(n):
+                da[j] = 0.0
+                for k in range(n):
+                    da[j] = da[j] - (cov[j][k] * df[k])
+            for j in range(n):
+                a[j] = a0[j] + da[j]
+            fnow = _mfunk(x, y, a)
+            if fnow < fthen:
+                break
+            lam = lam + 1
+        a0[:] = a
+        lam = lam - 1
+        if abs((fthen - fnow) / fnow) < qfrac:
+            break
+    return 1 if it > itermax else 0
+
+
+def pkfitc(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel,
+           out: list[str] | None = None):
+    """pkfitc (pkmode 3, after G. Torres): A cos(B z) / (1 + D z²) fit to the peak
+    above fracpeak of it by xcmin, D tried as computed and then twice it; the FWHM by
+    Newton-Raphson on the fitted curve. (npfit, centre, width, height, imax)."""
+    out = [] if out is None else out
+    height, width, il, ir, imax = pkwidth(xcor, xvel, fracpeak, pkindx, minvel, maxvel)
+    npfit = ir - il + 1
+    x = [float(v) for v in xind[il - 1:il - 1 + npfit]]
+    y = [float(v) for v in xcor[il - 1:il - 1 + npfit]]
+    pi = 3.1415926535897932
+    a = [0.0] * 4
+    ierr, itry = 1, 0
+    dv = 0.0
+    while ierr > 0 and itry < 2:
+        dv = float(f32(xind[ir - 1]) - f32(xind[il - 1]))
+        a = [height, pi / dv, float(xind[imax - 1]),
+             16.0 * (math.sqrt(2.0) - 1.0) / (dv * dv)]
+        a[3] = a[3] / 2.0
+        g = float(f32(f32(f32(-1.25) * f32(itry * itry)) + f32(f32(2.25) * f32(itry)))
+                  + f32(1.0))
+        a[3] = g * a[3]
+        ierr = xcmin(x, y, a, out)
+        if ierr > 0:
+            out.append("PKFITC Error:  singular matrix\n")
+            itry = itry + 1
+    psi0 = dv / 4.0
+    dpsi = 1.0
+    stop = float(f32(1.0e-4))
+    while dpsi > stop:
+        denom = 1.0 + a[3] * psi0 * psi0
+        ff = (math.cos(a[1] * psi0) / denom) - 0.5
+        dff = -a[1] * math.sin(a[1] * psi0) / denom
+        dff = dff - (2.0 * a[3] * psi0 * math.cos(a[1] * psi0) / (denom * denom))
+        dpsi = ff / dff
+        psi0 = abs(psi0 - dpsi)
+    return npfit, a[2], 2.0 * psi0, a[0], imax
+
+
 def pkfitq(xind, xcor, xvel, fracpeak: float, pkindx: int, minvel, maxvel):
     """pkfitq: the peak fit by quartics, above fracpeak of it, on the points inside and
     one wider, the half-height points from pkwidth's at 0.5."""
@@ -696,6 +910,8 @@ class Xcsao:
 
     def _templates(self) -> list[tuple[str, str, float, float]]:
         """The template list: (path, tempid, w1, w2) for each name, name:w1-w2 read."""
+        from . import rvsao
+
         tempdir = str(self.p["tempdir"])
         if tempdir and not tempdir.endswith(("/", "$")):
             tempdir += "/"
@@ -713,6 +929,7 @@ class Xcsao:
                     with contextlib.suppress(ValueError):
                         w1, w2 = float(a), float(b)
             path = name if name.startswith(("/", ".")) or "$" in name else tempdir + name
+            path = rvsao.template_file(path)
             # tempid: the name; the range is cut off it (what follows w2 would stay)
             out.append((path, name, w1, w2))
         return out
@@ -982,8 +1199,19 @@ class Xcsao:
         _rms1, _rms2, fnorm = rmsnorm(re1, im1, re2, im2)
         xcor = (xcor.astype(np.float64) * fnorm).astype(f32)
         fracpeak = abs(pkfrac)
-        fit = pkfitq if int(self.p["pkmode"]) == 2 else pkfitp
-        npfit, pc, pw, ph, pkindx = fit(xind, xcor, xvel, fracpeak, 0, minvel, maxvel)
+        pkmode = int(self.p["pkmode"])
+        if pkmode == 2:
+            npfit, pc, pw, ph, pkindx = pkfitq(xind, xcor, xvel, fracpeak, 0, minvel, maxvel)
+        elif pkmode == 3:
+            said: list[str] = []
+            npfit, pc, pw, ph, pkindx = pkfitc(xind, xcor, xvel, fracpeak, 0, minvel,
+                                               maxvel, said)
+            for line in said:
+                self.out += line
+        else:
+            # xcorfit: any other mode is 1, and is reported as 1
+            self.p["pkmode"] = 1
+            npfit, pc, pw, ph, pkindx = pkfitp(xind, xcor, xvel, fracpeak, 0, minvel, maxvel)
         tcz = C0 * (10.0 ** (pc * dlogw) - 1.0)
         fourm(cre, cim, log2, 1)
         arms, srms = aspartf(cre, cim, lo, nrun, pc, tfilt)

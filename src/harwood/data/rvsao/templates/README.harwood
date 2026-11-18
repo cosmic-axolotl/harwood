@@ -1,0 +1,6 @@
+RVSAO's cross-correlation templates, from the RVSAO 2.8.5 distribution
+(rvsao$templates/), redistributed with harwood under RVSAO's notice:
+see LICENSES/RVSAO-COPYRIGHT. Readme is RVSAO's own description of them.
+
+In xcsao, rvsao$templates/<name> and --tempdir rvsao$templates read from here, and a
+bare template name that is not in the working directory is looked for here too.

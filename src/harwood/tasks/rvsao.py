@@ -166,7 +166,10 @@ class XcsaoParams(TaskParams):
                                "or a list).", json_schema_extra={"positional": True})
     templates: str = Field("", description="Templates, separated by commas; name:w1-w2 "
                            "correlates that template over w1..w2 Angstroms only.")
-    tempdir: str = Field("", description="Directory of the templates.")
+    tempdir: str = Field("", description="Directory of the templates. rvsao$templates is "
+                         "RVSAO's own, which come with harwood.")
+    list_templates: bool = Field(False, description="List the RVSAO templates that come "
+                                 "with harwood, with their range and dispersion, and stop.")
     specnum: str = Field("0", description="Apertures of a multispec ('1-3'); 0: the "
                                           "spectrum.")
     specband: int = Field(0, description="Band of a multispec.")
@@ -232,6 +235,40 @@ class XcsaoParams(TaskParams):
     grow: float = Field(1.0, description="contpars: rejection growing radius.")
 
 
+def _template_list(task, params) -> TaskResult:
+    """The RVSAO templates harwood carries: name, pixels, range and dispersion (with
+    log-linear ones in Angstroms at their ends), and the object."""
+    from astropy.io import fits
+
+    from ..core.rvsao import TEMPLATES
+
+    rows, text = [], [f"{'template':<20} {'npix':>6} {'start':>10} {'end':>10} "
+                      f"{'A/pix':>7}  object"]
+    for path in sorted(TEMPLATES.glob("*.fits")):
+        h = fits.getheader(path)
+        n = int(h.get("NAXIS1", 0))
+        c1 = float(h.get("CRVAL1", 0.0))
+        d1 = float(h.get("CDELT1", h.get("CD1_1", 0.0)) or 0.0)
+        p1 = float(h.get("CRPIX1", 1.0))
+        log = int(h.get("DC-FLAG", 0)) == 1
+        a = c1 + (1 - p1) * d1
+        b = c1 + (n - p1) * d1
+        if log:
+            a, b = 10 ** a, 10 ** b
+        step = (b - a) / max(n - 1, 1)
+        obj = str(h.get("OBJECT", "")).strip()
+        rows.append({"template": path.stem, "npix": n, "start": round(a, 2),
+                     "end": round(b, 2), "dispersion": round(step, 4), "log": log,
+                     "object": obj})
+        text.append(f"{path.stem:<20} {n:>6} {a:>10.2f} {b:>10.2f} {step:>7.4f}"
+                    f"{' log' if log else '    '}  {obj}")
+    text.append(f"{len(rows)} templates in rvsao$templates/ ({TEMPLATES}); "
+                "use them by name: --templates fallstars,femtemp97")
+    return TaskResult(outputs=[], steps=[Step("list", f"{len(rows)} templates",
+                                              why="RVSAO's templates, shipped with harwood")],
+                      data={"rows": rows, "text": text})
+
+
 @register
 class Xcsao(Task[XcsaoParams]):
     """RVSAO's xcsao (Smithsonian Astrophysical Observatory, an IRAF external
@@ -257,10 +294,14 @@ class Xcsao(Task[XcsaoParams]):
     def execute(self, params: XcsaoParams) -> TaskResult:
         from ..core import images, xcsao
 
+        if params.list_templates:
+            return _template_list(self, params)
         if not params.templates.strip():
             advice.fail("xcsao needs templates to correlate with",
                         "give --templates star.fits (several by commas), and --tempdir "
-                        "for their folder")
+                        "for their folder. RVSAO's own templates come with harwood: "
+                        "--templates fallstars,femtemp97 (the list: harwood xcsao "
+                        "--list-templates)")
         values = params.model_dump()
         names = [str(s) for s in images.expand(params.spectra)] \
             if not any(n.endswith("]") for n in params.spectra) else list(params.spectra)

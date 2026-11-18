@@ -1,0 +1,118 @@
+Default parameter file for SPLOT
+
+SPECROOT='.'	 / Root directory of spectrum archive
+SPECORDER=5	 / Order of wavelength fit to use
+SPECINST='zmach' / Instrument (zmach, mmtspect, echelle, oroech, mmtech)
+SPECFILE=''	 / FITS spectrum file
+SPECDIR=''	 / Directory for FITS spectrum file
+SPECNUM=1	 / default spectrum in file to plot
+MODE='P'	 / display mode (P>lot or L>ist)
+
+NPLOTS=1	 / number of data sets to plot
+PCODE=1		 / Current data set to modify
+PCODE001=1	 / First data set to plot
+
+SPARCH=Y	 / Y if data set is from archive file rather than ASCII file
+SPECRFN=1000	 / reduced file number for this data set
+SPECNUM=1	 / spectrum from file to plot
+IYMIN001=0	 / y-coordinate of bottom of this plot (0=default)
+IYMAX001=20	 / y-coordinate of top of this plot (0=default)
+FMIN001=0.	 /minimum pixel value for this plot (0=autoscale)
+FMAX001=0.	 /maximum pixel value for this plot (0=autoscale)
+
+SPARCH002=Y	 / Y if data set is from archive file rather than ASCII file
+SPECRFN002=10002	 / reduced file number for this data set
+SPECNUM002=1	 / spectrum from file to plot
+IYMIN002=0	 / y-coordinate of bottom of this plot (0=default)
+IYMAX002=0	 / y-coordinate of top of this plot (0=default)
+FMIN002=0.	 /minimum pixel value for this plot (0=autoscale)
+FMAX002=0.	 /maximum pixel value for this plot (0=autoscale)
+
+WAVESPACE=T	 / If set to Y or T, label plot in wavelength, else in pixels
+WSTART=6247.5673828125	 / starting wavelength in Angstroms (0=from first file)
+WLENGTH=0.	 / width of graph in Angstroms (0=from first file)
+DATAMIN=-10000	 / minimum acceptable data value
+DATAMAX=50000	 / maximum acceptable data value
+NDSKIP=0	 / number of data points (pixels) to skip before reading
+NDMODE='sample'	 / sample or smooth or average plot
+NDTYPE='hanning' / hanning or gaussian smoothing function
+NDREAD=0	 / maximum number of pixels to plot
+NDSAMP=5	 / number by which to increment pixels while reading
+NDHALF=1	 / half-width of Gaussian smoothing
+SAMPLE=y	 / If set to Y or T, sample rather than average over increment
+DIAG=F		 / flag for diagnostic printing
+
+PLOTFILE='pspec.plot'  / plot logging file
+CURSOR=T	 / if Y, stay in cursor mode after plotting
+KEEPZERO=T	 / If N, ignore pixels with value of 0 when auto-scaling
+SPLIT=Y		 / separate graphics and text screens
+LOGFILE='dspec.log' / Cursor log file
+
+TIMELAB=2	 / Size of time label characters; none if <0
+XTIME=3300	 / x-coordinate of time label
+YTIME=2940	 / y-coordinate of time label
+DISPHRES=4096	 / horizontal resolution of display
+DISPVRES=3128	 / vertical resolution of display
+IPL=1		 / plot char (1=line,-1=points,2=circles,3=squares,4=triangles
+CAPSIZE=0	 / size of axis coordinate labels
+LABSIZE=1	 / size of tick mark labels
+LABFONT='C'	 / label font (T>erminal, S>implex, D>uplex, C>omplex, I>talic)
+IYBOT=300	 / y-coordinate of bottom of first graph
+IYTOP=2900	 / y-coordinate of top of last graph
+IXMIN=300	 / x-coordinate of left side of graph
+IXMAX=4000	 / x-coordinate of right side of graph
+
+ZOOMED=T	 / True if zoomed
+WSTARTZ=4000.	 / Starting wavelength of original graph if zoomed
+WLENGTHZ=0.	 / width in angstroms of original graph if zoomed
+SPECARCH=F
+WEND=6841.0810546875
+VERBOSE=F
+HEADING=T
+HARDCOPY=F
+HCCOM='imtek'
+MENU=T
+FMIN000=-50.
+FMAX000=250.
+SPECARCH002=T
+PCODE002=2
+SPECRFN001=10001
+SPECNUM001=1
+SPECINST001='zmach'
+SPECARCH001=F
+SPECINST002='zmach'
+SPECRFN003=10003
+SPECNUM003=1
+SPECINST003='zmach'
+SPECARCH003=T
+PCODE003=3
+FMAX003=0.
+SPECRFN004=14
+SPECNUM004=1
+SPECINST004='ctiospect'
+SPECARCH004=T
+PCODE004=4
+SPECRFN005=15
+SPECNUM005=1
+SPECINST005='ctiospect'
+SPECARCH005=T
+PCODE005=5
+HELP=F
+QUIT=T
+PARMFILE='splot.par'
+FILEOK=T
+UNIXCOM=''
+NEWGUESS=F
+NEWLINES=F
+REFIT=T
+CONDENSED=T
+SPECEXTRA=200
+XMIN=0.
+XMAX=0.
+WENDZ=7000.
+SPECFILE001='sdss_qso.fits'
+SPTYPE001='FITS'
+RFNFILE=''
+RFNLIST=''
+SPARCH001=F
+END

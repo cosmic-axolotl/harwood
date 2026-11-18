@@ -1,5 +1,6 @@
 Parts of harwood (core/emsao.py, core/rvsao*.py and the line lists in
-src/harwood/data/rvsao) are translated from, or copied from, RVSAO 2.8.5, the
+src/harwood/data/rvsao, the cross-correlation templates in its templates/ folder
+included) are translated from, or copied from, RVSAO 2.8.5, the
 radial velocity package for IRAF of the Smithsonian Astrophysical Observatory
 (Doug Mink, Michael Kurtz, Jessica Mink and others;
 http://tdc-www.harvard.edu/iraf/rvsao/). Its files carry this notice, which is

@@ -25,3 +25,6 @@ harwood.log
 harwood.log.jsonl
 harwood.yaml
 .coverage
+
+# the RVSAO templates ship with harwood (rvsao$templates/)
+!src/harwood/data/rvsao/templates/*.fits

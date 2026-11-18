@@ -36,6 +36,24 @@ C0 = 299792.5               # RVSAO's speed of light, km/s
 VERSION = "2.8.5"
 MIN_PIXEL_VALUE = -1000000
 LINES = Path(__file__).resolve().parent.parent / "data" / "rvsao"
+#: RVSAO's cross-correlation templates (rvsao$templates/), shipped with harwood
+TEMPLATES = LINES / "templates"
+
+
+def template_file(path: str) -> str:
+    """Where a template is: rvsao$templates/ is harwood's copy; a bare name that is
+    not here is looked for there as well (with or without .fits)."""
+    if path.startswith("rvsao$templates/"):
+        return str(TEMPLATES / path[len("rvsao$templates/"):])
+    if "/" in path or "$" in path:
+        return path
+    here = Path(path)
+    if here.exists() or here.with_name(here.name + ".fits").exists():
+        return path
+    for candidate in (TEMPLATES / path, TEMPLATES / f"{path}.fits"):
+        if candidate.exists():
+            return str(candidate)
+    return path
 
 #: vel_corr's dictionary (HC_VTYPES) and its codes.
 VEL_CORR = ("none", "file", "heliocentric", "barycentric", "hfile")

@@ -72,4 +72,17 @@ CASES = {
     "one_line": ("g2500.fits,gal6000.fits", {"templates": "tg.fits,ta.fits",
                                              "report_mode": 2}, {}),
     "two_spectra": ("g2500.fits,gneg.fits", {"templates": "tg.fits,ta.fits"}, {}),
+    # pkmode 3: the cosine-over-Lorentzian fit (pkfitc, xcmin); 0 and 4 are reported as 1
+    "pkmode3": ("g2500.fits", {"templates": "tg.fits", "pkmode": 3}, {}),
+    "pkmode3_galaxy": ("gal6000.fits", {"templates": "tg.fits", "pkmode": 3}, {}),
+    "pkmode3_noisy": ("noisy.fits", {"templates": "tg.fits", "pkmode": 3}, {}),
+    "pkmode3_negative": ("gneg.fits", {"templates": "tg.fits", "pkmode": 3}, {}),
+    "pkmode3_two": ("g2500.fits", {"templates": "tg.fits,ta.fits", "pkmode": 3}, {}),
+    "pkmode3_pkfrac": ("g2500.fits", {"templates": "tg.fits", "pkmode": 3, "pkfrac": 0.7}, {}),
+    "pkmode3_points": ("g2500.fits", {"templates": "tg.fits", "pkmode": 3, "pkfrac": 9.0}, {}),
+    "pkmode3_linear": ("g2500.fits", {"templates": "tg.fits", "pkmode": 3,
+                                      "interp_mode": "linear"}, {}),
+    "pkmode3_emission": ("gal6000.fits", {"templates": "tem.fits", "pkmode": 3}, {}),
+    "pkmode0": ("g2500.fits", {"templates": "tg.fits", "pkmode": 0}, {}),
+    "pkmode4": ("g2500.fits", {"templates": "tg.fits", "pkmode": 4}, {}),
 }

@@ -8031,28 +8031,32 @@ msgstr "Cada línea de la lista donde la pone ese corrimiento al rojo, si queda 
 msgid "The lines' redshifts weighted by their centres' errors; a line too near an end, or with too small an equivalent width, left out."
 msgstr "Los corrimientos al rojo de las líneas pesados por los errores de sus centros; una línea demasiado cerca de un extremo, o con un ancho equivalente demasiado chico, queda fuera."
 
-#: harwood/tasks/rvsao.py:246
+#: harwood/tasks/rvsao.py:267
+msgid "RVSAO's templates, shipped with harwood"
+msgstr "Las plantillas del RVSAO, que vienen con harwood"
+
+#: harwood/tasks/rvsao.py:283
 msgid "Radial velocity by cross-correlation (RVSAO's xcsao)."
 msgstr "Velocidad radial por correlación cruzada (xcsao de RVSAO)."
 
-#: harwood/tasks/rvsao.py:261
+#: harwood/tasks/rvsao.py:300
 msgid "xcsao needs templates to correlate with"
 msgstr "xcsao necesita templates con los que correlacionar"
 
-#: harwood/tasks/rvsao.py:261
-msgid "give --templates star.fits (several by commas), and --tempdir for their folder"
-msgstr "pasa --templates estrella.fits (varios separados por comas) y --tempdir con su carpeta"
+#: harwood/tasks/rvsao.py:300
+msgid "give --templates star.fits (several by commas), and --tempdir for their folder. RVSAO's own templates come with harwood: --templates fallstars,femtemp97 (the list: harwood xcsao --list-templates)"
+msgstr "dé --templates estrella.fits (varios separados por comas) y --tempdir para su carpeta. Las plantillas del propio RVSAO vienen con harwood: --templates fallstars,femtemp97 (la lista: harwood xcsao --list-templates)"
 
-#: harwood/tasks/rvsao.py:271
+#: harwood/tasks/rvsao.py:312
 #, python-brace-format
 msgid "xcsao stopped: {0}"
 msgstr "xcsao se detuvo: {0}"
 
-#: harwood/tasks/rvsao.py:271
+#: harwood/tasks/rvsao.py:312
 msgid "check the templates and tempdir"
 msgstr "revisa los templates y tempdir"
 
-#: harwood/tasks/rvsao.py:290
+#: harwood/tasks/rvsao.py:331
 msgid "check the name and the directory"
 msgstr "revisa el nombre y la carpeta"
 
@@ -8802,11 +8806,11 @@ msgstr "La misma página en su navegador"
 msgid "Showing the documentation here needs QtWebEngine: pip install 'harwood[docs]'. Until then each page opens in your browser -- the same pages."
 msgstr "Mostrar la documentación aquí necesita QtWebEngine: pip install 'harwood[docs]'. Mientras tanto, cada página se abre en su navegador -- las mismas páginas."
 
-#: harwood/viewer/figure_panel.py:135
+#: harwood/viewer/figure_panel.py:136
 msgid "+ and − zoom (or Ctrl and the wheel) · 0 fits it to the tab · 1 is its own size"
 msgstr "+ y − amplían (o Ctrl y la rueda) · 0 la ajusta a la pestaña · 1 es su tamaño real"
 
-#: harwood/viewer/figure_panel.py:206
+#: harwood/viewer/figure_panel.py:207
 msgid "Save the figure"
 msgstr "Guardar la figura"
 

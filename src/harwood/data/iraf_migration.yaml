@@ -60,10 +60,11 @@ added:
            package, not IRAF): the radial velocity by cross-correlation with templates
            (Tonry & Davis 1979) -- the log-wavelength grid, the continuum and the line
            clipping, the cosine taper, RVSAO's own FFT and filter, the parabola or
-           quartic peak, R and the error, every velocity correction and the template's
-           header cards -- its log identical to RVSAO 2.8.5's on 55 cases. Not yet:
-           the graph and its cursor, save_vel, correlate in wavelength or pixels, the
-           cosine peak fit (pkmode 3), report modes other than 1 and 2."}
+           quartic peak, or the cosine peak fit (pkmode 3, xcmin), R and the error, every
+           velocity correction and the template's header cards -- its log identical to
+           RVSAO 2.8.5's on 66 cases. RVSAO's templates ship with it (rvsao$templates/,
+           --list-templates). Not yet: the graph and its cursor, save_vel, correlate in
+           wavelength or pixels, report modes other than 1 and 2."}
   lineid: {pkg: onedspec, domain: spec-1d, status: available,
     note: "names the atom, ion or molecule behind each feature of a calibrated
            spectrum, from a curated catalogue. IRAF has no task for this -- the
