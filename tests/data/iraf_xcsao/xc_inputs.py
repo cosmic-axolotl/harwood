@@ -126,6 +126,17 @@ def write(where: Path) -> None:
     for k in range(0, len(wat), 68):           # IRAF's own way: 68 characters a card
         h[f"WAT2_{k // 68 + 1:03d}"] = wat[k:k + 68]
     fits.writeto(where / "pair.fits", two, h, overwrite=True)
+    # save_vel: emsao's results already in the header (vcombine joins them), an
+    # earlier xcsao's card (kept as HISTORY), and a spectrum with RA and DEC
+    star = noisy(absorb(wo, G_LINES, 2500.0 / C, 1.6, 0.1), 8.0)
+    linear("gemnear", 3800.0, 1.2, star, where, CZEM=2512.5, CZEMERR=20.0, CZEMNL=4,
+           CZEMNLF=3)
+    linear("gemfar", 3800.0, 1.2, star, where, CZEM=2650.0, CZEMERR=12.0, CZEMNL=2,
+           CZEMNLF=2)
+    linear("gold", 3800.0, 1.2, star, where,
+           XCSAO="rvsao.xcsao 2.8.5  01-Jan-2020 10:00 CZXC = 2400.00 R = 9.00",
+           VELOCITY=2400.0, BCV=3.25)
+    linear("gradec", 3800.0, 1.2, star, where, RA="10:20:30.5", DEC="+12:34:56")
 
 
 if __name__ == "__main__":

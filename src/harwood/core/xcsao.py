@@ -35,7 +35,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .rvsao import C0, INDEFD, RvsaoError
+from .rvsao import C0, INDEFD, VERSION, RvsaoError
 
 f32 = np.float32
 PI = 3.1415926535897932
@@ -53,7 +53,7 @@ DEFAULTS = {
     "czguess": 0.0, "nzpass": 0, "tshift": 0.0, "svel_corr": "barycentric",
     "tvel_corr": "file", "pkmode": 1, "pkfrac": 0.5, "pksrch": 25,
     "minvel": -5000.0, "maxvel": 100000.0, "report_mode": 1,
-    "logfiles": "STDOUT,xcsao.log", "nsmooth": 0,
+    "logfiles": "STDOUT,xcsao.log", "nsmooth": 0, "save_vel": False,
     # contpars
     "c_function": "spline3", "c_sample": "*", "naverage": 1, "order": 10,
     "s_low_reject": 2.0, "s_high_reject": 2.0, "t_low_reject": 2.0,
@@ -65,6 +65,11 @@ NOCONT, SUBCONT, DIVCONT, ZEROCONT, CONTFIT = 0, 1, 2, 3, 4
 
 
 # ------------------------------------------------------------- arithmetic
+
+
+def _yes(value) -> bool:
+    """A boolean parameter as given: True, or yes."""
+    return value is True or str(value).strip().lower() in ("yes", "y", "true", "1")
 
 
 def _ifix(x) -> int:
@@ -809,6 +814,7 @@ class TempResult:
     scont: bool = True            #: tscont: the template's continuum taken off
     conproc: int = SUBCONT
     dlogw: float = 0.0            #: the grid's step in log wavelength (taa's inverse)
+    vshift: float = 0.0           #: tvshift: the initial velocity the template was moved by
     xvel: np.ndarray | None = None
     xcor: np.ndarray | None = None
 
@@ -828,6 +834,40 @@ class XcResult:
     xcvel: float = INDEFD
     xcerr: float = INDEFD
     xcr: float = INDEFD
+    emvel: float = INDEFD         #: spevel, speerr, spnlf: emsao's, from the header
+    emerr: float = INDEFD
+    emnlf: int = 0
+    vel: float = INDEFD           #: spvel, sperr: vcombine's of the two
+    err: float = INDEFD
+    saved: str = ""               #: the file save_vel wrote into
+
+
+def emrhead(head, mspec: int) -> tuple[float, float, int]:
+    """emrhead's velocity: emsao's cz, its error and the lines it fit, from CZEM,
+    CZEMERR and CZEMNLF (a multispec's APVEMn); INDEFD when emsao wrote none."""
+    if mspec == 0:
+        if not head.has("CZEM"):
+            return INDEFD, INDEFD, 0
+        return head.d("CZEM", INDEFD), head.d("CZEMERR", INDEFD), head.i("CZEMNLF", 0)
+    if mspec >= 1000 or not head.has(f"APVEM{mspec}"):
+        return INDEFD, INDEFD, 0
+    from .rvsao import Scan
+
+    scan = Scan(head.string(f"APVEM{mspec}") or "")
+    vel, err = scan.d(), scan.d()
+    scan.i()
+    nlf = scan.i()
+    return (INDEFD if vel is None else vel), (INDEFD if err is None else err), nlf or 0
+
+
+def peak_width(t: TempResult) -> float:
+    """The correlation peak's width in km/s, from its width in bins (taa: the bins
+    per unit of ln wavelength), or tvw when there is none."""
+    taa = 1.0 / t.dlogw / math.log(10.0) if t.dlogw else 0.0
+    if taa != 0:
+        dlogw = 1.0 / (math.log(10.0) * taa)
+        return C0 * ((10.0 ** (t.width * dlogw)) - 1.0)
+    return t.vwidth
 
 
 def _vthead(head) -> tuple[float, float, float]:
@@ -895,7 +935,7 @@ class Xcsao:
             if not Path(path).exists() and not Path(path + ".fits").exists():
                 self.err += f"XCSAO: cannot read spectrum file {path} \n"
                 continue
-            for mspec in mspecs:
+            for k, mspec in enumerate(mspecs):
                 try:
                     spec = rvsao.getspec(path, mspec, int(self.p["specband"]),
                                          self.svcor, self.state)
@@ -905,6 +945,88 @@ class Xcsao:
                 if result is not None:
                     self.results.append(result)
                     self._report(result)
+                    if _yes(self.p.get("save_vel")):
+                        self.save(path, mspec, result, last=k == len(mspecs) - 1)
+
+    # ---------------------------------------------------------------- save_vel
+
+    def save(self, path: str, mspec: int, r: XcResult, last: bool) -> None:
+        """vwhead and xcwhead: the velocity -- the correlation's, joined by vcombine
+        with emsao's when the header has it -- and each template's correlation into
+        the spectrum's header, the cards RVSAO writes; the XCSAO card before it kept
+        as HISTORY. Apertures of a multispec each have their own cards (APVELn,
+        APVXCn, XTn_m), apertures past 999 none.
+
+        RVSAO's FITS kernel writes back the header it holds in memory, so the
+        RA, DEC, HA and ST of 00:00:00 that getimage gives a header without them go
+        into the file too, with IRAF's DATE: the next task (xcsao on the next
+        aperture, among them) then corrects the velocity for an object at 0h 0deg
+        observed today. harwood writes RVSAO's own cards only."""
+        import os
+
+        from .emsao import vcombine
+        from .iraffmt import Format
+        from .rvsao import HeaderUpdate, history_card, logtime, number_card, string_card
+
+        if not Path(path).exists():
+            path += ".fits"
+        if not os.access(path, os.W_OK):
+            self.err += f"XCSAO: cannot write to {path}; not saving results\n"
+            return
+        r.emvel, r.emerr, r.emnlf = emrhead(r.spectrum.head, mspec)
+        r.vel, r.err = vcombine(r.xcvel, r.xcerr, r.xcr, r.emvel, r.emerr, r.emnlf)
+        if mspec >= 1000:
+            return
+        best = r.temps[r.best - 1]
+        hcv = r.spectrum.hcv
+        lo, toplo, topnrn, nrun = r.filter
+        g7, f3 = Format("%7g"), Format("%.3f")
+        params = (f"{len(r.temps)} {r.npts} {2 if r.zpad else 1} {lo} {toplo} {topnrn} "
+                  f"{nrun} {Format('%.2f')(float(f32(r.han)))}")
+        cards: list[str] = []
+        if mspec <= 0:
+            cards += [number_card("VELOCITY", r.vel), number_card("Z", r.vel / C0),
+                      number_card("CZERR", r.err), number_card("ZERR", r.err / C0),
+                      string_card("VELQUAL", "_"), number_card("BCV", hcv),
+                      number_card("CZXC", r.xcvel), number_card("ZXC", r.xcvel / C0),
+                      number_card("CZXCERR", r.xcerr), number_card("CZXCR", r.xcr),
+                      string_card("BESTTEMP", best.template.id),
+                      string_card("CZPARAMS", params)]
+        else:
+            cards += [string_card(f"APVEL{mspec}",
+                                  f"{f3(r.vel)} {f3(r.err)} _ {f3(hcv)}"),
+                      string_card(f"APVXC{mspec}",
+                                  f"{f3(r.xcvel)} {f3(r.xcerr)} {g7(r.xcr)} {r.best} "
+                                  f"{best.template.id} {params}")]
+        cards += [history_card("COMMENT", text) for text in (
+            "Template information from rvsao.xcsao:",
+            "file name, cross-correlation velocity, error, R-value",
+            "correlation peak height (0-1) and width (km/sec)",
+            "velocity relative to template, template BCV",
+            "template em. chopped, template filtered")]
+        for i, t in enumerate(r.temps, 1):
+            key = f"XCTEMP{i}" if mspec <= 0 else f"XT{mspec}_{i}"
+            tmpvel = t.template.vel + t.template.shift + t.vshift
+            cards.append(string_card(key, (
+                f"{t.template.id} {f3(t.zvel)} {f3(t.czerr)} {g7(t.czr)} "
+                f"{f3(t.height)} {f3(peak_width(t))} {f3(tmpvel)} {f3(t.template.hcv)} "
+                f"{'yes' if t.schop else 'no'} {t.template.filt}")))
+        if mspec > 0 and last:
+            stamp = f"rvsao.xcsao {VERSION} {logtime()} CZXC [{self.p['specnum']}]"
+        else:
+            stamp = (f"rvsao.xcsao {VERSION} {logtime()} CZXC = "
+                     f"{Format('%.2f')(r.xcvel)} R = {Format('%.2f')(r.xcr)}")
+        head = HeaderUpdate(path)
+        try:
+            for image in cards:
+                head.put(image)
+            old = head.string("XCSAO")
+            if old:
+                head.put(history_card("HISTORY", old))
+            head.put(string_card("XCSAO", stamp))
+        finally:
+            head.close()
+        r.saved = path
 
     # ---------------------------------------------------------------- xcfit
 
@@ -1140,6 +1262,9 @@ class Xcsao:
                 tr.zvel = (1.0 + (tr.cz / C0)) * tz
                 if zinit or izpass > 1:
                     tr.zvel *= zshift
+                    tr.vshift = (zshift - 1.0) * C0
+                else:
+                    tr.vshift = 0.0
                 tr.zvel = (tr.zvel - 1.0) * C0
                 if nzpass > 1 and izpass < nzpass:
                     zshift *= (1.0 + tcz / C0)
@@ -1249,12 +1374,7 @@ class Xcsao:
         if rmode == 2:
             text = ""
             for t in r.temps:
-                taa = 1.0 / t.dlogw / math.log(10.0) if t.dlogw else 0.0
-                if taa != 0:
-                    dlogw = 1.0 / (math.log(10.0) * taa)
-                    width = C0 * ((10.0 ** (t.width * dlogw)) - 1.0)
-                else:
-                    width = t.vwidth
+                width = peak_width(t)
                 text += (f"{r.spectrum.name[:16]:<16s} {t.template.id[:16]:<16s} "
                          f"{_f(t.czr, 6, 2)} {_f(t.zvel, 9, 3)} {_f(t.czerr, 8, 3)} "
                          f"{_f(t.height, 5, 3)} {_f(width, 7, 3)}\n")

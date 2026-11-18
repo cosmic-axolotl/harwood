@@ -8015,6 +8015,10 @@ msgstr "Las transformadas filtradas (low_bin..nrun: fuera las ondulaciones lenta
 msgid "The highest peak inside minvel..maxvel fit by a parabola: its centre is the velocity; R, its height over twice the rms of the correlation's antisymmetric part (Tonry & Davis 1979); the error 3w/8(1+R)."
 msgstr "El pico más alto dentro de minvel..maxvel ajustado por una parábola: su centro es la velocidad; R, su altura sobre dos veces el rms de la parte antisimétrica de la correlación (Tonry & Davis 1979); el error, 3w/8(1+R)."
 
+#: harwood/tasks/rvsao.py:148
+msgid "The velocity written into each spectrum's header, as RVSAO writes it: joined with emsao's (CZEM) when the header has it -- their mean weighted by the errors, or the better one when they disagree -- and each template's correlation on a card of its own."
+msgstr "La velocidad escrita en la cabecera de cada espectro, como la escribe RVSAO: combinada con la de emsao (CZEM) cuando la cabecera la tiene -- la media ponderada por los errores, o la mejor de las dos cuando no concuerdan -- y la correlación de cada plantilla en una tarjeta propia."
+
 #: harwood/tasks/rvsao.py:23
 msgid "The spectrum smoothed and its continuum fit and subtracted (contpars: spline3 of 10 pieces, clipped at 2 sigma), so that a line is what stands above it."
 msgstr "El espectro suavizado y su continuo ajustado y restado (contpars: spline3 de 10 piezas, recortado en 2 sigma), para que una línea sea lo que queda por encima."
@@ -8031,34 +8035,38 @@ msgstr "Cada línea de la lista donde la pone ese corrimiento al rojo, si queda 
 msgid "The lines' redshifts weighted by their centres' errors; a line too near an end, or with too small an equivalent width, left out."
 msgstr "Los corrimientos al rojo de las líneas pesados por los errores de sus centros; una línea demasiado cerca de un extremo, o con un ancho equivalente demasiado chico, queda fuera."
 
-#: harwood/tasks/rvsao.py:267
+#: harwood/tasks/rvsao.py:276
 msgid "RVSAO's templates, shipped with harwood"
 msgstr "Las plantillas del RVSAO, que vienen con harwood"
 
-#: harwood/tasks/rvsao.py:283
+#: harwood/tasks/rvsao.py:292
 msgid "Radial velocity by cross-correlation (RVSAO's xcsao)."
 msgstr "Velocidad radial por correlación cruzada (xcsao de RVSAO)."
 
-#: harwood/tasks/rvsao.py:300
+#: harwood/tasks/rvsao.py:309
 msgid "xcsao needs templates to correlate with"
 msgstr "xcsao necesita templates con los que correlacionar"
 
-#: harwood/tasks/rvsao.py:300
+#: harwood/tasks/rvsao.py:309
 msgid "give --templates star.fits (several by commas), and --tempdir for their folder. RVSAO's own templates come with harwood: --templates fallstars,femtemp97 (the list: harwood xcsao --list-templates)"
 msgstr "dé --templates estrella.fits (varios separados por comas) y --tempdir para su carpeta. Las plantillas del propio RVSAO vienen con harwood: --templates fallstars,femtemp97 (la lista: harwood xcsao --list-templates)"
 
-#: harwood/tasks/rvsao.py:312
+#: harwood/tasks/rvsao.py:321
 #, python-brace-format
 msgid "xcsao stopped: {0}"
 msgstr "xcsao se detuvo: {0}"
 
-#: harwood/tasks/rvsao.py:312
+#: harwood/tasks/rvsao.py:321
 msgid "check the templates and tempdir"
 msgstr "revisa los templates y tempdir"
 
-#: harwood/tasks/rvsao.py:331
+#: harwood/tasks/rvsao.py:346
 msgid "check the name and the directory"
 msgstr "revisa el nombre y la carpeta"
+
+#: harwood/tasks/rvsao.py:349
+msgid "the file is read-only: copy it, or give yourself write permission, and run again"
+msgstr "el archivo es de solo lectura: cópielo, o dese permiso de escritura, y vuelva a ejecutar"
 
 #: harwood/tasks/specplot.py:113
 #: harwood/tasks/splot.py:106

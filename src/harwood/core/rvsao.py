@@ -842,3 +842,79 @@ def loghead(taskname: str) -> str:
     stamp = f" {now.tm_mday:02d}-{month}-{now.tm_year:04d} {now.tm_hour:02d}:{now.tm_min:02d}"
     host = socket.gethostname()
     return f"harwood {taskname} {VERSION} {getpass.getuser()}@{host} {stamp}"
+
+
+# ------------------------------------------------------------- writing the header
+
+
+def logtime() -> str:
+    """logtime: " dd-Mon-yyyy hh:mm", the local time half a minute on (the minute
+    rounded)."""
+    import time
+
+    now = time.localtime(time.time() + 30)
+    month = "JanFebMarAprMayJunJulAugSepOctNovDec"[3 * (now.tm_mon - 1):3 * now.tm_mon]
+    return f" {now.tm_mday:02d}-{month}-{now.tm_year:04d} {now.tm_hour:02d}:{now.tm_min:02d}"
+
+
+def number_card(key: str, value: float) -> str:
+    """imaddd and imputd as IRAF's FITS kernel writes them: %0.*g at the most
+    figures that fit, right-justified to column 30, and no comment (imaddd's fourth
+    argument, which RVSAO passes, IRAF's does not take)."""
+    from .imsum import hparam_format
+
+    return f"{key.strip():<8}= {hparam_format(value):>20}".ljust(80)
+
+
+def string_card(key: str, text: str) -> str:
+    """imastr: the text quoted, padded to eight characters, cut at 68."""
+    text = text.rstrip()[:68].replace("'", "''")
+    return f"{key.strip():<8}= '{text:<8}'".ljust(80)[:80]
+
+
+def history_card(key: str, text: str) -> str:
+    """imputh: COMMENT or HISTORY, the text from column 11."""
+    return f"{key:<8}  {text}"[:80].ljust(80)
+
+
+class HeaderUpdate:
+    """The spectrum's header on disk, for RVSAO's imaddX, imastr and imputh: a
+    keyword already there is replaced where it stands, a new one -- and every
+    COMMENT and HISTORY -- goes after the last card. Nothing else in the file
+    changes (IRAF's kernel would rewrite it whole, with its own ORIGIN, DATE and
+    IRAF-TLM, and with what getimage put in memory: see Xcsao.save)."""
+
+    def __init__(self, path: str):
+        from astropy.io import fits
+
+        from . import spectrum
+
+        self.path = path
+        self.hdul = fits.open(path, mode="update", memmap=False,
+                              do_not_scale_image_data=True)
+        if spectrum.count(Path(path)) > 0:
+            index = 0
+        else:
+            index = next((i for i, hdu in enumerate(self.hdul)
+                          if hdu.header.get("NAXIS", 0) > 0), 0)
+        self.h = self.hdul[index].header
+
+    def string(self, key: str) -> str:
+        """imgspar: the card's text, empty when there is none."""
+        value = self.h.get(key)
+        return "" if value is None else str(value).rstrip()
+
+    def put(self, image: str) -> None:
+        from astropy.io import fits
+
+        card = fits.Card.fromstring(image)
+        key = card.keyword
+        if key in ("COMMENT", "HISTORY") or key not in self.h:
+            self.h.append(card, bottom=True)     # after the COMMENTs too
+            return
+        index = self.h.index(key)
+        del self.h[index]
+        self.h.insert(index, card)
+
+    def close(self) -> None:
+        self.hdul.close(output_verify="silentfix")

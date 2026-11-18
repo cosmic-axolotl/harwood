@@ -158,6 +158,10 @@ XWHY = {
     "peak": "The highest peak inside minvel..maxvel fit by a parabola: its centre is "
             "the velocity; R, its height over twice the rms of the correlation's "
             "antisymmetric part (Tonry & Davis 1979); the error 3w/8(1+R).",
+    "save": "The velocity written into each spectrum's header, as RVSAO writes it: "
+            "joined with emsao's (CZEM) when the header has it -- their mean weighted "
+            "by the errors, or the better one when they disagree -- and each "
+            "template's correlation on a card of its own.",
 }
 
 
@@ -213,7 +217,8 @@ class XcsaoParams(TaskParams):
         "barycentric", description="Velocity correction of the spectrum.")
     tvel_corr: Literal["none", "file", "heliocentric", "barycentric", "hfile"] = Field(
         "file", description="Velocity correction of the templates.")
-    pkmode: Literal[1, 2] = Field(1, description="Peak fit: 1, a parabola; 2, a quartic.")
+    pkmode: Literal[1, 2, 3] = Field(1, description="Peak fit: 1, a parabola; 2, a "
+                                     "quartic; 3, cos(x)/(1+x^2).")
     pkfrac: float = Field(0.5, description="Fraction of the peak fit (above 1: that "
                                            "many points).")
     minvel: float | None = Field(-5000.0, description="Lowest velocity looked at.")
@@ -222,6 +227,10 @@ class XcsaoParams(TaskParams):
                                                      "2, a line per template.")
     logfiles: str = Field("STDOUT,xcsao.log", description="Where the report goes: "
                                                           "STDOUT and files, by commas.")
+    save_vel: bool = Field(False, description="Write the velocity into the spectrum's "
+                           "header: VELOCITY, CZERR, CZXC, CZXCR, BESTTEMP and a card "
+                           "per template (APVELn, APVXCn and XTn_m for each aperture "
+                           "of a multispec), the earlier XCSAO card kept as HISTORY.")
     c_function: Literal["spline3", "legendre", "chebyshev", "spline1"] = Field(
         "spline3", description="contpars: continuum function.")
     c_sample: str = Field("*", description="contpars: sample of the continuum fit.")
@@ -274,9 +283,9 @@ class Xcsao(Task[XcsaoParams]):
     """RVSAO's xcsao (Smithsonian Astrophysical Observatory, an IRAF external
     package): the radial velocity by cross-correlation with templates (Tonry & Davis
     1979), held to RVSAO 2.8.5 compiled against IRAF 2.18 -- its log identical on
-    55 cases. Not ported yet: the graph and its cursor (displot, curmode), saving
-    the velocity to the header, archives, correlate in wavelength or pixels, the
-    cosine peak fit (pkmode 3) and the report modes other than 1 and 2."""
+    82 cases, and with save_vel the cards it writes into the header. Not ported
+    yet: the graph and its cursor (displot, curmode), archives, correlate in
+    wavelength or pixels and the report modes other than 1 and 2."""
 
     name = "xcsao"
     package = "rvsao"
@@ -316,10 +325,16 @@ class Xcsao(Task[XcsaoParams]):
                 fd.writelines(session.log)
             written.append(Path(name))
         rows = []
+        saved: list[Path] = []
         for r in session.results:
+            if r.saved and Path(r.saved) not in saved:
+                saved.append(Path(r.saved))
             rows.append({
                 "spectrum": r.spectrum.name, "object": r.spectrum.object,
                 "cz": r.xcvel, "cz_error": r.xcerr, "r": r.xcr,
+                "velocity": None if r.vel == xcsao.INDEFD else r.vel,
+                "velocity_error": None if r.err == xcsao.INDEFD else r.err,
+                "emission_cz": None if r.emvel == xcsao.INDEFD else r.emvel,
                 "z": r.xcvel / xcsao.C0, "correction": r.spectrum.hcv,
                 "best": r.temps[r.best - 1].template.id,
                 "templates": [{"template": t.template.id, "cz": t.zvel,
@@ -329,6 +344,14 @@ class Xcsao(Task[XcsaoParams]):
         if "STDOUT" in session.logfiles():
             data["text"] = session.out.splitlines()
         warnings = [advice.warn(line.strip(), "check the name and the directory")
-                    for line in session.err.splitlines() if line.strip()]
-        return TaskResult(outputs=written, steps=self.plan(params), data=data,
+                    for line in session.err.splitlines()
+                    if line.strip() and "not saving" not in line]
+        warnings += [advice.warn(line.strip(), "the file is read-only: copy it, or give "
+                                 "yourself write permission, and run again")
+                     for line in session.err.splitlines() if "not saving" in line]
+        steps = self.plan(params)
+        if params.save_vel:
+            steps.append(Step("save", ", ".join(p.name for p in saved) or "nothing",
+                              why=XWHY["save"]))
+        return TaskResult(outputs=written + saved, steps=steps, data=data,
                           warnings=warnings)

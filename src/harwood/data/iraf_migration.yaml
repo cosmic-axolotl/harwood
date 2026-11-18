@@ -62,9 +62,11 @@ added:
            clipping, the cosine taper, RVSAO's own FFT and filter, the parabola or
            quartic peak, or the cosine peak fit (pkmode 3, xcmin), R and the error, every
            velocity correction and the template's header cards -- its log identical to
-           RVSAO 2.8.5's on 66 cases. RVSAO's templates ship with it (rvsao$templates/,
-           --list-templates). Not yet: the graph and its cursor, save_vel, correlate in
-           wavelength or pixels, report modes other than 1 and 2."}
+           RVSAO 2.8.5's on 82 cases; save_vel writes the cards RVSAO writes (VELOCITY
+           joined with emsao's CZEM, CZXC, a card per template, APVELn for a multispec,
+           the old XCSAO kept as HISTORY), and only those. RVSAO's templates ship with
+           it (rvsao$templates/, --list-templates). Not yet: the graph and its cursor,
+           correlate in wavelength or pixels, report modes other than 1 and 2."}
   lineid: {pkg: onedspec, domain: spec-1d, status: available,
     note: "names the atom, ion or molecule behind each feature of a calibrated
            spectrum, from a curated catalogue. IRAF has no task for this -- the
