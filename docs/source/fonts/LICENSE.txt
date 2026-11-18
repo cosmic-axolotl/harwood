@@ -1,0 +1,3 @@
+IBM Plex (Sans and Mono), Copyright © 2017 IBM Corp., with Reserved Font Name "Plex".
+Licensed under the SIL Open Font License, Version 1.1: https://openfontlicense.org
+Downloaded from Google Fonts (latin subset) for the harwood documents and slides.

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>harwood — decisões de projeto, seções 9 e 10 (revisão)</title>
+<!--
+  Fonte da página que substitui a 9 do docs/design-decisions.pdf: a 8.5 como era,
+  e as seções 9 (estado do código) e 10 (em aberto) revistas. As decisões das
+  seções 1 a 8 não mudam aqui. Para regerar:
+
+      python docs/source/build_docs.py decisoes
+
+  (o script troca a página 9 do PDF e guarda o anterior em docs/historico/)
+-->
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 16mm 22mm 16mm;
+    @bottom-left {
+      content: "harwood — decisões de projeto · seções 9 e 10 revistas em 17/11/2026";
+      font: 7.5pt "DejaVu Sans"; color: #595959; vertical-align: top; padding-top: 4mm;
+    }
+    @bottom-right {
+      content: "9." counter(page) " / 9." counter(pages);
+      font: 7.5pt "DejaVu Sans"; color: #595959; vertical-align: top; padding-top: 4mm;
+    }
+  }
+  html { font: 9.8pt/1.38 "DejaVu Serif"; color: #000; }
+  body { margin: 0; }
+  h2, h3 { font-family: "DejaVu Sans"; font-stretch: semi-condensed; font-weight: bold; }
+  h2 { font-size: 13.5pt; margin: 0 0 6pt; padding-bottom: 2pt; border-bottom: 0.75pt solid #595959; }
+  h2.next { margin-top: 16pt; }
+  h3 { font-size: 10.8pt; margin: 12pt 0 4pt; }
+  p { margin: 0 0 6pt; }
+  code { font: 0.86em "DejaVu Sans Mono"; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 8pt;
+          font: 7.9pt/1.4 "DejaVu Sans"; font-stretch: semi-condensed; }
+  th { text-align: left; font-weight: bold; padding: 3pt 4pt;
+       border-top: 1.2pt solid #000; border-bottom: 0.75pt solid #000; }
+  tr { break-inside: avoid; }
+  h2, h3 { break-after: avoid; }
+  td { vertical-align: top; padding: 3pt 4pt; border-bottom: 0.5pt solid #999; }
+  td:first-child { width: 20%; }
+  td.st, th.st { width: 13%; white-space: nowrap; }
+  td.n, th.n { width: 4%; }
+  .decidido { font-variant: small-caps; }
+  .proposto { font-variant: small-caps; font-style: italic; }
+  .aberto { font-variant: small-caps; font-weight: bold; }
+  ul, ol { margin: 0 0 6pt; padding-left: 14pt; }
+  li { margin-bottom: 2pt; }
+  .nota { font-style: italic; }
+</style>
+</head>
+<body>
+
+<h3>8.5 Escopo do visualizador</h3>
+<p>MVP (substitui o uso diário do DS9 com o IRAF): frames com blink, zscale e minmax,
+stretches, mapas de cores, zoom e pan, leitura de coordenadas e WCS, seleção de extensão MEF,
+visor de cabeçalho, teclas do imexamine, marcas do tvmark.</p>
+<p>Depois: regiões DS9, contornos, cubos, grade de coordenadas (wcslab), edição de máscaras
+(bpmedit), aberturas sobre espectros 2D (apedit).</p>
+
+<h2 class="next">9. Estado atual do código</h2>
+
+<p class="nota">Revisto em 17 de novembro de 2026 (commit <code>c18ef5c</code>). A versão de
+21/10 desta página, com o estado de antes da reconstrução, está em
+<code>docs/historico/</code>.</p>
+
+<table>
+  <tr><th>Item</th><th>Situação</th></tr>
+  <tr><td>Arquitetura central</td>
+      <td>Sem mudança: modelos Pydantic geram ao mesmo tempo a linha de comando, a validação,
+      o editor de parâmetros e a proveniência; registro por decorador. A aritmética vive em
+      <code>core/</code>, sem nada específico de tarefa; as tarefas em <code>tasks/</code>,
+      pelos pacotes do IRAF; a janela em <code>viewer/</code></td></tr>
+  <tr><td>Tarefas</td>
+      <td>147 tarefas em 23 pacotes, com os nomes e os parâmetros do IRAF. Dos 614 nomes do
+      IRAF no mapa de migração: 135 disponíveis, 94 substituídos pelo ecossistema, 162 não
+      portáveis por escolha (fitas, hardware, a própria casca do IRAF) e 223 planejados.
+      Mais 15 métodos que o IRAF não tem, listados à parte (<code>added:</code>): psfphot,
+      zogy, coadd, drizzle, skymodel, skyspline, flexure, platesolve, lombscargle, bls,
+      zfind, lineid, impicture, e xcsao e emsao do RVSAO</td></tr>
+  <tr><td>MVP</td>
+      <td>As 57 tarefas do MVP rodam. A espectroscopia, que ficou fora do MVP, entrou
+      inteira depois: onedspec (35), apextract (7), longslit (4), photcal (12) e o
+      redshift do RVSAO</td></tr>
+  <tr><td>Verificação</td>
+      <td>6 986 testes. O IRAF 2.18 e o RVSAO 2.8.5 instalados servem de gabarito: a saída
+      deles fica congelada em <code>tests/data</code> e cada tarefa é comparada número a
+      número. Onde o manual e o código do IRAF divergem, vale o código (<code>.x</code>
+      portado linha a linha). O que o IRAF não tem é validado contra verdade conhecida ou
+      contra a implementação publicada (L.A.Cosmic contra astroscrappy, ePSF contra
+      photutils). Os exercícios da disciplina rodam inteiros, conferidos contra os
+      resultados do IRAF da aula</td></tr>
+  <tr><td>Camada interativa</td>
+      <td>Feita na pilha Qt (PySide6 + pyqtgraph), como decidido na seção 8: display,
+      imexamine, tvmark, implot, splot, specplot, icfit, identify, apedit, igsfit e os
+      gráficos do photcal e do ccdred, cada um com as teclas e os comandos de dois-pontos do
+      IRAF, e os gráficos conferidos contra o metacódigo do IRAF. Abas ao lado da imagem; sessão que se
+      restaura ao abrir; cursor em cruz e auxiliares; figuras .eps no display. Temas claro e
+      escuro, modos de daltonismo e dislexia, texto que escala</td></tr>
+  <tr><td>Dados</td>
+      <td>SCI/VAR/DQ implementado nas seis etapas da seção 12.2, com <code>--format iraf</code>
+      para quem continua no IRAF. Lê <code>.pl</code> do IRAF em toda tarefa</td></tr>
+  <tr><td>Idiomas</td>
+      <td>Interface, ajuda, avisos e explicações em inglês, português e espanhol (padrão: o
+      idioma do sistema). Nomes de tarefas, parâmetros, teclas e o texto que o IRAF imprime
+      não se traduzem</td></tr>
+  <tr><td>Documentação</td>
+      <td>Site com 162 páginas, o mesmo conteúdo no navegador e dentro do app, com exemplos
+      testados e receitas que rodam no dado que nomeiam</td></tr>
+  <tr><td>Distribuição</td>
+      <td><code>pip install harwood</code> com extras (<code>ccd</code>, <code>phot</code>,
+      <code>gui</code>, <code>fast</code>); Python 3.12 ou mais novo. Os dados do IRAF de que
+      as tarefas precisam (linelists, onedstds, ccddb) vão dentro do pacote: o harwood não
+      depende de um IRAF instalado. CI em Linux e Windows</td></tr>
+  <tr><td>Núcleos</td>
+      <td>Numba onde o Python não alcança; o backend Rust existe, mas o extra
+      <code>rust</code> ainda não foi publicado</td></tr>
+  <tr><td>Tamanho</td>
+      <td>Cerca de 114 mil linhas de código e 42 mil de testes</td></tr>
+</table>
+
+<h3>9.1 As pendências de 21/10, resolvidas</h3>
+<ul>
+  <li><strong>epar gravava em <code>$HARWOOD_HOME/params</code>.</strong> Agora
+  <code>--editpar</code> grava no <code>harwood.yaml</code> do diretório da redução, e nada é
+  escrito na home (seção 2).</li>
+  <li><strong>Tarefa chamada apphot.</strong> Agora é <code>phot</code>, como no IRAF;
+  apphot é o pacote (seção 3).</li>
+  <li><strong>Tarefa combine.</strong> O <code>imcombine</code> é o motor, e os combines do
+  ccdred (zerocombine, flatcombine, darkcombine, combine) são presets dele.</li>
+  <li><strong>Camada interativa em matplotlib.</strong> Substituída pela pilha Qt.</li>
+</ul>
+
+<h2 class="next">10. Em aberto</h2>
+
+<p class="nota">Os seis itens de 21/10, com o que aconteceu a cada um, e os que vieram
+depois. Revisto em 17/11/2026.</p>
+
+<table>
+  <tr><th class="n">#</th><th>Item</th><th class="st">Estado</th><th>Como ficou</th></tr>
+  <tr><td class="n">1</td><td>Escopo do MVP</td><td class="st decidido">Decidido</td>
+      <td>Em 12/09: dos 22 domínios, 9 núcleo, 9 depois, 2 parciais, 4 fora; 57 tarefas,
+      todas prontas</td></tr>
+  <tr><td class="n">2</td><td>As pendências da seção 9.1</td><td class="st decidido">Resolvido</td>
+      <td>Ver 9.1 acima</td></tr>
+  <tr><td class="n">3</td><td>Licenças dos dados de calibração</td>
+      <td class="st decidido">Resolvido</td>
+      <td>Redistribuídos sob a licença do IRAF (<code>LICENSES/IRAF-COPYRIGHT</code>), o
+      código do RVSAO com o seu aviso (<code>LICENSES/RVSAO-COPYRIGHT</code>)</td></tr>
+  <tr><td class="n">4</td><td>Glossário de tradução</td><td class="st decidido">Decidido</td>
+      <td>Em 13/11: o que se traduz e o que nunca se traduz (ver 9, Idiomas); cada tradução
+      guarda um hash do original e um teste acusa a atrasada</td></tr>
+  <tr><td class="n">5</td><td>Convenção de variância e máscara</td>
+      <td class="st decidido">Decidido</td><td>SCI/VAR/DQ, seção 12; implementado</td></tr>
+  <tr><td class="n">6</td><td>Política de compatibilidade entre versões</td>
+      <td class="st aberto">Em aberto</td>
+      <td>O que garante a estabilidade dos nomes de tarefas e de parâmetros entre versões.
+      Pesa mais quando houver a primeira versão publicada</td></tr>
+  <tr><td class="n">7</td><td>Primeiro detector além do CCD clássico (11.2.1)</td>
+      <td class="st aberto">Em aberto</td><td>Espera o primeiro dado real de CMOS, EMCCD
+      ou infravermelho</td></tr>
+  <tr><td class="n">8</td><td>Formato e lugar do modelo de detector (11.2.2)</td>
+      <td class="st aberto">Em aberto</td><td>Depende do item 7</td></tr>
+  <tr><td class="n">9</td><td>Status das tarefas sem equivalente no IRAF (11.2.3)</td>
+      <td class="st decidido">Resolvido</td><td>Uma lista própria no mapa de migração,
+      <code>added:</code>, que <code>harwood list</code> mostra à parte</td></tr>
+  <tr><td class="n">10</td><td>Velocidade radial: o que falta</td>
+      <td class="st proposto">Proposto</td><td>Próximos: o resto do xcsao e do emsao (a janela
+      com cursor, gravar no cabeçalho) e depois o fxcor, adiado por ser grande</td></tr>
+  <tr><td class="n">11</td><td>Publicação</td><td class="st aberto">Em aberto</td>
+      <td>A primeira versão no PyPI e o extra <code>rust</code></td></tr>
+</table>
+
+</body>
+</html>
