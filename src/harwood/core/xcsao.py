@@ -35,7 +35,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .rvsao import C0, INDEFD, VERSION, RvsaoError
+from .rvsao import C0, INDEFD, VERSION, RvsaoError, dlog10
 
 f32 = np.float32
 PI = 3.1415926535897932
@@ -157,7 +157,7 @@ def rebin(data: np.ndarray, wcs, indlog: float, npts: int, w0: float, dw: float,
     for i in range(1, npts + 1):
         if indlog != 0.0:
             wl0 = w0 + (dw * float(i - 1))
-            wl = 10.0 ** (math.log10(wl0) - indlog)
+            wl = 10.0 ** (dlog10(wl0) - indlog)
         else:
             wl = w0 + (dw * float(i - 1))
         xpos = f32(wl if ispix else wcs.w2p(wl))
@@ -390,15 +390,21 @@ def pkwidth(xcor, xvel, fracpeak: float, imax: int, minvel, maxvel):
         rl, rr = float(il), float(ir)
     else:
         fracp = height * (0.5 if fracpeak == 0 else fracpeak)
+
+        def at(i: int):
+            # xcor[i], 1-based; before the first, RVSAO reads the buffer's slot of
+            # the template before -- its zero padding (with no peak in minvel..maxvel,
+            # imax is 0 and both ends are read there)
+            return xcor[i - 1] if 1 <= i <= n else f32(0)
         il = imax
-        while il > 0 and xcor[il - 1] > fracp:
+        while il > 0 and at(il) > fracp:
             il -= 1
-        a, b = xcor[il - 1], xcor[il]
+        a, b = at(il), at(il + 1)
         rl = il + ((fracp - float(a)) / float(f32(b - a))) if b != a else float(il)
         ir = imax
-        while xcor[ir - 1] > fracp:
+        while at(ir) > fracp:
             ir += 1
-        a, b = xcor[ir - 1], xcor[ir - 2]
+        a, b = at(ir), at(ir - 1)
         rr = ir - ((fracp - float(a)) / float(f32(b - a))) if b != a else float(ir)
     return height, rr - rl, il, ir, imax
 
@@ -850,6 +856,7 @@ class TempResult:
     pwdth: float = 0.0
     xvel: np.ndarray | None = None
     xcor: np.ndarray | None = None
+    overlap: bool = False         #: toverlap: the whole overlap correlated
 
 
 @dataclass
@@ -875,6 +882,10 @@ class XcResult:
     err: float = INDEFD
     saved: str = ""               #: the file save_vel wrote into
     specfile: str = ""            #: the name as listed
+    span: tuple = (1, 1)          #: np1, np2: the pixels with data
+    quality: int = 0              #: spvqual: the graph's y, n, j
+    qplot: bool = False
+    npmax: int = 0                #: the points fit for the best template's peak
     old: tuple = (INDEFD, INDEFD, 0.0, INDEFD, "_")  #: vrhead's: vel, err, R, BCV, quality
 
 
@@ -1060,6 +1071,14 @@ class Xcsao:
         self.tempfilt: dict[int, int] = {}
         self._counted = False         # countemp runs once, when the buffers are made
         self._tempinfo = [""] * 36    # xcrslts' tempinfo, as the stack keeps it
+        # xcplot's: the commons and statics its keys change, the graphs drawn
+        self.nsmooth = int(self.p.get("nsmooth", 0))
+        self.jtemp = 0
+        self.pkindx = 0
+        self.plots: list = []
+        self.read_key = None
+        self.read_line = None
+        self.show = None
 
     def logfiles(self) -> list[str]:
         return [w.strip() for w in str(self.p.get("logfiles", "STDOUT")).split(",")
@@ -1069,6 +1088,35 @@ class Xcsao:
         self.log.append(text)
         if self.to_stdout:
             self.out += text
+
+    def _say(self, text: str) -> None:
+        self.out += text
+
+    @staticmethod
+    def xlabel(spec) -> str:
+        """LABEL and UNITS of the spectrum's WCS: "Wavelength in angstroms"."""
+        label = getattr(spec.sh, "label", "") or ""
+        units = getattr(spec.sh, "units", "") or ""
+        return f"{label} in {units}" if units else label
+
+    def plot(self, result) -> bool:
+        """xcplot after the report: the graph and its keys. True when they ask to
+        correlate again."""
+        from .xcplot import Plot
+
+        p = self.p
+        if not (_yes(p.get("displot")) or _yes(p.get("hardcopy"))):
+            return False
+        plot = Plot(self, result, self.read_key or (lambda: None),
+                    self.read_line or (lambda: None), self._say,
+                    curmode=_yes(p.get("curmode", False)))
+        self.plots.append(plot)
+        if self.show is not None and _yes(p.get("displot")):
+            self.show(plot)
+        else:
+            plot.run()
+        result.qplot = plot.qplot
+        return plot.newfit
 
     def run(self, names: list[str]) -> None:
         from . import rvsao
@@ -1093,15 +1141,20 @@ class Xcsao:
                                          self.svcor, self.state)
                 except (RvsaoError, OSError, ValueError):
                     continue
-                result = self.xcfit(spec)
-                if result is not None:
+                while True:
+                    result = self.xcfit(spec)
+                    if result is None:
+                        break
                     result.specfile = name
                     result.old = vrhead(spec.head, mspec)
                     result.emvel, result.emerr, result.emnlf = emrhead(spec.head, mspec)
                     result.emnl = spec.head.i("CZEMNL", 0) if mspec == 0 else \
                         _apvem_nl(spec.head, mspec)
-                    self.results.append(result)
                     self._report(result)
+                    if not self.plot(result):
+                        break
+                if result is not None:
+                    self.results.append(result)
                     if _yes(self.p.get("save_vel")):
                         self.save(path, mspec, result, last=k == len(mspecs) - 1)
 
@@ -1136,6 +1189,7 @@ class Xcsao:
             return
         best = r.temps[r.best - 1]
         hcv = r.spectrum.hcv
+        q = {1: "?", 2: "?", 3: "X", 4: "Q"}.get(r.quality, "_")   # the graph's y n j
         lo, toplo, topnrn, nrun = r.filter
         g7, f3 = Format("%7g"), Format("%.3f")
         params = (f"{len(r.temps)} {r.npts} {2 if r.zpad else 1} {lo} {toplo} {topnrn} "
@@ -1144,14 +1198,14 @@ class Xcsao:
         if mspec <= 0:
             cards += [number_card("VELOCITY", r.vel), number_card("Z", r.vel / C0),
                       number_card("CZERR", r.err), number_card("ZERR", r.err / C0),
-                      string_card("VELQUAL", "_"), number_card("BCV", hcv),
+                      string_card("VELQUAL", q), number_card("BCV", hcv),
                       number_card("CZXC", r.xcvel), number_card("ZXC", r.xcvel / C0),
                       number_card("CZXCERR", r.xcerr), number_card("CZXCR", r.xcr),
                       string_card("BESTTEMP", best.template.id),
                       string_card("CZPARAMS", params)]
         else:
             cards += [string_card(f"APVEL{mspec}",
-                                  f"{f3(r.vel)} {f3(r.err)} _ {f3(hcv)}"),
+                                  f"{f3(r.vel)} {f3(r.err)} {q} {f3(hcv)}"),
                       string_card(f"APVXC{mspec}",
                                   f"{f3(r.xcvel)} {f3(r.xcerr)} {g7(r.xcr)} {r.best} "
                                   f"{best.template.id} {params}")]
@@ -1330,7 +1384,7 @@ class Xcsao:
         minvel, maxvel = p["minvel"], p["maxvel"]
         if minvel is not None and maxvel is not None and maxvel < minvel:
             minvel, maxvel = maxvel, minvel
-        result = XcResult(spec, npts=npts, han=float(han), tshift=tshift)
+        result = XcResult(spec, npts=npts, han=float(han), tshift=tshift, span=(np1, np2))
         rmax = 0.0
         itmax = 0
         templates = self._templates()
@@ -1362,6 +1416,7 @@ class Xcsao:
             overlap = temp.spec.head.b("OVERLAP", False)
             if minwav0 is None and maxwav0 is None:
                 overlap = False
+            tr.overlap = overlap
             zpad = zero_pad == "yes" or (zero_pad == "tempfile"
                                          and temp.spec.head.b("ZEROPAD", False))
             if zpad:
@@ -1384,7 +1439,7 @@ class Xcsao:
             for izpass in range(1, nzpass + 1):
                 tmstrt, tmfnsh = temp.start_log, temp.end_log
                 if zinit or izpass > 1:
-                    tmshft = math.log10(zshift)
+                    tmshft = dlog10(zshift)
                     tmstrt, tmfnsh = tmstrt + tmshft, tmfnsh + tmshft
                 else:
                     tmshft = 0.0
@@ -1418,7 +1473,7 @@ class Xcsao:
                 if ispix:
                     minwav, maxwav = float(np1), float(np2)
                 tr.wl1, tr.wl2 = minwav, maxwav
-                logmin, logmax = math.log10(minwav), math.log10(maxwav)
+                logmin, logmax = dlog10(minwav), dlog10(maxwav)
                 dlogw = (logmax - logmin) / float(npts - 1)
                 self.delwav = (maxwav - minwav) / float(npts - 1)
                 kind = str(p["interp_mode"])
@@ -1470,6 +1525,7 @@ class Xcsao:
             return None
         result.best = max(itmax, 1)
         best = result.temps[result.best - 1]
+        result.npmax = best.npfit
         result.xcvel, result.xcerr, result.xcr = best.zvel, best.czerr, best.czr
         return result
 
@@ -1556,6 +1612,7 @@ class Xcsao:
             tczr = tczerr = pwidth = pheight = 0.0
         # the peak as measured: its bin, its height, and its half width in bins
         # (Memr[xind+pkindx+pwidth/2-1]: the pointer's sum truncated)
+        self.pkindx = pkindx                  # the common xcorplot reads it from
         tr.pcent, tr.phght = float(xind[pkindx - 1]), pheight
         hi = min(max(math.floor(pkindx - 1 + pwidth * 0.5), 0), ncor - 1)
         lo_ = min(max(math.floor(pkindx - 1 - pwidth * 0.5), 0), ncor - 1)

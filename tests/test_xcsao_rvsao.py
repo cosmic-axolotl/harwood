@@ -44,11 +44,6 @@ STAMP = re.compile(r"^(IRAF|harwood) rvsao\.xcsao 2\.8\.5 .*\n", re.M)
 DIVERGE = {"save_multispec": "RVSAO's second aperture reads the RA, DEC and DATE "
                              "the first one's save wrote"}
 WHEN = re.compile(r"\d\d-[A-Z][a-z]{2}-\d{4} \d\d:\d\d")
-#: cz differs from RVSAO's in its 15th figure (2e-14 of it; R, the error and the
-#: log the same) with a template already filtered (FI-FLAG 1) and in a correlation
-#: in wavelength -- open: the binary has no FMA nor x87, and pkfitp, pkwidth and
-#: earlin are RVSAO's operation for operation
-LAST_FIGURE = {"save_tfilt", "save_filtered", "wavelength_save"}
 RVSAO_KEYS = re.compile(r"^(VELOCITY|Z|CZERR|ZERR|VELQUAL|BCV|VELSET|CZXC|ZXC|CZXCERR|"
                         r"CZXCR|BESTTEMP|CZPARAMS|COMMENT|HISTORY|XCSAO|APVEL\d+|"
                         r"APVXC\d+|XCTEMP\d+|XT\d+_\d+) *$")
@@ -106,13 +101,6 @@ def test_xcsao_saves_what_rvsao_saves(tmp_path, monkeypatch, case):
     for name, gold in (GOLD[case].get("head") or {}).items():
         mine = [c.image for c in fits.getheader(tmp_path / name).cards]
         ours, theirs = _cards(mine, True), _cards(gold, True)
-        if case in LAST_FIGURE:
-            assert len(ours) == len(theirs)
-            for a, b in zip(ours, theirs, strict=True):
-                if a != b:
-                    x, y = (float(c[10:30]) for c in (a, b))
-                    assert a[:8] == b[:8] and abs(x - y) <= 1e-13 * abs(y), (a, b)
-            ours = theirs
         assert ours == theirs, name
         before = [c.image for c in fits.getheader(tmp_path / "fresh" / name).cards]
         assert _cards(mine, False) == _cards(before, False), name

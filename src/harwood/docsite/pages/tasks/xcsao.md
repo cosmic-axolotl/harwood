@@ -48,13 +48,40 @@ filter, and for each template its velocity, the peak, its height, R, the velocit
 and its error -- or, with `--report-mode 2`, a line for each spectrum and
 template: R, the velocity, its error, the peak's height and width.
 
-Not ported yet: the graph and its cursor (`displot`, `curmode`), saving the
-velocity to the header (`save_vel`), the archive, `--correlate wavelength` or
-`pixel`, the cosine peak fit (`pkmode 3`) and report modes other than 1 and 2. On
-55 cases -- one template or several, a broadened
-galaxy, noise, zero padding, every limit in wavelength, the initial velocity and
-its passes, a velocity window, the peak's fraction or points, the filter, the
-taper, the grid's size, lines clipped from the spectrum or the template, zeroed
-ends, renormalisation, log-linear and multispec spectra, every velocity
-correction, the template's own velocity and flags -- the log is RVSAO 2.8.5's,
-compiled against IRAF 2.18, line for line.
+## The graph and its keys
+
+`--displot` opens RVSAO's graph in the window: above, the spectrum (smoothed
+`--nsmooth` times) with the range correlated marked by dashed lines; below, the
+correlation with the best template around its peak (`--cvel`, `--dvel`), the points
+at `-pkfrac` of its height marked when `--pkfrac` is negative; at the right, RVSAO's
+summary: the date, the correction, the range, the grid and the filter, each
+template's velocity and peak, and each one's velocity, error and R. `--dispmode 0`
+shows only the range correlated, `-1` the spectrum from zero.
+
+The keys are RVSAO's (`?` lists them): `r` redraws; `t` takes another template's
+velocity (by its place in R); `g` smooths the spectrum (shown at the next `r`); `m`
+changes the display mode; `c` the peak's fit (mode, fraction, the filter) and `v`
+the velocities a peak may have, and correlate again; `f` correlates again; `y`, `n`
+and `j` set the quality (VELQUAL, with `--save-vel`); `@` writes a picture (an
+SVG; `--hardcopy` writes one of every graph); `x` goes on without writing the
+header; `q`, and any key it does not know, goes on. `--cursor` reads the keys from
+a file instead (`x y 1 key` a line) and `--answers` what their questions read.
+
+RVSAO's own `c` and `v` read what they ask, ask for a new correlation and lose it:
+xcfit reads `pkfrac`, `minvel` and `maxvel` from the parameters again, and the
+filter from its own copies, so that only the peak's mode changes anything. Here
+they all reach the correlation, which is then RVSAO's with those parameters from
+the start. Without a date of observation the summary says "No observation date"
+twice, as RVSAO's does.
+
+Not ported yet: `e` (editing the spectrum), `p` (choosing the peak by hand), the
+display modes 2 and 3 and the `l` key (emsao's graph of the lines: see emsao),
+`correlate=no`, and the archive. On 135 cases -- one template or several, a
+broadened galaxy, noise, zero padding, every limit in wavelength, the initial
+velocity and its passes, a velocity window, the peak's fraction or points and the
+cosine fit, the filter, the taper, the grid's size, lines clipped from the spectrum
+or the template, zeroed ends, renormalisation, log-linear and multispec spectra,
+every velocity correction, the template's own velocity and flags, the correlation
+in wavelength and pixels, every report mode and save_vel -- the log and the header
+are RVSAO 2.8.5's, compiled against IRAF 2.18, line for line; on 43 sessions of the
+graph, what it prints and draws is RVSAO's.

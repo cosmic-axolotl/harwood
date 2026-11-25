@@ -78,6 +78,33 @@ class EmsaoParams(TaskParams):
     report_mode: Literal[1] = Field(1, description="Report format (1, the normal one).")
     logfiles: str = Field("STDOUT,emsao.log", description="Where the report goes: "
                                                           "STDOUT and files, appended.")
+    save_vel: bool = Field(False, description="Write the velocity into each spectrum's "
+                                              "header, as RVSAO does: VELOCITY, CZEM "
+                                              "and a card per line found (EMLINEn).")
+    displot: bool = Field(False, description="Show the graph in the window (RVSAO's "
+                                             "displot): the spectrum, the lines marked "
+                                             "where the velocity puts them, and the "
+                                             "summary beside it.")
+    curmode: bool = Field(True, description="With the graph: wait for its keys (? lists "
+                                            "them; q goes on).")
+    dispmode: Literal[2, 3, 4, 5] = Field(2, description="The graph: 2 with the summary, "
+                                                         "3 the whole screen; 4 and 5 the "
+                                                         "same with the continuum "
+                                                         "subtracted.")
+    vel_plot: Literal["emission", "correlation", "combination"] = Field(
+        "emission", description="The velocity the lines are marked at.")
+    dispem: bool = Field(True, description="Mark the emission lines.")
+    dispabs: bool = Field(True, description="Mark the absorption lines.")
+    ablines: str = Field("ablines.dat", description="Absorption line list.")
+    hardcopy: bool = Field(False, description="Also write each graph as a picture "
+                                              "(emsao_<spectrum>_<n>.svg), as RVSAO's "
+                                              "hardcopy sends it to the plotter.")
+    cursor: str = Field("", description="The graph's keys from a file instead of the "
+                                        "window, 'x y wcs key' a line (IRAF's graphics "
+                                        "cursor file). Implies displot.")
+    answers: str = Field("", description="With --cursor: what the keys' questions read "
+                                         "(a line's name, a limit, a velocity), one a "
+                                         "line.")
     c_function: Literal["spline3", "legendre", "chebyshev", "spline1"] = Field(
         "spline3", description="contpars: continuum function.")
     c_sample: str = Field("*", description="contpars: sample of the continuum fit.")
@@ -89,13 +116,42 @@ class EmsaoParams(TaskParams):
     grow: float = Field(1.0, description="contpars: rejection growing radius.")
 
 
+def _graph_input(session, params, task: str) -> None:
+    """Where the graph's keys come from: --cursor and --answers files (IRAF's cursor
+    file, and what getline reads), or the window."""
+    if params.cursor:
+        from ..core import igsfit
+
+        if not Path(params.cursor).is_file():
+            advice.fail(f"cursor file '{params.cursor}' does not exist",
+                        "write one key a line, 'x y 1 key', or use --displot for the "
+                        "window", FileNotFoundError)
+        reads = igsfit.reads(Path(params.cursor).read_text(encoding="utf-8"))
+        session.read_key = lambda: next(((x, y, w, k) for x, y, w, k, _ in reads), None)
+        replies = iter(Path(params.answers).read_text(encoding="utf-8").splitlines()
+                       if params.answers else [])
+        session.read_line = lambda: next(replies, None)
+    elif params.displot:
+        if task == "emsao":
+            from ..viewer import emplot_panel
+
+            session.show = lambda plot: emplot_panel.run(
+                plot, title=f"emsao · {plot.fit.result.spectrum.name}")
+        else:
+            from ..viewer import xcplot_panel
+
+            session.show = lambda plot: xcplot_panel.run(
+                plot, title=f"xcsao · {plot.r.spectrum.name}")
+
+
 @register
 class Emsao(Task[EmsaoParams]):
     """RVSAO's emsao (Smithsonian Astrophysical Observatory, an IRAF external
     package): the redshift from emission lines, held to RVSAO 2.8.5 compiled against
-    IRAF 2.18 -- its log identical on 44 cases. Not ported yet: the graph and its
-    cursor (displot, curmode), saving the velocity to the header, archives, the sky
-    spectrum and the report modes other than 1."""
+    IRAF 2.18 -- its log identical on 44 cases -- with its graph and cursor (emplot:
+    every key, what it prints, writes and draws identical on 112 sessions) and the
+    velocity saved to the header. Not ported yet: archives, the sky spectrum and the
+    report modes other than 1."""
 
     name = "emsao"
     package = "rvsao"
@@ -112,14 +168,23 @@ class Emsao(Task[EmsaoParams]):
         from ..core import emsao, images
 
         values = params.model_dump()
+        written: list[Path] = []
         names = [str(s) for s in images.expand(params.spectra)] \
             if not any(n.endswith("]") for n in params.spectra) else list(params.spectra)
+        if params.cursor:
+            values["displot"] = True
         session = emsao.Emsao(values)
+        _graph_input(session, params, "emsao")
         try:
             session.run(names)
         except emsao.RvsaoError as error:
             advice.fail(f"emsao stopped: {error}", "check the line lists and linedir")
-        written = []
+        for k, plot in enumerate(session.plots, 1):
+            for n, frame in enumerate(plot.hardcopies, 1):
+                stem = Path(plot.fit.result.spectrum.name.split("[")[0]).stem
+                picture = Path(f"emsao_{stem}_{k}_{n}.svg")
+                picture.write_text(frame.svg(), encoding="utf-8")
+                written.append(picture)
         logs = [w for w in session.logfiles() if w != "STDOUT"]
         for name in logs:
             with open(name, "a", encoding="utf-8") as fd:
@@ -133,13 +198,20 @@ class Emsao(Task[EmsaoParams]):
                 "z": None if r.vel == emsao.INDEFD else r.vel / emsao.C0,
                 "lines_used": r.nfit, "lines_found": len(r.lines),
                 "correction": r.spectrum.hcv,
+                "velocity": None if r.combined == emsao.INDEFD else r.combined,
+                "velocity_error": None if r.combined_err == emsao.INDEFD
+                else r.combined_err,
+                "quality": {4: "good", 3: "bad", 1: "questionable"}.get(r.quality),
+                "header": r.saved or None,
                 "lines": [{"name": f.name, "rest": f.wlrest, "observed": f.wlobs,
                            "z": float(f.params[0, 8]), "eqw": float(f.params[0, 6]),
                            "weight": f.weight, "dropped": f.drop}
                           for f in r.lines]})
         data: dict = {"spectra": rows}
-        if "STDOUT" in session.logfiles():
+        if "STDOUT" in session.logfiles() or session.plots:
             data["text"] = session.out.splitlines()
+        if session.err:
+            data["warnings"] = session.err.splitlines()
         return TaskResult(outputs=written, steps=self.plan(params), data=data)
 
 
@@ -241,6 +313,24 @@ class XcsaoParams(TaskParams):
                            "header: VELOCITY, CZERR, CZXC, CZXCR, BESTTEMP and a card "
                            "per template (APVELn, APVXCn and XTn_m for each aperture "
                            "of a multispec), the earlier XCSAO card kept as HISTORY.")
+    displot: bool = Field(False, description="Show the graph in the window (RVSAO's "
+                                             "displot): the spectrum, the correlation "
+                                             "around its peak, and the summary.")
+    curmode: bool = Field(True, description="With the graph: wait for its keys (? lists "
+                                            "them; q goes on).")
+    dispmode: Literal[-1, 0, 1] = Field(1, description="The spectrum: 1 all of it, 0 the "
+                                                       "range correlated, -1 from zero.")
+    nsmooth: int = Field(0, ge=0, description="Smoothing passes of the spectrum drawn.")
+    cvel: float | None = Field(None, description="Centre of the correlation's graph, "
+                                                 "km/s (empty: the peak).")
+    dvel: float | None = Field(None, description="Its half width, km/s (empty: 20 times "
+                                                 "the peak's).")
+    hardcopy: bool = Field(False, description="Also write each graph as a picture "
+                                              "(xcsao_<spectrum>_<n>.svg).")
+    cursor: str = Field("", description="The graph's keys from a file instead of the "
+                                        "window, 'x y wcs key' a line. Implies displot.")
+    answers: str = Field("", description="With --cursor: what the keys' questions read, "
+                                         "one a line.")
     c_function: Literal["spline3", "legendre", "chebyshev", "spline1"] = Field(
         "spline3", description="contpars: continuum function.")
     c_sample: str = Field("*", description="contpars: sample of the continuum fit.")
@@ -326,12 +416,21 @@ class Xcsao(Task[XcsaoParams]):
         values = params.model_dump()
         names = [str(s) for s in images.expand(params.spectra)] \
             if not any(n.endswith("]") for n in params.spectra) else list(params.spectra)
+        if params.cursor:
+            values["displot"] = True
         session = xcsao.Xcsao(values)
+        _graph_input(session, params, "xcsao")
         try:
             session.run(names)
         except xcsao.RvsaoError as error:
             advice.fail(f"xcsao stopped: {error}", "check the templates and tempdir")
         written = []
+        for k, plot in enumerate(session.plots, 1):
+            for n, frame in enumerate(plot.hardcopies, 1):
+                stem = Path(plot.r.spectrum.name.split("[")[0]).stem
+                picture = Path(f"xcsao_{stem}_{k}_{n}.svg")
+                picture.write_text(frame.svg(), encoding="utf-8")
+                written.append(picture)
         for name in [w for w in session.logfiles() if w != "STDOUT"]:
             with open(name, "a", encoding="utf-8") as fd:
                 fd.writelines(session.log)
@@ -353,7 +452,7 @@ class Xcsao(Task[XcsaoParams]):
                                "cz_error": t.czerr, "r": t.czr, "height": t.height,
                                "peak": t.cz} for t in r.temps]})
         data: dict = {"spectra": rows}
-        if "STDOUT" in session.logfiles():
+        if "STDOUT" in session.logfiles() or session.plots:
             data["text"] = session.out.splitlines()
         warnings = [advice.warn(line.strip(), "check the name and the directory")
                     for line in session.err.splitlines()

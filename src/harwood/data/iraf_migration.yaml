@@ -53,8 +53,11 @@ added:
            package, not IRAF): the redshift from emission lines -- the continuum, the
            search, the Gaussian fits and blends, the weighted mean, the barycentric
            and heliocentric corrections from the header -- its log identical to RVSAO
-           2.8.5's on 44 cases. Not yet: the graph and its cursor, save_vel, the sky
-           spectrum, report modes other than 1."}
+           2.8.5's on 44 cases; its graph and cursor (emplot: every key, the summary
+           page, the refits, the velocity and quality set by hand, the spectrum
+           edited) and save_vel identical on 112 sessions, where RVSAO's d, c and
+           quality keys without save_vel fail and harwood's do what they mean to. Not
+           yet: the sky spectrum, report modes other than 1, archives."}
   xcsao: {pkg: rvsao, domain: radial-velocity, status: partial,
     note: "RVSAO's xcsao (Smithsonian Astrophysical Observatory; an IRAF external
            package, not IRAF): the radial velocity by cross-correlation with templates
@@ -66,8 +69,11 @@ added:
            identical to RVSAO 2.8.5's on 135 cases; save_vel writes the cards RVSAO
            writes (VELOCITY joined with emsao's CZEM, CZXC, a card per template, APVELn
            for a multispec, the old XCSAO kept as HISTORY), and only those. RVSAO's
-           templates ship with it (rvsao$templates/, --list-templates). Not yet: the
-           graph and its cursor, correlate=no, archives."}
+           templates ship with it (rvsao$templates/, --list-templates); its graph and
+           cursor (xcplot: the spectrum, the correlation, the summary, the keys r t g m
+           c f v y n j @ x) identical on 43 sessions, c and v applied where RVSAO's
+           lose what they set. Not yet: e (editing), p (the peak by hand), dispmode 2
+           and 3 and l (emsao's graph from xcsao), correlate=no, archives."}
   lineid: {pkg: onedspec, domain: spec-1d, status: available,
     note: "names the atom, ion or molecule behind each feature of a calibrated
            spectrum, from a curated catalogue. IRAF has no task for this -- the

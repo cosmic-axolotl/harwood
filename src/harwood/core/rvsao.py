@@ -615,6 +615,15 @@ def compbcv(head: Header, barycentric: bool) -> float:
 # ------------------------------------------------------------- the spectrum
 
 
+#: libf2c's d_lg10, which RVSAO's dlog10 is: log10e * log(x), not C's log10(x) --
+#: they part in the last bit (wcs_p2l's log wavelength, xcsao's grid step)
+LOG10E = 0.43429448190325182765
+
+
+def dlog10(x: float) -> float:
+    return LOG10E * math.log(x)
+
+
 @dataclass
 class Wcs:
     """wlcon.x's conversions on one spectrum: shdr_lw and shdr_wl, the pixels
@@ -648,7 +657,7 @@ class Wcs:
         return self.sh.lw(tpx)
 
     def p2l(self, px: float) -> float:
-        return math.log10(self.p2w(px))
+        return dlog10(self.p2w(px))
 
 
 @dataclass

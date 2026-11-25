@@ -18,8 +18,15 @@ KEYS = [((6563.0, 3500.0), "d"), ((6563.0, 3500.0), "e"), ((0.0, 0.0), "x"),
         ((0.0, 0.0), "z"), ((6563.0, 1000.0), "a")]
 
 
+#: How long specplot's thread may take over a key: generous, since the whole suite
+#: running beside it (other processes, Qt's own work) is what once made a key late
+#: and the test fail now and then; a key that never comes back still fails.
+PATIENCE = 30.0
+
+
 def _wait(panel, app):
-    for _ in range(500):
+    deadline = time.monotonic() + PATIENCE
+    while time.monotonic() < deadline:
         app.processEvents()
         if panel._idle.is_set():
             return
@@ -51,7 +58,8 @@ def test_the_window_sends_keys_as_a_cursor_file_does(tmp_path, monkeypatch):
     panel._run_command()
     _wait(panel, app)
     panel.key("q")
-    for _ in range(300):
+    deadline = time.monotonic() + PATIENCE
+    while time.monotonic() < deadline:
         app.processEvents()
         if not panel._thread.is_alive():
             break
