@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -445,6 +446,77 @@ class Result:
     xcvel: float = INDEFD        #: spxvel (from a header written by xcsao)
     xcerr: float = INDEFD
     xcr: float = 0.0
+    override: list[int] = field(default_factory=lambda: [0] * MAXREF)
+    quality: int = 0             #: spvqual: 4 good, 3 bad, 1 questionable
+    saved: str = ""              #: the file the velocity was written to
+
+
+@dataclass
+class XcTemplate:
+    """A template's correlation as xcsao wrote it to the header (XCTEMPn)."""
+    id: str
+    zvel: float
+    czerr: float
+    czr: float
+    height: float = 0.0
+    width: float = 0.0
+    shift: float = 0.0
+    hcv: float = 0.0
+    schop: bool = False
+    filt: int = 0
+
+
+@dataclass
+class Fit:
+    """emfit's state for one spectrum, which emplot's keys change: the spectrum
+    (specwcs, edited in place), the smoothed one for the graph and the search
+    (smplot), the search's (smspec, continuum subtracted), the fit's (sfspec), each
+    pixel's wavelength, the search's parameters, the initial 1+z, what the keys ask
+    to fit again, and the templates xcsao wrote."""
+    result: Result
+    specwcs: np.ndarray
+    smplot: np.ndarray
+    smspec: np.ndarray
+    sfspec: np.ndarray
+    wlspec: np.ndarray
+    pix1: int
+    pix2: int
+    wblue: float
+    wred: float
+    nsmooth: int
+    esmooth: int
+    npfit: int
+    zsig: float
+    wspan: float
+    cvel: float = 1.0
+    lfound: list[int] = field(default_factory=list)
+    lfit: bool = False
+    vfit: bool = False
+    sfit: bool = False
+    edited: bool = False
+    savespec: bool = False
+    qplot: bool = False
+    plotcorr: bool = False
+    specref: int = 0
+    waverest: float = 0.0
+    templates: list[XcTemplate] = field(default_factory=list)
+    best: int = 0
+
+    @property
+    def override(self) -> list[int]:
+        return self.result.override
+
+    @property
+    def quality(self) -> int:
+        return self.result.quality
+
+    @quality.setter
+    def quality(self, value: int) -> None:
+        self.result.quality = value
+
+    def template_order(self) -> list[int]:
+        """emplot's itr: the templates by R, the highest first."""
+        return sorted(range(len(self.templates)), key=lambda k: -self.templates[k].czr)
 
 
 class Emsao:
@@ -459,9 +531,28 @@ class Emsao:
         self.results: list[Result] = []
         self.state: dict = {}         # getimage's static buffer, across spectra
         self.out = ""                 # what goes to STDOUT
+        self.err = ""                 # what goes to STDERR
         self.log: list[str] = []      # what goes to each log file
+        # RVSAO's commons, which the graph's keys change for the spectra after too
+        from .emplot import Graph
+        self.vplot = VPLOT.index(str(self.p.get("vel_plot", "emission"))) + 1
+        self.dispem = bool(self.p.get("dispem", True))
+        self.dispabs = bool(self.p.get("dispabs", True))
+        self.plotem = str(self.p["emlines"]).startswith("+")
+        self.gvel = 0.0
+        self.order = int(self.p["order"])     # contpars' order; c changes it
+        self.spevel = INDEFD          # the last emission velocity, for vel_init
+        self._fiterr2 = self._rms2 = 0.0  # emvfit's statics
+        self.shift = 1.0
+        self.graph = Graph()
+        self.plots: list = []         # every emplot, its frames and hard copies
+        self.read_key = None          # the cursor: () -> (x, y, wcs, key) or None
+        self.read_line = None         # what getline reads: () -> str or None
+        self.show = None              # the window's emplot: (Plot) -> None
 
     def run(self, names: list[str]) -> None:
+        """t_emsao: each aperture of each spectrum; the graph's ( and ) go to another
+        aperture at once, and the list goes on after it."""
         from . import rvsao
 
         rmode = int(self.p["report_mode"])
@@ -472,14 +563,28 @@ class Emsao:
         for name in names:
             path = str(self.p["specdir"]) + name
             mspecs = self._apertures(name)
-            for mspec in mspecs:
-                try:
-                    spec = rvsao.getspec(path, mspec, int(self.p["specband"]), self.svcor,
-                                         self.state)
-                except (RvsaoError, OSError, ValueError) as error:
-                    self.out += f"EMSAO: {error}\n"
-                    continue
-                self.results.append(self.emfit(spec))
+            mspec, nspec = -1, len(mspecs)
+            while nspec > 0:
+                after = [m for m in mspecs if m > mspec]
+                if not after:
+                    break
+                mspec = after[0]
+                while True:
+                    try:
+                        spec = rvsao.getspec(path, mspec, int(self.p["specband"]),
+                                             self.svcor, self.state)
+                    except (RvsaoError, OSError, ValueError) as error:
+                        self.out += f"EMSAO: {error}\n"
+                        break
+                    fit, moved = self.emfit(spec)
+                    self.results.append(fit.result)
+                    if fit.edited:
+                        self._putspec(path, mspec, fit)
+                    self._save(path, mspec, fit, len(mspecs))
+                    if moved == mspec:
+                        break
+                    mspec = moved
+                nspec -= 1
 
     def logfiles(self) -> list[str]:
         return [w.strip() for w in str(self.p.get("logfiles", "STDOUT")).split(",")
@@ -498,7 +603,12 @@ class Emsao:
 
     # ---------------------------------------------------------------- emfit
 
-    def emfit(self, spec: Spectrum) -> Result:
+    def emfit(self, spec: Spectrum) -> tuple[Fit, int]:
+        """emfit: the search, the fits and the velocity, the report, and the graph;
+        again from where the graph's keys ask (restart_, fitlines_, fitvel_). Gives
+        the fit and the aperture to go on with (another when ( or ) was pressed)."""
+        from .emplot import Plot, nmax
+
         p = self.p
         y = spec.data
         specpix = y.size
@@ -515,41 +625,231 @@ class Emsao:
             renorm = float(max(y[pix1 - 1:pix2])) < 1.0
         if renorm:
             raise RvsaoError("renormalized spectra are not ported yet")
+        self.order = int(p["order"])           # cont_get_pars, each spectrum
+        result = Result(spec, [], INDEFD)
+        result.xcvel, result.xcerr, result.xcr, templates, best = xcrhead(spec.head,
+                                                                          spec.mspec)
+        wlspec = np.array([wcs.p2w(float(i)) for i in range(1, specpix + 1)], f32)
         nsmooth = int(p["nsmooth"])
         smplot = y.astype(f32).copy()
         smooth(smplot, specpix, nsmooth)
-        smspec = smplot.copy()
-        smcont = np.zeros(specpix, f32)
-        self._subcon(smspec, smcont, pix1, pix2, conproc)
-        npfit = int(p["npfit"])
-        zsig = float(p["linesig"])
-        wspan = float(int(float(p["wspan"])))
-        czvel = INDEFD
-        if bool(p["linefit"]):
-            if self.vinit == 4:
-                czvel = self._guess(smspec, specpix, wblue, wred, wcs, npfit, zsig)
-            elif self.vinit == 5:
-                czvel = float(p["czguess"])
-            elif self.vinit == 6:
-                czvel = C0 * float(p["czguess"])
-            if czvel == INDEFD:
-                czvel = 0.0
+        fit = Fit(result, y, smplot, smplot.copy(), y.astype(f32).copy(), wlspec,
+                  pix1, pix2, wblue, wred, nsmooth, int(p["esmooth"]), int(p["npfit"]),
+                  float(p["linesig"]), float(int(float(p["wspan"]))),
+                  templates=templates, best=best)
+        result.quality = 0
+        stage = "search"
+        while True:
+            if stage == "search":
+                fit.smspec = fit.smplot.copy()
+                self._subcon(fit.smspec, np.zeros(specpix, f32), pix1, pix2, conproc)
+                czvel = INDEFD
+                if self.vinit == 4:
+                    czvel = self._guess(fit.smspec, specpix, wblue, wred, wcs, fit.npfit,
+                                        fit.zsig)
+                elif self.vinit == 5:
+                    czvel = float(p["czguess"])
+                elif self.vinit == 1:
+                    czvel = result.xcvel
+                elif self.vinit == 2:
+                    czvel = self.spevel
+                elif self.vinit == 3:
+                    czvel = result.combined
+                elif self.vinit == 6:
+                    czvel = C0 * float(p["czguess"])
+                if czvel == INDEFD:
+                    czvel = 0.0
+                result.czguess = czvel
+                fit.cvel = 1.0 + (czvel / C0)
+                stage = "lines"
+            if stage == "lines":
+                found = self._search(fit.smspec, specpix, wblue, wred, fit.cvel, wcs,
+                                     fit.npfit, fit.zsig, fit.wspan)
+                fit.lfound = [0] * len(self.lines.wlref)
+                for i, wl in enumerate(self.lines.wlref):
+                    for k, f in enumerate(found, 1):
+                        if f.wlrest == wl:
+                            fit.lfound[i] = k
+                sfspec = fit.specwcs.astype(f32).copy()
+                part = sfspec[pix1 - 1:pix2]
+                smooth(part, npix, fit.esmooth)
+                sfspec[pix1 - 1:pix2] = part
+                sfcont = np.zeros(specpix, f32)
+                self._subcon(sfspec, sfcont, pix1, pix2, conproc)
+                fit.sfspec = sfspec
+                self._fit_lines(found, sfspec, sfcont, specpix, wcs)
+                result.lines = found
+            self._velocity(result, wblue, wred, wcs)
+            self.spevel = result.vel
+            if bool(p["verbose"]):
+                self._report(result)
+            plot = Plot(self, fit, spec.mspec, nmax(spec), self.read_key or (lambda: None),
+                        self.read_line or (lambda: None), self._say,
+                        curmode=bool(p.get("curmode", True)))
+            if bool(p.get("displot", False)) or bool(p.get("hardcopy", False)):
+                self.plots.append(plot)
+                if self.show is not None and bool(p.get("displot", False)):
+                    self.show(plot)
+                else:
+                    plot.run()
+            if plot.mspec0 != spec.mspec:
+                return fit, plot.mspec0
+            if fit.sfit:
+                stage = "search"
+            elif fit.lfit:
+                fit.smspec = fit.smplot.copy()
+                self._subcon(fit.smspec, np.zeros(specpix, f32), pix1, pix2, conproc)
+                stage = "lines"
+            elif fit.vfit:
+                stage = "velocity"
+            else:
+                return fit, spec.mspec
+
+    def _say(self, text: str) -> None:
+        self.out += text
+
+    # ---------------------------------------------------------------- saving
+
+    def _putspec(self, path: str, mspec: int, fit: Fit) -> None:
+        """putspec: the spectrum the graph's d and , edited, back into its line of
+        the image (the first for a one-dimensional one), as the file's pixel type."""
+        import os
+
+        from astropy.io import fits
+
+        if not os.path.exists(path):
+            path += ".fits"
+        if not os.access(path, os.W_OK):
+            self.err += f"EMPLOT: cannot write to {path}; not saving results\n"
+            return
+        with fits.open(path, mode="update", memmap=False,
+                       do_not_scale_image_data=True) as hdul:
+            hdu = next((h for h in hdul if h.data is not None), hdul[0])
+            data = hdu.data
+            line = np.asarray(fit.specwcs, f32).astype(data.dtype)
+            if data.ndim == 1:
+                data[:] = line
+            else:
+                flat = data.reshape(-1, data.shape[-1])
+                flat[max(mspec, 1) - 1, :] = line
+            hdu.data = data
+        fit.edited = False
+
+    def _save(self, path: str, mspec: int, fit: Fit, nmspec: int) -> None:
+        """What t_emsao writes to the header after the fit: with save_vel, the
+        velocity (vwhead) and the emission lines' (emwhead); without it, when the
+        graph set the quality or the spectrum was saved, the quality's cards
+        (qwhead) and the lines'. RVSAO opens the image read-only without save_vel and
+        cannot write those (Cannot update image header): harwood writes them."""
+        import os
+
+        save = bool(self.p.get("save_vel", False))
+        if not (save or fit.qplot):
+            return
+        if not os.path.exists(path):
+            path += ".fits"
+        if not os.access(path, os.W_OK):
+            self.err += f"T_EMSAO: cannot write to {path}; not saving results\n"
+            return
+        from .rvsao import HeaderUpdate, history_card, string_card
+
+        r = fit.result
+        nums = str(self.p["specnum"])
+        version = f"rvsao.emsao 2.8.5 {_logtime()}"
+        head = HeaderUpdate(path)
+
+        def stamp(key: str, text: str) -> None:
+            old = head.string(key)
+            if old:
+                head.put(history_card("HISTORY", old))
+            head.put(string_card(key, text))
+        try:
+            for image in self._vwhead(fit, mspec, quality=not save):
+                if not save and image.startswith("BCV     ") and head.h.get("BCV") \
+                        is not None:
+                    continue                      # qwhead adds BCV only when absent
+                head.put(image)
+            if not save:
+                q = {1: "?", 2: "?", 3: "X", 4: "Q"}.get(r.quality, "_")
+                stamp("QPLOT", f"{version} Quality[{nums}] set" if mspec > 0 and nmspec == 1
+                      else f"{version} VELOCITY = {_f(r.combined, 0, 2)} Q = {q}")
+            for image in self._emwhead(fit, mspec):
+                head.put(image)
+            stamp("EMSAO", f"{version} CZEM [{nums}]" if mspec > 0 and nmspec == 1
+                  else f"{version} CZEM = {_f(r.vel, 0, 2)} LINES = {r.nfit}")
+        finally:
+            head.close()
+        _raw_indef(path)
+        r.saved = path
+
+    def _vwhead(self, fit: Fit, mspec: int, quality: bool = False) -> list[str]:
+        """vwhead (qwhead with `quality`: no ZERR): VELOCITY, Z, CZERR, ZERR, VELQUAL,
+        BCV and VELSET, or a multispec's APVELn."""
+        from .rvsao import string_card
+
+        r = fit.result
+        q = {1: "?", 2: "?", 3: "X", 4: "Q"}.get(r.quality, "_")
+        if mspec <= 0:
+            cards = [_dcard("VELOCITY", r.combined), _dcard("Z", _div(r.combined, C0)),
+                     _dcard("CZERR", r.combined_err)]
+            if not quality:
+                cards.append(_dcard("ZERR", _div(r.combined_err, C0)))
+            cards += [string_card("VELQUAL", q), _dcard("BCV", r.spectrum.hcv)]
+            if fit.specref > 0:
+                cards.append(string_card("VELSET", f"Velocity from {_f(fit.waverest, 0, 3)}"
+                                         f"A {self.lines.nmref[fit.specref - 1]} "
+                                         "emission line"))
+            elif fit.specref < 0:
+                cards.append(string_card("VELSET", f"Velocity from {_f(fit.waverest, 0, 3)}"
+                                         f"A {self.lines.absorption[-fit.specref - 1][1]} "
+                                         "absorption line"))
+            elif fit.waverest != 0.0:
+                cards.append(string_card("VELSET", "Velocity from line at "
+                                         f"{_f(fit.waverest, 0, 3)}A"))
+            return cards
+        if mspec < 1000:
+            return [string_card(f"APVEL{mspec}",
+                                f"{_f(r.combined, 0, 3)} {_f(r.combined_err, 0, 3)} {q} "
+                                f"{_f(r.spectrum.hcv, 0, 3)}")]
+        return []
+
+    def _emwhead(self, fit: Fit, mspec: int) -> list[str]:
+        """emwhead: CZEM, ZEM, CZEMERR, CZEMNL and CZEMNLF (a multispec's APVEMn) and,
+        when lines were fit, each line found (EMLINEn, ELm_n)."""
+        from .rvsao import string_card
+
+        r = fit.result
+        wcs = r.spectrum.wcs
+        if mspec == 0:
+            cards = [_dcard("CZEM", r.vel), _dcard("ZEM", _div(r.vel, C0)),
+                     _dcard("CZEMERR", r.err), _icard("CZEMNL", len(r.lines)),
+                     _icard("CZEMNLF", r.nfit)]
+        elif mspec < 1000:
+            cards = [string_card(f"APVEM{mspec}", f"{_f(r.vel, 0, 3)} {_f(r.err, 0, 3)} "
+                                 f"{len(r.lines)} {r.nfit}")]
         else:
-            czvel = 0.0
-        cvel = 1.0 + (czvel / C0)
-        found = self._search(smspec, specpix, wblue, wred, cvel, wcs, npfit, zsig, wspan)
-        sfspec = y.astype(f32).copy()
-        part = sfspec[pix1 - 1:pix2]
-        smooth(part, npix, int(p["esmooth"]))
-        sfspec[pix1 - 1:pix2] = part
-        sfcont = np.zeros(specpix, f32)
-        self._subcon(sfspec, sfcont, pix1, pix2, conproc)
-        self._fit_lines(found, sfspec, sfcont, specpix, wcs)
-        result = Result(spec, found, czvel)
-        self._velocity(result, wblue, wred, wcs)
-        if bool(p["verbose"]):
-            self._report(result)
-        return result
+            cards = []
+        if r.nfit > 0 and mspec < 1000:
+            twt = 0.0
+            for f in r.lines:
+                wt = f.params[0, 9]
+                if wt != 0.0:
+                    twt += 1.0 / (wt * wt)
+            for k, f in enumerate(r.lines, 1):
+                key = f"EMLINE{k}" if mspec == 0 else f"EL{mspec}_{k}"
+                wt = f.params[0, 9]
+                if wt != 0.0:
+                    wt = (1.0 / (wt * wt)) / twt
+                wl1 = wcs.p2w(f.params[0, 3] - 1.0)
+                dwdp = f.wlobs - wl1
+                g = iraffmt.Format
+                text = (f"{f.name} {g('%.2f')(f.wlrest)} {g('%.2f')(f.wlobs)} "
+                        f"{g('%6f')(f.params[0, 4])} {g('%6f')(f.params[0, 5] * dwdp)} "
+                        f"{g('%.2f')(C0 * f.params[0, 8])} {g('%.2f')(C0 * f.params[1, 8])} "
+                        f"{g('%.2f')(f.params[0, 6])} "
+                        f"{g('%.3f')(-wt if r.override[k - 1] < 0 else wt)}")
+                cards.append(string_card(key, text[:67]))
+        return cards
 
     def _limits(self, spec: Spectrum) -> tuple[int, int]:
         wcs, sh = spec.wcs, spec.sh
@@ -584,7 +884,7 @@ class Emsao:
         p = self.p
         n = pix2 - pix1 + 1
         data = fdata[pix1 - 1:pix2]
-        order = int(p["order"])
+        order = self.order
         if order < 1 or not np.any(data != 0):
             fit[pix1 - 1:pix2] = data
             return
@@ -883,10 +1183,14 @@ class Emsao:
         nfound = len(found)
         weight = ave_vel = disp = 0.0
         nz = 0
-        fiterr2 = verr2 = 0.0
+        # emvfit's rms2 and fiterr2 are never set before use: SPP's locals are
+        # static, and with no line kept they are the last fit's
+        fiterr2, rms2 = self._fiterr2, self._rms2
+        verr2 = 0.0
         ok = [False] * nfound
         for k, f in enumerate(found):
             f.drop = 0
+            verr2 = 0.0
             if f.params[0, 3] > 0.0:
                 ok[k] = True
             else:
@@ -906,6 +1210,10 @@ class Emsao:
                 ok[k], f.drop = False, 5
             if red - wv < PIXMAX * dwdp:
                 ok[k], f.drop = False, 6
+            if r.override[k] > 0:              # the graph's + and -
+                ok[k] = True
+            if r.override[k] < 0:
+                ok[k] = False
             zvel = (f.wlobs / f.wlrest) - 1.0
             f.params[0, 8] = zvel
             verr = 2 * f.params[1, 3] * dwdp / wv
@@ -925,9 +1233,9 @@ class Emsao:
                 f.params[0, 9] = 0.0
             if f.params[1, 7] < 1.0:
                 f.params[1, 7] = -1.0
-        rms2 = 0.0
         if nz > 0:
             ave_vel = ave_vel / weight
+            rms2 = 0.0
             weight2 = 1.0 / weight
             for k, f in enumerate(found):
                 if not ok[k]:
@@ -948,6 +1256,8 @@ class Emsao:
             rms2 = verr2
             fiterr = (drms * 2.0) / (blue + red)
             fiterr2 = fiterr * fiterr
+        if nfound > 0:
+            self._fiterr2, self._rms2 = fiterr2, rms2
         zav = ave_vel + 1.0 if nfound > 0 else 0.0
         zrms = math.sqrt(rms2 + fiterr2) if nfound > 0 else 0.0
         if nfound > 0 and zav != 0.0:
@@ -1012,9 +1322,9 @@ class Emsao:
         if r.lines:
             text += ("\nLine  Rest lam  Obs. lam    Pixel     z         vel    dvel"
                      "    eqw    wt\n")
-            for f in r.lines:
+            for k, f in enumerate(r.lines):
                 if f.params[0, 9] > 0:
-                    wch = " "
+                    wch = "-" if r.override[k] < 0 else "+" if r.override[k] > 0 else " "
                 elif f.drop > 0:
                     wch = f"X{f.drop}"
                 else:
@@ -1027,6 +1337,64 @@ class Emsao:
         else:
             text += "No emission lines found\n"
         self._log(text)
+
+
+def xcrhead(head, mspec: int):
+    """xcrhead: what xcsao wrote to the header -- the correlation's velocity, error and
+    R (CZXC, CZXCERR, CZXCR, or a multispec's APVXCn) and each template's (XCTEMPn, or
+    XTm_n): (xcvel, xcerr, xcr, templates, best), INDEFD and none without them."""
+    xcvel, xcerr, xcr, temps, best = INDEFD, INDEFD, 0.0, [], 0
+    key = "CZXC" if mspec == 0 else f"APVXC{mspec}" if mspec < 1000 else ""
+    if not key or not head.has(key):
+        return xcvel, xcerr, xcr, temps, best
+    ntemp, bestid, ids = 0, "", {}
+    if mspec <= 0:
+        xcvel = head.d("CZXC", xcvel)
+        xcerr = head.d("CZXCERR", xcerr)
+        xcr = head.d("CZXCR", xcr)
+        bestid = (head.string("BESTTEMP") or "").strip()
+        if head.has("CZPARAMS"):
+            words = (head.string("CZPARAMS") or "0").split()
+            ntemp = int(words[0]) if words and words[0].lstrip("-").isdigit() else 0
+        else:
+            ntemp = head.i("NTEMP", 0)
+    else:
+        words = (head.string(key) or "").split()
+
+        def word(i, kind=float, default=0.0):
+            try:
+                return kind(words[i])
+            except (IndexError, ValueError):
+                return default
+        xcvel, xcerr, xcr = word(0), word(1), word(2)
+        best = word(3, int, 0)
+        if len(words) > 4:
+            ids[best] = words[4]
+        ntemp = word(5, int, 0)
+    for itemp in range(1, ntemp + 1):
+        if mspec <= 0:
+            key = f"XCTEMP{itemp}" if head.has(f"XCTEMP{itemp}") else f"XT1_{itemp}"
+        else:
+            key = f"XT{mspec}_{itemp}"
+            if mspec == 1 and not head.has(key):
+                key = f"XCTEMP{itemp}"
+        if not head.has(key):
+            break
+        w = (head.string(key) or "").split()
+
+        def num(i, w=w):
+            try:
+                return float(w[i])
+            except (IndexError, ValueError):
+                return 0.0
+        t = XcTemplate(w[0] if w else "", num(1), num(2), num(3), num(4), num(5), num(6),
+                       num(7), (w[8].lower() in ("yes", "y", "true", "t"))
+                       if len(w) > 8 else False, int(num(9)))
+        temps.append(t)
+        if best == 0 and t.id[:max(len(t.id), len(bestid))] == bestid[:max(len(t.id),
+                                                                         len(bestid))]:
+            best = itemp
+    return xcvel, xcerr, xcr, temps, best
 
 
 def vcombine(velxc, vxerr, vr, velem, veerr, nlfit):
@@ -1052,6 +1420,46 @@ def vcombine(velxc, vxerr, vr, velem, veerr, nlfit):
         vel = ((velxc / xcerr2) + (velem / emerr2)) * err2
         err = math.sqrt(err2)
     return vel, math.sqrt(err * err)
+
+
+def _dcard(key: str, value: float) -> str:
+    """imaddd: INDEF as IRAF writes it."""
+    from .rvsao import number_card
+
+    if value == INDEFD:
+        return f"{key:<8}= {'INDEF':>20}".ljust(80)
+    if abs(value) >= 1.5999e38:             # INDEF / c0 (Z): a number, to IRAF
+        text = f"{value:.15g}".replace("e+", "E").replace("e-", "E-")
+        return f"{key:<8}= {text:>20}".ljust(80)
+    return number_card(key, value)
+
+
+def _raw_indef(path: str) -> None:
+    """A card IRAF wrote INDEF to stays INDEF, unquoted, as IRAF writes it (astropy
+    would have made it a string)."""
+    raw = bytearray(Path(path).read_bytes())
+    for k in range(0, len(raw), 80):
+        card = raw[k:k + 80]
+        if card.startswith(b"END     "):
+            break
+        if card[8:10] == b"= " and card[10:].split(b"/")[0].replace(b" ", b"") == b"'INDEF'":
+            raw[k + 10:k + 80] = f"{'INDEF':>20}".ljust(70).encode()
+    Path(path).write_bytes(bytes(raw))
+
+
+def _icard(key: str, value: int) -> str:
+    return f"{key:<8}= {value:>20}".ljust(80)
+
+
+def _div(value: float, by: float) -> float:
+    """INDEF over a number: IRAF divides its 1.6e308 like any other."""
+    return value / by
+
+
+def _logtime() -> str:
+    from .rvsao import logtime
+
+    return logtime()
 
 
 def decode_ranges(text: str) -> list[int]:

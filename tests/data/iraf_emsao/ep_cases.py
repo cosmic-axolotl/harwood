@@ -1,0 +1,193 @@
+"""The cases of the emplot gabarito: RVSAO's emsao with its graph (displot) and its
+cursor (curmode) on, the keys from a cursor file and the answers to the questions it
+reads from its standard input (getline) from a file. Each case: the spectra, emsao's
+parameters, the cursor reads ('x y wcs key' a line) and the answers (a line each).
+
+The spectra are em_inputs.py's, and ep_inputs.py's reversed one. The cases in FIXED
+run on build_fixed.sh's RVSAO: in RVSAO 2.8.5 the d key's second press is always a
+segmentation violation (fillpix called without its last argument)."""
+
+NONE = {"vel_corr": "none"}
+SAVE = {**NONE, "save_vel": "yes"}  # the header written: the file opened to write
+HA = 6579.9            # NGC 660's Halpha where it is observed (cz ~ 780)
+
+
+def keys(*reads: str) -> str:
+    return "".join(f"{r}\n" for r in reads)
+
+
+def at(x: float, key: str, y: float = 300.0) -> str:
+    return f"{x} {y} 1 {key}"
+
+
+Q = at(6500, "q")
+
+CASES = {
+    # what is drawn
+    "first": ("ngc.fits", NONE, keys(Q), ""),
+    "blue": ("blue.fits", NONE, keys(at(4500, "q")), ""),
+    "far": ("far.fits", NONE, keys(at(5000, "q")), ""),
+    "none": ("none.fits", NONE, keys(Q), ""),
+    "single": ("single.fits", NONE, keys(Q), ""),
+    "nopos": ("nopos.fits", NONE, keys(Q), ""),
+    "dated": ("dated.fits", {"vel_corr": "barycentric"}, keys(Q), ""),
+    "helio": ("dated.fits", {"vel_corr": "heliocentric"}, keys(Q), ""),
+    "filebcv": ("filebcv.fits", {"vel_corr": "file"}, keys(Q), ""),
+    "hfile": ("filebcv.fits", {"vel_corr": "hfile"}, keys(Q), ""),
+    "loglinear": ("loglinear.fits", NONE, keys(Q), ""),
+    "subtracted": ("subtracted.fits", NONE, keys(Q), ""),
+    "reversed": ("reversed.fits", NONE, keys(Q), ""),
+    "ms": ("ms.fits", {**NONE, "specnum": "1-2"}, keys(Q, Q), ""),
+    "two_files": ("ngc.fits,blue.fits", NONE, keys(Q, at(4500, "q")), ""),
+    "dispmode3": ("ngc.fits", {**NONE, "dispmode": 3}, keys(Q), ""),
+    "dispmode4": ("ngc.fits", {**NONE, "dispmode": 4}, keys(Q), ""),
+    "dispmode5": ("ngc.fits", {**NONE, "dispmode": 5}, keys(Q), ""),
+    "emonly": ("ngc.fits", {**NONE, "dispabs": "no"}, keys(Q), ""),
+    "absonly": ("blue.fits", {**NONE, "dispem": "no"}, keys(at(4500, "q")), ""),
+    "nolabels": ("ngc.fits", {**NONE, "dispem": "no", "dispabs": "no"}, keys(Q), ""),
+    "velplot_comb": ("ngc.fits", {**NONE, "vel_plot": "combination"}, keys(Q), ""),
+    "velplot_corr": ("ngc.fits", {**NONE, "vel_plot": "correlation"}, keys(Q), ""),
+    "range": ("blue.fits", {**NONE, "st_lambda": 3800.0, "end_lambda": 5400.0},
+              keys(at(4500, "q")), ""),
+    "nocursor": ("ngc.fits", {**NONE, "curmode": "no"}, "", ""),
+    # what xcsao wrote to the header
+    "xcor": ("xcor.fits", NONE, keys(Q), ""),
+    "xcor_bad": ("xcor_bad.fits", NONE, keys(Q), ""),
+    "xcor_zoom": ("xcor.fits", {**NONE, "vel_plot": "correlation"},
+                  keys(at(6540, "z"), at(6620, "z"), Q), ""),
+    "xcor_template": ("xcor.fits", NONE, keys(at(6580, "t"), at(6580, "t"), at(6580, "t"),
+                                             at(6580, "t"), at(6580, "/"), Q),
+                      "2\n\n9\nx\n"),
+    "xcor_template_save": ("xcor.fits", SAVE, keys(at(6580, "t"), at(6580, "]")), "3\n"),
+    "xcor_velplot": ("xcor.fits", NONE, keys(at(6580, "v"), at(1, "x"), at(6580, "/"),
+                                             at(6580, "v"), at(1, "c"), Q, Q), ""),
+    "xcor_init": ("xcor.fits", NONE, keys(at(6580, "i"), at(1, "x"), at(6580, "f"), Q), ""),
+    "xcor_init_comb": ("xcor.fits", NONE, keys(at(6580, "i"), at(1, "c"), at(6580, "f"), Q),
+                       ""),
+    "xcor_set": ("xcor.fits", SAVE, keys(at(6580, "s"), at(1, "x"), at(6580, "]")), ""),
+    "xcor_set_e": ("xcor.fits", SAVE, keys(at(6580, "s"), at(1, "e"), at(6580, "s"),
+                                           at(1, "c"), at(6580, "]")), ""),
+    "no_template": ("ngc.fits", NONE, keys(at(6580, "t"), Q), "2\n"),
+    "init_corr_none": ("ngc.fits", NONE, keys(at(6580, "i"), at(1, "x"), at(6580, "f"), Q),
+                       ""),
+    "init_comb": ("ngc.fits", NONE, keys(at(6580, "i"), at(1, "c"), at(6580, "f"), Q), ""),
+    "init_typed": ("ngc.fits", NONE, keys(at(6580, "i"), at(1, "g"), at(6580, "f"), Q),
+                   "1500\n"),
+    "init_twice": ("ngc.fits,blue.fits", NONE,
+                   keys(at(6580, "i"), at(1, "e"), at(6580, "f"), Q, at(4500, "q")), ""),
+    "continuum_two": ("ngc.fits,blue.fits", NONE,
+                      keys(at(6580, "c"), at(6580, "f"), Q, at(4500, "q")), "4\n"),
+    "labels_two": ("ngc.fits,blue.fits", NONE,
+                   keys(at(6580, "o"), at(1, "e"), Q, at(4500, "q")), ""),
+    # the view
+    "zoom": ("ngc.fits", NONE, keys(at(6540, "z"), at(6620, "z"), at(6580, "p"),
+                                    at(6560, "u"), Q), ""),
+    "zoom_back": ("ngc.fits", NONE, keys(at(6700, "z"), at(6650, "z"), Q), ""),
+    "zoom_left": ("ngc.fits", NONE, keys(at(6200, "z"), at(6400, "z"), Q), ""),
+    "zoom_cancel": ("ngc.fits", NONE, keys(at(6540, "z"), at(6600, ".", 10), Q), ""),
+    "zoom_reversed": ("reversed.fits", NONE, keys(at(6540, "z"), at(6620, "z"),
+                                                  at(6560, "u"), Q), ""),
+    "slash": ("ngc.fits", NONE, keys(at(6580, "/"), at(6580, "/"), Q), ""),
+    "heading": ("ngc.fits", NONE, keys(at(6580, "h"), at(6580, "/"), at(6580, "h"),
+                                       at(6580, "p"), Q), ""),
+    "contsub": ("ngc.fits", NONE, keys(at(6580, "k"), at(6580, "/"), at(6580, "k"),
+                                       Q), ""),
+    "labels": ("ngc.fits", NONE, keys(at(6580, "o"), at(1, "a"), at(6580, "o"),
+                                      at(1, "e"), at(6580, "o"), at(1, "b"),
+                                      at(6580, "o"), at(1, "n"), Q), ""),
+    "velplot": ("ngc.fits", NONE, keys(at(6580, "v"), at(1, "x"), at(6580, "v"),
+                                       at(1, "c"), at(6580, "v"), at(1, "g"),
+                                       at(6580, "v"), at(1, "e"), Q), ""),
+    "w": ("ngc.fits", NONE, keys(at(HA, "w", 812.5), at(6300, "w", -5), at(6990, "w"),
+                                 at(6100, "w"), Q), ""),
+    "w_reversed": ("reversed.fits", NONE, keys(at(6580, "w"), at(7100, "w"), Q), ""),
+    # the velocity by hand
+    "emission": ("ngc.fits", NONE, keys(at(HA, "e"), at(6600.7, "e"), at(6560, "e"),
+                                        at(6580, "e"), Q), "ha\n6583.57\nzz\n\n"),
+    "emission_case": ("ngc.fits", NONE, keys(at(HA, "e"), at(6733.9, "e"), Q),
+                      "HA\ns1\n"),
+    "absorption": ("blue.fits", NONE, keys(at(4130, "a"), at(5105, "a"), at(4600, "a"),
+                                           at(4500, "q")), "h\nhb\nxx\n"),
+    "absorption_wl": ("blue.fits", NONE, keys(at(4130, "a"), at(4500, "q")),
+                      "3933.70\n"),
+    "set": ("ngc.fits", SAVE, keys(at(6580, "s"), at(1, "c"), at(6580, "s"), at(1, "e"),
+                                   at(6580, "s"), at(1, "x"), at(6580, "s"), at(1, "l"),
+                                   Q), ""),
+    "set_line": ("ngc.fits", SAVE, keys(at(HA, "e"), at(6580, "s"), at(1, "l"), Q),
+                 "Ha\n"),
+    "set_abs_line": ("blue.fits", SAVE, keys(at(5105, "a"), at(4500, "s"), at(1, "l"),
+                                             at(4500, "q")), "hb\n"),
+    "set_wl_line": ("ngc.fits", SAVE, keys(at(HA, "e"), at(6580, "s"), at(1, "l"), Q),
+                    "6562.82\n"),
+    "set_guess": ("ngc.fits", SAVE, keys(at(6580, "s"), at(1, "g"), Q), "35.5\n"),
+    "set_typed": ("ngc.fits", SAVE, keys(at(6580, "s"), at(1, "z"), Q), "812.25\n40\n"),
+    "set_typed_empty": ("ngc.fits", SAVE, keys(at(6580, "s"), at(1, "z"), Q), "\n\n"),
+    # quality
+    "good": ("ngc.fits", SAVE, keys(at(6580, "y"), Q), ""),
+    "bad": ("ngc.fits", SAVE, keys(at(6580, "n"), Q), ""),
+    "questionable": ("ngc.fits", SAVE, keys(at(6580, "j"), at(6580, "p"), Q), ""),
+    "quality_ms": ("ms.fits", {**SAVE, "specnum": "2"}, keys(at(6580, "y"), Q), ""),
+    "quality_set": ("ngc.fits", SAVE, keys(at(HA, "e"), at(6580, "s"), at(1, "l"),
+                                           at(6580, "y"), Q), "ha\n"),
+    "readonly": ("ngc.fits", NONE, keys(at(6580, "y"), Q), ""),
+    "save": ("ngc.fits", SAVE, keys(Q), ""),
+    "save_ms": ("ms.fits", {**SAVE, "specnum": "1-2"}, keys(Q, Q), ""),
+    "save_ms_one": ("ms.fits", {**SAVE, "specnum": "2"}, keys(Q), ""),
+    "save_none": ("none.fits", SAVE, keys(Q), ""),
+    "save_twice": ("ngc.fits,ngc.fits", SAVE, keys(Q, Q), ""),
+    "save_upper_q": ("ngc.fits", SAVE, keys(at(6640, "d"), at(6660, "d"), at(6580, "Q")),
+                     ""),
+    # fitting again
+    "refit": ("ngc.fits", NONE, keys(at(6580, "f"), Q), ""),
+    "emission_refit": ("ngc.fits", NONE, keys(at(6560, "e"), at(6580, "f"), Q), "ha\n"),
+    "emission_q": ("ngc.fits", NONE, keys(at(6560, "e"), Q, at(6585, "w"), Q), "ha\n"),
+    "velplot_q": ("ngc.fits", NONE, keys(at(6580, "v"), at(1, "g"), Q, Q), ""),
+    "smooth": ("ngc.fits", NONE, keys(at(6580, "g"), at(6580, "f"), Q), "3\n"),
+    "smooth_quit": ("ngc.fits", NONE, keys(at(6580, "g"), Q), "2\n"),
+    "smooth_empty": ("ngc.fits", NONE, keys(at(6580, "g"), Q), "\n"),
+    "blue_red": ("ngc.fits", NONE, keys(at(6580, "b"), at(6580, "r"), at(6580, "f"), Q),
+                 "6400\n6800\n"),
+    "blue_red_reversed": ("reversed.fits", NONE, keys(at(6580, "b"), at(6580, "r"),
+                                                      at(6580, "f"), Q),
+                          "6400\n6800\n"),
+    "search_params": ("ngc.fits", NONE, keys(at(6580, "l"), at(6580, "f"), Q),
+                      "3\n6\n3\n"),
+    "search_params_empty": ("ngc.fits", NONE, keys(at(6580, "l"), at(6580, "f"), Q),
+                            "\n\n\n"),
+    "esmooth": ("ngc.fits", NONE, keys(at(6580, "m"), at(6580, "f"), Q), "2\n"),
+    "init_guess": ("ngc.fits", NONE, keys(at(6580, "i"), at(1, "g"), at(6580, "f"), Q),
+                   "700\n"),
+    "init_search": ("ngc.fits", NONE, keys(at(6580, "i"), at(1, "s"), at(6580, "f"), Q),
+                    ""),
+    "init_emission": ("ngc.fits", NONE, keys(at(6580, "i"), at(1, "e"), at(6580, "f"),
+                                             Q), ""),
+    "continuum": ("ngc.fits", NONE, keys(at(6580, "c"), at(6580, "f"), Q), "3\n"),
+    "drop_line": ("ngc.fits", NONE, keys(at(6733.9, "-"), at(6580, "f"), Q), ""),
+    "add_line": ("ngc.fits", NONE, keys(at(6316.8, "+"), at(6580, "f"), Q), ""),
+    "drop_add": ("ngc.fits", NONE, keys(at(6600.7, "-"), at(6600.7, "+"), at(6300, "-"),
+                                        at(6580, "f"), Q), ""),
+    # editing the spectrum
+    "delete": ("ngc.fits", SAVE, keys(at(6640, "d"), at(6660, "d"), at(6580, "p"), Q), ""),
+    "delete_cancel": ("ngc.fits", SAVE, keys(at(6640, "d"), at(6580, "."), Q), ""),
+    "delete_unsaved": ("ngc.fits", SAVE, keys(at(6640, "d"), at(6660, "d"),
+                                              at(6580, "]")), ""),
+    "point": ("ngc.fits", SAVE, keys(at(6650, ",", 1200), Q), ""),
+    "delete_refit": ("ngc.fits", SAVE, keys(at(6726, "d"), at(6740, "d"), at(6580, "f"),
+                                            Q), ""),
+    "delete_exit": ("ngc.fits", SAVE, keys(at(6640, "d"), at(6660, "d"),
+                                           at(6580, "x")), ""),
+    # leaving
+    "help": ("ngc.fits", NONE, keys(at(6580, "?"), Q), ""),
+    "space": ("ngc.fits", NONE, keys(at(6580, "\\040"), Q), ""),
+    "exit": ("ngc.fits", NONE, keys(at(6580, "x")), ""),
+    "bracket": ("ngc.fits", NONE, keys(at(6580, "]")), ""),
+    "upper": ("ngc.fits", NONE, keys(at(6580, "W"), at(6580, "Q")), ""),
+    "unknown": ("ngc.fits", NONE, keys(at(6580, "!"), Q), ""),
+    "eof": ("ngc.fits", NONE, keys(at(6580, "w")), ""),
+    "next_ap": ("ms.fits", {**NONE, "specnum": "1"}, keys(at(6580, ")"), Q), ""),
+    "prev_ap": ("ms.fits", {**NONE, "specnum": "2"}, keys(at(6580, "("), Q), ""),
+    "wrap_ap": ("ms.fits", {**NONE, "specnum": "2"}, keys(at(6580, ")"), Q), ""),
+}
+
+FIXED = {name for name, (_, _, cursor, _) in CASES.items()
+         if any(line.split()[3:] == ["d"] for line in cursor.splitlines())}
