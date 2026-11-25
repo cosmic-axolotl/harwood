@@ -29,6 +29,9 @@ from em_cases import CASES  # noqa: E402
 from em_inputs import write  # noqa: E402
 
 STAMP = re.compile(r"^(IRAF|harwood) rvsao\.emsao 2\.8\.5 .*\n", re.M)
+#: RVSAO's getsky calls getimage without its world and debug arguments: what debug
+#: then reads prints getimage's debugging lines, which harwood does not
+GETIMAGE = re.compile(r"^GETIMAGE: .*\n", re.M)
 
 
 def _run(tmp_path, monkeypatch, case):
@@ -44,7 +47,7 @@ def _run(tmp_path, monkeypatch, case):
 
 
 def _plain(text: str) -> str:
-    return STAMP.sub("STAMP\n", text)
+    return GETIMAGE.sub("", STAMP.sub("STAMP\n", text))
 
 
 @pytest.mark.parametrize("case", list(CASES))
@@ -61,5 +64,5 @@ def test_emsao_prints_what_rvsao_prints(tmp_path, monkeypatch, case):
     if fatal:   # RVSAO stopped: PyRAF's words around the task's error
         assert getattr(session, "fatal", None) == fatal.group(1).rstrip("\a")
     else:
-        assert GOLD[case]["err"] == ""
+        assert session.err == GETIMAGE.sub("", GOLD[case]["err"])   # fmtio's, mode 7
         assert not hasattr(session, "fatal")

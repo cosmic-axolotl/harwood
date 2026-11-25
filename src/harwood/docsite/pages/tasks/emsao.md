@@ -99,10 +99,26 @@ RVSAO's FITS kernel writes back the header it holds in memory, RA, DEC, HA and S
 00:00:00 and today's DATE among them, and the next spectrum then has a position and
 a date; harwood writes RVSAO's own cards only. `#` (debug) is not ported.
 
-Not ported yet: the sky spectrum, the archive and report modes other than 1. On 44
-cases -- the NGC 660 nucleus, galaxies at z = 0.05 and 0.3, one line, none,
-log-linear and multispec spectra, every velocity correction, the initial guesses
-and every parameter of the search, fit and continuum -- the log is RVSAO 2.8.5's,
+`--report-mode` gives RVSAO's other forms: 0 the normal one with the equivalent
+widths' errors, 10 without the heading; 2 to 9 and 11 a line per spectrum (the
+velocities, each line's velocity, shift in Angstroms or pixels, height, width and
+equivalent width, the instrument, the position and its altitude and azimuth), 12 a
+commented table; negative, the same tab-separated under column heads. RVSAO's own
+slips are kept: mode 2's combined error is the correlation's, modes 4 and 8 take
+the sine of the latitude's degrees, mode 7's format has a field more than its
+values (and fmtio's warnings follow). `--skynum` names the sky's aperture in a
+multispec, one for each spectrum in turn: its level beside each line enters the
+error of its equivalent width, and so which lines `--lsmin` keeps (RVSAO's getsky
+also prints getimage's debugging lines, reading an argument it is not given;
+harwood reads the sky quietly).
+
+`archive` is not ported: its records are SAO's own binary format, read only by
+SAO's pipeline.
+
+On 81 cases -- the NGC 660 nucleus, galaxies at z = 0.05 and 0.3, one line, none,
+log-linear and multispec spectra, every velocity correction, the initial guesses,
+every parameter of the search, fit and continuum, every report mode and the sky --
+the log is RVSAO 2.8.5's,
 compiled against IRAF 2.18, line for line; on 112 sessions of the graph -- every
 key, a red-to-blue spectrum, a multispec, a header xcsao wrote -- what it prints,
 writes to the header and the pixels, and draws (the window, the spectrum, every mark

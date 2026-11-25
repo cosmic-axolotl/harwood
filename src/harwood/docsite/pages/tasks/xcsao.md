@@ -84,7 +84,8 @@ segmentation violation; here it fills. `--correlate no` correlates nothing: it
 reports and draws what an xcsao before wrote to the header, to look at it again or
 set its quality (`y`, `n`, `j`, written with `--save-vel` as RVSAO's qwhead: VELQUAL
 and QPLOT), with what the header does not hold left as RVSAO leaves it (0 points,
-the peak at 0, fit 0.0, +tc). Not ported yet: the archive. On 135 cases -- one template or several, a
+the peak at 0, fit 0.0, +tc). Not ported: `archive`, whose records (.ansum,
+.corr) are SAO's own binary format, read only by SAO's pipeline. On 135 cases -- one template or several, a
 broadened galaxy, noise, zero padding, every limit in wavelength, the initial
 velocity and its passes, a velocity window, the peak's fraction or points and the
 cosine fit, the filter, the taper, the grid's size, lines clipped from the spectrum

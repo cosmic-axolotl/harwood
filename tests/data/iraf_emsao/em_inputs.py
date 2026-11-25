@@ -107,6 +107,36 @@ def write(where: Path) -> None:
         "6730.815 6400.0 6470.0 15.0 S2\n", encoding="utf-8")
     (where / "mysearch.dat").write_text("6562.82 6500.0 7700.0 Ha\n", encoding="utf-8")
 
+    # what the report modes read: the instrument, the hour angle and latitude (the
+    # altitude and azimuth), the exposure, the date and position, and an xcsao's
+    # results (the correlation's velocity, and a template for cortemp)
+    # a galaxy and the sky beside it, two apertures of one multispec (skynum)
+    rng2 = np.random.default_rng(43)
+    galaxy = spectrum(w, NGC, 0.0026, 2.2, 150.0, rng2, 6.0)
+    sky = (2500.0 + 0.3 * (w - w[0]) + rng2.normal(0, 30.0, w.size)).astype(np.float32)
+    h = fits.Header()
+    h.update({"OBJECT": "galaxy and sky", "WCSDIM": 2, "CTYPE1": "MULTISPE",
+              "CTYPE2": "MULTISPE", "CD1_1": 1.0, "CD2_2": 1.0, "LTM1_1": 1.0,
+              "LTM2_2": 1.0, "WAT0_001": "system=multispec",
+              "WAT1_001": "wtype=multispec label=Wavelength units=angstroms",
+              "APID1": "galaxy", "APID2": "sky"})
+    wat = ('wtype=multispec spec1 = "1 1 0 6300. 1.1 600 0. 90.00 100.00" '
+           'spec2 = "2 2 0 6300. 1.1 600 0. 110.00 120.00"')
+    for k in range(0, len(wat), 68):
+        h[f"WAT2_{k // 68 + 1:03d}"] = wat[k:k + 68]
+    fits.writeto(where / "withsky.fits", np.array([galaxy, sky], np.float32), h,
+                 overwrite=True)
+
+    rng = np.random.default_rng(37)
+    linear("reporter", 6300.0, 1.1, spectrum(w, NGC, 0.0026, 2.2, 400.0, rng, 8.0), where,
+           INSTRUME="FAST", HA="01:20:30", SITELAT=31.68, EXPTIME=1200.0,
+           **{"DATE-OBS": "1998-03-12", "UT": "05:30:00", "RA": "01:40:21.0",
+              "DEC": "+13:23:41", "EPOCH": 1950.0},
+           CZXC=812.437, CZXCERR=21.25, CZXCR=7.31, BESTTEMP="femtemp97",
+           CZPARAMS="2 2048 1 20 50 1000 2000 0.05",
+           XCTEMP1="femtemp97 812.437 21.250 7.31 0.512 310.200 0.000 0.000 no 0",
+           XCTEMP2="eltemp 805.900 18.000 9.85 0.650 280.000 0.000 0.000 no 3")
+
 
 if __name__ == "__main__":
     write(Path(sys.argv[1]))

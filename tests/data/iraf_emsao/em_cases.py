@@ -58,4 +58,27 @@ CASES = {
                                       "niterate": 3}),
     "noreject": ("ngc.fits", NONE, {"s_low_reject": 0.0, "s_high_reject": 0.0}),
     "spline1": ("ngc.fits", NONE, {"c_function": "spline1", "order": 4, "grow": 0.0}),
+    # report modes
+    **{f"mode{m}": ("reporter.fits,ngc.fits", {"report_mode": m}, {})
+       for m in (0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)},
+    **{f"mode_tab{-m}": ("reporter.fits,ngc.fits", {"report_mode": m}, {})
+       for m in (-1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12)},
+    "mode1_reporter": ("reporter.fits", {}, {}),
+    "mode5_cortemp": ("reporter.fits", {"report_mode": 5, "cortemp": "eltemp"}, {}),
+    "mode6_cortemp": ("reporter.fits", {"report_mode": 6, "cortemp": "eltemp"}, {}),
+    "mode4_cortemp": ("reporter.fits", {"report_mode": 4, "cortemp": "eltemp"}, {}),
+    "mode12_ms": ("ms.fits", {**NONE, "report_mode": 12, "specnum": "1-2"}, {}),
+    "mode2_ms": ("ms.fits", {**NONE, "report_mode": 2, "specnum": "1-2"}, {}),
+    "mode8_none": ("none.fits", {**NONE, "report_mode": 8}, {}),
+    "mode3_none": ("none.fits", {**NONE, "report_mode": 3}, {}),
+    # the sky, another aperture: the equivalent widths' errors, and what lsmin keeps
+    "sky": ("withsky.fits", {**NONE, "specnum": "1", "skynum": "2"}, {}),
+    "sky_mode0": ("withsky.fits", {**NONE, "specnum": "1", "skynum": "2",
+                                   "report_mode": 0}, {}),
+    "sky_lsmin": ("withsky.fits", {**NONE, "specnum": "1", "skynum": "2",
+                                   "lsmin": 3.0, "report_mode": 0}, {}),
+    "nosky_lsmin": ("withsky.fits", {**NONE, "specnum": "1", "lsmin": 3.0,
+                                     "report_mode": 0}, {}),
+    "sky_ms": ("ms.fits", {**NONE, "specnum": "1", "skynum": "2", "report_mode": 0},
+               {}),
 }

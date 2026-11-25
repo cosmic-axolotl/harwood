@@ -449,6 +449,7 @@ class Result:
     override: list[int] = field(default_factory=lambda: [0] * MAXREF)
     quality: int = 0             #: spvqual: 4 good, 3 bad, 1 questionable
     saved: str = ""              #: the file the velocity was written to
+    templates: list = field(default_factory=list)   #: xcsao's, from the header
 
 
 @dataclass
@@ -543,6 +544,7 @@ class Emsao:
         self.order = int(self.p["order"])     # contpars' order; c changes it
         self.spevel = INDEFD          # the last emission velocity, for vel_init
         self._fiterr2 = self._rms2 = 0.0  # emvfit's statics
+        self.sky = None                   # getsky's: (pixels, first pixel) or None
         self.shift = 1.0
         self.graph = Graph()
         self.plots: list = []         # every emplot, its frames and hard copies
@@ -560,10 +562,15 @@ class Emsao:
         if rmode == 1:
             self._log(rvsao.loghead("rvsao.emsao") + "\n")
         self.lines = read_lines(self.p)
+        if rmode < 0:
+            self._log(emrshead(rmode, len(self.lines.wlref)))
+        skytext = str(self.p.get("skynum", "0") or "0").strip()
+        skynums = [] if skytext.startswith("0") else decode_ranges(skytext)
         for name in names:
             path = str(self.p["specdir"]) + name
             mspecs = self._apertures(name)
             mspec, nspec = -1, len(mspecs)
+            sspec = -1
             while nspec > 0:
                 after = [m for m in mspecs if m > mspec]
                 if not after:
@@ -576,6 +583,8 @@ class Emsao:
                     except (RvsaoError, OSError, ValueError) as error:
                         self.out += f"EMSAO: {error}\n"
                         break
+                    if skynums:
+                        sspec = self._getsky(path, skynums, sspec)
                     fit, moved = self.emfit(spec)
                     self.results.append(fit.result)
                     if fit.edited:
@@ -589,6 +598,24 @@ class Emsao:
     def logfiles(self) -> list[str]:
         return [w.strip() for w in str(self.p.get("logfiles", "STDOUT")).split(",")
                 if w.strip()]
+
+    def _getsky(self, path: str, skynums: list[int], sspec: int) -> int:
+        """getsky: the next sky aperture of the list, read as it is (the sky of the
+        aperture before is kept when the list has run out). RVSAO's getsky calls
+        getimage without its last two arguments, so that what it reads for debug
+        prints getimage's debugging lines; harwood reads it quietly."""
+        from . import rvsao
+
+        after = [n for n in skynums if n > sspec]
+        if not after:
+            return sspec
+        sspec = after[0]
+        if sspec > 0:
+            sky = rvsao.getimage(path, sspec, int(self.p.get("skyband", 0)), self.state)
+            self.sky = (np.asarray(sky.data, f32), sky.sh.np1)
+        else:
+            self.sky = None
+        return sspec
 
     def _apertures(self, name: str) -> list[int]:
         text = str(self.p["specnum"]).strip() or "0"
@@ -629,6 +656,7 @@ class Emsao:
         result = Result(spec, [], INDEFD)
         result.xcvel, result.xcerr, result.xcr, templates, best = xcrhead(spec.head,
                                                                           spec.mspec)
+        result.templates = templates
         wlspec = np.array([wcs.p2w(float(i)) for i in range(1, specpix + 1)], f32)
         nsmooth = int(p["nsmooth"])
         smplot = y.astype(f32).copy()
@@ -1141,6 +1169,14 @@ class Emsao:
                         f.params[1, 6] = area * math.sqrt(relht * relht + relsig * relsig)
                     else:
                         skylevel = 0.0
+                        if self.sky is not None:
+                            # DO k = center - 2, center + 2: the reals truncated
+                            data, np1 = self.sky
+                            for k in range(int(fitvec[jj] - 2), int(fitvec[jj] + 2) + 1):
+                                at = k - np1
+                                skylevel += float(data[at]) if 0 <= at < data.size \
+                                    else 0.0
+                            skylevel = skylevel / 5.0
                         with np.errstate(all="ignore"):
                             area = float(area + 8.0 * (cont + skylevel) * sigma
                                          + np.float64(cont + 2.0 * skylevel)
@@ -1263,10 +1299,237 @@ class Emsao:
     # ---------------------------------------------------------------- report
 
     def _report(self, r: Result) -> None:
-        from .rvsao import juldate
+        """emrslts: the report in report_mode's form -- 1 (and 0, with the equivalent
+        widths' errors; 10, without the heading) a block per spectrum, 2 to 9, 11 a
+        line per spectrum in SAO's archive forms, 12 a commented table; negative,
+        the same with tabs between the fields."""
+        from .rvsao import imgdate, juldate
+
+        rmode0 = int(self.p["report_mode"])
+        rmode = abs(rmode0)
+        sp = "\t" if rmode0 < 0 else " "
         spec = r.spectrum
         head = spec.head
-        self.out += "\n"     # emrslts' printf, to STDOUT whatever the log files
+        specid = spec.name
+        if rmode > 0:
+            specid = specid.replace("]", " ", 1).replace("[", " ", 1)
+        ut, dj, _hdj, _ = juldate(head)
+        mm = dd = yyyy = None
+        for key in ("DATE-OBS", "DATE"):
+            if head.has(key):
+                mm, dd, yyyy = imgdate(head, key)
+                break
+        dated = None not in (mm, dd, yyyy)
+        month = ("JanFebMarAprMayJunJulAugSepOctNovDec"[3 * (mm - 1):3 * mm]
+                 if dated and 1 <= mm <= 12 else "")
+        ok = [f.params[0, 9] > 0 and r.override[k] >= 0 for k, f in enumerate(r.lines)]
+        nfound = len(r.lines)
+
+        def nint(v):
+            return int(round_half(v)) if v != INDEFD else 0
+        icz, icze = (nint(r.combined), nint(r.combined_err)) if r.combined != INDEFD \
+            else (0, 0)
+        iczxc, iczxce = (nint(r.xcvel), nint(r.xcerr)) if r.xcvel != INDEFD else (0, 0)
+        iczem, iczeme = (nint(r.vel), nint(r.err)) if r.vel != INDEFD else (0, 0)
+        spexvel, spexerr, spexr, iczexvel, iczexerr = 0.0, 0.0, 0.0, 0, 0
+        cortemp = str(self.p.get("cortemp", "") or "")
+        if cortemp and r.templates:
+            for t in r.templates:
+                if t.id == cortemp:
+                    spexvel, spexerr, spexr = t.zvel, t.czerr, t.czr
+                    iczexvel, iczexerr = int(t.zvel), int(t.czerr)
+        else:
+            spexvel, spexerr, spexr = r.xcvel, r.xcerr, r.xcr
+            if r.xcvel != INDEFD:
+                iczexvel, iczexerr = int(r.xcvel), int(r.xcerr)
+        g = iraffmt.Format
+        title = (head.string("OBJECT") or "").rstrip()
+        if rmode < 2 or rmode == 10:
+            self.out += "\n"     # emrslts' printf, to STDOUT whatever the log files
+            text = "" if rmode == 10 else self._report_head(r, specid, ut, dj, dated,
+                                                            month, dd, yyyy)
+            if r.lines:
+                twt = sum(1.0 / (f.params[0, 9] ** 2) for f in r.lines
+                          if f.params[0, 9] != 0.0)
+                text += ("\nLine  Rest lam  Obs. lam    Pixel     z         vel    dvel"
+                         + ("    eqw    wt\n" if rmode == 1 else "    eqw    eqe    wt\n"))
+                for k, f in enumerate(r.lines):
+                    if f.params[0, 9] > 0:
+                        wch = "-" if r.override[k] < 0 else "+" if r.override[k] > 0 \
+                            else " "
+                    elif f.drop > 0:
+                        wch = f"X{f.drop}"
+                    else:
+                        wch = "X"
+                    wt = f.params[0, 9]
+                    if wt != 0.0:
+                        wt = (1.0 / (wt * wt)) / twt
+                    text += (f"{f.name:>4s}   {_f(f.wlrest, 7, 2)}   {_f(f.wlobs, 7, 2)}  "
+                             f"{_f(f.params[0, 3], 7, 2)}  {_f(f.params[0, 8], 6, 4)}  "
+                             f"{_f((C0 * f.params[0, 8]) + spec.hcv, 8, 2)} "
+                             f"{_f(C0 * f.params[1, 8], 7, 2)} {_f(f.params[0, 6], 6, 2)} ")
+                    if rmode not in (1, 10):
+                        text += f"{_f(f.params[1, 6], 6, 2)} "
+                    text += f"{_f(wt, 6, 3)} {wch}\n"
+            else:
+                text += "No emission lines found\n"
+            self._log(text)
+            return
+        if rmode in (2, 5):
+            inst = self._instrument(head, "INSTRUME", 8)
+            text = (specid if len(specid) > 32 else f"{specid[:32]:<32}")
+            text += (f"{sp}{inst[:8]:<8}{sp}{title[:16]:<16}{sp}{g('%13.5f')(dj)}"
+                     f"{sp}{iczem:6d}{sp}{iczeme:3d}")
+            if rmode == 2:
+                text += f"{sp}{iczxc:6d}{sp}{iczxce:3d}{sp}{g('%5.1f')(r.xcr)}"
+            else:
+                text += f"{sp}{iczexvel:6d}{sp}{iczexerr:3d}{sp}{g('%5.1f')(spexr)}"
+            # the combined velocity's error is the correlation's, as RVSAO prints it
+            text += f"{sp}{icz:6d}{sp}{iczxce:3d}{sp}E{sp}{nfound:2d}{sp}{r.nfit:2d}"
+            if r.nfit > 0:
+                for k, f in enumerate(r.lines):
+                    if ok[k]:
+                        text += f"{sp}{f.name}({g('%7.2f')(f.wlrest)})"
+            self._log(text + "\n")
+            return
+        lines = self.lines
+        nref = len(lines.wlref)
+        if rmode in (3, 6, 9, 11):
+            inst = self._instrument(head, "INSTRUMEN", 9)
+            velline = [0.0] * nref
+            for k, f in enumerate(r.lines):
+                if not ok[k]:
+                    continue
+                for j, wl in enumerate(lines.wlref):
+                    if wl == f.wlrest:
+                        if rmode == 9:
+                            velline[j] = f.wlobs - wl
+                        elif rmode == 11:
+                            velline[j] = spec.wcs.w2p(f.wlobs) - spec.wcs.w2p(wl)
+                        else:
+                            velline[j] = (C0 * f.params[0, 8]) + spec.hcv
+            text = (specid if len(specid) > 32 else f"{specid[:32]:<32}")
+            text += f"{sp}{inst[:9]:<9}{sp}{title[:16]:<16}{sp}{g('%13.5f')(dj)}"
+            if rmode < 9:
+                text += f"{sp}{g('%8.2f')(r.vel)}{sp}{g('%6.2f')(r.err)}"
+                if rmode == 3:
+                    text += (f"{sp}{g('%8.2f')(r.xcvel)}{sp}{g('%6.2f')(r.xcerr)}"
+                             f"{sp}{g('%5.1f')(r.xcr)}")
+                else:
+                    text += (f"{sp}{g('%8.2f')(spexvel)}{sp}{g('%6.2f')(spexerr)}"
+                             f"{sp}{g('%5.1f')(spexr)}")
+                text += (f"{sp}{g('%8.2f')(r.combined)}{sp}{g('%6.2f')(r.combined_err)}"
+                         f"{sp}E")
+            text += f"{sp}{nfound:2d}{sp}{r.nfit:2d}"
+            for v in velline:
+                text += f"{sp}{g('%9.3f')(v)}"
+            self._log(text + "\n")
+            return
+        if rmode in (4, 7, 8):
+            inst = self._instrument(head, "INSTRUME", 8)
+            rows = [[0.0] * 6 for _ in range(nref)]     # vel err ht wid eqw eqe
+            for k, f in enumerate(r.lines):
+                if not ok[k]:
+                    continue
+                for j, wl in enumerate(lines.wlref):
+                    if wl == f.wlrest:
+                        dwdp = f.wlobs - spec.wcs.p2w(f.params[0, 3] - 1.0)
+                        if rmode == 8:
+                            rows[j] = [f.wlobs - f.wlrest, f.params[1, 3] * dwdp,
+                                       f.params[0, 4], f.params[0, 5] * dwdp,
+                                       f.params[0, 6], f.params[1, 6]]
+                        else:
+                            rows[j] = [(C0 * f.params[0, 8]) + spec.hcv,
+                                       C0 * f.params[1, 8], f.params[0, 4],
+                                       f.params[0, 5] * dwdp, f.params[0, 6],
+                                       f.params[1, 6]]
+            ra, dec = head.d("RA", 99.0), head.d("DEC", 99.0)
+            az, alt = _altaz(head.d("HA", 99.0), dec, head.d("SITELAT", 99.0))
+            exptime = head.d("EXPTIME", 0.0)
+            text = (specid if len(specid) > 32 else f"{specid[:32]:<32}")
+            text += (f"{sp}{inst[:8]:<8}{sp}{title[:16]:<16}"
+                     f"{sp}{g('%011.2h')(ra)}{sp}{g('%010.1h')(dec)}{sp}{g('%5.1f')(az)}"
+                     f"{sp}{g('%5.1f')(alt)}{sp}{g('%13.5f')(dj)}{sp}{g('%6.1f')(exptime)}")
+            if rmode != 8:
+                text += (f"{sp}{g('%8.2f')(r.vel)}{sp}{g('%6.2f')(r.err)}"
+                         f"{sp}{g('%8.2f')(spexvel)}{sp}{g('%6.2f')(spexerr)}"
+                         f"{sp}{g('%5.1f')(spexr)}"
+                         f"{sp}{g('%8.2f')(r.combined)}{sp}{g('%6.2f')(r.combined_err)}")
+            text += f"{sp}{nfound:2d}{sp}{r.nfit:2d}"
+            for j, row in enumerate(rows):
+                if rmode == 8:
+                    text += (f"{sp}{g('%8.3f')(lines.wlref[j])}{sp}{g('%8.4f')(row[0])}"
+                             f"{sp}{g('%6.4f')(row[1])}{sp}{g('%9.2f')(row[2])}"
+                             f"{sp}{g('%6.3f')(row[3])}{sp}{g('%6.2f')(row[4])}"
+                             f"{sp}{g('%6.2f')(row[5])}")
+                else:
+                    text += (f"{sp}{g('%8.2f')(row[0])}{sp}{g('%6.2f')(row[1])}"
+                             f"{sp}{g('%9.2f')(row[2])}{sp}{g('%5.2f')(row[3])}"
+                             f"{sp}{g('%6.2f')(row[4])}")
+                    if rmode == 7:
+                        # the format has a %s more than the arguments: the error of
+                        # the equivalent width goes to it, as a number, and the last
+                        # %6.2f, with nothing left, prints nothing
+                        text += g("%s")(row[5])
+            self._log(text + "\n")
+            if rmode == 7:
+                # fmtio, at each printf after the one left wanting an argument
+                fmt = "%s%8.2f%s%6.2f%s%9.2f%s%5.2f%s%6.2f%s%6.2f"
+                old = "%s%8.2f%s%6.2f%s%9.2f%s%5.2f%s%6.2f%s<>%6.2f"
+                warn = [f'Warning: Incomplete or reentrant printf\n(Old format = "{old}")\n'
+                        f'(New format = "{new}")\n'
+                        for new in [fmt] * (nref - 1) + ["\\n"]] if nref else []
+                self.err += "".join(warn) * len(self.logfiles())
+            return
+        if rmode == 12:
+            text = f"# {specid}"
+            if dated:
+                text += (f"{yyyy:4d}-{month:3.3s}-{dd:02d} {g('%011.2h')(ut)} "
+                         f"{g('%.4f')(dj)}")
+            else:
+                text += " (No observation date)"
+            text += (f" {g('%8.4f')(r.vel)} {g('%7.4f')(r.err)} {r.nfit}/{nfound}\n")
+            if r.lines:
+                twt = sum(1.0 / (f.params[0, 9] ** 2) for f in r.lines
+                          if f.params[0, 9] != 0.0)
+                text += ("#Rest wl  Obs. wl   Line Order Pixel       Vel    Dvel     Eqw"
+                         "    Wt\n")
+                for k, f in enumerate(r.lines):
+                    if f.params[0, 9] > 0:
+                        wch = "-" if r.override[k] < 0 else "+" if r.override[k] > 0 \
+                            else " "
+                    elif f.drop > 0:
+                        wch = f"X{f.drop}"
+                    else:
+                        wch = "X"
+                    wt = f.params[0, 9]
+                    if wt != 0.0:
+                        wt = (1.0 / (wt * wt)) / twt
+                    text += (f"{g('%9.4f')(f.wlrest)}{sp}{g('%9.4f')(f.wlobs)}{sp}"
+                             f"{f.name:>4s}{sp}{spec.mspec:3d}{sp}"
+                             f"{g('%9.4f')(f.params[0, 3])}{sp}"
+                             f"{g('%8.4f')((C0 * f.params[0, 8]) + spec.hcv)}{sp}"
+                             f"{g('%6.4f')(C0 * f.params[1, 8])}{sp}"
+                             f"{g('%8.2f')(f.params[0, 6])}{sp}{g('%5.3f')(wt)}{sp}{wch}\n")
+            else:
+                text += "No emission lines found\n"
+            self._log(text)
+
+    def _instrument(self, head, key: str, size: int) -> str:
+        """imgspar into emrslts' static buffer: a header without the card keeps the
+        instrument of the spectrum before (underscores only the first time)."""
+        value = head.string(key[:8])
+        if value is not None and value.strip():
+            self._inst = value.strip()
+        elif not getattr(self, "_inst", ""):
+            self._inst = "_" * size
+        return self._inst
+
+    def _report_head(self, r, specid, ut, dj, dated, month, dd, yyyy) -> str:
+        """The heading of modes 0 and 1: the file, the object, the date and the
+        correction, and the velocities."""
+        spec = r.spectrum
+        head = spec.head
         ra = head.d("RA", INDEFD)
         dec = head.d("DEC", INDEFD)
         epoch = head.d("EPOCH", 1950.0)
@@ -1274,17 +1537,13 @@ class Emsao:
         names = {1: "BCV", 3: "HCV", 4: "BCV", 5: "File HCV",
                  2: "File BCV" if spec.vb else "File HCV"}
         ssvcor = names.get(self.svcor, "BCV")
-        # every report mode above 0 turns the brackets of the name into spaces
-        text = f"File: {spec.name.replace('[', ' ', 1).replace(']', ' ', 1)}\n"
+        text = f"File: {specid}\n"
         if ra != INDEFD and dec != INDEFD:
             text += (f"Object: {spec.object}  RA: {iraffmt.Format('%011.2h')(ra)} "
                      f"Dec: {iraffmt.Format('%010.1h')(dec)} {_f(epoch, 0, 1)}\n")
         else:
             text += f"Object: {spec.object}  (No position)\n"
-        ut, dj, _hdj, (mm, dd, yyyy) = juldate(head)
-        if None not in (mm, dd, yyyy):
-            month = "JanFebMarAprMayJunJulAugSepOctNovDec"[3 * (mm - 1):3 * mm] \
-                if 1 <= mm <= 12 else ""
+        if dated:
             text += (f"Observed {yyyy:4d}-{month:>3.3s}-{dd:02d} "
                      f"{iraffmt.Format('%011.2h')(ut)} = JD {_f(dj, 0, 4)} {ssvcor}: "
                      f"{_f(spec.hcv, 6, 2)}\n")
@@ -1299,25 +1558,7 @@ class Emsao:
         if r.vel != INDEFD:
             text += (f"Emission vel = {_f(r.vel, 8, 2)} +- {_f(r.err, 7, 2)} km/sec, "
                      f"z= {_f(r.vel / C0, 6, 4)} for {r.nfit}/{len(r.lines)} lines\n")
-        if r.lines:
-            text += ("\nLine  Rest lam  Obs. lam    Pixel     z         vel    dvel"
-                     "    eqw    wt\n")
-            for k, f in enumerate(r.lines):
-                if f.params[0, 9] > 0:
-                    wch = "-" if r.override[k] < 0 else "+" if r.override[k] > 0 else " "
-                elif f.drop > 0:
-                    wch = f"X{f.drop}"
-                else:
-                    wch = "X"
-                text += (f"{f.name:>4s}   {_f(f.wlrest, 7, 2)}   {_f(f.wlobs, 7, 2)}  "
-                         f"{_f(f.params[0, 3], 7, 2)}  {_f(f.params[0, 8], 6, 4)}  "
-                         f"{_f((C0 * f.params[0, 8]) + spec.hcv, 8, 2)} "
-                         f"{_f(C0 * f.params[1, 8], 7, 2)} {_f(f.params[0, 6], 6, 2)} "
-                         f"{_f(f.weight, 6, 3)} {wch}\n")
-        else:
-            text += "No emission lines found\n"
-        self._log(text)
-
+        return text
 
 def putspec(path: str, mspec: int, data, task: str) -> str:
     """putspec: a spectrum back into its line of the image (the first for a
@@ -1447,6 +1688,102 @@ def xcrhead(head, mspec: int):
                                                                          len(bestid))]:
             best = itemp
     return xcvel, xcerr, xcr, temps, best
+
+
+def emrshead(rmode0: int, nref: int) -> str:
+    """emrshead: the column heads and dashes over a tabbed report (modes -2 to -8)."""
+    rmode, sp = abs(rmode0), "\t" if rmode0 < 0 else " "
+    u = "-" * 32
+
+    def left(text, n):                  # %-n.ns
+        return f"{text[:n]:<{n}}"
+
+    def r(text, n):                     # %n.ns
+        return f"{text[:n]:>{n}}"
+    out = ""
+    if rmode in (2, 5):
+        out += f"{left('specid', 32)}{sp}{left('instrument', 8)}{sp}{left('title', 16)}"
+        out += f"{sp}{left('Julian Date', 13)}{sp}{left('emvel', 5)}{sp}{r('emerr', 3)}"
+        out += f"{sp}{left('xcevel', 6)}{sp}{r('xcever', 3)}{sp}{left('xcer', 5)}"
+        out += (f"{sp}{r('velocity', 6)}{sp}{r('verr', 3)}{sp}{r('E', 1)}{sp}{r('nl', 2)}"
+                f"{sp}{r('nf', 2)}")
+        for i in range(1, nref + 1):
+            out += f"{sp}{f'line{i:02d}(rest)':>12}"
+        out += "\n"
+        out += f"{r(u, 32)}{sp}{r(u, 8)}{sp}{r(u, 16)}{sp}{r(u, 13)}{sp}{r(u, 6)}"
+        out += f"{sp}{r(u, 3)}{sp}{r(u, 6)}{sp}{r(u, 3)}{sp}{r(u, 5)}"
+        out += f"{sp}{r(u, 6)}{sp}{r(u, 3)}{sp}{r(u, 1)}{sp}{r(u, 2)}{sp}{r(u, 2)}"
+        out += "".join(f"{sp}{r(u, 12)}" for _ in range(nref)) + "\n"
+    elif rmode in (3, 6):
+        out += f"{left('specid', 32)}{sp}{left('instrument', 8)}{sp}{left('title', 16)}"
+        out += f"{sp}{left('Julian Date', 13)}{sp}{left('emvel', 8)}{sp}{r('emverr', 6)}"
+        if rmode == 3:
+            out += f"{sp}{left('xcvel', 8)}{sp}{r('xcverr', 6)}{sp}{left('xcr', 5)}"
+        else:
+            out += f"{sp}{left('xcevel', 8)}{sp}{r('xcever', 6)}{sp}{left('xcer', 5)}"
+        out += (f"{sp}{r('velocity', 8)}{sp}{r('velerr', 6)}{sp}{r('E', 1)}"
+                f"{sp}{r('nl', 2)}{sp}{r('nf', 2)}")
+        for i in range(1, nref + 1):
+            out += f"{sp}{f'lin{i:02d}vel':>8}"
+        out += "\n"
+        out += f"{r(u, 32)}{sp}{r(u, 8)}{sp}{r(u, 16)}{sp}{r(u, 13)}{sp}{r(u, 8)}"
+        out += f"{sp}{r(u, 6)}{sp}{r(u, 8)}{sp}{r(u, 6)}{sp}{r(u, 5)}"
+        out += f"{sp}{r(u, 8)}{sp}{r(u, 6)}{sp}{r(u, 1)}{sp}{r(u, 2)}{sp}{r(u, 2)}"
+        out += "".join(f"{sp}{r(u, 8)}" for _ in range(nref)) + "\n"
+    elif rmode in (4, 8):
+        out += f"{left('specid', 32)}{sp}{'instrume':>8}{sp}{left('title', 16)}"
+        out += (f"{sp}{left('ra', 11)}{sp}{left('dec', 10)}{sp}{left('az', 5)}"
+                f"{sp}{left('alt', 5)}"
+                f"{sp}{left('Julian Date', 13)}{sp}{r('exposure', 6)}")
+        if rmode == 4:
+            out += (f"{sp}{left('emvel', 8)}{sp}{left('emerr', 6)}{sp}{left('xcvel', 8)}"
+                    f"{sp}{left('xcerr', 6)}{sp}{left('xcr', 5)}"
+                    f"{sp}{r('velocity', 8)}{sp}{r('velerr', 6)}")
+        out += f"{sp}{r('nl', 2)}{sp}{r('nf', 2)}"
+        for i in range(1, nref + 1):
+            if rmode == 8:
+                out += f"{sp}wlrest{i:02d}{sp}wlshft{i:02d}"
+            else:
+                out += f"{sp}linvel{i:02d}"
+            out += f"{sp}lerr{i:02d}{sp}lht{i:02d}    {sp}lwd{i:02d}{sp}leqw{i:02d}"
+        out += "\n"
+        out += (f"{r(u, 32)}{sp}{r(u, 8)}{sp}{r(u, 16)}{sp}{r(u, 11)}{sp}{r(u, 10)}"
+                f"{sp}{r(u, 5)}{sp}{r(u, 5)}{sp}{r(u, 13)}{sp}{r(u, 6)}")
+        if rmode == 4:
+            out += (f"{sp}{r(u, 8)}{sp}{r(u, 6)}{sp}{r(u, 8)}{sp}{r(u, 6)}{sp}{r(u, 5)}"
+                    f"{sp}{r(u, 8)}{sp}{r(u, 6)}")
+        out += f"{sp}{r(u, 2)}{sp}{r(u, 2)}"
+        out += "".join(f"{sp}{r(u, 8)}{sp}{r(u, 6)}{sp}{r(u, 9)}{sp}{r(u, 5)}{sp}{r(u, 6)}"
+                       for _ in range(nref)) + "\n"
+    return out
+
+
+def _altaz(ha: float, dec: float, lat: float) -> tuple[float, float]:
+    """emrslts' azimuth and altitude from the hour angle, declination and latitude,
+    as RVSAO computes them: the latitude's sine and cosine of its degrees as if they
+    were radians, and the altitude's arctangent of sin(lat) sin(dec) plus the rest
+    over |ac| (the division first); 0 0 when any is out of range (99: none)."""
+    if not (-12.0 < ha < 12.0 and -90.0 <= dec <= 90.0 and -90.0 <= lat <= 90.0):
+        return 0.0, 0.0
+    dpi, tpi, rcon = 3.1415926535897932, 6.283185307179588, 1.74532925199433e-2
+    rha = ha * 15.0 * rcon
+    if rha == 0:
+        rha = 1.0e-5
+    sha, cha = math.sin(rha), math.cos(rha)
+    rdec = dec * rcon
+    sdec, cdec = math.sin(rdec), math.cos(rdec)
+    slat, clat = math.sin(lat), math.cos(lat)
+    ac = (clat * sdec) - (slat * cdec * cha)
+    az = math.atan(-cdec * sha / abs(ac))
+    if ac < 0:
+        az = dpi - az
+    if az < 0:
+        az = tpi + az
+    ac = -cdec * sha / math.sin(az)
+    alt = math.atan((slat * sdec) + (clat * cdec * cha) / abs(ac))
+    if ac < 0:
+        alt = dpi - alt
+    return az / rcon, alt / rcon
 
 
 def vcombine(velxc, vxerr, vr, velem, veerr, nlfit):

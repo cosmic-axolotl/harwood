@@ -42,6 +42,10 @@ class EmsaoParams(TaskParams):
     specnum: str = Field("0", description="Apertures of a multispec ('1-3'); 0: the "
                                           "first.")
     specband: int = Field(0, description="Band of a multispec.")
+    skynum: str = Field("0", description="Apertures of the sky ('2', '5-8'), one for "
+                                         "each spectrum in turn: its level enters the "
+                                         "equivalent widths' errors.")
+    skyband: int = Field(0, description="Band of the sky.")
     specdir: str = Field("", description="Directory of the spectra.")
     st_lambda: float | None = Field(None, description="Starting wavelength; negative: "
                                                       "that much in from the start.")
@@ -75,7 +79,11 @@ class EmsaoParams(TaskParams):
         "barycentric", description="Correction to the solar system's barycentre (or the "
                                    "Sun), from the header's date, time, position and "
                                    "observatory; file/hfile: its BCV/HCV cards.")
-    report_mode: Literal[1] = Field(1, description="Report format (1, the normal one).")
+    report_mode: int = Field(1, ge=-12, le=12, description=(
+        "Report format: 1 the normal one (0 with the equivalent widths' errors, 10 "
+        "without the heading); 2-9 and 11 a line per spectrum in SAO's archive forms "
+        "(velocities, each line's velocity, shift, pixels, height, width), 12 a "
+        "commented table; negative: the same, tab-separated, under column heads."))
     logfiles: str = Field("STDOUT,emsao.log", description="Where the report goes: "
                                                           "STDOUT and files, appended.")
     save_vel: bool = Field(False, description="Write the velocity into each spectrum's "
@@ -156,8 +164,8 @@ class Emsao(Task[EmsaoParams]):
     package): the redshift from emission lines, held to RVSAO 2.8.5 compiled against
     IRAF 2.18 -- its log identical on 44 cases -- with its graph and cursor (emplot:
     every key, what it prints, writes and draws identical on 112 sessions) and the
-    velocity saved to the header. Not ported yet: archives, the sky spectrum and the
-    report modes other than 1."""
+    velocity saved to the header, the sky spectrum and every report mode. Not
+    ported: archives (SAO's own binary records)."""
 
     name = "emsao"
     package = "rvsao"
