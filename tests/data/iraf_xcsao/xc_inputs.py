@@ -95,7 +95,15 @@ def write(where: Path) -> None:
     linear("noisy", 3800.0, 1.2, noisy(absorb(wo, G_LINES, 1200.0 / C, 1.6), 120.0),
            where)
     mix = absorb(wo, G_LINES, 4000.0 / C, 1.6) + emit(wo, EM_LINES, 4000.0 / C, 2.0, 0.0)
-    linear("emabs", 3800.0, 1.2, noisy(mix, 8.0), where)
+    emabs = noisy(mix, 8.0)
+    linear("emabs", 3800.0, 1.2, emabs, where)
+    # emsao's lines in the header, as RVSAO 2.8.5's emsao save_vel wrote them on emabs:
+    # what xcsao's graph of the lines (l, dispmode 2) marks as found
+    linear("emlines", 3800.0, 1.2, emabs.copy(), where,
+           CZEM=4001.10578535799, ZEM=0.0133462504410817, CZEMERR=1.96972652633861,
+           CZEMNL=2, CZEMNLF=2,
+           EMLINE1="OIII 4958.91 5025.14 130.05 1.9485 4003.87 12.08 0.64 0.120",
+           EMLINE2="OIII 5006.84 5073.66 356.97 2.0010 4000.73 4.45 1.79 0.880")
     wlog = 10 ** (np.log10(3800.0) + 1.0e-4 * np.arange(2000))
     flog = noisy(absorb(wlog, G_LINES, 3300.0 / C, 1.6, 0.1), 8.0)
     linear("glog", np.log10(3800.0), 1.0e-4, flog, where, **{"DC-FLAG": 1})

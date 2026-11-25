@@ -28,9 +28,13 @@ the parameters again for each template, and the filter from its own copies -- so
 that only c's peak-fitting mode reaches the correlation. Here all of them do: the
 correlation after c or v is the one those parameters give from the start.
 
+dispmode 2 and 3, l, and m to 2 or 3 go to emsao's graph (core/emplot.py) of this
+spectrum: its emission lines as emsao wrote them to the header (emrhead), the
+absorption lines, at the correlation's velocity (vel_plot); x there comes back to
+this graph, f correlates again, any other way out leaves the spectrum.
+
 Not ported yet: e (edit the spectrum: plotspec), p (choose the peak by hand), d
-(debug), and the display modes and keys that go to emsao's graph (2, 3, l, m to 2 or
-3): harwood says so and stays on this graph.
+(debug): harwood says so and stays on this graph.
 
 Translated from RVSAO, Copyright (c) 1991-2022 Smithsonian Astrophysical
 Observatory, whose notice is in LICENSES/RVSAO-COPYRIGHT.
@@ -354,6 +358,38 @@ def xciplot(xc, r, minwav: float, maxwav: float, order: list[int]) -> list[Text]
     return out
 
 
+class EmView:
+    """emsao's commons as xcsao has them, for emplot: the line lists (eminit without
+    the blends and searches: xcsao's emlines, ablines and linedir), which lines are
+    labelled, the velocity the lines are drawn at (vel_plot, the correlation's by
+    default), the guess, and emeplot's statics -- all kept from one graph to the
+    next, as RVSAO's commons are."""
+
+    def __init__(self, xc) -> None:
+        from .emplot import Graph
+        from .emsao import VPLOT, read_lines
+
+        p = xc.p
+        self.xc = xc
+        self.lines = read_lines({"ablines": p.get("ablines", "ablines.dat"),
+                                 "emlines": p.get("emlines", "emlines.dat"),
+                                 "linedir": p.get("linedir", "rvsao$lib/"),
+                                 "emcombine": "", "emsearch": ""})
+        self.plotem = str(p.get("emlines", "emlines.dat")).startswith("+")
+        self.vplot = VPLOT.index(str(p.get("vel_plot", "correlation"))) + 1
+        self.dispem = self.dispabs = True
+        self.gvel = 0.0
+        self.shift = 1.0
+        self.graph = Graph()
+        self.svcor = xc.svcor
+        self.order = int(p["order"])
+        self.vinit = 4
+        self.taskname = "rvsao.xcsao"
+
+    def _say(self, text: str) -> None:
+        self.xc.out += text
+
+
 class Plot:
     """xcplot: the graph of one spectrum's correlations and the cursor's keys on it.
     `read_key` gives the next cursor read (x, y, wcs, key) or None at the end;
@@ -375,6 +411,14 @@ class Plot:
         self.specwcs = np.asarray(spec.data[np1 - 1:np2], f32)
         self.smspec = self.specwcs.copy()
         smooth(self.smspec, self.smspec.size, xc.nsmooth)
+        # icsubcon with the commons the last correlation left (conproc, the chop)
+        from .xcsao import icsubcon
+        conproc, chop = xc._spec_subcon
+        self.cspec = self.specwcs.copy()
+        icsubcon(self.cspec, xc.p, 1, conproc, chop[0], chop[1], chop[2], [])
+        self.smcspec = self.cspec.copy()
+        smooth(self.smcspec, self.smcspec.size, xc.nsmooth)
+        self.mspec = spec.mspec
         self.order = sorted(range(len(r.temps)), key=lambda k: -r.temps[k].czr)
         self.itemp = r.best - 1
         self.it0 = 1
@@ -383,6 +427,19 @@ class Plot:
         self.newfit = False
         self.qplot = False
         self.mode = int(xc.p.get("dispmode", 1))
+        # xcplot's labelling: absorption always; emission when emsao found lines, the
+        # list asks it, or a template not clipped correlates with R over 4
+        if xc.emview is None:
+            xc.emview = EmView(xc)
+        em = xc.emview
+        em.dispabs = True
+        if r.emnl > 0 or em.plotem:
+            em.dispem = True
+        else:
+            em.dispem = False
+            for t in r.temps:
+                if not t.schop and t.czr > 4.0:
+                    em.dispem = em.plotem = True
 
     def draw(self) -> Frame:
         xc, r = self.xc, self.r
@@ -401,8 +458,9 @@ class Plot:
         if not bool(p.get("displot", True)):
             return False
         if self.mode > 1:
-            self.say("XCSAO: emsao's graph (dispmode 2 and 3) is not ported yet\n")
-            self.mode = 1
+            if not self._lines():
+                return False
+            self.say("Plotting correlation with summary\n")
         self.draw()
         return self.curmode
 
@@ -419,6 +477,57 @@ class Plot:
         if key == "q":                          # gt_gcur: q is the end of file
             return True
         return self.key(key)
+
+    def _lines(self) -> bool:
+        """emplot from xcplot: emsao's graph of this spectrum. True when its x asked
+        to come back to the correlation; otherwise f there asks to correlate again
+        (Rerun cross-correlation) and the spectrum is left."""
+        from . import emplot, emsao
+
+        xc, r = self.xc, self.r
+        em = xc.emview
+        spec = r.spectrum
+        lines, override, vel, err, _nl, nlf = emsao.header_lines(spec.head, spec.mspec,
+                                                                 spec.wcs)
+        result = emsao.Result(spec, lines, 0.0, vel=vel, err=err, nfit=nlf,
+                              combined=r.vel, combined_err=r.err, xcvel=r.xcvel,
+                              xcerr=r.xcerr, xcr=r.xcr, override=override,
+                              quality=r.quality)
+        n = self.wlspec.size
+        wcs = spec.wcs
+        wblue, wred = wcs.p2w(1.0), wcs.p2w(float(n))
+        templates = [emsao.XcTemplate(t.template.id, t.zvel, t.czerr, t.czr,
+                                      schop=t.schop, filt=t.template.filt)
+                     for t in r.temps]
+        fit = emsao.Fit(result, self.specwcs, self.smspec, self.smcspec, self.cspec,
+                        self.wlspec, 1, n, min(wblue, wred), max(wblue, wred),
+                        xc.nsmooth, 0, 2, 1.5, 10.0, lfound=[0] * len(em.lines.wlref),
+                        templates=templates, best=r.best)
+        em.p = {**xc.p, "dispmode": self.mode, "displot": True}
+        plot = emplot.Plot(em, fit, self.mspec, emplot.nmax(spec), self.read_key,
+                           self.read_line, self.say, curmode=self.curmode)
+        if xc.show_lines is not None:
+            xc.show_lines(plot)
+        else:
+            plot.run()
+        plot.finish()
+        self.frames.extend(plot.frames)
+        self.hardcopies.extend(plot.hardcopies)
+        # what emplot changed in the commons xcsao writes from
+        r.vel, r.err = result.combined, result.combined_err
+        r.xcvel, r.xcerr, r.xcr = result.xcvel, result.xcerr, result.xcr
+        r.quality = result.quality
+        r.best = fit.best              # itmax, the common; xcplot's own itemp stays
+        self.qplot = self.qplot or fit.qplot
+        if fit.edited:
+            path = str(xc.p.get("specdir", "")) + r.specfile
+            xc.err += emsao.putspec(path, spec.mspec, fit.specwcs, "EMPLOT")
+        if not fit.plotcorr:
+            if plot.xfit:
+                self.say("Rerun cross-correlation\n")
+                self.newfit = True
+            return False
+        return True
 
     def key(self, key: str) -> bool:
         xc, r, say = self.xc, self.r, self.say
@@ -447,10 +556,10 @@ class Plot:
             say(f"Display mode {before} -> {self.mode} ({xc.jtemp})\n")
             if self.mode != before:
                 if self.mode > 1:
-                    say("XCSAO: emsao's graph (dispmode 2 and 3) is not ported yet\n")
-                    self.mode = before
-                else:
-                    self.draw()
+                    if not self._lines():
+                        return True
+                    say("Plotting correlation with summary\n")
+                self.draw()
         elif key == "c":
             say("Correlation peak fitting parameters\n")
             say("Peak-fitting mode (1-parabola 2-quartic 3-cosx/1+x^2) "
@@ -539,11 +648,16 @@ class Plot:
             return True
         elif key in (" ", "h", "?"):
             say(KEYS)
-        elif key in ("e", "p", "d", "l"):
+        elif key == "l":
+            say("Plotting absorption lines with summary\n")
+            if not self._lines():
+                return True
+            say("Plotting correlation with summary\n")
+            self.draw()
+        elif key in ("e", "p", "d"):
             say({"e": "XCSAO: e (edit the spectrum) is not ported yet\n",
                  "p": "XCSAO: p (choose the peak by hand) is not ported yet\n",
-                 "d": "XCSAO: d (debug) is not ported\n",
-                 "l": "XCSAO: l (emsao's graph) is not ported yet\n"}[key])
+                 "d": "XCSAO: d (debug) is not ported\n"}[key])
         else:
             return True
         return False

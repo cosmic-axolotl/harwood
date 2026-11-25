@@ -711,28 +711,8 @@ class Emsao:
     # ---------------------------------------------------------------- saving
 
     def _putspec(self, path: str, mspec: int, fit: Fit) -> None:
-        """putspec: the spectrum the graph's d and , edited, back into its line of
-        the image (the first for a one-dimensional one), as the file's pixel type."""
-        import os
-
-        from astropy.io import fits
-
-        if not os.path.exists(path):
-            path += ".fits"
-        if not os.access(path, os.W_OK):
-            self.err += f"EMPLOT: cannot write to {path}; not saving results\n"
-            return
-        with fits.open(path, mode="update", memmap=False,
-                       do_not_scale_image_data=True) as hdul:
-            hdu = next((h for h in hdul if h.data is not None), hdul[0])
-            data = hdu.data
-            line = np.asarray(fit.specwcs, f32).astype(data.dtype)
-            if data.ndim == 1:
-                data[:] = line
-            else:
-                flat = data.reshape(-1, data.shape[-1])
-                flat[max(mspec, 1) - 1, :] = line
-            hdu.data = data
+        """putspec: the spectrum the graph's d and , edited, back into its file."""
+        self.err += putspec(path, mspec, fit.specwcs, "EMPLOT")
         fit.edited = False
 
     def _save(self, path: str, mspec: int, fit: Fit, nmspec: int) -> None:
@@ -1337,6 +1317,81 @@ class Emsao:
         else:
             text += "No emission lines found\n"
         self._log(text)
+
+
+def putspec(path: str, mspec: int, data, task: str) -> str:
+    """putspec: a spectrum back into its line of the image (the first for a
+    one-dimensional one), as the file's pixel type. What is said when it cannot."""
+    import os
+
+    from astropy.io import fits
+
+    if not os.path.exists(path):
+        path += ".fits"
+    if not os.access(path, os.W_OK):
+        return f"{task}: cannot write to {path}; not saving results\n"
+    with fits.open(path, mode="update", memmap=False,
+                   do_not_scale_image_data=True) as hdul:
+        hdu = next((h for h in hdul if h.data is not None), hdul[0])
+        image = hdu.data
+        line = np.asarray(data, f32).astype(image.dtype)
+        if image.ndim == 1:
+            image[:] = line
+        else:
+            flat = image.reshape(-1, image.shape[-1])
+            flat[max(mspec, 1) - 1, :] = line
+        hdu.data = image
+    return ""
+
+
+def header_lines(head, mspec: int, wcs):
+    """emrhead: the emission lines emsao wrote to the header (EMLINEn, ELm_n), as
+    emfit leaves them -- (lines, override, cz, error, found, fit); INDEFD and none
+    when emsao wrote nothing."""
+    key = "CZEM" if mspec == 0 else f"APVEM{mspec}" if mspec < 1000 else ""
+    lines: list[Found] = []
+    override = [0] * MAXREF
+    if not key or not head.has(key):
+        return lines, override, INDEFD, INDEFD, 0, 0
+    if mspec == 0:
+        vel, err = head.d("CZEM", INDEFD), head.d("CZEMERR", INDEFD)
+        nl, nlf = head.i("CZEMNL", 0), head.i("CZEMNLF", 0)
+    else:
+        s = Scan(head.string(key) or "")
+        vel, err = s.d(), s.d()
+        nl, nlf = s.i() or 0, s.i() or 0
+        vel = INDEFD if vel is None else vel
+        err = INDEFD if err is None else err
+    if nlf > 0 and mspec < 999:
+        for k in range(1, nl + 1):
+            name = f"EMLINE{k}" if mspec == 0 else f"EL{mspec}_{k}"
+            if not head.has(name):
+                break
+            s = Scan(head.string(name) or "")
+            nm = (s.wrd(SZ_ELINE) or "")
+            wlrest, wlobs = s.d() or 0.0, s.d() or 0.0
+            f = Found(nm, wlrest, wcs.w2p(wlobs), wlobs)
+            f.params[0, 3] = wcs.w2p(wlobs)
+            dwdp = wlobs - wcs.p2w(f.params[0, 3] - 1.0)
+            f.params[0, 4] = s.d() or 0.0
+            width = s.d() or 0.0
+            f.params[0, 5] = width / dwdp if dwdp != 0.0 else 0.0
+            cz, czerr = s.d() or 0.0, s.d() or 0.0
+            f.params[0, 8] = cz / C0
+            verr = czerr / C0
+            f.params[1, 8] = verr
+            f.params[1, 3] = verr * wlobs / (2.0 * dwdp) if dwdp != 0.0 else 0.0
+            f.params[0, 6] = s.d() or 0.0
+            wt = s.d() or 0.0
+            if wt > 0:
+                f.params[0, 9] = 1.0 / math.sqrt(wt)
+            elif wt < 0:
+                override[k - 1] = -1
+                f.params[0, 9] = 1.0 / math.sqrt(-wt)
+            f.params[1, 7] = 1.0
+            f.weight = wt
+            lines.append(f)
+    return lines, override, vel, err, nl, nlf
 
 
 def xcrhead(head, mspec: int):

@@ -351,7 +351,8 @@ class Graph:
         r = fit.result
         spec = r.spectrum
         head = spec.head
-        out = [Text(0.65, 0.01, f"rvsao.emsao 2.8.5 {logtime()}", 0.6, ndc=True)]
+        task = getattr(em, "taskname", "rvsao.emsao")   # the task that drew it
+        out = [Text(0.65, 0.01, f"{task} 2.8.5 {logtime()}", 0.6, ndc=True)]
         ut, dj, _hdj, _date = juldate(head)
         text = f"File: {specid}"
         if dj != 0.0:
@@ -484,6 +485,7 @@ class Plot:
         self.dfirst = self.zfirst = True
         self.ipx1 = self.ipx2 = 0
         self.edited = False
+        self.xfit = False            # f: xcsao, which called it, correlates again
 
     # -------------------------------------------------------------- drawing
 
@@ -847,6 +849,7 @@ class Plot:
             say(f"Wavelength: Rest: {_f('%9.3f', wr)} -> Observed: {_f('%9.3f', wx)} "
                 f"Pixel {_f('%9.3f', px)} = {_f('%8.2f', float(f32(y)))}\n")
         elif key == "f":
+            self.xfit = True
             if fit.edited or self.edited:
                 fit.savespec = fit.qplot = True
             return True

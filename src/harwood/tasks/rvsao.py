@@ -138,10 +138,12 @@ def _graph_input(session, params, task: str) -> None:
             session.show = lambda plot: emplot_panel.run(
                 plot, title=f"emsao · {plot.fit.result.spectrum.name}")
         else:
-            from ..viewer import xcplot_panel
+            from ..viewer import emplot_panel, xcplot_panel
 
             session.show = lambda plot: xcplot_panel.run(
                 plot, title=f"xcsao · {plot.r.spectrum.name}")
+            session.show_lines = lambda plot: emplot_panel.run(
+                plot, title=f"xcsao · {plot.fit.result.spectrum.name} · lines")
 
 
 @register
@@ -318,8 +320,15 @@ class XcsaoParams(TaskParams):
                                              "around its peak, and the summary.")
     curmode: bool = Field(True, description="With the graph: wait for its keys (? lists "
                                             "them; q goes on).")
-    dispmode: Literal[-1, 0, 1] = Field(1, description="The spectrum: 1 all of it, 0 the "
-                                                       "range correlated, -1 from zero.")
+    dispmode: Literal[-1, 0, 1, 2, 3] = Field(1, description="The spectrum: 1 all of it, "
+                                                             "0 the range correlated, -1 "
+                                                             "from zero; 2 and 3 emsao's "
+                                                             "graph of its lines first.")
+    vel_plot: Literal["correlation", "emission", "combination"] = Field(
+        "correlation", description="The velocity the lines are marked at (l, dispmode 2).")
+    emlines: str = Field("emlines.dat", description="Emission lines marked (l).")
+    ablines: str = Field("ablines.dat", description="Absorption lines marked (l).")
+    linedir: str = Field("rvsao$lib/", description="Directory of the line lists.")
     nsmooth: int = Field(0, ge=0, description="Smoothing passes of the spectrum drawn.")
     cvel: float | None = Field(None, description="Centre of the correlation's graph, "
                                                  "km/s (empty: the peak).")

@@ -146,9 +146,16 @@ def _compare(ours, gold, kernel=False):
                       and v1 < line[1] < v2 and line[1] == line[3]], float)
     mine = np.array([[*_gki(ours, a, b), *_gki(ours, c, d)] for a, b, c, d in ours.marks],
                     float).reshape(-1, 4)
+    # a mark wholly below or above the viewport is clipped away by GIO; one across
+    # its edge is cut there: those are compared where they stand across
+    y1, y2 = window[6] * GKI, window[7] * GKI
+    low, high = mine[:, [1, 3]].min(axis=1), mine[:, [1, 3]].max(axis=1)
+    mine = mine[(high >= y1) & (low <= y2)]
     assert len(mine) == len(pairs)
     if len(mine):
-        assert np.abs(mine - pairs).max() <= 2
+        whole = (mine[:, [1, 3]].min(axis=1) >= y1) & (mine[:, [1, 3]].max(axis=1) <= y2)
+        assert np.abs(mine[whole] - pairs[whole]).max(initial=0) <= 2
+        assert np.abs(mine[:, 0] - pairs[:, 0]).max() <= 2
     # the texts other than the axes' numbers, in the order drawn
     texts = [t for t in gold["texts"] if not re.fullmatch(r"-?[\d.]+(E-?\d+)?", t[2])]
     labels = [(t, _gki(ours, t.x, t.y)) for t in ours.labels]
@@ -159,7 +166,7 @@ def _compare(ours, gold, kernel=False):
     rest = [t for t in texts if t[2] not in (ours.xlabel, ours.title)]
     assert len(rest) == len(labels) + len(summary), [t[2] for t in rest]
     for (text, (x, y)), theirs in zip(labels + summary, rest, strict=True):
-        if text.text.startswith("rvsao.emsao"):
+        if text.text.startswith("rvsao."):
             assert TIME.sub("", text.text) == TIME.sub("", theirs[2])
         elif kernel and (text.text.startswith(("File:", "Object:"))
                          or (text.ndc and text.y == 0.96 and text.x > 0.6)):

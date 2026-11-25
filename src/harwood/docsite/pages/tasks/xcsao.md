@@ -56,7 +56,12 @@ correlation with the best template around its peak (`--cvel`, `--dvel`), the poi
 at `-pkfrac` of its height marked when `--pkfrac` is negative; at the right, RVSAO's
 summary: the date, the correction, the range, the grid and the filter, each
 template's velocity and peak, and each one's velocity, error and R. `--dispmode 0`
-shows only the range correlated, `-1` the spectrum from zero.
+shows only the range correlated, `-1` the spectrum from zero; `2` and `3` (and the
+`l` key, and `m` to 2 or 3) open emsao's graph of the spectrum first -- the
+emission lines emsao wrote to the header marked as found, the rest of
+`--emlines` and `--ablines` where the correlation's velocity (`--vel-plot`) puts
+them, with all of emsao's keys (see emsao); `x` there comes back to the
+correlation, `f` correlates again.
 
 The keys are RVSAO's (`?` lists them): `r` redraws; `t` takes another template's
 velocity (by its place in R); `g` smooths the spectrum (shown at the next `r`); `m`
@@ -74,8 +79,7 @@ they all reach the correlation, which is then RVSAO's with those parameters from
 the start. Without a date of observation the summary says "No observation date"
 twice, as RVSAO's does.
 
-Not ported yet: `e` (editing the spectrum), `p` (choosing the peak by hand), the
-display modes 2 and 3 and the `l` key (emsao's graph of the lines: see emsao),
+Not ported yet: `e` (editing the spectrum), `p` (choosing the peak by hand),
 `correlate=no`, and the archive. On 135 cases -- one template or several, a
 broadened galaxy, noise, zero padding, every limit in wavelength, the initial
 velocity and its passes, a velocity window, the peak's fraction or points and the
@@ -83,5 +87,5 @@ cosine fit, the filter, the taper, the grid's size, lines clipped from the spect
 or the template, zeroed ends, renormalisation, log-linear and multispec spectra,
 every velocity correction, the template's own velocity and flags, the correlation
 in wavelength and pixels, every report mode and save_vel -- the log and the header
-are RVSAO 2.8.5's, compiled against IRAF 2.18, line for line; on 43 sessions of the
-graph, what it prints and draws is RVSAO's.
+are RVSAO 2.8.5's, compiled against IRAF 2.18, line for line; on 53 sessions of the
+graph, emsao's graph from it among them, what it prints and draws is RVSAO's.

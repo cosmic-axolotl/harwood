@@ -5,9 +5,9 @@ of the correlation inside its window, the range correlated, the points at -pkfra
 of the peak, the titles and labels, and the summary.
 
 tests/data/iraf_xcsao holds the sessions (xp_cases.py) and what RVSAO left in each
-(run_plot.py, xp_collect.py -> xcplot.json); the spectra are xc_inputs.py's. The
-keys that go to emsao's graph or edit the spectrum (dispmode 2 and 3, l, m to 2,
-e, p) are not ported yet: their cases are left out here (NOT_YET).
+(run_plot.py, xp_collect.py -> xcplot.json); the spectra are xc_inputs.py's.
+dispmode 2 and 3, l and m to 2 go to emsao's graph (emplot), whose frames are
+compared as tests/test_emplot_rvsao.py compares them.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from harwood.core import igsfit, xcsao
+from harwood.core import emplot, igsfit, xcsao
 
 HERE = Path(__file__).parent / "data" / "iraf_xcsao"
 GOLD = json.loads((HERE / "xcplot.json").read_text(encoding="utf-8"))
@@ -28,12 +28,13 @@ sys.path.insert(0, str(HERE))
 from xc_inputs import write  # noqa: E402
 from xp_cases import CASES  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).parent))
+from test_emplot_rvsao import _compare as emplot_compare  # noqa: E402
+
 GKI = 32767
 STAMP = re.compile(r"^(IRAF|harwood) rvsao\.xcsao 2\.8\.5 .*\n", re.M)
 TIME = re.compile(r" \d\d-[A-Z][a-z][a-z]-\d{4} \d\d:\d\d")
-NOT_YET = {"dispmode2", "dispmode3", "mode_lines", "mode_lines_quit", "lines",
-           "lines_quit"}
-SHOWN = [c for c in CASES if c not in NOT_YET]
+SHOWN = list(CASES)
 #: c and v as harwood has them: what they set reaches the correlation, which RVSAO's
 #: does not; the correlation after them is RVSAO's with those parameters from the
 #: start (the case named), the rest of the session RVSAO's own.
@@ -172,7 +173,10 @@ def test_xcplot_draws_what_rvsao_draws(tmp_path, monkeypatch, case):
         gold = gold[:1] + GOLD[DIRECT[case]]["frames"]
     assert len(drawn) == len(gold)
     for ours, theirs in zip(drawn, gold, strict=True):
-        _compare(ours, theirs)
+        if isinstance(ours, emplot.Frame):
+            emplot_compare(ours, theirs)
+        else:
+            _compare(ours, theirs)
 
 
 @pytest.mark.parametrize("case", ["template", "replot", "mode", "good"])

@@ -35,6 +35,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .emsao import vcombine
 from .rvsao import C0, INDEFD, VERSION, RvsaoError, dlog10
 
 f32 = np.float32
@@ -1073,6 +1074,9 @@ class Xcsao:
         self._tempinfo = [""] * 36    # xcrslts' tempinfo, as the stack keeps it
         # xcplot's: the commons and statics its keys change, the graphs drawn
         self.nsmooth = int(self.p.get("nsmooth", 0))
+        self._spec_subcon = (SUBCONT, (False, 0.0, 0.0))
+        self.emview = None            # emsao's commons for its graph, made when first drawn
+        self.show_lines = None        # the window's emplot from xcsao: (Plot) -> None
         self.jtemp = 0
         self.pkindx = 0
         self.plots: list = []
@@ -1150,6 +1154,10 @@ class Xcsao:
                     result.emvel, result.emerr, result.emnlf = emrhead(spec.head, mspec)
                     result.emnl = spec.head.i("CZEMNL", 0) if mspec == 0 else \
                         _apvem_nl(spec.head, mspec)
+                    # xcfit's vcombine: the correlation's velocity joined with emsao's
+                    result.vel, result.err = vcombine(result.xcvel, result.xcerr,
+                                                      result.xcr, result.emvel,
+                                                      result.emerr, result.emnlf)
                     self._report(result)
                     if not self.plot(result):
                         break
@@ -1174,7 +1182,6 @@ class Xcsao:
         observed today. harwood writes RVSAO's own cards only."""
         import os
 
-        from .emsao import vcombine
         from .iraffmt import Format
         from .rvsao import HeaderUpdate, history_card, logtime, number_card, string_card
 
@@ -1183,8 +1190,6 @@ class Xcsao:
         if not os.access(path, os.W_OK):
             self.err += f"XCSAO: cannot write to {path}; not saving results\n"
             return
-        r.emvel, r.emerr, r.emnlf = emrhead(r.spectrum.head, mspec)
-        r.vel, r.err = vcombine(r.xcvel, r.xcerr, r.xcr, r.emvel, r.emerr, r.emnlf)
         if mspec >= 1000:
             return
         best = r.temps[r.best - 1]
@@ -1546,6 +1551,7 @@ class Xcsao:
                             f32)
         npts = spectrum.size
         tfilt = tr.template.filt
+        self._spec_subcon = (conproc, schop)   # the commons xcplot's icsubcon reads
         if contfit:
             said: list[str] = []
             icsubcon(spectrum, self.p, 1, conproc, schop[0], schop[1], schop[2], said)
