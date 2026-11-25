@@ -79,13 +79,17 @@ they all reach the correlation, which is then RVSAO's with those parameters from
 the start. Without a date of observation the summary says "No observation date"
 twice, as RVSAO's does.
 
-Not ported yet: `e` (editing the spectrum), `p` (choosing the peak by hand),
-`correlate=no`, and the archive. On 135 cases -- one template or several, a
+RVSAO's `d` in the editor calls fillpix without its last argument and ends in a
+segmentation violation; here it fills. `--correlate no` correlates nothing: it
+reports and draws what an xcsao before wrote to the header, to look at it again or
+set its quality (`y`, `n`, `j`, written with `--save-vel` as RVSAO's qwhead: VELQUAL
+and QPLOT), with what the header does not hold left as RVSAO leaves it (0 points,
+the peak at 0, fit 0.0, +tc). Not ported yet: the archive. On 135 cases -- one template or several, a
 broadened galaxy, noise, zero padding, every limit in wavelength, the initial
 velocity and its passes, a velocity window, the peak's fraction or points and the
 cosine fit, the filter, the taper, the grid's size, lines clipped from the spectrum
 or the template, zeroed ends, renormalisation, log-linear and multispec spectra,
 every velocity correction, the template's own velocity and flags, the correlation
 in wavelength and pixels, every report mode and save_vel -- the log and the header
-are RVSAO 2.8.5's, compiled against IRAF 2.18, line for line; on 53 sessions of the
-graph, emsao's graph from it among them, what it prints and draws is RVSAO's.
+are RVSAO 2.8.5's, compiled against IRAF 2.18, line for line; on 70 sessions of the
+graph, emsao's graph and the editor from it among them, what it prints and draws is RVSAO's.

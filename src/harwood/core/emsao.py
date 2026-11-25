@@ -1417,10 +1417,8 @@ def xcrhead(head, mspec: int):
         words = (head.string(key) or "").split()
 
         def word(i, kind=float, default=0.0):
-            try:
-                return kind(words[i])
-            except (IndexError, ValueError):
-                return default
+            value = Scan(words[i]).d() if i < len(words) else None
+            return default if value is None else kind(value)
         xcvel, xcerr, xcr = word(0), word(1), word(2)
         best = word(3, int, 0)
         if len(words) > 4:
@@ -1438,10 +1436,9 @@ def xcrhead(head, mspec: int):
         w = (head.string(key) or "").split()
 
         def num(i, w=w):
-            try:
-                return float(w[i])
-            except (IndexError, ValueError):
-                return 0.0
+            # gargd: IRAF's ctod, whose last bit is not always the nearest's
+            value = Scan(w[i]).d() if i < len(w) else None
+            return 0.0 if value is None else value
         t = XcTemplate(w[0] if w else "", num(1), num(2), num(3), num(4), num(5), num(6),
                        num(7), (w[8].lower() in ("yes", "y", "true", "t"))
                        if len(w) > 8 else False, int(num(9)))

@@ -145,6 +145,19 @@ def write(where: Path) -> None:
            XCSAO="rvsao.xcsao 2.8.5  01-Jan-2020 10:00 CZXC = 2400.00 R = 9.00",
            VELOCITY=2400.0, BCV=3.25)
     linear("gradec", 3800.0, 1.2, star, where, RA="10:20:30.5", DEC="+12:34:56")
+    # what RVSAO 2.8.5's xcsao save_vel wrote on g2500 with tg and ta: correlate=no
+    # reads it back instead of correlating
+    from astropy.io import fits as _fits
+    g2500 = _fits.getdata(where / "g2500.fits")
+    saved = {"VELOCITY": 2498.38317783736, "Z": 0.00833370807420919,
+             "CZERR": 1.45952986393666, "ZERR": 4.86846690272991E-6, "VELQUAL": "_",
+             "BCV": 0.0, "CZXC": 2498.38317783736, "ZXC": 0.00833370807420919,
+             "CZXCERR": 1.45952986393666, "CZXCR": 140.894373187141,
+             "BESTTEMP": "tg.fits", "CZPARAMS": "2 2048 1 5 20 125 250 0.05",
+             "XCTEMP1": "tg.fits 2498.383 1.460 140.894 0.980 276.420 0.000 0.000 no 0",
+             "XCTEMP2": "ta.fits 2462.345 49.983 5.25513 0.388 414.609 0.000 0.000 no 0",
+             "XCSAO": "rvsao.xcsao 2.8.5  25-Nov-2026 10:22 CZXC = 2498.38 R = 140.89"}
+    linear("gsaved", 3800.0, 1.2, g2500.copy(), where, **saved)
 
 
 if __name__ == "__main__":

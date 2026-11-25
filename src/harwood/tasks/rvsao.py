@@ -144,6 +144,10 @@ def _graph_input(session, params, task: str) -> None:
                 plot, title=f"xcsao · {plot.r.spectrum.name}")
             session.show_lines = lambda plot: emplot_panel.run(
                 plot, title=f"xcsao · {plot.fit.result.spectrum.name} · lines")
+            from ..viewer import plotspec_panel
+
+            session.show_plotspec = lambda ps: plotspec_panel.run(
+                ps, lambda: session.out, title=f"xcsao · {ps.name}")
 
 
 @register
@@ -255,10 +259,12 @@ class XcsaoParams(TaskParams):
                                           "spectrum.")
     specband: int = Field(0, description="Band of a multispec.")
     specdir: str = Field("", description="Directory of the spectra.")
-    correlate: Literal["velocity", "wavelength", "pixel", "yes"] = Field(
+    correlate: Literal["velocity", "wavelength", "pixel", "yes", "no"] = Field(
         "velocity", description="Correlate in velocity (a grid even in log wavelength), "
                                 "or in wavelength or pixels (an even grid): the shift is "
-                                "then in Angstroms or pixels.")
+                                "then in Angstroms or pixels. no: show and report what an "
+                                "xcsao before wrote to the header, to look at it again "
+                                "or set its quality.")
     tempband: int = Field(1, description="Band of a multispec template.")
     st_lambda: float | None = Field(None, description="Starting wavelength to "
                                                       "correlate (empty: the overlap's).")
@@ -330,6 +336,11 @@ class XcsaoParams(TaskParams):
     ablines: str = Field("ablines.dat", description="Absorption lines marked (l).")
     linedir: str = Field("rvsao$lib/", description="Directory of the line lists.")
     nsmooth: int = Field(0, ge=0, description="Smoothing passes of the spectrum drawn.")
+    xcor_plot: bool = Field(False, description="Show each correlation to choose its peak "
+                                               "by eye before it is fit (the graph's p "
+                                               "turns this on).")
+    pksrch: int = Field(25, ge=1, description="Half width, in points, of the search for "
+                                              "the peak chosen by eye.")
     cvel: float | None = Field(None, description="Centre of the correlation's graph, "
                                                  "km/s (empty: the peak).")
     dvel: float | None = Field(None, description="Its half width, km/s (empty: 20 times "

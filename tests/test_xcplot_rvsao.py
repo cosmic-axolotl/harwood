@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from harwood.core import emplot, igsfit, xcsao
+from harwood.core import emplot, igsfit, plotspec, xcsao
 
 HERE = Path(__file__).parent / "data" / "iraf_xcsao"
 GOLD = json.loads((HERE / "xcplot.json").read_text(encoding="utf-8"))
@@ -126,8 +126,9 @@ def _compare(ours, gold):
             assert a == pytest.approx(b, rel=2e-6, abs=6e-8)
         assert panel.viewport == pytest.approx(window[4:8], abs=1e-4)
     assert windows[len(panels)][4:8] == pytest.approx([0.67, 1.0, 0.0, 1.0])
-    for panel in panels:
-        assert _curve(panel, gold) > 0
+    assert _curve(ours.spectrum, gold) > 0
+    if ours.correlation is not None:        # empty after correlate=no
+        assert _curve(ours.correlation, gold) > 0 or ours.correlation.x.size == 0
     # the range correlated: our dashes inside the spectrum's viewport are IRAF's
     pairs = np.array([line[1:] for line in gold["lines"] if len(line) == 5], float)
     for a, b, c, d in ours.spectrum.marks:
@@ -164,10 +165,29 @@ def _compare(ours, gold):
         assert round(text.size * 100) == theirs[4], text.text
 
 
+def _compare_plotspec(ours, gold):
+    """plotspec's replot: gtools' window and viewport, the vector, the title block's
+    lines (the log heading's time and the program's name aside) and the label."""
+    window = gold["windows"][0]
+    for a, b in zip(ours.window, window[:4], strict=True):
+        assert a == pytest.approx(b, rel=2e-6, abs=6e-8)
+    assert ours.viewport == pytest.approx(window[4:8], abs=1e-4)
+    assert _curve(ours, gold) > 0
+    above = [t[2] for t in gold["texts"] if t[1] > window[7] * GKI and t[2]]
+    head = re.compile(r"^(IRAF|harwood) rvsao\.xcsao 2\.8\.5 \S+  \d\d-\w{3}-\d{4} "
+                      r"\d\d:\d\d$")
+    mine = [line for line in ours.title if line]
+    theirs = above
+    assert ours.xlabel in [t[2] for t in gold["texts"]]
+    assert len(mine) == len(theirs), (mine, theirs)
+    for a, b in zip(mine, theirs, strict=True):
+        assert a == b or (head.match(a) and head.match(b)), (a, b)
+
+
 @pytest.mark.parametrize("case", SHOWN)
 def test_xcplot_draws_what_rvsao_draws(tmp_path, monkeypatch, case):
     session = run(tmp_path, monkeypatch, case)
-    drawn = [f for plot in session.plots for f in plot.frames]
+    drawn = session.drawn
     gold = GOLD[case]["frames"]
     if case in DIRECT:
         gold = gold[:1] + GOLD[DIRECT[case]]["frames"]
@@ -175,6 +195,8 @@ def test_xcplot_draws_what_rvsao_draws(tmp_path, monkeypatch, case):
     for ours, theirs in zip(drawn, gold, strict=True):
         if isinstance(ours, emplot.Frame):
             emplot_compare(ours, theirs)
+        elif isinstance(ours, plotspec.Frame):
+            _compare_plotspec(ours, theirs)
         else:
             _compare(ours, theirs)
 
@@ -213,7 +235,7 @@ def test_the_panel_is_the_session(tmp_path, monkeypatch, case):
     session.show = press
     session.run(spectra.split(","))
     assert _plain(session.out) == _plain(GOLD[case]["said"])
-    drawn = [f for plot in session.plots for f in plot.frames]
+    drawn = session.drawn
     assert len(drawn) == len(GOLD[case]["frames"])
     for ours, theirs in zip(drawn, GOLD[case]["frames"], strict=True):
         _compare(ours, theirs)
@@ -238,3 +260,47 @@ def test_the_task_reads_a_cursor_file_and_writes_its_hard_copies(tmp_path, monke
     head = fits.getheader("g2500.fits")
     assert head["VELQUAL"] == "Q"
     assert head["BESTTEMP"].strip() == "ta.fits"      # t chose the second by R
+
+
+@pytest.mark.parametrize("case", ["edit_keys", "peak_width"])
+def test_the_editor_s_panel_is_the_session(tmp_path, monkeypatch, case):
+    """e and p through the window: xcplot's panel and plotspec's, the keys of the
+    cursor file pressed in turn in whichever is open, leave what RVSAO printed and
+    drew."""
+    pytest.importorskip("PySide6")
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from harwood.viewer import ask, plotspec_panel, xcplot_panel
+    from harwood.viewer._qt import application
+
+    application()
+    write(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    spectra, params, cursor, answers = CASES[case]
+    reads = list(igsfit.reads(cursor))
+    replies = iter(answers.splitlines())
+    monkeypatch.setattr(ask, "line", lambda prompt, title="": next(replies, None))
+
+    def drive(panel):
+        ended = []
+        panel.finished.connect(lambda: ended.append(True))
+        while reads and not ended:
+            x, y, _, key, _ = reads.pop(0)
+            panel._cursor = (x, y)
+            assert panel.key(key)
+
+    def show(plot):
+        assert plot.start()
+        drive(xcplot_panel.XcplotPanel(plot))
+
+    def show_plotspec(ps):
+        ps.draw()
+        drive(plotspec_panel.PlotspecPanel(ps, lambda: session.out))
+
+    session = xcsao.Xcsao({"displot": True, "curmode": True, "logfiles": "STDOUT",
+                           **params})
+    session.show, session.show_plotspec = show, show_plotspec
+    session.run(spectra.split(","))
+    assert _plain(session.out) == _plain(GOLD[case]["said"])
+    assert len(session.drawn) == len(GOLD[case]["frames"])

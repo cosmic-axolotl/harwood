@@ -65,7 +65,8 @@ CHOPS = ("yes", "no", "tempfile", "specfile")
 NOCONT, SUBCONT, DIVCONT, ZEROCONT, CONTFIT = 0, 1, 2, 3, 4
 COR_VEL, COR_PIX, COR_WAV = 2, 3, 4
 #: correlate: in velocity (log wavelength), in pixels or in wavelength (Angstroms)
-CORRELATE = {"velocity": COR_VEL, "yes": COR_VEL, "pixel": COR_PIX,
+COR_NO = 1                       #: correlate=no: the results read from the header
+CORRELATE = {"no": COR_NO, "velocity": COR_VEL, "yes": COR_VEL, "pixel": COR_PIX,
              "wavelength": COR_WAV}
 
 
@@ -1077,6 +1078,10 @@ class Xcsao:
         self._spec_subcon = (SUBCONT, (False, 0.0, 0.0))
         self.emview = None            # emsao's commons for its graph, made when first drawn
         self.show_lines = None        # the window's emplot from xcsao: (Plot) -> None
+        self.show_plotspec = None     # the window's plotspec: (Plotspec) -> None
+        self.pltcor = _yes(self.p.get("xcor_plot", False))
+        self.drawn: list = []         # every graph drawn, in the order drawn
+        self._specname = ""
         self.jtemp = 0
         self.pkindx = 0
         self.plots: list = []
@@ -1155,15 +1160,22 @@ class Xcsao:
                     result.emnl = spec.head.i("CZEMNL", 0) if mspec == 0 else \
                         _apvem_nl(spec.head, mspec)
                     # xcfit's vcombine: the correlation's velocity joined with emsao's
-                    result.vel, result.err = vcombine(result.xcvel, result.xcerr,
-                                                      result.xcr, result.emvel,
-                                                      result.emerr, result.emnlf)
+                    # (not for correlate=no: VELOCITY stays what the header has)
+                    if self.cor == COR_NO:
+                        result.vel, result.err = result.old[0], result.old[1]
+                    else:
+                        result.vel, result.err = vcombine(result.xcvel, result.xcerr,
+                                                          result.xcr, result.emvel,
+                                                          result.emerr, result.emnlf)
                     self._report(result)
                     if not self.plot(result):
                         break
                 if result is not None:
                     self.results.append(result)
-                    if _yes(self.p.get("save_vel")):
+                    if self.cor == COR_NO:
+                        if _yes(self.p.get("save_vel")) and result.qplot:
+                            self.qsave(path, mspec, result, len(mspecs))
+                    elif _yes(self.p.get("save_vel")):
                         self.save(path, mspec, result, last=k == len(mspecs) - 1)
 
     # ---------------------------------------------------------------- save_vel
@@ -1336,10 +1348,13 @@ class Xcsao:
 
     def xcfit(self, spec) -> XcResult | None:
         p = self.p
+        self._specname = spec.object
         corr = str(p["correlate"])
         if corr not in CORRELATE:
             raise RvsaoError(f"correlate={corr} is not ported yet")
         self.cor = CORRELATE[corr]
+        if self.cor == COR_NO:
+            return self._from_header(spec)
         linear = self.cor in (COR_WAV, COR_PIX)
         ispix = self.cor == COR_PIX
         data = spec.data
@@ -1534,6 +1549,113 @@ class Xcsao:
         result.xcvel, result.xcerr, result.xcr = best.zvel, best.czerr, best.czr
         return result
 
+    def _from_header(self, spec) -> XcResult:
+        """correlate=no: what an xcsao before wrote to the header (xcrhead), shown
+        and reported as if just correlated -- with what xcrhead does not read left
+        as RVSAO leaves it: no correlation (0 points), the peak at 0, the peak
+        fraction 0, the templates' continuum not subtracted (+tc), the filter 0 0 0 0
+        when there is no CZPARAMS. One empty template when there is nothing."""
+        from types import SimpleNamespace
+
+        from .emsao import xcrhead
+
+        p = self.p
+        head = spec.head
+        xcvel, xcerr, xcr, temps, best = xcrhead(head, spec.mspec)
+        ncols = int(p["ncols"])
+        npts = 2 ** int(math.log(float(f32(ncols))) / LN2 + 1.0)
+        filt, zpad, han = (0, 0, 0, 0), False, f32(p["bell_window"])
+        words = []
+        if spec.mspec <= 0 and head.has("CZPARAMS"):
+            words = (head.string("CZPARAMS") or "").split()
+        elif spec.mspec > 0 and head.has(f"APVXC{spec.mspec}"):
+            words = (head.string(f"APVXC{spec.mspec}") or "").split()[5:]
+        if len(words) >= 8 and int(words[0]) > 0:
+            npts, zpad = int(words[1]), words[2] == "2"
+            filt = (int(words[3]), int(words[4]), int(words[5]), int(words[6]))
+            han = f32(float(words[7]))
+        minwav, maxwav = spec.sh.w0, spec.sh.w1
+        st, end = p.get("st_lambda"), p.get("end_lambda")
+        if st not in (None, 0.0) and st > minwav:
+            minwav = st
+        if end not in (None, 0.0) and end < maxwav:
+            maxwav = end
+        blank = SimpleNamespace(object="")        # tempname: gettemp never ran
+        result = XcResult(spec, npts=npts, han=float(han), tshift=float(p["tshift"]),
+                          span=(spec.sh.np1, spec.sh.np2), filter=filt, zpad=zpad,
+                          ncor=0, fracpeak=0.0)
+        for t in temps or [None]:
+            template = Template("", t.id if t else "", blank, shift=t.shift if t else 0.0,
+                                hcv=t.hcv if t else 0.0, filt=t.filt if t else 0)
+            tr = TempResult(template, czerr=t.czerr if t else 0.0,
+                            czr=t.czr if t else 0.0, zvel=t.zvel if t else 0.0,
+                            height=t.height if t else 0.0, vwidth=t.width if t else 0.0,
+                            wl1=minwav, wl2=maxwav, schop=t.schop if t else False,
+                            scont=False, conproc=0)
+            result.temps.append(tr)
+        result.best = max(best, 1)
+        top = result.temps[result.best - 1]
+        result.xcvel, result.xcerr, result.xcr = top.zvel, top.czerr, top.czr
+        return result
+
+    def qsave(self, path: str, mspec: int, r: XcResult, nmspec: int) -> None:
+        """qwhead after correlate=no with save_vel (which then only lets the file be
+        written): VELOCITY, Z, CZERR, VELQUAL and BCV (when absent), or APVELn, and
+        the QPLOT card, the one before kept as HISTORY."""
+        import os
+
+        from .emsao import _dcard, _f
+        from .rvsao import HeaderUpdate, history_card, logtime, string_card
+
+        if not Path(path).exists():
+            path += ".fits"
+        if not os.access(path, os.W_OK):
+            self.err += f"XCSAO: cannot write to {path}; not saving results\n"
+            return
+        q = {1: "?", 2: "?", 3: "X", 4: "Q"}.get(r.quality, "_")
+        head = HeaderUpdate(path)
+        try:
+            if mspec <= 0:
+                cards = [_dcard("VELOCITY", r.vel), _dcard("Z", r.vel / C0),
+                         _dcard("CZERR", r.err), string_card("VELQUAL", q)]
+                if head.h.get("BCV") is None:
+                    cards.append(_dcard("BCV", r.spectrum.hcv))
+            else:
+                cards = [string_card(f"APVEL{mspec}",
+                                     f"{_f(r.vel, 0, 3)} {_f(r.err, 0, 3)} {q} "
+                                     f"{_f(r.spectrum.hcv, 0, 3)}")]
+            for image in cards:
+                head.put(image)
+            stamp = f"rvsao.xcsao {VERSION} {logtime()} "
+            stamp += (f"Quality[{self.p['specnum']}] set" if mspec > 0 and nmspec == 1
+                      else f"VELOCITY = {_f(r.vel, 0, 2)} Q = {q}")
+            old = head.string("QPLOT")
+            if old:
+                head.put(history_card("HISTORY", old))
+            head.put(string_card("QPLOT", stamp))
+        finally:
+            head.close()
+        r.saved = path
+
+    def _choose_peak(self, xcor, xvel, tr: TempResult) -> int:
+        """xcorfit's plotspec of the filtered correlation, for its peak to be chosen
+        (p there): the point chosen, 0 for none."""
+        from .plotspec import Plotspec
+
+        label = {COR_PIX: "Shift in Pixels", COR_WAV: "Shift in Wavelength (Angstroms)"}\
+            .get(self.cor, "Shift in Velocity (km/sec)")
+        title = (f"Filtered cross-correlation: {self._specname} X "
+                 f"{tr.template.spec.object}")
+        ps = Plotspec(xcor, xvel, title, label, self.nsmooth, "rvsao.xcsao", self.p,
+                      self.read_key or (lambda: None), self.read_line or (lambda: None),
+                      self._say)
+        if self.show_plotspec is not None:
+            self.show_plotspec(ps)
+        else:
+            ps.run()
+        self.drawn.extend(ps.frames)
+        return ps.peak
+
     def xcorfit(self, spectrum, template, tr: TempResult, ncor: int, filt, dlogw: float,
                 tvel: float, contfit: bool, conproc: int, tcont: bool, han, pkfrac,
                 minvel, maxvel, schop, tchop) -> float:
@@ -1584,22 +1706,26 @@ class Xcsao:
         _rms1, _rms2, fnorm = rmsnorm(re1, im1, re2, im2)
         xcor = (xcor.astype(np.float64) * fnorm).astype(f32)
         fracpeak = abs(pkfrac)
+        # pltcor (xcplot's p): the correlation shown to choose its peak (z[1])
+        z = self._choose_peak(xcor, xvel, tr) if self.pltcor else 0
+        start = z if z > 0 else 0
         pkmode = int(self.p["pkmode"])
         if pkmode == 2:
             said = []
-            npfit, pc, pw, ph, pkindx = pkfitq(xind, xcor, xvel, fracpeak, 0, minvel, maxvel,
-                                               said)
+            npfit, pc, pw, ph, pkindx = pkfitq(xind, xcor, xvel, fracpeak, start, minvel,
+                                               maxvel, said)
             self.out += "".join(said)
         elif pkmode == 3:
             said: list[str] = []
-            npfit, pc, pw, ph, pkindx = pkfitc(xind, xcor, xvel, fracpeak, 0, minvel,
+            npfit, pc, pw, ph, pkindx = pkfitc(xind, xcor, xvel, fracpeak, start, minvel,
                                                maxvel, said)
             for line in said:
                 self.out += line
         else:
             # xcorfit: any other mode is 1, and is reported as 1
             self.p["pkmode"] = 1
-            npfit, pc, pw, ph, pkindx = pkfitp(xind, xcor, xvel, fracpeak, 0, minvel, maxvel)
+            npfit, pc, pw, ph, pkindx = pkfitp(xind, xcor, xvel, fracpeak, start, minvel,
+                                               maxvel)
         tcz = pc * delwav if linear else C0 * (10.0 ** (pc * dlogw) - 1.0)
         fourm(cre, cim, log2, 1)
         arms, srms = aspartf(cre, cim, lo, nrun, pc, tfilt)
@@ -1608,7 +1734,7 @@ class Xcsao:
         tr.arms, tr.srms, tr.npfit = arms, srms, npfit
         if arms > 0:
             tczr = ph / (2.0 * arms) if pw > 0 else 0.0
-            pheight, pwidth, _il, _ir, pkindx = pkwidth(xcor, xvel, 0.5, 0, minvel,
+            pheight, pwidth, _il, _ir, pkindx = pkwidth(xcor, xvel, 0.5, start, minvel,
                                                         maxvel)
             pwidth = abs(pwidth)
             epsilon = 3.0 * pwidth / 8.0 / (1.0 + tczr)

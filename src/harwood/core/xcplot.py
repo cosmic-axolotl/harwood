@@ -33,8 +33,10 @@ spectrum: its emission lines as emsao wrote them to the header (emrhead), the
 absorption lines, at the correlation's velocity (vel_plot); x there comes back to
 this graph, f correlates again, any other way out leaves the spectrum.
 
-Not ported yet: e (edit the spectrum: plotspec), p (choose the peak by hand), d
-(debug): harwood says so and stays on this graph.
+e shows the spectrum to edit by eye (core/plotspec.py) and correlates it again; p
+correlates again showing each template's correlation, whose peak the cursor
+chooses -- and keeps showing them, at every correlation after, as RVSAO does.
+d (debug) is not ported: harwood says so and stays on this graph.
 
 Translated from RVSAO, Copyright (c) 1991-2022 Smithsonian Astrophysical
 Observatory, whose notice is in LICENSES/RVSAO-COPYRIGHT.
@@ -248,7 +250,7 @@ def xciplot(xc, r, minwav: float, maxwav: float, order: list[int]) -> list[Text]
     head = spec.head
     out = [Text(0.01, 0.01, f"rvsao.xcsao 2.8.5 {logtime()}", 0.6, ndc=True)]
     best = r.temps[r.best - 1]
-    fracpeak = abs(float(xc.p["pkfrac"]))
+    fracpeak = r.fracpeak                   # the common pkfrac, as the fit left it
     if fracpeak < 1.0:
         text = f"{_f('%4.2f', fracpeak)}-ht. peak fit, {r.npmax} pts."
     else:
@@ -448,6 +450,7 @@ class Plot:
                       xcorplot(xc, r, self.it0, self.order, self.itemp),
                       xciplot(xc, r, self.strtwav, self.finwav, self.order))
         self.frames.append(frame)
+        xc.drawn.append(frame)
         return frame
 
     def start(self) -> bool:
@@ -455,6 +458,7 @@ class Plot:
         if bool(p.get("hardcopy", False)):
             self.hardcopies.append(self.draw())
             self.frames.pop()
+            self.xc.drawn.pop()
         if not bool(p.get("displot", True)):
             return False
         if self.mode > 1:
@@ -511,7 +515,7 @@ class Plot:
         else:
             plot.run()
         plot.finish()
-        self.frames.extend(plot.frames)
+        xc.drawn.extend(plot.frames)
         self.hardcopies.extend(plot.hardcopies)
         # what emplot changed in the commons xcsao writes from
         r.vel, r.err = result.combined, result.combined_err
@@ -640,6 +644,7 @@ class Plot:
             say(f"Making hard copy on {p.get('plotter', 'stdplot')}\n")
             self.hardcopies.append(self.draw())
             self.frames.pop()
+            xc.drawn.pop()
         elif key == "r":
             say("Replot XCSAO summary\n")
             self.draw()
@@ -654,10 +659,27 @@ class Plot:
                 return True
             say("Plotting correlation with summary\n")
             self.draw()
-        elif key in ("e", "p", "d"):
-            say({"e": "XCSAO: e (edit the spectrum) is not ported yet\n",
-                 "p": "XCSAO: p (choose the peak by hand) is not ported yet\n",
-                 "d": "XCSAO: d (debug) is not ported\n"}[key])
+        elif key == "e":
+            from .plotspec import Plotspec
+
+            say("edit spectrum\n")
+            ps = Plotspec(self.specwcs, self.wlspec, r.spectrum.object,
+                          xc.xlabel(r.spectrum), xc.nsmooth, "rvsao.xcsao", p,
+                          self.read_key, self.read_line, say)
+            if xc.show_plotspec is not None:
+                xc.show_plotspec(ps)
+            else:
+                ps.run()
+            xc.drawn.extend(ps.frames)
+            self.newfit = True
+            return True
+        elif key == "p":
+            say("select correlation peak(s)\n")
+            xc.pltcor = True
+            self.newfit = True
+            return True
+        elif key == "d":
+            say("XCSAO: d (debug) is not ported\n")
         else:
             return True
         return False
